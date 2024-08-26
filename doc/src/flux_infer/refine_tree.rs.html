@@ -853,6 +853,7 @@
 <a href="#853" id="853">853</a>
 <a href="#854" id="854">854</a>
 <a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -877,7 +878,7 @@
 
 <span class="kw">use crate</span>::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
-    infer::Tag,
+    infer::{Tag, TypeTrace},
 };
 
 <span class="doccomment">/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -1046,7 +1047,8 @@
 
 <span class="kw">enum </span>NodeKind {
     Root(List&lt;(ParamConst, Sort)&gt;),
-    Comment(String),
+    <span class="doccomment">/// Used for debugging. See [`TypeTrace`]
+    </span>Trace(TypeTrace),
     ForAll(Name, Sort),
     Assumption(Expr),
     Head(Expr, Tag),
@@ -1113,11 +1115,8 @@
     }
 
     <span class="attr">#[allow(dead_code)]
-    #[must_use]
-    #[allow(dead_code)]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_comment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, comment: <span class="kw">impl </span>ToString) -&gt; RefineCtxt {
-        <span class="kw">let </span>ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Comment(comment.to_string()));
-        RefineCtxt { tree: <span class="self">self</span>.tree, ptr }
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_trace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trace: TypeTrace) {
+        <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Trace(trace));
     }
 
     <span class="doccomment">/// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
@@ -1355,7 +1354,7 @@
                     })
                     .for_each(drop);
             }
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) =&gt; {
+            NodeKind::Trace(<span class="kw">_</span>) | NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) =&gt; {
                 <span class="self">self</span>.children
                     .extract_if(|child| <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -1379,13 +1378,16 @@
             NodeKind::Head(pred, <span class="kw">_</span>) =&gt; {
                 <span class="kw-2">*</span>pred = pred.replace_evars(sol);
             }
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) | NodeKind::True =&gt; {}
+            NodeKind::Trace(trace) =&gt; {
+                trace.replace_evars(sol);
+            }
+            NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) | NodeKind::True =&gt; {}
         }
     }
 
     <span class="kw">fn </span>to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt;&gt; {
         <span class="kw">let </span>cstr = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::ForAll(<span class="kw">_</span>, Sort::Loc) =&gt; {
+            NodeKind::Trace(<span class="kw">_</span>) | NodeKind::ForAll(<span class="kw">_</span>, Sort::Loc) =&gt; {
                 children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?
             </span>}
 
@@ -1571,8 +1573,8 @@
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>node = <span class="self">self</span>.borrow();
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
-                NodeKind::Comment(comment) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">"@ {}"</span>, ^comment)<span class="question-mark">?</span>;
+                NodeKind::Trace(trace) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">"@ {:?}"</span>, ^trace)<span class="question-mark">?</span>;
                     <span class="macro">w!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
                 }
                 NodeKind::Root(bindings) =&gt; {

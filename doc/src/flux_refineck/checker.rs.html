@@ -3331,8 +3331,8 @@
             .inputs(),
     )
     .map(|(actual, formal)| {
-        <span class="kw">if let </span>(<span class="macro">Ref!</span>(.., Mutability::Mut), <span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut)) =
-            (actual.kind(), formal.kind())
+        <span class="kw">if let </span><span class="macro">Ref!</span>(.., Mutability::Mut) = actual.kind()
+            &amp;&amp; <span class="kw">let </span><span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
             &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
         {
             rcx.unpacker().unpack_inside_mut_ref(<span class="bool-val">true</span>).unpack(actual)

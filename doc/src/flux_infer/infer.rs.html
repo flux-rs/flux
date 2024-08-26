@@ -730,7 +730,51 @@
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_middle::{
@@ -1115,6 +1159,46 @@
     }
 }
 
+<span class="doccomment">/// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
+/// to recover the derivation when relating types via subtyping. The code that attaches the trace is
+/// currently commented out because the output is too verbose.
+</span><span class="attr">#[allow(dead_code)]
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>TypeTrace {
+    Types(Ty, Ty),
+    BaseTys(BaseTy, BaseTy),
+}
+
+<span class="attr">#[allow(dead_code)]
+</span><span class="kw">impl </span>TypeTrace {
+    <span class="kw">fn </span>tys(a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Types(a.clone(), b.clone())
+    }
+
+    <span class="kw">fn </span>btys(a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::BaseTys(a.clone(), b.clone())
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarSol) {
+        <span class="kw">match </span><span class="self">self </span>{
+            TypeTrace::Types(a, b) =&gt; {
+                <span class="kw-2">*</span><span class="self">self </span>= TypeTrace::Types(a.replace_evars(evars), b.replace_evars(evars));
+            }
+            TypeTrace::BaseTys(a, b) =&gt; {
+                <span class="kw-2">*</span><span class="self">self </span>= TypeTrace::BaseTys(a.replace_evars(evars), b.replace_evars(evars));
+            }
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>TypeTrace {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            TypeTrace::Types(a, b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{a:?} - {b:?}"</span>),
+            TypeTrace::BaseTys(a, b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{a:?} - {b:?}"</span>),
+        }
+    }
+}
+
 <span class="doccomment">/// Context to relate two types `a` and `b` via subtyping
 </span><span class="kw">struct </span>Sub {
     reason: ConstrReason,
@@ -1131,37 +1215,39 @@
         Tag::new(<span class="self">self</span>.reason, <span class="self">self</span>.span)
     }
 
-    <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
+    <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
         <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
 
-        <span class="comment">// We *fully* unpack the lhs before continuing to be able to prove goals like this
+        <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
+
+        // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        </span><span class="kw">let </span>ty1 = infcx.unpack(ty1);
+        </span><span class="kw">let </span>a = infcx.unpack(a);
 
-        <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
+        <span class="kw">match </span>(a.kind(), b.kind()) {
             (TyKind::Exists(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"existentials should be removed by the unpack"</span>);
             }
             (TyKind::Constr(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"constraint types should removed by the unpack"</span>);
             }
-            (<span class="kw">_</span>, TyKind::Exists(ty2)) =&gt; {
+            (<span class="kw">_</span>, TyKind::Exists(ty_b)) =&gt; {
                 infcx.push_scope();
-                <span class="kw">let </span>ty2 =
-                    ty2.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty_b = ty_b
+                    .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>ty_b)<span class="question-mark">?</span>;
                 infcx.pop_scope_without_solving_evars();
                 <span class="prelude-val">Ok</span>(())
             }
-            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
-                <span class="self">self</span>.btys(infcx, bty1, bty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.idxs_eq(infcx, idx1, idx2);
+            (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) =&gt; {
+                <span class="self">self</span>.btys(infcx, bty_a, bty_b)<span class="question-mark">?</span>;
+                <span class="self">self</span>.idxs_eq(infcx, idx_a, idx_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(pk1, pk2);
-                <span class="macro">debug_assert_eq!</span>(path1, path2);
+            (TyKind::Ptr(pk_a, path_a), TyKind::Ptr(pk_b, path_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(pk_a, pk_b);
+                <span class="macro">debug_assert_eq!</span>(path_a, path_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) =&gt; {
@@ -1169,53 +1255,55 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (<span class="kw">_</span>, TyKind::Uninit) =&gt; <span class="prelude-val">Ok</span>(()),
-            (<span class="kw">_</span>, TyKind::Constr(p2, ty2)) =&gt; {
-                infcx.check_pred(p2, <span class="self">self</span>.tag());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            (<span class="kw">_</span>, TyKind::Constr(pred_b, ty_b)) =&gt; {
+                infcx.check_pred(pred_b, <span class="self">self</span>.tag());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, ty_b)
             }
-            (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(fields1.len(), fields2.len());
-                <span class="kw">for </span>(field1, field2) <span class="kw">in </span>iter::zip(fields1, fields2) {
-                    <span class="self">self</span>.tys(infcx, field1, field2)<span class="question-mark">?</span>;
+            (TyKind::Downcast(.., fields_a), TyKind::Downcast(.., fields_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(fields_a.len(), fields_b.len());
+                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(fields_a, fields_b) {
+                    <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            (<span class="kw">_</span>, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) =&gt; {
-                <span class="kw">if let </span>TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
-                    <span class="macro">debug_assert_eq!</span>(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
-                    iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
-                        .for_each(|(e1, e2)| infcx.unify_exprs(e1, e2));
+            (<span class="kw">_</span>, TyKind::Alias(rty::AliasKind::Opaque, alias_ty_b)) =&gt; {
+                <span class="kw">if let </span>TyKind::Alias(rty::AliasKind::Opaque, alias_ty_a) = a.kind() {
+                    <span class="macro">debug_assert_eq!</span>(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
                 }
 
-                <span class="self">self</span>.handle_opaque_type(infcx, <span class="kw-2">&amp;</span>ty1, alias_ty)
+                <span class="self">self</span>.handle_opaque_type(infcx, <span class="kw-2">&amp;</span>a, alias_ty_b)
             }
             (
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty2),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty_a),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty_b),
             ) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
+                <span class="macro">debug_assert_eq!</span>(alias_ty_a, alias_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{ty1:?}` - `{ty2:?}`"</span>)))<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{a:?}` - `{b:?}`"</span>)))<span class="question-mark">?</span>,
         }
     }
 
-    <span class="kw">fn </span>btys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, bty1: <span class="kw-2">&amp;</span>BaseTy, bty2: <span class="kw-2">&amp;</span>BaseTy) -&gt; InferResult {
-        <span class="kw">match </span>(bty1, bty2) {
-            (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(int_ty1, int_ty2);
+    <span class="kw">fn </span>btys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) -&gt; InferResult {
+        <span class="comment">// infcx.push_trace(TypeTrace::btys(a, b));
+
+        </span><span class="kw">match </span>(a, b) {
+            (BaseTy::Int(int_ty_a), BaseTy::Int(int_ty_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(int_ty_a, int_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(uint_ty1, uint_ty2);
+            (BaseTy::Uint(uint_ty_a), BaseTy::Uint(uint_ty_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(uint_ty_a, uint_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Adt(adt1, args1), BaseTy::Adt(adt2, args2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(adt1.did(), adt2.did());
-                <span class="macro">debug_assert_eq!</span>(args1.len(), args2.len());
-                <span class="kw">let </span>variances = infcx.genv.variances_of(adt1.did());
-                <span class="kw">for </span>(variance, ty1, ty2) <span class="kw">in </span><span class="macro">izip!</span>(variances, args1.iter(), args2.iter()) {
-                    <span class="self">self</span>.generic_args(infcx, <span class="kw-2">*</span>variance, ty1, ty2)<span class="question-mark">?</span>;
+            (BaseTy::Adt(adt_a, args_a), BaseTy::Adt(adt_b, args_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(adt_a.did(), adt_b.did());
+                <span class="macro">debug_assert_eq!</span>(args_a.len(), args_b.len());
+                <span class="kw">let </span>variances = infcx.genv.variances_of(adt_a.did());
+                <span class="kw">for </span>(variance, ty_a, ty_b) <span class="kw">in </span><span class="macro">izip!</span>(variances, args_a.iter(), args_b.iter()) {
+                    <span class="self">self</span>.generic_args(infcx, <span class="kw-2">*</span>variance, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
@@ -1224,45 +1312,45 @@
                 <span class="prelude-val">Ok</span>(())
             }
 
-            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) =&gt; <span class="self">self</span>.tys(infcx, ty1, ty2),
-            (BaseTy::Ref(<span class="kw">_</span>, ty1, Mutability::Mut), BaseTy::Ref(<span class="kw">_</span>, ty2, Mutability::Mut)) =&gt; {
-                <span class="self">self</span>.tys(infcx, ty1, ty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.tys(infcx, ty2, ty1)
+            (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) =&gt; <span class="self">self</span>.tys(infcx, ty_a, ty_b),
+            (BaseTy::Ref(<span class="kw">_</span>, ty_a, Mutability::Mut), BaseTy::Ref(<span class="kw">_</span>, ty_b, Mutability::Mut)) =&gt; {
+                <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
+                <span class="self">self</span>.tys(infcx, ty_b, ty_a)
             }
-            (BaseTy::Ref(<span class="kw">_</span>, ty1, Mutability::Not), BaseTy::Ref(<span class="kw">_</span>, ty2, Mutability::Not)) =&gt; {
-                <span class="self">self</span>.tys(infcx, ty1, ty2)
+            (BaseTy::Ref(<span class="kw">_</span>, ty_a, Mutability::Not), BaseTy::Ref(<span class="kw">_</span>, ty_b, Mutability::Not)) =&gt; {
+                <span class="self">self</span>.tys(infcx, ty_a, ty_b)
             }
-            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(tys1.len(), tys2.len());
-                <span class="kw">for </span>(ty1, ty2) <span class="kw">in </span>iter::zip(tys1, tys2) {
-                    <span class="self">self</span>.tys(infcx, ty1, ty2)<span class="question-mark">?</span>;
+            (BaseTy::Tuple(tys_a), BaseTy::Tuple(tys_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(tys_a.len(), tys_b.len());
+                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
+                    <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(len1, len2);
-                <span class="self">self</span>.tys(infcx, ty1, ty2)
+            (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(len_a, len_b);
+                <span class="self">self</span>.tys(infcx, ty_a, ty_b)
             }
-            (BaseTy::Param(param1), BaseTy::Param(param2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(param1, param2);
+            (BaseTy::Param(param_a), BaseTy::Param(param_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(param_a, param_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>), BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
-            (BaseTy::Dynamic(preds1, <span class="kw">_</span>), BaseTy::Dynamic(preds2, <span class="kw">_</span>)) =&gt; {
-                <span class="macro">assert_eq!</span>(preds1, preds2);
+            (BaseTy::Dynamic(preds_a, <span class="kw">_</span>), BaseTy::Dynamic(preds_b, <span class="kw">_</span>)) =&gt; {
+                <span class="macro">assert_eq!</span>(preds_a, preds_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) <span class="kw">if </span>did1 == did2 =&gt; {
-                <span class="macro">debug_assert_eq!</span>(tys1.len(), tys2.len());
-                <span class="kw">for </span>(ty1, ty2) <span class="kw">in </span>iter::zip(tys1, tys2) {
-                    <span class="self">self</span>.tys(infcx, ty1, ty2)<span class="question-mark">?</span>;
+            (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) <span class="kw">if </span>did1 == did2 =&gt; {
+                <span class="macro">debug_assert_eq!</span>(tys_a.len(), tys_b.len());
+                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
+                    <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible base types: `{bty1:?}` - `{bty2:?}`"</span>)))<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible base types: `{a:?}` - `{b:?}`"</span>)))<span class="question-mark">?</span>,
         }
     }
 

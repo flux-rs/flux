@@ -6,7 +6,7 @@ introduce new “scopes” that limit the hoisting. For instance, we are not all
 hoist an existential type out of a generic argument, for example, in <code>Vec&lt;∃v. i32[v]&gt;</code> the
 existential inside the <code>Vec</code> cannot be hoisted out. However, the type inside the generic argument
 can be canonizalized locally inside the scope of the generic argument. Shallow canonicalization
-stops when finding type constructors. In contrast, deep canonicalization also canonizalizes inside
+stops when finding type constructors. In contrast, deep canonicalization also canonicalizes inside
 type constructors.</p>
 <p>Note that existentials inside some type constructors like shared references, tuples or boxes can
 be hoisted soundly, e.g., <code>(∃a. i32[a], ∃b. i32[b])</code> is equivalent to <code>∃a,b. (i32[a], i32[b])</code>
