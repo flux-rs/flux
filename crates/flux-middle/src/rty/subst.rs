@@ -97,24 +97,7 @@ impl RegionSubst {
                 debug_assert_eq!(preds_a.len(), preds_b.len());
                 self.infer_from_region(*re_a, *re_b);
                 for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
-                    match (pred_a.as_ref().skip_binder(), pred_b.as_ref().skip_binder()) {
-                        (
-                            ExistentialPredicate::Trait(trait_ref_a),
-                            ty::ExistentialPredicate::Trait(trait_ref_b),
-                        ) => {
-                            debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
-                            self.infer_from_generic_args(&trait_ref_a.args, &trait_ref_b.args);
-                        }
-                        (
-                            ExistentialPredicate::Projection(proj_a),
-                            ty::ExistentialPredicate::Projection(proj_b),
-                        ) => {
-                            debug_assert_eq!(proj_a.def_id, proj_b.def_id);
-                            self.infer_from_generic_args(&proj_a.args, &proj_b.args);
-                            self.infer_from_ty(&proj_a.term, &proj_b.term);
-                        }
-                        _ => {}
-                    }
+                    self.infer_from_existential_pred(pred_a, pred_b);
                 }
             }
             (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
@@ -122,6 +105,32 @@ impl RegionSubst {
                 for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
                     self.infer_from_ty(ty_a, ty_b);
                 }
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_existential_pred(
+        &mut self,
+        a: &PolyExistentialPredicate,
+        b: &rustc::ty::PolyExistentialPredicate,
+    ) {
+        use rustc::ty;
+        match (a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
+            (
+                ExistentialPredicate::Trait(trait_ref_a),
+                ty::ExistentialPredicate::Trait(trait_ref_b),
+            ) => {
+                debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
+                self.infer_from_generic_args(&trait_ref_a.args, &trait_ref_b.args);
+            }
+            (
+                ExistentialPredicate::Projection(proj_a),
+                ty::ExistentialPredicate::Projection(proj_b),
+            ) => {
+                debug_assert_eq!(proj_a.def_id, proj_b.def_id);
+                self.infer_from_generic_args(&proj_a.args, &proj_b.args);
+                self.infer_from_ty(&proj_a.term, &proj_b.term);
             }
             _ => {}
         }

@@ -193,6 +193,8 @@ pub enum ExistentialPredicate {
     AutoTrait(DefId),
 }
 
+pub type PolyExistentialPredicate = Binder<ExistentialPredicate>;
+
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExistentialTraitRef {
     pub def_id: DefId,

@@ -266,6 +266,8 @@ pub enum ExistentialPredicate {
     AutoTrait(DefId),
 }
 
+pub type PolyExistentialPredicate = Binder<ExistentialPredicate>;
+
 impl ExistentialPredicate {
     /// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
     pub fn stable_cmp(&self, tcx: TyCtxt, other: &Self) -> Ordering {
@@ -288,7 +290,7 @@ impl ExistentialPredicate {
     }
 }
 
-impl Binder<ExistentialPredicate> {
+impl PolyExistentialPredicate {
     fn to_rustc<'tcx>(
         &self,
         tcx: TyCtxt<'tcx>,
