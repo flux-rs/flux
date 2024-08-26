@@ -2464,8 +2464,8 @@
                     args.try_fold_with(folder)<span class="question-mark">?</span>,
                 )
             }
-            BaseTy::Dynamic(exi_preds, region) =&gt; {
-                BaseTy::Dynamic(exi_preds.try_fold_with(folder)<span class="question-mark">?</span>, region.try_fold_with(folder)<span class="question-mark">?</span>)
+            BaseTy::Dynamic(preds, region) =&gt; {
+                BaseTy::Dynamic(preds.try_fold_with(folder)<span class="question-mark">?</span>, region.try_fold_with(folder)<span class="question-mark">?</span>)
             }
         };
         <span class="prelude-val">Ok</span>(bty)

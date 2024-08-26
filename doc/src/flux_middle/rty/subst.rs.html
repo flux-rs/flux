@@ -580,6 +580,43 @@
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -668,23 +705,60 @@
     <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
         <span class="kw">use </span>rustc::ty;
         <span class="kw">match </span>(a, ty.kind()) {
-            (BaseTy::Ref(r1, ty1, <span class="kw">_</span>), ty::TyKind::Ref(r2, ty2, <span class="kw">_</span>)) =&gt; {
-                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
-                <span class="self">self</span>.infer_from_ty(ty1, ty2);
+            (BaseTy::Ref(re_a, ty_a, <span class="kw">_</span>), ty::TyKind::Ref(re_b, ty_b, <span class="kw">_</span>)) =&gt; {
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
+                <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
             }
             (BaseTy::Adt(<span class="kw">_</span>, args_a), ty::TyKind::Adt(<span class="kw">_</span>, args_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(args_a.len(), args_b.len());
-                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(args_a, args_b) {
-                    <span class="self">self</span>.infer_from_generic_arg(arg_a, arg_b);
+                <span class="self">self</span>.infer_from_generic_args(args_a, args_b);
+            }
+            (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(preds_a.len(), preds_b.len());
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
+                <span class="kw">for </span>(pred_a, pred_b) <span class="kw">in </span>iter::zip(preds_a, preds_b) {
+                    <span class="self">self</span>.infer_from_existential_pred(pred_a, pred_b);
                 }
             }
-            (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(fields1.len(), fields2.len());
-                <span class="kw">for </span>(ty1, ty2) <span class="kw">in </span>iter::zip(fields1, fields2) {
-                    <span class="self">self</span>.infer_from_ty(ty1, ty2);
+            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(fields_a.len(), fields_b.len());
+                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(fields_a, fields_b) {
+                    <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
                 }
             }
             <span class="kw">_ </span>=&gt; {}
+        }
+    }
+
+    <span class="kw">fn </span>infer_from_existential_pred(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        a: <span class="kw-2">&amp;</span>PolyExistentialPredicate,
+        b: <span class="kw-2">&amp;</span>rustc::ty::PolyExistentialPredicate,
+    ) {
+        <span class="kw">use </span>rustc::ty;
+        <span class="kw">match </span>(a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
+            (
+                ExistentialPredicate::Trait(trait_ref_a),
+                ty::ExistentialPredicate::Trait(trait_ref_b),
+            ) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(trait_ref_a.def_id, trait_ref_b.def_id);
+                <span class="self">self</span>.infer_from_generic_args(<span class="kw-2">&amp;</span>trait_ref_a.args, <span class="kw-2">&amp;</span>trait_ref_b.args);
+            }
+            (
+                ExistentialPredicate::Projection(proj_a),
+                ty::ExistentialPredicate::Projection(proj_b),
+            ) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(proj_a.def_id, proj_b.def_id);
+                <span class="self">self</span>.infer_from_generic_args(<span class="kw-2">&amp;</span>proj_a.args, <span class="kw-2">&amp;</span>proj_b.args);
+                <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>proj_a.term, <span class="kw-2">&amp;</span>proj_b.term);
+            }
+            <span class="kw">_ </span>=&gt; {}
+        }
+    }
+
+    <span class="kw">fn </span>infer_from_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArgs, b: <span class="kw-2">&amp;</span>rustc::ty::GenericArgs) {
+        <span class="macro">debug_assert_eq!</span>(a.len(), b.len());
+        <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(a, b) {
+            <span class="self">self</span>.infer_from_generic_arg(arg_a, arg_b);
         }
     }
 

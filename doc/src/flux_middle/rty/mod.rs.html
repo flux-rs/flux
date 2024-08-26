@@ -2393,6 +2393,16 @@
 <a href="#2393" id="2393">2393</a>
 <a href="#2394" id="2394">2394</a>
 <a href="#2395" id="2395">2395</a>
+<a href="#2396" id="2396">2396</a>
+<a href="#2397" id="2397">2397</a>
+<a href="#2398" id="2398">2398</a>
+<a href="#2399" id="2399">2399</a>
+<a href="#2400" id="2400">2400</a>
+<a href="#2401" id="2401">2401</a>
+<a href="#2402" id="2402">2402</a>
+<a href="#2403" id="2403">2403</a>
+<a href="#2404" id="2404">2404</a>
+<a href="#2405" id="2405">2405</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2654,12 +2664,14 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
     AutoTrait(DefId),
 }
+
+<span class="kw">pub type </span>PolyExistentialPredicate = Binder&lt;ExistentialPredicate&gt;;
 
 <span class="kw">impl </span>ExistentialPredicate {
     <span class="doccomment">/// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
@@ -2683,7 +2695,7 @@
     }
 }
 
-<span class="kw">impl </span>Binder&lt;ExistentialPredicate&gt; {
+<span class="kw">impl </span>PolyExistentialPredicate {
     <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
@@ -2718,6 +2730,14 @@
 </span><span class="kw">pub struct </span>ExistentialTraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
+}
+
+<span class="kw">pub type </span>PolyExistentialTraitRef = Binder&lt;ExistentialTraitRef&gt;;
+
+<span class="kw">impl </span>PolyExistentialTraitRef {
+    <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+        <span class="self">self</span>.as_ref().skip_binder().def_id
+    }
 }
 
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
