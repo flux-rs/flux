@@ -22,7 +22,7 @@ use rustc_middle::ty::ParamConst;
 
 use crate::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
-    infer::Tag,
+    infer::{Tag, TypeTrace},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -191,7 +191,8 @@ impl WeakNodePtr {
 
 enum NodeKind {
     Root(List<(ParamConst, Sort)>),
-    Comment(String),
+    /// Used for debugging. See [`TypeTrace`]
+    Trace(TypeTrace),
     ForAll(Name, Sort),
     Assumption(Expr),
     Head(Expr, Tag),
@@ -258,11 +259,8 @@ impl<'rcx> RefineCtxt<'rcx> {
     }
 
     #[allow(dead_code)]
-    #[must_use]
-    #[allow(dead_code)]
-    pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
-        let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));
-        RefineCtxt { tree: self.tree, ptr }
+    pub(crate) fn push_trace(&mut self, trace: TypeTrace) {
+        self.ptr = self.ptr.push_node(NodeKind::Trace(trace));
     }
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
@@ -500,7 +498,7 @@ impl Node {
                     })
                     .for_each(drop);
             }
-            NodeKind::Comment(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
+            NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -524,13 +522,16 @@ impl Node {
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
-            NodeKind::Comment(_) | NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Trace(trace) => {
+                trace.replace_evars(sol);
+            }
+            NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Comment(_) | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)?
             }
 
@@ -716,8 +717,8 @@ mod pretty {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
-                NodeKind::Comment(comment) => {
-                    w!("@ {}", ^comment)?;
+                NodeKind::Trace(trace) => {
+                    w!("@ {:?}", ^trace)?;
                     w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {

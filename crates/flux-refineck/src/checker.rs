@@ -1528,8 +1528,8 @@ fn infer_under_mut_ref_hack(
             .inputs(),
     )
     .map(|(actual, formal)| {
-        if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
-            (actual.kind(), formal.kind())
+        if let Ref!(.., Mutability::Mut) = actual.kind()
+            && let Ref!(_, ty, Mutability::Mut) = formal.kind()
             && let TyKind::Indexed(..) = ty.kind()
         {
             rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)

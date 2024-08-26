@@ -7,7 +7,7 @@
 //! hoist an existential type out of a generic argument, for example, in `Vec<∃v. i32[v]>` the
 //! existential inside the `Vec` cannot be hoisted out. However, the type inside the generic argument
 //! can be canonizalized locally inside the scope of the generic argument. Shallow canonicalization
-//! stops when finding type constructors. In contrast, deep canonicalization also canonizalizes inside
+//! stops when finding type constructors. In contrast, deep canonicalization also canonicalizes inside
 //! type constructors.
 //!
 //! Note that existentials inside some type constructors like shared references, tuples or boxes can

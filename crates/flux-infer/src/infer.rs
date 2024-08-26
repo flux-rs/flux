@@ -1,4 +1,4 @@
-use std::{cell::RefCell, iter};
+use std::{cell::RefCell, fmt, iter};
 
 use flux_common::bug;
 use flux_middle::{
@@ -383,6 +383,46 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
     }
 }
 
+/// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
+/// to recover the derivation when relating types via subtyping. The code that attaches the trace is
+/// currently commented out because the output is too verbose.
+#[allow(dead_code)]
+pub(crate) enum TypeTrace {
+    Types(Ty, Ty),
+    BaseTys(BaseTy, BaseTy),
+}
+
+#[allow(dead_code)]
+impl TypeTrace {
+    fn tys(a: &Ty, b: &Ty) -> Self {
+        Self::Types(a.clone(), b.clone())
+    }
+
+    fn btys(a: &BaseTy, b: &BaseTy) -> Self {
+        Self::BaseTys(a.clone(), b.clone())
+    }
+
+    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
+        match self {
+            TypeTrace::Types(a, b) => {
+                *self = TypeTrace::Types(a.replace_evars(evars), b.replace_evars(evars));
+            }
+            TypeTrace::BaseTys(a, b) => {
+                *self = TypeTrace::BaseTys(a.replace_evars(evars), b.replace_evars(evars));
+            }
+        }
+    }
+}
+
+impl fmt::Debug for TypeTrace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TypeTrace::Types(a, b) => write!(f, "{a:?} - {b:?}"),
+            TypeTrace::BaseTys(a, b) => write!(f, "{a:?} - {b:?}"),
+        }
+    }
+}
+
 /// Context to relate two types `a` and `b` via subtyping
 struct Sub {
     reason: ConstrReason,
@@ -399,37 +439,39 @@ impl Sub {
         Tag::new(self.reason, self.span)
     }
 
-    fn tys(&mut self, infcx: &mut InferCtxt, ty1: &Ty, ty2: &Ty) -> InferResult {
+    fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
         let infcx = &mut infcx.branch();
+
+        // infcx.push_trace(TypeTrace::tys(a, b));
 
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        let ty1 = infcx.unpack(ty1);
+        let a = infcx.unpack(a);
 
-        match (ty1.kind(), ty2.kind()) {
+        match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
                 bug!("existentials should be removed by the unpack");
             }
             (TyKind::Constr(..), _) => {
                 bug!("constraint types should removed by the unpack");
             }
-            (_, TyKind::Exists(ty2)) => {
+            (_, TyKind::Exists(ty_b)) => {
                 infcx.push_scope();
-                let ty2 =
-                    ty2.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                self.tys(infcx, &ty1, &ty2)?;
+                let ty_b = ty_b
+                    .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+                self.tys(infcx, &a, &ty_b)?;
                 infcx.pop_scope_without_solving_evars();
                 Ok(())
             }
-            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                self.btys(infcx, bty1, bty2)?;
-                self.idxs_eq(infcx, idx1, idx2);
+            (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
+                self.btys(infcx, bty_a, bty_b)?;
+                self.idxs_eq(infcx, idx_a, idx_b);
                 Ok(())
             }
-            (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
-                debug_assert_eq!(pk1, pk2);
-                debug_assert_eq!(path1, path2);
+            (TyKind::Ptr(pk_a, path_a), TyKind::Ptr(pk_b, path_b)) => {
+                debug_assert_eq!(pk_a, pk_b);
+                debug_assert_eq!(path_a, path_b);
                 Ok(())
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
@@ -437,53 +479,55 @@ impl Sub {
                 Ok(())
             }
             (_, TyKind::Uninit) => Ok(()),
-            (_, TyKind::Constr(p2, ty2)) => {
-                infcx.check_pred(p2, self.tag());
-                self.tys(infcx, &ty1, ty2)
+            (_, TyKind::Constr(pred_b, ty_b)) => {
+                infcx.check_pred(pred_b, self.tag());
+                self.tys(infcx, &a, ty_b)
             }
-            (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) => {
-                debug_assert_eq!(fields1.len(), fields2.len());
-                for (field1, field2) in iter::zip(fields1, fields2) {
-                    self.tys(infcx, field1, field2)?;
+            (TyKind::Downcast(.., fields_a), TyKind::Downcast(.., fields_b)) => {
+                debug_assert_eq!(fields_a.len(), fields_b.len());
+                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
+                    self.tys(infcx, ty_a, ty_b)?;
                 }
                 Ok(())
             }
-            (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) => {
-                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
-                    debug_assert_eq!(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
-                    iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
-                        .for_each(|(e1, e2)| infcx.unify_exprs(e1, e2));
+            (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty_b)) => {
+                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty_a) = a.kind() {
+                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
                 }
 
-                self.handle_opaque_type(infcx, &ty1, alias_ty)
+                self.handle_opaque_type(infcx, &a, alias_ty_b)
             }
             (
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty2),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty_a),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty_b),
             ) => {
-                debug_assert_eq!(alias_ty1, alias_ty2);
+                debug_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
-            _ => Err(QueryErr::bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`")))?,
+            _ => Err(QueryErr::bug(format!("incompatible types: `{a:?}` - `{b:?}`")))?,
         }
     }
 
-    fn btys(&mut self, infcx: &mut InferCtxt, bty1: &BaseTy, bty2: &BaseTy) -> InferResult {
-        match (bty1, bty2) {
-            (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
-                debug_assert_eq!(int_ty1, int_ty2);
+    fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {
+        // infcx.push_trace(TypeTrace::btys(a, b));
+
+        match (a, b) {
+            (BaseTy::Int(int_ty_a), BaseTy::Int(int_ty_b)) => {
+                debug_assert_eq!(int_ty_a, int_ty_b);
                 Ok(())
             }
-            (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
+            (BaseTy::Uint(uint_ty_a), BaseTy::Uint(uint_ty_b)) => {
+                debug_assert_eq!(uint_ty_a, uint_ty_b);
                 Ok(())
             }
-            (BaseTy::Adt(adt1, args1), BaseTy::Adt(adt2, args2)) => {
-                debug_assert_eq!(adt1.did(), adt2.did());
-                debug_assert_eq!(args1.len(), args2.len());
-                let variances = infcx.genv.variances_of(adt1.did());
-                for (variance, ty1, ty2) in izip!(variances, args1.iter(), args2.iter()) {
-                    self.generic_args(infcx, *variance, ty1, ty2)?;
+            (BaseTy::Adt(adt_a, args_a), BaseTy::Adt(adt_b, args_b)) => {
+                debug_assert_eq!(adt_a.did(), adt_b.did());
+                debug_assert_eq!(args_a.len(), args_b.len());
+                let variances = infcx.genv.variances_of(adt_a.did());
+                for (variance, ty_a, ty_b) in izip!(variances, args_a.iter(), args_b.iter()) {
+                    self.generic_args(infcx, *variance, ty_a, ty_b)?;
                 }
                 Ok(())
             }
@@ -492,45 +536,45 @@ impl Sub {
                 Ok(())
             }
 
-            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => self.tys(infcx, ty1, ty2),
-            (BaseTy::Ref(_, ty1, Mutability::Mut), BaseTy::Ref(_, ty2, Mutability::Mut)) => {
-                self.tys(infcx, ty1, ty2)?;
-                self.tys(infcx, ty2, ty1)
+            (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
+            (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
+                self.tys(infcx, ty_a, ty_b)?;
+                self.tys(infcx, ty_b, ty_a)
             }
-            (BaseTy::Ref(_, ty1, Mutability::Not), BaseTy::Ref(_, ty2, Mutability::Not)) => {
-                self.tys(infcx, ty1, ty2)
+            (BaseTy::Ref(_, ty_a, Mutability::Not), BaseTy::Ref(_, ty_b, Mutability::Not)) => {
+                self.tys(infcx, ty_a, ty_b)
             }
-            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
-                debug_assert_eq!(tys1.len(), tys2.len());
-                for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.tys(infcx, ty1, ty2)?;
+            (BaseTy::Tuple(tys_a), BaseTy::Tuple(tys_b)) => {
+                debug_assert_eq!(tys_a.len(), tys_b.len());
+                for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
+                    self.tys(infcx, ty_a, ty_b)?;
                 }
                 Ok(())
             }
-            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
-                self.tys(infcx, ty1, ty2)
+            (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
+                debug_assert_eq!(len_a, len_b);
+                self.tys(infcx, ty_a, ty_b)
             }
-            (BaseTy::Param(param1), BaseTy::Param(param2)) => {
-                debug_assert_eq!(param1, param2);
+            (BaseTy::Param(param_a), BaseTy::Param(param_b)) => {
+                debug_assert_eq!(param_a, param_b);
                 Ok(())
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
-            (BaseTy::Dynamic(preds1, _), BaseTy::Dynamic(preds2, _)) => {
-                assert_eq!(preds1, preds2);
+            (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
+                assert_eq!(preds_a, preds_b);
                 Ok(())
             }
-            (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) if did1 == did2 => {
-                debug_assert_eq!(tys1.len(), tys2.len());
-                for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.tys(infcx, ty1, ty2)?;
+            (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) if did1 == did2 => {
+                debug_assert_eq!(tys_a.len(), tys_b.len());
+                for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
+                    self.tys(infcx, ty_a, ty_b)?;
                 }
                 Ok(())
             }
-            _ => Err(QueryErr::bug(format!("incompatible base types: `{bty1:?}` - `{bty2:?}`")))?,
+            _ => Err(QueryErr::bug(format!("incompatible base types: `{a:?}` - `{b:?}`")))?,
         }
     }
 
