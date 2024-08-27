@@ -535,7 +535,7 @@ impl Node {
                     return Ok(None);
                 };
                 let mut constr = children;
-                for (var, sort) in params {
+                for (var, sort) in params.iter().rev() {
                     if sort.is_loc() {
                         continue;
                     }
