@@ -35,6 +35,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
+    use flux_middle::rty::EarlyReftParam;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -57,7 +58,7 @@ pub mod fixpoint {
         pub struct GlobalVar {}
     }
 
-    #[derive(Hash, Debug, Copy, Clone)]
+    #[derive(Hash, Copy, Clone)]
     pub enum Var {
         Underscore,
         Global(GlobalVar),
@@ -73,6 +74,7 @@ pub mod fixpoint {
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         Itf(Symbol),
+        Param(EarlyReftParam),
         ConstGeneric(ParamConst),
     }
 
@@ -104,8 +106,11 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
-                Var::ConstGeneric(param_const) => {
-                    write!(f, "constgen{}{}", param_const.name, param_const.index)
+                Var::ConstGeneric(param) => {
+                    write!(f, "constgen{}#{}", param.name, param.index)
+                }
+                Var::Param(param) => {
+                    write!(f, "reftgen{}#{}", param.name, param.index)
                 }
             }
         }
@@ -431,6 +436,10 @@ where
         self.scx.sort_to_fixpoint(sort)
     }
 
+    pub(crate) fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
+        self.ecx.var_to_fixpoint(var)
+    }
+
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
     ///
@@ -677,27 +686,6 @@ impl LocalVarEnv {
         self.layers.pop().unwrap()
     }
 
-    fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::Var {
-        match var {
-            rty::Var::Free(name) => {
-                self.get_fvar(*name)
-                    .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
-                    .into()
-            }
-            rty::Var::Bound(debruijn, breft) => {
-                self.get_late_bvar(*debruijn, breft.var)
-                    .unwrap_or_else(|| {
-                        span_bug!(dbg_span, "no entry found for late bound var: `{breft:?}`")
-                    })
-                    .into()
-            }
-            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
-                span_bug!(dbg_span, "unexpected var: `{var:?}`")
-            }
-            rty::Var::ConstGeneric(param_const) => fixpoint::Var::ConstGeneric(*param_const),
-        }
-    }
-
     fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::LocalVar> {
         self.fvars.get(&name).copied()
     }
@@ -856,14 +844,40 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
             global_var_gen: IndexGen::new(),
             const_map: Default::default(),
             errors: Errors::new(genv.sess()),
-            def_span: dbg_span,
+            def_span,
+        }
+    }
+
+    fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
+        match var {
+            rty::Var::Free(name) => {
+                self.local_var_env
+                    .get_fvar(*name)
+                    .unwrap_or_else(|| {
+                        span_bug!(self.def_span, "no entry found for name: `{name:?}`")
+                    })
+                    .into()
+            }
+            rty::Var::Bound(debruijn, breft) => {
+                self.local_var_env
+                    .get_late_bvar(*debruijn, breft.var)
+                    .unwrap_or_else(|| {
+                        span_bug!(self.def_span, "no entry found for late bound var: `{breft:?}`")
+                    })
+                    .into()
+            }
+            rty::Var::ConstGeneric(param) => fixpoint::Var::ConstGeneric(*param),
+            rty::Var::EarlyParam(param) => fixpoint::Var::Param(*param),
+            rty::Var::EVar(_) => {
+                span_bug!(self.def_span, "unexpected evar: `{var:?}`")
+            }
         }
     }
 
@@ -873,9 +887,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => {
-                fixpoint::Expr::Var(self.local_var_env.get_var(var, self.def_span))
-            }
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
@@ -1117,7 +1129,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, scx: &mut SortEncodingCtxt) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => self.local_var_env.get_var(var, self.def_span),
+            rty::ExprKind::Var(var) => self.var_to_fixpoint(var),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 self.register_uif(*sym, scx).into()
@@ -1139,7 +1151,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
-            rty::ExprKind::Var(var) => Ok(self.local_var_env.get_var(var, self.def_span)),
+            rty::ExprKind::Var(var) => Ok(self.var_to_fixpoint(var)),
             _ => {
                 let fresh = self.local_var_env.fresh_name();
                 let pred = fixpoint::Expr::eq(

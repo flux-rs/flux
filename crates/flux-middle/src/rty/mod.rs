@@ -17,8 +17,8 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
-    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -163,7 +163,7 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
         // FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         let mut res = vec![];
         for i in 0..self.count() {
@@ -176,7 +176,7 @@ impl Generics {
                 res.push((param_const, sort));
             }
         }
-        Ok(List::from_vec(res))
+        Ok(res)
     }
 }
 
@@ -2284,7 +2284,7 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (ParamConst, Sort)
+    (Var, Sort)
 );
 
 #[macro_export]

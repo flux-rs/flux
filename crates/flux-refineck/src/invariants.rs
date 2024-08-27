@@ -39,9 +39,7 @@ fn check_invariant(
     invariant: &rty::Invariant,
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
-    let generics = genv.generics_of(def_id).emit(&genv)?;
-    let const_params = generics.const_params(genv).emit(&genv)?;
-    let mut refine_tree = RefineTree::new(const_params);
+    let mut refine_tree = RefineTree::new(genv, def_id).emit(&genv)?;
 
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = refine_tree.refine_ctxt_at_root();

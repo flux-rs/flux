@@ -62,7 +62,6 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
-    root: Snapshot,
     refine_params: List<Expr>,
 }
 
@@ -72,22 +71,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         root_id: LocalDefId,
         kvar_gen: KVarGen,
     ) -> QueryResult<Self> {
-        let generics = genv.generics_of(root_id)?;
-        let const_params = generics.const_params(genv)?;
-        let mut refine_tree = RefineTree::new(const_params);
-
-        let mut rcx = refine_tree.refine_ctxt_at_root();
-        let refine_params = genv
-            .refinement_generics_of(root_id)?
-            .collect_all_params(genv, |param| rcx.define_vars(&param.sort))?;
-        let root = rcx.snapshot();
-
         Ok(Self {
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree,
-            root,
-            refine_params,
+            refine_tree: RefineTree::new(genv, root_id)?,
+            refine_params: List::empty(),
         })
     }
 
@@ -101,7 +89,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             region_infcx,
             def_id.to_def_id(),
             &self.refine_params,
-            self.refine_tree.refine_ctxt_at(&self.root).unwrap(),
+            self.refine_tree.refine_ctxt_at_root(),
             &self.inner,
         )
     }

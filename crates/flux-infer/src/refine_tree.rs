@@ -6,6 +6,7 @@ use std::{
 
 use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
+    global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
     rty::{
@@ -14,11 +15,12 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EarlyReftParam, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::Itertools;
-use rustc_middle::ty::ParamConst;
+use rustc_hir::def_id::LocalDefId;
+use rustc_span::Symbol;
 
 use crate::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
@@ -84,30 +86,25 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
+        let mut params = None;
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
                 let node = node.borrow();
-                if let NodeKind::ForAll(_, sort) = &node.kind {
-                    Some(sort.clone())
-                } else {
-                    None
+                match &node.kind {
+                    NodeKind::Root(p) => {
+                        params = Some(p.clone());
+                        None
+                    }
+                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    _ => None,
                 }
             })
             .collect_vec()
             .into_iter()
             .rev()
             .collect();
-        let mut reftgenerics = vec![];
-        let parents = ParentsIter::new(self.ptr.upgrade()?);
-        for node in parents {
-            if let NodeKind::Root(consts) = &node.borrow().kind {
-                for (param_const, sort) in consts {
-                    reftgenerics.push((*param_const, sort.clone()));
-                }
-            }
-        }
-        Some(Scope { bindings, reftgenerics: List::from_vec(reftgenerics) })
+        Some(Scope { bindings, params: params.unwrap_or_default() })
     }
 }
 
@@ -115,20 +112,17 @@ impl Snapshot {
 #[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
-    reftgenerics: List<(ParamConst, Sort)>,
+    params: List<(Var, Sort)>,
 }
 
 impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
-        let iter_param_consts = self
-            .reftgenerics
-            .iter()
-            .map(|(param_const, sort)| (Var::ConstGeneric(*param_const), sort.clone()));
-        let iter_bindings = self
-            .bindings
-            .iter_enumerated()
-            .map(|(name, sort)| (Var::Free(name), sort.clone()));
-        iter_param_consts.chain(iter_bindings)
+        itertools::chain(
+            self.params.iter().cloned(),
+            self.bindings
+                .iter_enumerated()
+                .map(|(name, sort)| (Var::Free(name), sort.clone())),
+        )
     }
 
     /// Whether `t` has any free variables not in this scope
@@ -190,7 +184,7 @@ impl WeakNodePtr {
 }
 
 enum NodeKind {
-    Root(List<(ParamConst, Sort)>),
+    Root(List<(Var, Sort)>),
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
     ForAll(Name, Sort),
@@ -200,15 +194,30 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(const_params: List<(ParamConst, Sort)>) -> RefineTree {
-        let root = Node {
-            kind: NodeKind::Root(const_params),
-            nbindings: 0,
-            parent: None,
-            children: vec![],
-        };
+    pub fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<RefineTree> {
+        let generics = genv.generics_of(def_id)?;
+        let reft_generics = genv.refinement_generics_of(def_id)?;
+
+        let params = itertools::chain(
+            generics
+                .const_params(genv)?
+                .into_iter()
+                .map(|(pcst, sort)| Ok((Var::ConstGeneric(pcst), sort))),
+            (0..reft_generics.count()).map(|i| {
+                let param = reft_generics.param_at(i, genv)?;
+                let var = Var::EarlyParam(EarlyReftParam {
+                    index: i as u32,
+                    name: Symbol::intern("hola"),
+                });
+                Ok((var, param.sort))
+            }),
+        )
+        .collect::<QueryResult<_>>()?;
+
+        let root =
+            Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
-        RefineTree { root }
+        Ok(RefineTree { root })
     }
 
     pub fn simplify(&mut self) {
@@ -225,10 +234,6 @@ impl RefineTree {
 
     pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
-    }
-
-    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self })
     }
 }
 
@@ -356,7 +361,6 @@ enum AssumeInvariants {
 
 pub struct Unpacker<'a, 'rcx> {
     rcx: &'a mut RefineCtxt<'rcx>,
-    in_mut_ref: bool,
     unpack_inside_mut_ref: bool,
     shallow: bool,
     unpack_exists: bool,
@@ -367,7 +371,6 @@ impl<'a, 'rcx> Unpacker<'a, 'rcx> {
     fn new(rcx: &'a mut RefineCtxt<'rcx>) -> Self {
         Self {
             rcx,
-            in_mut_ref: false,
             unpack_inside_mut_ref: false,
             shallow: false,
             unpack_exists: true,
@@ -404,22 +407,14 @@ impl TypeFolder for Unpacker<'_, '_> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
-            TyKind::Exists(bound_ty) if self.unpack_exists => {
-                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-                // that makes referent type too specific. We only have this as a workaround to infer
-                // parameters under mutable references and it should be removed once we implement
-                // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                if !self.in_mut_ref || self.unpack_inside_mut_ref {
-                    let bound_ty = bound_ty
-                        .replace_bound_refts_with(|sort, _, _| self.rcx.define_vars(sort))
-                        .fold_with(self);
-                    if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
-                        self.rcx.assume_invariants(&bound_ty, check_overflow);
-                    }
-                    bound_ty
-                } else {
-                    ty.clone()
+            TyKind::Exists(ty_ctor) if self.unpack_exists => {
+                let ty = ty_ctor
+                    .replace_bound_refts_with(|sort, _, _| self.rcx.define_vars(sort))
+                    .fold_with(self);
+                if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
+                    self.rcx.assume_invariants(&ty, check_overflow);
                 }
+                ty
             }
             TyKind::Constr(pred, ty) => {
                 self.rcx.assume_pred(pred.clone());
@@ -444,12 +439,15 @@ impl TypeFolder for Unpacker<'_, '_> {
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
             }
-            BaseTy::Ref(r, ty, mutbl) => {
-                let in_mut_ref = self.in_mut_ref;
-                self.in_mut_ref = matches!(mutbl, Mutability::Mut);
-                let ty = ty.fold_with(self);
-                self.in_mut_ref = in_mut_ref;
-                BaseTy::Ref(*r, ty, *mutbl)
+            BaseTy::Ref(r, ty, Mutability::Not) => {
+                BaseTy::Ref(*r, ty.fold_with(self), Mutability::Not)
+            }
+            // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+            // that makes referent type too specific. We only have this as a workaround to infer
+            // parameters under mutable references and it should be removed once we implement
+            // opening of mutable references. See also `ConstrGen::check_fn_call`.
+            BaseTy::Ref(r, ty, Mutability::Mut) if self.unpack_inside_mut_ref => {
+                BaseTy::Ref(*r, ty.fold_with(self), Mutability::Mut)
             }
             BaseTy::Tuple(_) => bty.super_fold_with(self),
             _ => bty.clone(),
@@ -535,15 +533,15 @@ impl Node {
                 children_to_fixpoint(cx, &self.children)?
             }
 
-            NodeKind::Root(param_const_sorts) => {
+            NodeKind::Root(params) => {
                 let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
                 let mut constr = children;
-                for (param_const, sort) in param_const_sorts {
+                for (var, sort) in params {
                     constr = fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
-                            name: fixpoint::Var::ConstGeneric(*param_const),
+                            name: cx.var_to_fixpoint(var),
                             sort: cx.sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
@@ -839,7 +837,7 @@ mod pretty {
                     .format_with(", ", |(name, sort), f| {
                         f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                     }),
-                self.reftgenerics
+                self.params
                     .iter()
                     .format_with(", ", |(param_const, sort), f| {
                         f(&format_args_cx!("{:?}: {:?}", ^param_const, sort))
