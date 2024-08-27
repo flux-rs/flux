@@ -62,7 +62,6 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
-    refine_params: List<Expr>,
 }
 
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
@@ -75,7 +74,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
             refine_tree: RefineTree::new(genv, root_id)?,
-            refine_params: List::empty(),
         })
     }
 
@@ -88,7 +86,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             self.genv,
             region_infcx,
             def_id.to_def_id(),
-            &self.refine_params,
             self.refine_tree.refine_ctxt_at_root(),
             &self.inner,
         )
@@ -103,7 +100,6 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    pub refparams: &'infcx [Expr],
     rcx: RefineCtxt<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }
@@ -124,11 +120,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
-        refparams: &'infcx [Expr],
         rcx: RefineCtxt<'infcx>,
         inner: &'infcx RefCell<InferCtxtInner>,
     ) -> Self {
-        Self { genv, region_infcx, def_id, refparams, rcx, inner }
+        Self { genv, region_infcx, def_id, rcx, inner }
     }
 
     pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
@@ -294,13 +289,11 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
                         self.infcx.genv,
                         self.infcx.region_infcx,
                         self.infcx.def_id,
-                        self.infcx.refparams,
                     )?;
                 let term = projection_pred.term.normalize_projections(
                     self.infcx.genv,
                     self.infcx.region_infcx,
                     self.infcx.def_id,
-                    self.infcx.refparams,
                 )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
@@ -680,7 +673,7 @@ impl Sub {
             let bounds = infcx
                 .genv
                 .item_bounds(alias_ty.def_id)?
-                .instantiate_identity(infcx.refparams);
+                .instantiate_identity();
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
@@ -699,7 +692,6 @@ impl Sub {
             infcx.genv,
             infcx.region_infcx,
             infcx.def_id,
-            infcx.refparams,
         )?)
     }
 }

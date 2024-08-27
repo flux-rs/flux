@@ -48,7 +48,7 @@ fn check_invariant(
             .variant_sig(adt_def.did(), variant_idx)
             .emit(&genv)?
             .expect("cannot check opaque structs")
-            .instantiate_identity(&[])
+            .instantiate_identity()
             .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
         for ty in variant.fields() {

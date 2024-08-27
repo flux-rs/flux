@@ -539,6 +539,9 @@ impl Node {
                 };
                 let mut constr = children;
                 for (var, sort) in params {
+                    if sort.is_loc() {
+                        continue;
+                    }
                     constr = fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: cx.var_to_fixpoint(var),

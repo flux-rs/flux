@@ -806,7 +806,7 @@ fn downcast_struct(
     Ok(struct_variant(infcx.genv, adt.did())?
         .instantiate(tcx, args, &[])
         .replace_bound_refts(&flds)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?
         .fields
         .to_vec())
 }
@@ -842,7 +842,7 @@ fn downcast_enum(
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
     // are currently two problems.

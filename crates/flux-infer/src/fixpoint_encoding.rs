@@ -107,10 +107,10 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
                 Var::ConstGeneric(param) => {
-                    write!(f, "constgen{}#{}", param.name, param.index)
+                    write!(f, "constgen${}${}", param.name, param.index)
                 }
                 Var::Param(param) => {
-                    write!(f, "reftgen{}#{}", param.name, param.index)
+                    write!(f, "reftparam${}", param.index)
                 }
             }
         }
@@ -933,7 +933,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .genv
                     .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)?
                     .unwrap();
-                let sort = sort.instantiate_identity(&[]);
+                let sort = sort.instantiate_identity();
                 let func = self.register_const_for_alias_reft(alias_pred, sort, scx);
                 let args = args
                     .iter()

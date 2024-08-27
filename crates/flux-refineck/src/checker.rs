@@ -558,7 +558,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
         let mut at = infcx.at(span);
@@ -1356,9 +1356,11 @@ fn instantiate_and_normalize_fn_sig(
     infcx: &InferCtxt,
     fn_sig: EarlyBinder<PolyFnSig>,
 ) -> QueryResult<PolyFnSig> {
-    fn_sig
-        .instantiate_identity(infcx.refparams)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
+    fn_sig.instantiate_identity().normalize_projections(
+        infcx.genv,
+        infcx.region_infcx,
+        infcx.def_id,
+    )
 }
 
 fn init_env<'a>(
