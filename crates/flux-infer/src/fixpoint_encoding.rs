@@ -110,7 +110,7 @@ pub mod fixpoint {
                     write!(f, "constgen${}${}", param.name, param.index)
                 }
                 Var::Param(param) => {
-                    write!(f, "reftparam${}", param.index)
+                    write!(f, "reftgen${}${}", param.name, param.index)
                 }
             }
         }

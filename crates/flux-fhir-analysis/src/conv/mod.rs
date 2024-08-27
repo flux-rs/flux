@@ -266,7 +266,7 @@ pub(crate) fn conv_refinement_generics(
         .map(|param| {
             let sort = resolve_param_sort(genv, param, wfckresults)?;
             let mode = rty::InferMode::from_param_kind(param.kind);
-            Ok(rty::RefineParam { sort, mode })
+            Ok(rty::RefineParam { sort, name: param.name, mode })
         })
         .try_collect()
 }

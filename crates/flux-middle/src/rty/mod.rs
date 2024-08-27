@@ -190,6 +190,7 @@ pub struct RefinementGenerics {
 #[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 pub struct RefineParam {
     pub sort: Sort,
+    pub name: Symbol,
     pub mode: InferMode,
 }
 

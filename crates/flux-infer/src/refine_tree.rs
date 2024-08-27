@@ -20,7 +20,6 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::Symbol;
 
 use crate::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
@@ -184,6 +183,7 @@ impl WeakNodePtr {
 }
 
 enum NodeKind {
+    /// List of const and refinement generics
     Root(List<(Var, Sort)>),
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
@@ -205,10 +205,7 @@ impl RefineTree {
                 .map(|(pcst, sort)| Ok((Var::ConstGeneric(pcst), sort))),
             (0..reft_generics.count()).map(|i| {
                 let param = reft_generics.param_at(i, genv)?;
-                let var = Var::EarlyParam(EarlyReftParam {
-                    index: i as u32,
-                    name: Symbol::intern("hola"),
-                });
+                let var = Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name });
                 Ok((var, param.sort))
             }),
         )
