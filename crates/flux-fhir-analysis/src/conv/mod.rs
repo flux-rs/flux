@@ -119,7 +119,7 @@ pub(crate) fn conv_adt_sort_def(
     let params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
+        .map(|def_id| def_id_to_param_ty(genv, def_id.expect_local()))
         .collect();
     let fields = refined_by
         .fields
@@ -721,7 +721,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         alias: &fhir::AliasReft,
     ) -> QueryResult<rty::AliasReft> {
         let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
-            bug!("expected trait")
+            span_bug!(alias.path.span, "expected trait")
         };
         let trait_segment = alias.path.last_segment();
 
@@ -974,7 +974,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     }
                     fhir::Res::Def(DefKind::TyParam, def_id) => {
                         let owner_id = self.genv.hir().ty_param_owner(def_id.expect_local());
-                        let param_ty = self.genv.def_id_to_param_ty(def_id.expect_local());
+                        let param_ty = def_id_to_param_ty(self.genv, def_id.expect_local());
                         let param = self
                             .genv
                             .generics_of(owner_id)?
@@ -1147,7 +1147,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
-                let index = self.genv.def_id_to_param_index(def_id.expect_local());
+                let index = self.genv.def_id_to_param_index(def_id);
                 let name = lifetime_name(def_id.expect_local());
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
@@ -1172,7 +1172,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match cst.kind {
             fhir::ConstArgKind::Lit(lit) => rty::Const::from_usize(self.genv.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) => {
-                rty::Const { kind: rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id)) }
+                rty::Const {
+                    kind: rty::ConstKind::Param(
+                        self.genv.def_id_to_param_const(def_id.expect_local()),
+                    ),
+                }
             }
             fhir::ConstArgKind::Infer => {
                 rty::Const {
@@ -1202,7 +1206,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                rty::BaseTy::Param(self.genv.def_id_to_param_ty(def_id.expect_local()))
+                rty::BaseTy::Param(def_id_to_param_ty(self.genv, def_id.expect_local()))
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
@@ -1499,7 +1503,10 @@ impl ConvCtxt<'_, '_, '_> {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
                     ExprRes::ConstGeneric(def_id) => {
-                        rty::Expr::const_generic(self.genv.def_id_to_param_const(def_id), espan)
+                        rty::Expr::const_generic(
+                            self.genv.def_id_to_param_const(def_id.expect_local()),
+                            espan,
+                        )
                     }
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
@@ -1824,7 +1831,7 @@ fn conv_sort_path(
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return Ok(rty::Sort::Real),
         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) => {
-            return Ok(rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local())))
+            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id.expect_local())))
         }
         fhir::SortRes::SelfParam { .. } => return Ok(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } => {
@@ -1887,6 +1894,13 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
     match op {
         fhir::UnOp::Not => rty::UnOp::Not,
         fhir::UnOp::Neg => rty::UnOp::Neg,
+    }
+}
+
+fn def_id_to_param_ty(genv: GlobalEnv, def_id: LocalDefId) -> rty::ParamTy {
+    rty::ParamTy {
+        index: genv.def_id_to_param_index(def_id.to_def_id()),
+        name: genv.tcx().hir().ty_param_name(def_id),
     }
 }
 

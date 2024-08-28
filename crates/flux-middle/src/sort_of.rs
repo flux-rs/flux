@@ -1,6 +1,6 @@
-use flux_common::bug;
+use flux_common::{bug, span_bug};
 use rustc_hir::{def::DefKind, PrimTy};
-use rustc_span::def_id::{DefId, LocalDefId};
+use rustc_span::def_id::DefId;
 
 use crate::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
 
@@ -51,39 +51,46 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to)?,
-            fhir::Res::Def(DefKind::TyParam, def_id) => {
-                self.sort_of_generic_param(def_id.expect_local())?
-            }
+            fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id)?,
             fhir::Res::SelfTyParam { trait_ } => self.sort_of_self_param(trait_)?,
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => None,
-            fhir::Res::Def(..) | fhir::Res::Err => bug!("unexpected res `{:?}`", path.res),
+            fhir::Res::Def(..) | fhir::Res::Err => {
+                span_bug!(path.span, "unexpected res `{:?}`", path.res)
+            }
         };
         Ok(sort)
     }
 
     pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> QueryResult<Option<rty::Sort>> {
         let self_ty = self.tcx().type_of(alias_to).instantiate_identity();
-        self.sort_of_self_ty(alias_to, self_ty)
+        self.sort_of_rust_ty(alias_to, self_ty)
     }
 
-    pub fn sort_of_generic_param(self, def_id: LocalDefId) -> QueryResult<Option<rty::Sort>> {
-        let param = self.get_generic_param(def_id)?;
+    pub fn sort_of_generic_param(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
+        let parent = self.tcx().parent(def_id);
+        let index = self.def_id_to_param_index(def_id);
+        let param = self.generics_of(parent)?.param_at(index as usize, self)?;
         let sort = match &param.kind {
-            fhir::GenericParamKind::Base => Some(rty::Sort::Param(self.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Const { ty, .. } => self.sort_of_ty(ty)?,
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+            rty::GenericParamDefKind::Base => {
+                Some(rty::Sort::Param(rty::ParamTy { index, name: param.name }))
+            }
+            rty::GenericParamDefKind::Const { .. } => {
+                let ty = self.tcx().type_of(def_id).instantiate_identity();
+                self.sort_of_rust_ty(parent, ty)?
+            }
+            rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Lifetime => None,
         };
         Ok(sort)
     }
 
-    fn sort_of_self_param(self, owner: DefId) -> QueryResult<Option<rty::Sort>> {
-        let generics = self.map().get_generics(owner.expect_local())?.unwrap();
-        let Some(kind) = generics.self_kind.as_ref() else { return Ok(None) };
-        let sort = match kind {
-            fhir::GenericParamKind::Base => Some(rty::Sort::Param(rty::SELF_PARAM_TY)),
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Lifetime => None,
+    fn sort_of_self_param(self, trait_id: DefId) -> QueryResult<Option<rty::Sort>> {
+        assert!(matches!(self.def_kind(trait_id), DefKind::Trait));
+        let generics = self.generics_of(trait_id)?;
+        let sort = match &generics.param_at(0, self)?.kind {
+            rty::GenericParamDefKind::Base => Some(rty::Sort::Param(rty::SELF_PARAM_TY)),
+            rty::GenericParamDefKind::Const { .. }
+            | rty::GenericParamDefKind::Type { .. }
+            | rty::GenericParamDefKind::Lifetime => None,
         };
         Ok(sort)
     }
@@ -111,7 +118,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn sort_of_self_ty(
+    fn sort_of_rust_ty(
         self,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
@@ -120,11 +127,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let sort = match ty.kind() {
             ty::TyKind::Bool => Some(rty::Sort::Bool),
             ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Some(rty::Sort::Int),
+            ty::TyKind::Str => Some(rty::Sort::Str),
             ty::TyKind::Adt(adt_def, args) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(adt_def.did())?;
                 for arg in sort_def.filter_generic_args(args) {
-                    let Some(sort) = self.sort_of_self_ty(def_id, arg.expect_ty())? else {
+                    let Some(sort) = self.sort_of_rust_ty(def_id, arg.expect_ty())? else {
                         return Ok(None);
                     };
                     sort_args.push(sort);
@@ -137,15 +145,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     .tcx()
                     .generics_of(def_id)
                     .param_at(p.index as usize, self.tcx());
-                self.sort_of_generic_param(generic_param_def.def_id.expect_local())?
+                self.sort_of_generic_param(generic_param_def.def_id)?
             }
             ty::TyKind::Float(_)
-            | ty::TyKind::Str
             | ty::TyKind::Char
             | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(_)
             | ty::TyKind::Array(..)
+            | ty::TyKind::Alias(..)
             | ty::TyKind::Never => Some(rty::Sort::unit()),
             _ => bug!("unexpected self ty {ty:?}"),
         };

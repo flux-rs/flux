@@ -307,23 +307,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         res.is_box(self.tcx())
     }
 
-    pub fn def_id_to_param_ty(&self, def_id: LocalDefId) -> rty::ParamTy {
-        rty::ParamTy {
-            index: self.def_id_to_param_index(def_id),
-            name: self.tcx().hir().ty_param_name(def_id),
-        }
+    pub fn def_id_to_param_index(&self, def_id: DefId) -> u32 {
+        let parent = self.tcx().parent(def_id);
+        let generics = self.tcx().generics_of(parent);
+        generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
     }
 
-    pub fn def_id_to_param_index(&self, def_id: LocalDefId) -> u32 {
-        let item_def_id = self.hir().ty_param_owner(def_id);
-        let generics = self.tcx().generics_of(item_def_id);
-        generics.param_def_id_to_index[&def_id.to_def_id()]
-    }
-
-    pub fn def_id_to_param_const(&self, def_id: DefId) -> ParamConst {
-        let def_id = def_id.expect_local();
+    pub fn def_id_to_param_const(&self, def_id: LocalDefId) -> ParamConst {
         ParamConst {
-            index: self.def_id_to_param_index(def_id),
+            index: self.def_id_to_param_index(def_id.to_def_id()),
             name: self.tcx().hir().ty_param_name(def_id),
         }
     }

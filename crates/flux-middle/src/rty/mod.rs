@@ -169,8 +169,7 @@ impl Generics {
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
             if let GenericParamDefKind::Const { .. } = param.kind
-                && let Some(local_def_id) = param.def_id.as_local()
-                && let Some(sort) = genv.sort_of_generic_param(local_def_id)?
+                && let Some(sort) = genv.sort_of_generic_param(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
                 res.push((param_const, sort));
