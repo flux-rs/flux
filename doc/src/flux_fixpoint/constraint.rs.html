@@ -771,7 +771,7 @@
 </span><span class="kw">pub enum </span>Expr&lt;T: Types&gt; {
     Constant(Constant),
     Var(T::Var),
-    App(T::Var, Vec&lt;<span class="self">Self</span>&gt;),
+    App(Box&lt;<span class="self">Self</span>&gt;, Vec&lt;<span class="self">Self</span>&gt;),
     Neg(Box&lt;<span class="self">Self</span>&gt;),
     BinaryOp(BinOp, Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
     IfThenElse(Box&lt;[<span class="self">Self</span>; <span class="number">3</span>]&gt;),

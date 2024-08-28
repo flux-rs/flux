@@ -1761,46 +1761,6 @@
 <a href="#1761" id="1761">1761</a>
 <a href="#1762" id="1762">1762</a>
 <a href="#1763" id="1763">1763</a>
-<a href="#1764" id="1764">1764</a>
-<a href="#1765" id="1765">1765</a>
-<a href="#1766" id="1766">1766</a>
-<a href="#1767" id="1767">1767</a>
-<a href="#1768" id="1768">1768</a>
-<a href="#1769" id="1769">1769</a>
-<a href="#1770" id="1770">1770</a>
-<a href="#1771" id="1771">1771</a>
-<a href="#1772" id="1772">1772</a>
-<a href="#1773" id="1773">1773</a>
-<a href="#1774" id="1774">1774</a>
-<a href="#1775" id="1775">1775</a>
-<a href="#1776" id="1776">1776</a>
-<a href="#1777" id="1777">1777</a>
-<a href="#1778" id="1778">1778</a>
-<a href="#1779" id="1779">1779</a>
-<a href="#1780" id="1780">1780</a>
-<a href="#1781" id="1781">1781</a>
-<a href="#1782" id="1782">1782</a>
-<a href="#1783" id="1783">1783</a>
-<a href="#1784" id="1784">1784</a>
-<a href="#1785" id="1785">1785</a>
-<a href="#1786" id="1786">1786</a>
-<a href="#1787" id="1787">1787</a>
-<a href="#1788" id="1788">1788</a>
-<a href="#1789" id="1789">1789</a>
-<a href="#1790" id="1790">1790</a>
-<a href="#1791" id="1791">1791</a>
-<a href="#1792" id="1792">1792</a>
-<a href="#1793" id="1793">1793</a>
-<a href="#1794" id="1794">1794</a>
-<a href="#1795" id="1795">1795</a>
-<a href="#1796" id="1796">1796</a>
-<a href="#1797" id="1797">1797</a>
-<a href="#1798" id="1798">1798</a>
-<a href="#1799" id="1799">1799</a>
-<a href="#1800" id="1800">1800</a>
-<a href="#1801" id="1801">1801</a>
-<a href="#1802" id="1802">1802</a>
-<a href="#1803" id="1803">1803</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -1815,7 +1775,7 @@
     queries::QueryResult,
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
+        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
         GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -1824,7 +1784,7 @@
         mir::{
             <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
             Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-            Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+            Terminator, TerminatorKind, START_BLOCK,
         },
         ty,
     },
@@ -1963,11 +1923,12 @@
 
             <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
             <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
-            <span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(
-                <span class="kw-2">&amp;</span>infcx,
-                genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))<span class="question-mark">?</span>,
-            )
-            .with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>poly_sig = genv
+                .fn_sig(def_id)
+                .with_span(span)<span class="question-mark">?
+                </span>.instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(span)<span class="question-mark">?</span>;
             Checker::run(infcx, def_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(ShapeResult(mode.bb_envs))
@@ -1984,8 +1945,6 @@
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RefineTree, KVarGen)&gt; {
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
-        <span class="kw">let </span>fn_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
-
         <span class="kw">let </span><span class="kw-2">mut </span>kvars = fixpoint_encoding::KVarGen::new();
         <span class="kw">let </span>bb_envs = bb_env_shapes.into_bb_envs(<span class="kw-2">&amp;mut </span>kvars);
 
@@ -1997,7 +1956,12 @@
 
             <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
             <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
-            <span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(<span class="kw-2">&amp;</span>infcx, fn_sig).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>poly_sig = genv
+                .fn_sig(def_id)
+                .with_span(span)<span class="question-mark">?
+                </span>.instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(span)<span class="question-mark">?</span>;
 
             Checker::run(infcx, def_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
@@ -2034,7 +1998,7 @@
             |sort, <span class="kw">_</span>| infcx.define_vars(sort),
         );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>env = init_env(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig, inherited.config);
+        <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig, inherited.config.check_overflow);
 
         <span class="comment">// (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -2361,7 +2325,7 @@
                 |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);
@@ -2441,9 +2405,10 @@
         gen_pred: CoroutineObligPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="comment">// See comment for [`Checker::check_oblig_fn_trait_pred`]
-        </span><span class="kw">let </span>poly_sig =
-            instantiate_and_normalize_fn_sig(infcx, EarlyBinder(gen_pred.to_poly_fn_sig()))
-                .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>poly_sig = EarlyBinder(gen_pred.to_poly_fn_sig())
+            .instantiate_identity()
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
         <span class="kw">let </span>def_id = gen_pred.def_id;
         <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
         <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
@@ -2472,9 +2437,10 @@
             //
             // After writing this, I realize it may be better to erase regions before normalization.
             // We should revisit this at some point.
-            </span><span class="kw">let </span>fn_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>def_id, tys.clone()));
-            <span class="kw">let </span>poly_sig =
-                instantiate_and_normalize_fn_sig(infcx, fn_sig).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
+            </span><span class="kw">let </span>poly_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>def_id, tys.clone()))
+                .instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
             <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
             <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
             Checker::run(
@@ -3122,18 +3088,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="comment">// fn infcx(&amp;self, span: Span) -&gt; InferCtxt&lt;'_, 'genv, 'tcx&gt; {
-    //     InferCtxt::new(
-    //         self.genv,
-    //         &amp;self.body.infcx,
-    //         self.def_id.into(),
-    //         &amp;self.inherited.refine_params,
-    //         self.inherited.kvars,
-    //         span,
-    //     )
-    // }
-
-    </span><span class="attr">#[track_caller]
+    <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>snapshot_at_dominator(<span class="kw-2">&amp;</span><span class="self">self</span>, bb: BasicBlock) -&gt; <span class="kw-2">&amp;</span>Snapshot {
         snapshot_at_dominator(<span class="self">self</span>.body, <span class="kw-2">&amp;</span><span class="self">self</span>.snapshots, bb)
     }
@@ -3153,41 +3108,6 @@
     <span class="kw">fn </span>check_overflow(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.config().check_overflow
     }
-}
-
-<span class="kw">fn </span>instantiate_and_normalize_fn_sig(
-    infcx: <span class="kw-2">&amp;</span>InferCtxt,
-    fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
-) -&gt; QueryResult&lt;PolyFnSig&gt; {
-    fn_sig
-        .instantiate_identity(infcx.refparams)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
-}
-
-<span class="kw">fn </span>init_env&lt;<span class="lifetime">'a</span>&gt;(
-    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-    body: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Body,
-    fn_sig: <span class="kw-2">&amp;</span>FnSig,
-    config: CheckerConfig,
-) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;</span>body.local_decls);
-
-    <span class="kw">for </span>requires <span class="kw">in </span>fn_sig.requires() {
-        infcx.assume_pred(requires);
-    }
-
-    <span class="kw">for </span>(local, ty) <span class="kw">in </span>body.args_iter().zip(fn_sig.inputs()) {
-        <span class="kw">let </span>ty = infcx.unpack(ty);
-        infcx.assume_invariants(<span class="kw-2">&amp;</span>ty, config.check_overflow);
-        env.alloc_with_ty(local, ty);
-    }
-
-    <span class="kw">for </span>local <span class="kw">in </span>body.vars_and_temps_iter() {
-        env.alloc(local);
-    }
-
-    env.alloc(RETURN_PLACE);
-    env
 }
 
 <span class="kw">fn </span>instantiate_args_for_fun_call(

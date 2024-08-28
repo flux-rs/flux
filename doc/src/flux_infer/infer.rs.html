@@ -758,22 +758,6 @@
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -793,7 +777,7 @@
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-<span class="kw">use </span>rustc_middle::ty::{BoundRegionKind, Variance};
+<span class="kw">use </span>rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{
@@ -838,8 +822,6 @@
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     inner: RefCell&lt;InferCtxtInner&gt;,
     refine_tree: RefineTree,
-    root: Snapshot,
-    refine_params: List&lt;Expr&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxtRoot&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -848,22 +830,10 @@
         root_id: LocalDefId,
         kvar_gen: KVarGen,
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>generics = genv.generics_of(root_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>const_params = generics.const_params(genv)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(const_params);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
-        <span class="kw">let </span>refine_params = genv
-            .refinement_generics_of(root_id)<span class="question-mark">?
-            </span>.collect_all_params(genv, |param| rcx.define_vars(<span class="kw-2">&amp;</span>param.sort))<span class="question-mark">?</span>;
-        <span class="kw">let </span>root = rcx.snapshot();
-
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree,
-            root,
-            refine_params,
+            refine_tree: RefineTree::new(genv, root_id)<span class="question-mark">?</span>,
         })
     }
 
@@ -876,8 +846,7 @@
             <span class="self">self</span>.genv,
             region_infcx,
             def_id.to_def_id(),
-            <span class="kw-2">&amp;</span><span class="self">self</span>.refine_params,
-            <span class="self">self</span>.refine_tree.refine_ctxt_at(<span class="kw-2">&amp;</span><span class="self">self</span>.root).unwrap(),
+            <span class="self">self</span>.refine_tree.refine_ctxt_at_root(),
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner,
         )
     }
@@ -891,7 +860,6 @@
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>def_id: DefId,
-    <span class="kw">pub </span>refparams: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>[Expr],
     rcx: RefineCtxt&lt;<span class="lifetime">'infcx</span>&gt;,
     inner: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>RefCell&lt;InferCtxtInner&gt;,
 }
@@ -912,11 +880,10 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>[Expr],
         rcx: RefineCtxt&lt;<span class="lifetime">'infcx</span>&gt;,
         inner: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>RefCell&lt;InferCtxtInner&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ genv, region_infcx, def_id, refparams, rcx, inner }
+        <span class="self">Self </span>{ genv, region_infcx, def_id, rcx, inner }
     }
 
     <span class="kw">pub fn </span>clean_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
@@ -1034,6 +1001,10 @@
     <span class="kw">fn </span>pop_scope_without_solving_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.inner.borrow_mut().evars.exit_context();
     }
+
+    <span class="kw">pub fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.genv.tcx()
+    }
 }
 
 <span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
@@ -1082,13 +1053,11 @@
                         <span class="self">self</span>.infcx.genv,
                         <span class="self">self</span>.infcx.region_infcx,
                         <span class="self">self</span>.infcx.def_id,
-                        <span class="self">self</span>.infcx.refparams,
                     )<span class="question-mark">?</span>;
                 <span class="kw">let </span>term = projection_pred.term.normalize_projections(
                     <span class="self">self</span>.infcx.genv,
                     <span class="self">self</span>.infcx.region_infcx,
                     <span class="self">self</span>.infcx.def_id,
-                    <span class="self">self</span>.infcx.refparams,
                 )<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
@@ -1123,13 +1092,12 @@
         reason: ConstrReason,
     ) -&gt; InferResult&lt;Ty&gt; {
         <span class="self">self</span>.infcx.push_scope();
-        <span class="kw">let </span>tcx = <span class="self">self</span>.infcx.genv.tcx();
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
         </span><span class="kw">let </span>generic_args = <span class="self">self</span>.infcx.instantiate_generic_args(generic_args);
 
         <span class="kw">let </span>variant = variant
-            .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
+            .instantiate(<span class="self">self</span>.infcx.tcx(), <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
             .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| <span class="self">self</span>.infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check arguments
@@ -1465,10 +1433,11 @@
             )<span class="question-mark">?</span>;
             <span class="self">self</span>.obligations.extend(obligs);
         } <span class="kw">else </span>{
-            <span class="kw">let </span>bounds = infcx
-                .genv
-                .item_bounds(alias_ty.def_id)<span class="question-mark">?
-                </span>.instantiate_identity(infcx.refparams);
+            <span class="kw">let </span>bounds = infcx.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
+                infcx.tcx(),
+                <span class="kw-2">&amp;</span>alias_ty.args,
+                <span class="kw-2">&amp;</span>alias_ty.refine_args,
+            );
             <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
                 <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     <span class="kw">let </span>ty1 = <span class="self">Self</span>::project_bty(infcx, ty, pred.projection_ty.def_id)<span class="question-mark">?</span>;
@@ -1487,7 +1456,6 @@
             infcx.genv,
             infcx.region_infcx,
             infcx.def_id,
-            infcx.refparams,
         )<span class="question-mark">?</span>)
     }
 }

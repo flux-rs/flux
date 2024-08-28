@@ -2373,36 +2373,6 @@
 <a href="#2373" id="2373">2373</a>
 <a href="#2374" id="2374">2374</a>
 <a href="#2375" id="2375">2375</a>
-<a href="#2376" id="2376">2376</a>
-<a href="#2377" id="2377">2377</a>
-<a href="#2378" id="2378">2378</a>
-<a href="#2379" id="2379">2379</a>
-<a href="#2380" id="2380">2380</a>
-<a href="#2381" id="2381">2381</a>
-<a href="#2382" id="2382">2382</a>
-<a href="#2383" id="2383">2383</a>
-<a href="#2384" id="2384">2384</a>
-<a href="#2385" id="2385">2385</a>
-<a href="#2386" id="2386">2386</a>
-<a href="#2387" id="2387">2387</a>
-<a href="#2388" id="2388">2388</a>
-<a href="#2389" id="2389">2389</a>
-<a href="#2390" id="2390">2390</a>
-<a href="#2391" id="2391">2391</a>
-<a href="#2392" id="2392">2392</a>
-<a href="#2393" id="2393">2393</a>
-<a href="#2394" id="2394">2394</a>
-<a href="#2395" id="2395">2395</a>
-<a href="#2396" id="2396">2396</a>
-<a href="#2397" id="2397">2397</a>
-<a href="#2398" id="2398">2398</a>
-<a href="#2399" id="2399">2399</a>
-<a href="#2400" id="2400">2400</a>
-<a href="#2401" id="2401">2401</a>
-<a href="#2402" id="2402">2402</a>
-<a href="#2403" id="2403">2403</a>
-<a href="#2404" id="2404">2404</a>
-<a href="#2405" id="2405">2405</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2422,8 +2392,8 @@
 
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
 <span class="kw">pub use </span>expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
-    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
@@ -2568,7 +2538,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>const_params(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;List&lt;(ParamConst, Sort)&gt;&gt; {
+    <span class="kw">pub fn </span>const_params(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;(ParamConst, Sort)&gt;&gt; {
         <span class="comment">// FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         </span><span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.count() {
@@ -2581,7 +2551,7 @@
                 res.push((param_const, sort));
             }
         }
-        <span class="prelude-val">Ok</span>(List::from_vec(res))
+        <span class="prelude-val">Ok</span>(res)
     }
 }
 
@@ -2595,6 +2565,7 @@
 <span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>sort: Sort,
+    <span class="kw">pub </span>name: Symbol,
     <span class="kw">pub </span>mode: InferMode,
 }
 
@@ -2975,6 +2946,89 @@
     Var(ParamSort),
     Infer(SortInfer),
     <span class="prelude-val">Err</span>,
+}
+
+<span class="kw">impl </span>Sort {
+    <span class="kw">pub fn </span>tuple(sorts: <span class="kw">impl </span>Into&lt;List&lt;Sort&gt;&gt;) -&gt; <span class="self">Self </span>{
+        Sort::Tuple(sorts.into())
+    }
+
+    <span class="kw">pub fn </span>app(ctor: SortCtor, sorts: List&lt;Sort&gt;) -&gt; <span class="self">Self </span>{
+        Sort::App(ctor, sorts)
+    }
+
+    <span class="kw">pub fn </span>unit() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::tuple(<span class="macro">vec!</span>[])
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_func(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PolyFuncSort {
+        <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{
+            sort
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>)
+        }
+    }
+
+    <span class="kw">pub fn </span>is_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Loc)
+    }
+
+    <span class="kw">pub fn </span>is_unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Tuple(sorts) <span class="kw">if </span>sorts.is_empty())
+    }
+
+    <span class="kw">pub fn </span>is_unit_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+        <span class="kw">if let </span>Sort::App(SortCtor::Adt(sort_def), <span class="kw">_</span>) = <span class="self">self
+            </span>&amp;&amp; sort_def.fields() == <span class="number">0
+        </span>{
+            <span class="prelude-val">Some</span>(sort_def.did())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
+
+    <span class="doccomment">/// Whether the sort is a function with return sort bool
+    </span><span class="kw">pub fn </span>is_pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.skip_binders().output().is_bool())
+    }
+
+    <span class="doccomment">/// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    </span><span class="attr">#[must_use]
+    </span><span class="kw">pub fn </span>is_bool(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Bool)
+    }
+
+    <span class="kw">pub fn </span>is_numeric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Int | <span class="self">Self</span>::Real)
+    }
+
+    <span class="kw">pub fn </span>walk(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, <span class="kw-2">&amp;</span>[FieldProj])) {
+        <span class="kw">fn </span>go(sort: <span class="kw-2">&amp;</span>Sort, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, <span class="kw-2">&amp;</span>[FieldProj]), proj: <span class="kw-2">&amp;mut </span>Vec&lt;FieldProj&gt;) {
+            <span class="kw">match </span>sort {
+                Sort::Tuple(flds) =&gt; {
+                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i <span class="kw">as </span>u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::App(SortCtor::Adt(sort_def), args) =&gt; {
+                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>sort_def.field_sorts(args).iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i <span class="kw">as </span>u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                <span class="kw">_ </span>=&gt; {
+                    f(sort, proj);
+                }
+            }
+        }
+        go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>f, <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[]);
+    }
 }
 
 <span class="doccomment">/// The size of a [bit-vector]
@@ -4158,85 +4212,6 @@
     }
 }
 
-<span class="kw">impl </span>Sort {
-    <span class="kw">pub fn </span>tuple(sorts: <span class="kw">impl </span>Into&lt;List&lt;Sort&gt;&gt;) -&gt; <span class="self">Self </span>{
-        Sort::Tuple(sorts.into())
-    }
-
-    <span class="kw">pub fn </span>app(ctor: SortCtor, sorts: List&lt;Sort&gt;) -&gt; <span class="self">Self </span>{
-        Sort::App(ctor, sorts)
-    }
-
-    <span class="kw">pub fn </span>unit() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::tuple(<span class="macro">vec!</span>[])
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_func(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PolyFuncSort {
-        <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{
-            sort
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>)
-        }
-    }
-
-    <span class="kw">pub fn </span>is_unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Tuple(sorts) <span class="kw">if </span>sorts.is_empty())
-    }
-
-    <span class="kw">pub fn </span>is_unit_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="kw">if let </span>Sort::App(SortCtor::Adt(sort_def), <span class="kw">_</span>) = <span class="self">self
-            </span>&amp;&amp; sort_def.fields() == <span class="number">0
-        </span>{
-            <span class="prelude-val">Some</span>(sort_def.did())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
-    }
-
-    <span class="doccomment">/// Whether the sort is a function with return sort bool
-    </span><span class="kw">pub fn </span>is_pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.skip_binders().output().is_bool())
-    }
-
-    <span class="doccomment">/// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    </span><span class="attr">#[must_use]
-    </span><span class="kw">pub fn </span>is_bool(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Bool)
-    }
-
-    <span class="kw">pub fn </span>is_numeric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Int | <span class="self">Self</span>::Real)
-    }
-
-    <span class="kw">pub fn </span>walk(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, <span class="kw-2">&amp;</span>[FieldProj])) {
-        <span class="kw">fn </span>go(sort: <span class="kw-2">&amp;</span>Sort, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, <span class="kw-2">&amp;</span>[FieldProj]), proj: <span class="kw-2">&amp;mut </span>Vec&lt;FieldProj&gt;) {
-            <span class="kw">match </span>sort {
-                Sort::Tuple(flds) =&gt; {
-                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>flds.iter().enumerate() {
-                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i <span class="kw">as </span>u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                Sort::App(SortCtor::Adt(sort_def), args) =&gt; {
-                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>sort_def.field_sorts(args).iter().enumerate() {
-                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i <span class="kw">as </span>u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                <span class="kw">_ </span>=&gt; {
-                    f(sort, proj);
-                }
-            }
-        }
-        go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>f, <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[]);
-    }
-}
-
 <span class="kw">impl </span>BoundVariableKind {
     <span class="kw">fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) {
         <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode, kind) = <span class="self">self </span>{
@@ -4289,6 +4264,16 @@
     <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
         <span class="self">self</span>.<span class="number">0
     </span>}
+
+    <span class="kw">pub fn </span>instantiate_identity(<span class="self">self</span>) -&gt; T {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>EarlyBinder&lt;GenericPredicates&gt; {
+    <span class="kw">pub fn </span>predicates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;List&lt;Clause&gt;&gt; {
+        EarlyBinder(<span class="self">self</span>.<span class="number">0</span>.predicates.clone())
+    }
 }
 
 <span class="kw">impl</span>&lt;T&gt; Binder&lt;T&gt;
@@ -4364,15 +4349,6 @@
             ))
             .into_ok()
     }
-
-    <span class="kw">pub fn </span>instantiate_identity(<span class="self">self</span>, refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
-        <span class="self">self</span>.<span class="number">0
-            </span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
-                subst::IdentitySubstDelegate,
-                refine_args,
-            ))
-            .into_ok()
-    }
 }
 
 <span class="kw">impl </span>EarlyBinder&lt;FuncSort&gt; {
@@ -4385,42 +4361,6 @@
             subst::GenericsSubstForSort { sort_for_param },
             <span class="kw-2">&amp;</span>[],
         ))
-    }
-}
-
-<span class="kw">impl </span>EarlyBinder&lt;GenericPredicates&gt; {
-    <span class="kw">pub fn </span>predicates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;List&lt;Clause&gt;&gt; {
-        EarlyBinder(<span class="self">self</span>.<span class="number">0</span>.predicates.clone())
-    }
-
-    <span class="kw">pub fn </span>instantiate_identity(
-        <span class="self">self</span>,
-        genv: GlobalEnv,
-        refine_args: <span class="kw-2">&amp;</span>[Expr],
-    ) -&gt; QueryResult&lt;Vec&lt;Clause&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>predicates = <span class="macro">vec!</span>[];
-        <span class="self">self</span>.instantiate_identity_into(genv, refine_args, <span class="kw-2">&amp;mut </span>predicates)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(predicates)
-    }
-
-    <span class="kw">fn </span>instantiate_identity_into(
-        <span class="self">self</span>,
-        genv: GlobalEnv,
-        refine_args: <span class="kw-2">&amp;</span>[Expr],
-        predicates: <span class="kw-2">&amp;mut </span>Vec&lt;Clause&gt;,
-    ) -&gt; QueryResult&lt;()&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.<span class="number">0</span>.parent {
-            genv.predicates_of(def_id)<span class="question-mark">?
-                </span>.instantiate_identity_into(genv, refine_args, predicates)<span class="question-mark">?</span>;
-        }
-        predicates.extend(
-            <span class="self">self</span>.<span class="number">0
-                </span>.predicates
-                .iter()
-                .cloned()
-                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
-        );
-        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -4689,7 +4629,7 @@
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (ParamConst, Sort)
+    (Var, Sort)
 );
 
 <span class="attr">#[macro_export]

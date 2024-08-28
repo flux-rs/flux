@@ -1785,7 +1785,7 @@
     <span class="prelude-val">Ok</span>(struct_variant(infcx.genv, adt.did())<span class="question-mark">?
         </span>.instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?
         </span>.fields
         .to_vec())
 }
@@ -1821,7 +1821,7 @@
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?</span>;
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?</span>;
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
     // are currently two problems.

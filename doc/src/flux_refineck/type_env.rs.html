@@ -737,6 +737,28 @@
 <a href="#737" id="737">737</a>
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -755,16 +777,16 @@
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
         Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::{
         <span class="self">self</span>,
-        mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+        mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
+<span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 <span class="kw">use </span>rustc_type_ir::BoundVar;
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
@@ -795,18 +817,40 @@
     bindings: PlacesTree,
 }
 
-<span class="kw">impl </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">pub fn </span>new(local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; TypeEnv {
-        TypeEnv { bindings: PlacesTree::default(), local_decls }
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub fn </span>new(
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        body: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Body,
+        fn_sig: <span class="kw-2">&amp;</span>FnSig,
+        check_overflow: bool,
+    ) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv { bindings: PlacesTree::default(), local_decls: <span class="kw-2">&amp;</span>body.local_decls };
+
+        <span class="kw">for </span>requires <span class="kw">in </span>fn_sig.requires() {
+            infcx.assume_pred(requires);
+        }
+
+        <span class="kw">for </span>(local, ty) <span class="kw">in </span>body.args_iter().zip(fn_sig.inputs()) {
+            <span class="kw">let </span>ty = infcx.unpack(ty);
+            infcx.assume_invariants(<span class="kw-2">&amp;</span>ty, check_overflow);
+            env.alloc_with_ty(local, ty);
+        }
+
+        <span class="kw">for </span>local <span class="kw">in </span>body.vars_and_temps_iter() {
+            env.alloc(local);
+        }
+
+        env.alloc(RETURN_PLACE);
+        env
     }
 
-    <span class="kw">pub fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
+    <span class="kw">fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
         <span class="kw">let </span>ty = subst::match_regions(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty);
         <span class="self">self</span>.bindings
             .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, ty);
     }
 
-    <span class="kw">pub fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local) {
+    <span class="kw">fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local) {
         <span class="self">self</span>.bindings
             .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, Ty::uninit());
     }

@@ -1411,8 +1411,6 @@
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
 <a href="#1413" id="1413">1413</a>
-<a href="#1414" id="1414">1414</a>
-<a href="#1415" id="1415">1415</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1657,10 +1655,8 @@
         genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
         infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         callsite_def_id: DefId,
-        refine_params: <span class="kw-2">&amp;</span>[Expr],
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>normalizer =
-            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)<span class="question-mark">?</span>;
         <span class="self">self</span>.try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
     }
 

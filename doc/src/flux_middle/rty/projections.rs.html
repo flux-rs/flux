@@ -426,6 +426,8 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -446,6 +448,7 @@
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
+    intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
     rustc::lowering::lower_ty,
@@ -455,7 +458,7 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     selcx: SelectionContext&lt;<span class="lifetime">'cx</span>, <span class="lifetime">'tcx</span>&gt;,
     def_id: DefId,
-    param_env: Vec&lt;Clause&gt;,
+    param_env: List&lt;Clause&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {
@@ -463,11 +466,12 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         infcx: <span class="kw-2">&amp;</span><span class="lifetime">'cx </span>InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         callsite_def_id: DefId,
-        refine_params: <span class="kw-2">&amp;</span>[Expr],
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>param_env = genv
             .predicates_of(callsite_def_id)<span class="question-mark">?
-            </span>.instantiate_identity(genv, refine_params)<span class="question-mark">?</span>;
+            </span>.instantiate_identity()
+            .predicates
+            .clone();
         <span class="kw">let </span>selcx = SelectionContext::new(infcx);
         <span class="prelude-val">Ok</span>(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
