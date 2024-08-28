@@ -12,7 +12,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
+        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
         GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -21,7 +21,7 @@ use flux_middle::{
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
             Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-            Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
+            Terminator, TerminatorKind, START_BLOCK,
         },
         ty,
     },
@@ -160,11 +160,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             let body = genv.mir(def_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = instantiate_and_normalize_fn_sig(
-                &infcx,
-                genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?,
-            )
-            .with_span(span)?;
+            let poly_sig = genv
+                .fn_sig(def_id)
+                .with_span(span)?
+                .instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(span)?;
             Checker::run(infcx, def_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
@@ -181,8 +182,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarGen)> {
         let span = genv.tcx().def_span(def_id);
-        let fn_sig = genv.fn_sig(def_id).with_span(span)?;
-
         let mut kvars = fixpoint_encoding::KVarGen::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
@@ -194,7 +193,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 
             let body = genv.mir(def_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = instantiate_and_normalize_fn_sig(&infcx, fn_sig).with_span(span)?;
+            let poly_sig = genv
+                .fn_sig(def_id)
+                .with_span(span)?
+                .instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(span)?;
 
             Checker::run(infcx, def_id, inherited, poly_sig)?;
 
@@ -231,7 +235,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             |sort, _| infcx.define_vars(sort),
         );
 
-        let mut env = init_env(&mut infcx, &body, &fn_sig, inherited.config);
+        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -638,9 +642,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
         // See comment for [`Checker::check_oblig_fn_trait_pred`]
-        let poly_sig =
-            instantiate_and_normalize_fn_sig(infcx, EarlyBinder(gen_pred.to_poly_fn_sig()))
-                .with_span(self.body.span())?;
+        let poly_sig = EarlyBinder(gen_pred.to_poly_fn_sig())
+            .instantiate_identity()
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .with_span(self.body.span())?;
         let def_id = gen_pred.def_id;
         let span = self.genv.tcx().def_span(def_id);
         let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
@@ -669,9 +674,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             //
             // After writing this, I realize it may be better to erase regions before normalization.
             // We should revisit this at some point.
-            let fn_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()));
-            let poly_sig =
-                instantiate_and_normalize_fn_sig(infcx, fn_sig).with_span(self.body.span())?;
+            let poly_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()))
+                .instantiate_identity()
+                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .with_span(self.body.span())?;
             let span = self.genv.tcx().def_span(def_id);
             let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
             Checker::run(
@@ -1319,17 +1325,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    // fn infcx(&self, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
-    //     InferCtxt::new(
-    //         self.genv,
-    //         &self.body.infcx,
-    //         self.def_id.into(),
-    //         &self.inherited.refine_params,
-    //         self.inherited.kvars,
-    //         span,
-    //     )
-    // }
-
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
         snapshot_at_dominator(self.body, &self.snapshots, bb)
@@ -1350,43 +1345,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_overflow(&self) -> bool {
         self.config().check_overflow
     }
-}
-
-fn instantiate_and_normalize_fn_sig(
-    infcx: &InferCtxt,
-    fn_sig: EarlyBinder<PolyFnSig>,
-) -> QueryResult<PolyFnSig> {
-    fn_sig.instantiate_identity().normalize_projections(
-        infcx.genv,
-        infcx.region_infcx,
-        infcx.def_id,
-    )
-}
-
-fn init_env<'a>(
-    infcx: &mut InferCtxt,
-    body: &'a Body,
-    fn_sig: &FnSig,
-    config: CheckerConfig,
-) -> TypeEnv<'a> {
-    let mut env = TypeEnv::new(&body.local_decls);
-
-    for requires in fn_sig.requires() {
-        infcx.assume_pred(requires);
-    }
-
-    for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
-        let ty = infcx.unpack(ty);
-        infcx.assume_invariants(&ty, config.check_overflow);
-        env.alloc_with_ty(local, ty);
-    }
-
-    for local in body.vars_and_temps_iter() {
-        env.alloc(local);
-    }
-
-    env.alloc(RETURN_PLACE);
-    env
 }
 
 fn instantiate_args_for_fun_call(

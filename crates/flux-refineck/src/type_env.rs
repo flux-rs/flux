@@ -16,16 +16,16 @@ use flux_middle::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
         Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::{
         self,
-        mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+        mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
     },
 };
 use itertools::{izip, Itertools};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 use rustc_type_ir::BoundVar;
 
 use self::place_ty::{LocKind, PlacesTree};
@@ -56,18 +56,40 @@ struct BasicBlockEnvData {
     bindings: PlacesTree,
 }
 
-impl TypeEnv<'_> {
-    pub fn new(local_decls: &LocalDecls) -> TypeEnv {
-        TypeEnv { bindings: PlacesTree::default(), local_decls }
+impl<'a> TypeEnv<'a> {
+    pub fn new(
+        infcx: &mut InferCtxt,
+        body: &'a Body,
+        fn_sig: &FnSig,
+        check_overflow: bool,
+    ) -> TypeEnv<'a> {
+        let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
+
+        for requires in fn_sig.requires() {
+            infcx.assume_pred(requires);
+        }
+
+        for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
+            let ty = infcx.unpack(ty);
+            infcx.assume_invariants(&ty, check_overflow);
+            env.alloc_with_ty(local, ty);
+        }
+
+        for local in body.vars_and_temps_iter() {
+            env.alloc(local);
+        }
+
+        env.alloc(RETURN_PLACE);
+        env
     }
 
-    pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
+    fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
         let ty = subst::match_regions(&ty, &self.local_decls[local].ty);
         self.bindings
             .insert(local.into(), Place::new(local, vec![]), LocKind::Local, ty);
     }
 
-    pub fn alloc(&mut self, local: Local) {
+    fn alloc(&mut self, local: Local) {
         self.bindings
             .insert(local.into(), Place::new(local, vec![]), LocKind::Local, Ty::uninit());
     }

@@ -1149,7 +1149,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::FieldProj(e, proj) => {
                 let proj = fixpoint::Expr::Var(self.proj_to_fixpoint(*proj, scx)?);
-                Ok(fixpoint::Expr::App(Box::new(proj), vec![self.expr_to_fixpoint(e, scx)?]))
+                Ok(fixpoint::Expr::App(Box::new(proj), vec![self.func_to_fixpoint(e, scx)?]))
             }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
                 span_bug!(self.def_span, "unexpected global function `{sym}`. Function must be normalized away at this point")

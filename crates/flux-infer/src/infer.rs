@@ -17,7 +17,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-use rustc_middle::ty::{BoundRegionKind, Variance};
+use rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -241,6 +241,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn pop_scope_without_solving_evars(&mut self) {
         self.inner.borrow_mut().evars.exit_context();
     }
+
+    pub fn tcx(&self) -> TyCtxt<'tcx> {
+        self.genv.tcx()
+    }
 }
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
@@ -328,13 +332,12 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Ty> {
         self.infcx.push_scope();
-        let tcx = self.infcx.genv.tcx();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = self.infcx.instantiate_generic_args(generic_args);
 
         let variant = variant
-            .instantiate(tcx, &generic_args, &[])
+            .instantiate(self.infcx.tcx(), &generic_args, &[])
             .replace_bound_refts_with(|sort, mode, _| self.infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
@@ -670,10 +673,11 @@ impl Sub {
             )?;
             self.obligations.extend(obligs);
         } else {
-            let bounds = infcx
-                .genv
-                .item_bounds(alias_ty.def_id)?
-                .instantiate_identity();
+            let bounds = infcx.genv.item_bounds(alias_ty.def_id)?.instantiate(
+                infcx.tcx(),
+                &alias_ty.args,
+                &alias_ty.refine_args,
+            );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
