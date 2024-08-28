@@ -13,7 +13,7 @@ use syn::{
     Type, TypePath,
 };
 
-use crate::{flux_tool_attrs, FLUX_ATTRS};
+use crate::flux_tool_attrs;
 
 pub(crate) fn transform_extern_spec(
     attr: TokenStream,
@@ -420,35 +420,38 @@ fn strip_generics_defaults(params: &mut Punctuated<GenericParam, Comma>) {
 /// ```
 fn extern_enum_spec(
     mod_path: Option<syn::Path>,
-    item_enum: syn::ItemEnum,
+    mut item_enum: syn::ItemEnum,
 ) -> syn::Result<TokenStream> {
-    let item_enum_span = item_enum.span();
-    let mut dummy_enum = item_enum.clone();
+    let span = item_enum.span();
     let ident = item_enum.ident;
-    let mut generics = item_enum.generics;
-    strip_generics_defaults(&mut generics.params);
 
-    dummy_enum.ident = format_ident!("__FluxExternEnum{}", ident);
-    let dummy_variant_name = format_ident!("FluxExternEnumFake");
+    item_enum.ident = format_ident!("__FluxExternEnum{}", ident);
 
+    flux_tool_attrs(&mut item_enum.attrs);
+    for variant in &mut item_enum.variants {
+        flux_tool_attrs(&mut variant.attrs);
+    }
+
+    let dummy_variant_name = format_ident!("__FluxExternVariant");
+    let args = generic_params_to_args(&item_enum.generics.params);
     let dummy_variant: syn::Variant = if let Some(mod_path) = mod_path {
-        parse_quote_spanned! {item_enum_span =>
-                              #dummy_variant_name ( #mod_path :: #ident #generics )
+        parse_quote_spanned! {span =>
+            #dummy_variant_name ( #mod_path :: #ident < #args > )
         }
     } else {
-        parse_quote_spanned! {item_enum_span =>
-                              #dummy_variant_name ( #ident #generics )
+        parse_quote_spanned! {span =>
+            #dummy_variant_name ( #ident < #args >)
         }
     };
+    item_enum.variants.push(dummy_variant);
 
-    dummy_enum.variants.push(dummy_variant);
-
-    let dummy_enum_with_attrs: syn::ItemEnum = parse_quote_spanned! { item_enum_span =>
-                                                                          #[flux::extern_spec]
-                                                                          #[allow(unused, dead_code)]
-                                                                          #dummy_enum
-    };
-    Ok(dummy_enum_with_attrs.to_token_stream())
+    Ok(quote_spanned! {span =>
+        const _: () = {
+            #[allow(unused, dead_code)]
+            #[flux_tool::extern_spec]
+            #item_enum
+        };
+    })
 }
 
 /// Create a dummy struct with a single unnamed field that is the external struct.
@@ -483,7 +486,7 @@ fn extern_struct_spec(
     let struct_ident = item_struct.ident;
     let dummy_ident = format_ident!("__FluxExternStruct{}", struct_ident);
     let mut attrs = item_struct.attrs;
-    flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+    flux_tool_attrs(&mut attrs);
     let generics = item_struct.generics;
     let args = generic_params_to_args(&generics.params);
     let field = if let Some(mod_path) = mod_path {
@@ -540,7 +543,7 @@ fn extern_trait_spec(
 
     let trait_ident = item_trait.ident;
     let mut attrs = item_trait.attrs;
-    flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+    flux_tool_attrs(&mut attrs);
 
     let generics = item_trait.generics;
     let args = generic_params_to_args(&generics.params);
