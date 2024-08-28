@@ -266,7 +266,7 @@ pub(crate) fn conv_refinement_generics(
         .map(|param| {
             let sort = resolve_param_sort(genv, param, wfckresults)?;
             let mode = rty::InferMode::from_param_kind(param.kind);
-            Ok(rty::RefineParam { sort, mode })
+            Ok(rty::RefineParam { sort, name: param.name, mode })
         })
         .try_collect()
 }
@@ -1206,7 +1206,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
+                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity());
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, path.last_segment())?;

@@ -321,42 +321,6 @@ pub trait GenericsSubstDelegate {
     fn const_for_param(&mut self, param: &Const) -> Const;
 }
 
-/// The identity substitution used when checking the body of a (polymorphic) function. For example,
-/// consider the function `fn foo<T>(){ .. }`
-///
-/// Outside of `foo`, `T` is bound (represented by the presence of `EarlyBinder`). Inside of the body
-/// of `foo`, we treat `T` as a placeholder.
-pub(crate) struct IdentitySubstDelegate;
-
-impl GenericsSubstDelegate for IdentitySubstDelegate {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
-        Ok(Sort::Param(param_ty))
-    }
-
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
-        Ty::param(param_ty)
-    }
-
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
-        Binder::with_sort(
-            SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
-            Sort::Param(param_ty),
-        )
-    }
-
-    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
-        ReEarlyParam(ebr)
-    }
-
-    fn const_for_param(&mut self, param: &Const) -> Const {
-        param.clone()
-    }
-
-    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
-        Expr::var(Var::ConstGeneric(param_const), None)
-    }
-}
-
 /// A substitution with an explicit list of generic arguments.
 pub(crate) struct GenericArgsDelegate<'a, 'tcx>(
     pub(crate) &'a [GenericArg],

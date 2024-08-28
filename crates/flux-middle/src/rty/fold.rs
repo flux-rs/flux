@@ -242,10 +242,8 @@ pub trait TypeFoldable: TypeVisitable {
         genv: GlobalEnv<'_, 'tcx>,
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
-        refine_params: &[Expr],
     ) -> QueryResult<Self> {
-        let mut normalizer =
-            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
+        let mut normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)?;
         self.try_fold_with(&mut normalizer)
     }
 

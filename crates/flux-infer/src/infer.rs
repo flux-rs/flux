@@ -17,7 +17,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-use rustc_middle::ty::{BoundRegionKind, Variance};
+use rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -62,8 +62,6 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
-    root: Snapshot,
-    refine_params: List<Expr>,
 }
 
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
@@ -72,22 +70,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         root_id: LocalDefId,
         kvar_gen: KVarGen,
     ) -> QueryResult<Self> {
-        let generics = genv.generics_of(root_id)?;
-        let const_params = generics.const_params(genv)?;
-        let mut refine_tree = RefineTree::new(const_params);
-
-        let mut rcx = refine_tree.refine_ctxt_at_root();
-        let refine_params = genv
-            .refinement_generics_of(root_id)?
-            .collect_all_params(genv, |param| rcx.define_vars(&param.sort))?;
-        let root = rcx.snapshot();
-
         Ok(Self {
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree,
-            root,
-            refine_params,
+            refine_tree: RefineTree::new(genv, root_id)?,
         })
     }
 
@@ -100,8 +86,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             self.genv,
             region_infcx,
             def_id.to_def_id(),
-            &self.refine_params,
-            self.refine_tree.refine_ctxt_at(&self.root).unwrap(),
+            self.refine_tree.refine_ctxt_at_root(),
             &self.inner,
         )
     }
@@ -115,7 +100,6 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    pub refparams: &'infcx [Expr],
     rcx: RefineCtxt<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }
@@ -136,11 +120,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
-        refparams: &'infcx [Expr],
         rcx: RefineCtxt<'infcx>,
         inner: &'infcx RefCell<InferCtxtInner>,
     ) -> Self {
-        Self { genv, region_infcx, def_id, refparams, rcx, inner }
+        Self { genv, region_infcx, def_id, rcx, inner }
     }
 
     pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
@@ -258,6 +241,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn pop_scope_without_solving_evars(&mut self) {
         self.inner.borrow_mut().evars.exit_context();
     }
+
+    pub fn tcx(&self) -> TyCtxt<'tcx> {
+        self.genv.tcx()
+    }
 }
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
@@ -306,13 +293,11 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
                         self.infcx.genv,
                         self.infcx.region_infcx,
                         self.infcx.def_id,
-                        self.infcx.refparams,
                     )?;
                 let term = projection_pred.term.normalize_projections(
                     self.infcx.genv,
                     self.infcx.region_infcx,
                     self.infcx.def_id,
-                    self.infcx.refparams,
                 )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
@@ -347,13 +332,12 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Ty> {
         self.infcx.push_scope();
-        let tcx = self.infcx.genv.tcx();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = self.infcx.instantiate_generic_args(generic_args);
 
         let variant = variant
-            .instantiate(tcx, &generic_args, &[])
+            .instantiate(self.infcx.tcx(), &generic_args, &[])
             .replace_bound_refts_with(|sort, mode, _| self.infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
@@ -689,10 +673,11 @@ impl Sub {
             )?;
             self.obligations.extend(obligs);
         } else {
-            let bounds = infcx
-                .genv
-                .item_bounds(alias_ty.def_id)?
-                .instantiate_identity(infcx.refparams);
+            let bounds = infcx.genv.item_bounds(alias_ty.def_id)?.instantiate(
+                infcx.tcx(),
+                &alias_ty.args,
+                &alias_ty.refine_args,
+            );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
@@ -711,7 +696,6 @@ impl Sub {
             infcx.genv,
             infcx.region_infcx,
             infcx.def_id,
-            infcx.refparams,
         )?)
     }
 }

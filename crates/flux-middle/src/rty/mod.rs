@@ -17,8 +17,8 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
-    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -163,7 +163,7 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
         // FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         let mut res = vec![];
         for i in 0..self.count() {
@@ -176,7 +176,7 @@ impl Generics {
                 res.push((param_const, sort));
             }
         }
-        Ok(List::from_vec(res))
+        Ok(res)
     }
 }
 
@@ -190,6 +190,7 @@ pub struct RefinementGenerics {
 #[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 pub struct RefineParam {
     pub sort: Sort,
+    pub name: Symbol,
     pub mode: InferMode,
 }
 
@@ -570,6 +571,89 @@ pub enum Sort {
     Var(ParamSort),
     Infer(SortInfer),
     Err,
+}
+
+impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
+        Sort::App(ctor, sorts)
+    }
+
+    pub fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
+    #[track_caller]
+    pub fn expect_func(&self) -> &PolyFuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self, Sort::Loc)
+    }
+
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
+    pub fn is_unit_adt(&self) -> Option<DefId> {
+        if let Sort::App(SortCtor::Adt(sort_def), _) = self
+            && sort_def.fields() == 0
+        {
+            Some(sort_def.did())
+        } else {
+            None
+        }
+    }
+
+    /// Whether the sort is a function with return sort bool
+    pub fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
+    }
+
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Int | Self::Real)
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
+            match sort {
+                Sort::Tuple(flds) => {
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::App(SortCtor::Adt(sort_def), args) => {
+                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                _ => {
+                    f(sort, proj);
+                }
+            }
+        }
+        go(self, &mut f, &mut vec![]);
+    }
 }
 
 /// The size of a [bit-vector]
@@ -1753,85 +1837,6 @@ impl RefinementGenerics {
     }
 }
 
-impl Sort {
-    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
-        Sort::Tuple(sorts.into())
-    }
-
-    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
-        Sort::App(ctor, sorts)
-    }
-
-    pub fn unit() -> Self {
-        Self::tuple(vec![])
-    }
-
-    #[track_caller]
-    pub fn expect_func(&self) -> &PolyFuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            bug!("expected `Sort::Func`")
-        }
-    }
-
-    pub fn is_unit(&self) -> bool {
-        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
-    }
-
-    pub fn is_unit_adt(&self) -> Option<DefId> {
-        if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && sort_def.fields() == 0
-        {
-            Some(sort_def.did())
-        } else {
-            None
-        }
-    }
-
-    /// Whether the sort is a function with return sort bool
-    pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
-    }
-
-    /// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, Self::Int | Self::Real)
-    }
-
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
-            match sort {
-                Sort::Tuple(flds) => {
-                    for (i, sort) in flds.iter().enumerate() {
-                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                Sort::App(SortCtor::Adt(sort_def), args) => {
-                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
-                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                _ => {
-                    f(sort, proj);
-                }
-            }
-        }
-        go(self, &mut f, &mut vec![]);
-    }
-}
-
 impl BoundVariableKind {
     fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
         if let BoundVariableKind::Refine(sort, mode, kind) = self {
@@ -1883,6 +1888,16 @@ impl<T> EarlyBinder<T> {
 
     pub fn skip_binder(self) -> T {
         self.0
+    }
+
+    pub fn instantiate_identity(self) -> T {
+        self.0
+    }
+}
+
+impl EarlyBinder<GenericPredicates> {
+    pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
+        EarlyBinder(self.0.predicates.clone())
     }
 }
 
@@ -1959,15 +1974,6 @@ impl<T: TypeFoldable> EarlyBinder<T> {
             ))
             .into_ok()
     }
-
-    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
-        self.0
-            .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::IdentitySubstDelegate,
-                refine_args,
-            ))
-            .into_ok()
-    }
 }
 
 impl EarlyBinder<FuncSort> {
@@ -1980,42 +1986,6 @@ impl EarlyBinder<FuncSort> {
             subst::GenericsSubstForSort { sort_for_param },
             &[],
         ))
-    }
-}
-
-impl EarlyBinder<GenericPredicates> {
-    pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
-        EarlyBinder(self.0.predicates.clone())
-    }
-
-    pub fn instantiate_identity(
-        self,
-        genv: GlobalEnv,
-        refine_args: &[Expr],
-    ) -> QueryResult<Vec<Clause>> {
-        let mut predicates = vec![];
-        self.instantiate_identity_into(genv, refine_args, &mut predicates)?;
-        Ok(predicates)
-    }
-
-    fn instantiate_identity_into(
-        self,
-        genv: GlobalEnv,
-        refine_args: &[Expr],
-        predicates: &mut Vec<Clause>,
-    ) -> QueryResult<()> {
-        if let Some(def_id) = self.0.parent {
-            genv.predicates_of(def_id)?
-                .instantiate_identity_into(genv, refine_args, predicates)?;
-        }
-        predicates.extend(
-            self.0
-                .predicates
-                .iter()
-                .cloned()
-                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
-        );
-        Ok(())
     }
 }
 
@@ -2284,7 +2254,7 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (ParamConst, Sort)
+    (Var, Sort)
 );
 
 #[macro_export]
