@@ -581,7 +581,9 @@ fn generic_params_to_args(
                 GenericParam::Type(syn::TypeParam { ident, .. }) => {
                     Some(parse_quote_spanned! { span => #ident })
                 }
-                GenericParam::Lifetime(_) => None,
+                GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
+                    Some(parse_quote_spanned! { span => #lifetime })
+                }
                 GenericParam::Const(syn::ConstParam { ident, .. }) => {
                     Some(parse_quote_spanned! {span => #ident })
                 }
