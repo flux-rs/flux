@@ -50,11 +50,16 @@ const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
 
 pub struct CStore {
-    meta: FxHashMap<CrateNum, CrateMetadata>,
+    metas: FxHashMap<CrateNum, Tables>,
 }
 
 #[derive(Default, TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
+    tables: Tables,
+}
+
+#[derive(Default, TyEncodable, TyDecodable)]
+pub struct Tables {
     generics_of: FxHashMap<DefIndex, QueryResult<rty::Generics>>,
     refinement_generics_of: FxHashMap<DefIndex, QueryResult<rty::RefinementGenerics>>,
     predicates_of: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -72,24 +77,38 @@ pub struct CrateMetadata {
     type_of: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
 }
 
+#[derive(Default, TyEncodable, TyDecodable)]
+pub struct Tabless {
+    generics_of: FxHashMap<DefId, QueryResult<rty::Generics>>,
+    refinement_generics_of: FxHashMap<DefId, QueryResult<rty::RefinementGenerics>>,
+    predicates_of: FxHashMap<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
+    item_bounds: FxHashMap<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
+    assoc_refinements_of: FxHashMap<DefId, QueryResult<rty::AssocRefinements>>,
+    assoc_refinements_def: FxHashMap<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    sort_of_assoc_reft:
+        FxHashMap<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
+    fn_sigs: FxHashMap<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
+    adt_defs: FxHashMap<DefId, QueryResult<rty::AdtDef>>,
+    adt_sort_defs: FxHashMap<DefId, QueryResult<rty::AdtSortDef>>,
+    variants: FxHashMap<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
+    type_of: FxHashMap<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
+}
+
 impl CStore {
     pub fn load(tcx: TyCtxt, sess: &FluxSession) -> Self {
-        let meta = tcx
-            .crates(())
-            .iter()
-            .filter_map(|crate_num| {
-                let path = flux_metadata_extern_location(tcx, *crate_num)?;
-                let meta = decode_crate_metadata(tcx, sess, path.as_path())?;
-                Some((*crate_num, meta))
-            })
-            .collect();
-        Self { meta }
+        let mut metas = FxHashMap::default();
+        for crate_num in tcx.crates(()).iter() {
+            let Some(path) = flux_metadata_extern_location(tcx, *crate_num) else { continue };
+            let Some(meta) = decode_crate_metadata(tcx, sess, path.as_path()) else { continue };
+            metas.insert(*crate_num, meta.tables);
+        }
+        Self { metas }
     }
 }
 
 impl CrateStore for CStore {
     fn fn_sig(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .fn_sigs
             .get(&def_id.index)
@@ -97,7 +116,7 @@ impl CrateStore for CStore {
     }
 
     fn adt_def(&self, def_id: DefId) -> OptResult<rty::AdtDef> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .adt_defs
             .get(&def_id.index)
@@ -105,7 +124,7 @@ impl CrateStore for CStore {
     }
 
     fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .adt_sort_defs
             .get(&def_id.index)
@@ -116,7 +135,7 @@ impl CrateStore for CStore {
         &self,
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .variants
             .get(&def_id.index)
@@ -124,7 +143,7 @@ impl CrateStore for CStore {
     }
 
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyCtor>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .type_of
             .get(&def_id.index)
@@ -132,7 +151,7 @@ impl CrateStore for CStore {
     }
 
     fn generics_of(&self, def_id: DefId) -> OptResult<rty::Generics> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .generics_of
             .get(&def_id.index)
@@ -140,7 +159,7 @@ impl CrateStore for CStore {
     }
 
     fn refinement_generics_of(&self, def_id: DefId) -> OptResult<rty::RefinementGenerics> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .refinement_generics_of
             .get(&def_id.index)
@@ -148,7 +167,7 @@ impl CrateStore for CStore {
     }
 
     fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<List<rty::Clause>>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .item_bounds
             .get(&def_id.index)
@@ -156,7 +175,7 @@ impl CrateStore for CStore {
     }
 
     fn predicates_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .predicates_of
             .get(&def_id.index)
@@ -164,7 +183,7 @@ impl CrateStore for CStore {
     }
 
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .assoc_refinements_of
             .get(&def_id.index)
@@ -176,7 +195,7 @@ impl CrateStore for CStore {
         def_id: DefId,
         name: Symbol,
     ) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .assoc_refinements_def
             .get(&(def_id.index, name))
@@ -188,7 +207,7 @@ impl CrateStore for CStore {
         def_id: DefId,
         name: Symbol,
     ) -> OptResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-        self.meta
+        self.metas
             .get(&def_id.krate)?
             .sort_of_assoc_reft
             .get(&(def_id.index, name))
@@ -199,7 +218,7 @@ impl CrateStore for CStore {
 impl CrateMetadata {
     fn new(genv: &GlobalEnv) -> Self {
         let tcx = genv.tcx();
-        let mut data = CrateMetadata::default();
+        let mut tables = Tables::default();
 
         for local_id in tcx.iter_local_def_id() {
             let def_id = local_id.to_def_id();
@@ -207,95 +226,118 @@ impl CrateMetadata {
 
             match def_kind {
                 DefKind::Trait => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
                     let assocs = genv.assoc_refinements_of(def_id);
                     if let Ok(assocs) = &assocs {
                         for assoc in &assocs.items {
-                            data.sort_of_assoc_reft.insert(
+                            tables.sort_of_assoc_reft.insert(
                                 (assoc.container_def_id.index, assoc.name),
                                 genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
                             );
                         }
                     }
-                    data.assoc_refinements_of.insert(def_id.index, assocs);
+                    tables.assoc_refinements_of.insert(def_id.index, assocs);
                 }
                 DefKind::Impl { of_trait } => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
 
                     if of_trait {
                         let assocs = genv.assoc_refinements_of(def_id);
                         if let Ok(assocs) = &assocs {
                             for assoc in &assocs.items {
-                                data.assoc_refinements_def.insert(
+                                tables.assoc_refinements_def.insert(
                                     (assoc.container_def_id.index, assoc.name),
                                     genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
                                 );
-                                data.sort_of_assoc_reft.insert(
+                                tables.sort_of_assoc_reft.insert(
                                     (assoc.container_def_id.index, assoc.name),
                                     genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
                                 );
                             }
                         }
-                        data.assoc_refinements_of.insert(def_id.index, assocs);
+                        tables.assoc_refinements_of.insert(def_id.index, assocs);
                     }
                 }
                 DefKind::Fn | DefKind::AssocFn => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.fn_sigs.insert(def_id.index, genv.fn_sig(def_id));
+                    tables.fn_sigs.insert(def_id.index, genv.fn_sig(def_id));
                 }
                 DefKind::Enum | DefKind::Struct => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.adt_defs.insert(def_id.index, genv.adt_def(def_id));
-                    data.adt_sort_defs
+                    tables.adt_defs.insert(def_id.index, genv.adt_def(def_id));
+                    tables
+                        .adt_sort_defs
                         .insert(def_id.index, genv.adt_sort_def_of(def_id));
-                    data.variants.insert(def_id.index, genv.variants_of(def_id));
-                    data.type_of.insert(def_id.index, genv.type_of(def_id));
+                    tables
+                        .variants
+                        .insert(def_id.index, genv.variants_of(def_id));
+                    tables.type_of.insert(def_id.index, genv.type_of(def_id));
                 }
                 DefKind::TyAlias { .. } => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.adt_sort_defs
+                    tables
+                        .adt_sort_defs
                         .insert(def_id.index, genv.adt_sort_def_of(def_id));
-                    data.type_of.insert(def_id.index, genv.type_of(def_id));
+                    tables.type_of.insert(def_id.index, genv.type_of(def_id));
                 }
                 DefKind::OpaqueTy => {
-                    data.generics_of
+                    tables
+                        .generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
+                    tables
+                        .predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
-                    data.item_bounds
+                    tables
+                        .item_bounds
                         .insert(def_id.index, genv.item_bounds(def_id));
-                    data.refinement_generics_of
+                    tables
+                        .refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
                 }
                 _ => {}
             }
         }
-        data
+        CrateMetadata { tables }
     }
 }
 
