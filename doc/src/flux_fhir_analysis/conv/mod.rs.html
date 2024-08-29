@@ -2020,6 +2020,20 @@
 <a href="#2020" id="2020">2020</a>
 <a href="#2021" id="2021">2021</a>
 <a href="#2022" id="2022">2022</a>
+<a href="#2023" id="2023">2023</a>
+<a href="#2024" id="2024">2024</a>
+<a href="#2025" id="2025">2025</a>
+<a href="#2026" id="2026">2026</a>
+<a href="#2027" id="2027">2027</a>
+<a href="#2028" id="2028">2028</a>
+<a href="#2029" id="2029">2029</a>
+<a href="#2030" id="2030">2030</a>
+<a href="#2031" id="2031">2031</a>
+<a href="#2032" id="2032">2032</a>
+<a href="#2033" id="2033">2033</a>
+<a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2141,7 +2155,7 @@
     <span class="kw">let </span>params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
+        .map(|def_id| def_id_to_param_ty(genv, def_id.expect_local()))
         .collect();
     <span class="kw">let </span>fields = refined_by
         .fields
@@ -2743,7 +2757,7 @@
         alias: <span class="kw-2">&amp;</span>fhir::AliasReft,
     ) -&gt; QueryResult&lt;rty::AliasReft&gt; {
         <span class="kw">let </span>fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected trait"</span>)
+            <span class="macro">span_bug!</span>(alias.path.span, <span class="string">"expected trait"</span>)
         };
         <span class="kw">let </span>trait_segment = alias.path.last_segment();
 
@@ -2996,7 +3010,7 @@
                     }
                     fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
                         <span class="kw">let </span>owner_id = <span class="self">self</span>.genv.hir().ty_param_owner(def_id.expect_local());
-                        <span class="kw">let </span>param_ty = <span class="self">self</span>.genv.def_id_to_param_ty(def_id.expect_local());
+                        <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv, def_id.expect_local());
                         <span class="kw">let </span>param = <span class="self">self
                             </span>.genv
                             .generics_of(owner_id)<span class="question-mark">?
@@ -3169,7 +3183,7 @@
         <span class="kw">match </span>res {
             ResolvedArg::StaticLifetime =&gt; rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) =&gt; {
-                <span class="kw">let </span>index = <span class="self">self</span>.genv.def_id_to_param_index(def_id.expect_local());
+                <span class="kw">let </span>index = <span class="self">self</span>.genv.def_id_to_param_index(def_id);
                 <span class="kw">let </span>name = lifetime_name(def_id.expect_local());
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
@@ -3194,7 +3208,11 @@
         <span class="kw">match </span>cst.kind {
             fhir::ConstArgKind::Lit(lit) =&gt; rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) =&gt; {
-                rty::Const { kind: rty::ConstKind::Param(<span class="self">self</span>.genv.def_id_to_param_const(def_id)) }
+                rty::Const {
+                    kind: rty::ConstKind::Param(
+                        <span class="self">self</span>.genv.def_id_to_param_const(def_id.expect_local()),
+                    ),
+                }
             }
             fhir::ConstArgKind::Infer =&gt; {
                 rty::Const {
@@ -3224,7 +3242,7 @@
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
-                rty::BaseTy::Param(<span class="self">self</span>.genv.def_id_to_param_ty(def_id.expect_local()))
+                rty::BaseTy::Param(def_id_to_param_ty(<span class="self">self</span>.genv, def_id.expect_local()))
             }
             fhir::Res::SelfTyParam { .. } =&gt; rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; {
@@ -3521,7 +3539,10 @@
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id, espan),
                     ExprRes::ConstGeneric(def_id) =&gt; {
-                        rty::Expr::const_generic(<span class="self">self</span>.genv.def_id_to_param_const(def_id), espan)
+                        rty::Expr::const_generic(
+                            <span class="self">self</span>.genv.def_id_to_param_const(def_id.expect_local()),
+                            espan,
+                        )
                     }
                     ExprRes::NumConst(num) =&gt; {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
@@ -3846,7 +3867,7 @@
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real),
         fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) =&gt; {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local())))
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(genv, def_id.expect_local())))
         }
         fhir::SortRes::SelfParam { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } =&gt; {
@@ -3909,6 +3930,13 @@
     <span class="kw">match </span>op {
         fhir::UnOp::Not =&gt; rty::UnOp::Not,
         fhir::UnOp::Neg =&gt; rty::UnOp::Neg,
+    }
+}
+
+<span class="kw">fn </span>def_id_to_param_ty(genv: GlobalEnv, def_id: LocalDefId) -&gt; rty::ParamTy {
+    rty::ParamTy {
+        index: genv.def_id_to_param_index(def_id.to_def_id()),
+        name: genv.tcx().hir().ty_param_name(def_id),
     }
 }
 

@@ -2372,7 +2372,6 @@
 <a href="#2372" id="2372">2372</a>
 <a href="#2373" id="2373">2373</a>
 <a href="#2374" id="2374">2374</a>
-<a href="#2375" id="2375">2375</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2544,8 +2543,7 @@
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.count() {
             <span class="kw">let </span>param = <span class="self">self</span>.param_at(i, genv)<span class="question-mark">?</span>;
             <span class="kw">if let </span>GenericParamDefKind::Const { .. } = param.kind
-                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_def_id) = param.def_id.as_local()
-                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_generic_param(local_def_id)<span class="question-mark">?
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_generic_param(param.def_id)<span class="question-mark">?
             </span>{
                 <span class="kw">let </span>param_const = ParamConst { name: param.name, index: param.index };
                 res.push((param_const, sort));

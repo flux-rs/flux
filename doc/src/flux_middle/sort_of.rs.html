@@ -152,9 +152,17 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, span_bug};
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
-<span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
+<span class="kw">use </span>rustc_span::def_id::DefId;
 
 <span class="kw">use crate</span>::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
 
@@ -205,39 +213,46 @@
                 <span class="prelude-val">Some</span>(rty::Sort::App(ctor, List::from_vec(sort_args)))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; <span class="self">self</span>.sort_of_self_ty_alias(alias_to)<span class="question-mark">?</span>,
-            fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
-                <span class="self">self</span>.sort_of_generic_param(def_id.expect_local())<span class="question-mark">?
-            </span>}
+            fhir::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="self">self</span>.sort_of_generic_param(def_id)<span class="question-mark">?</span>,
             fhir::Res::SelfTyParam { trait_ } =&gt; <span class="self">self</span>.sort_of_self_param(trait_)<span class="question-mark">?</span>,
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            fhir::Res::Def(..) | fhir::Res::Err =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected res `{:?}`"</span>, path.res),
+            fhir::Res::Def(..) | fhir::Res::Err =&gt; {
+                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected res `{:?}`"</span>, path.res)
+            }
         };
         <span class="prelude-val">Ok</span>(sort)
     }
 
     <span class="kw">pub fn </span>sort_of_self_ty_alias(<span class="self">self</span>, alias_to: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
         <span class="kw">let </span>self_ty = <span class="self">self</span>.tcx().type_of(alias_to).instantiate_identity();
-        <span class="self">self</span>.sort_of_self_ty(alias_to, self_ty)
+        <span class="self">self</span>.sort_of_rust_ty(alias_to, self_ty)
     }
 
-    <span class="kw">pub fn </span>sort_of_generic_param(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
-        <span class="kw">let </span>param = <span class="self">self</span>.get_generic_param(def_id)<span class="question-mark">?</span>;
+    <span class="kw">pub fn </span>sort_of_generic_param(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
+        <span class="kw">let </span>parent = <span class="self">self</span>.tcx().parent(def_id);
+        <span class="kw">let </span>index = <span class="self">self</span>.def_id_to_param_index(def_id);
+        <span class="kw">let </span>param = <span class="self">self</span>.generics_of(parent)<span class="question-mark">?</span>.param_at(index <span class="kw">as </span>usize, <span class="self">self</span>)<span class="question-mark">?</span>;
         <span class="kw">let </span>sort = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
-            fhir::GenericParamKind::Base =&gt; <span class="prelude-val">Some</span>(rty::Sort::Param(<span class="self">self</span>.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Const { ty, .. } =&gt; <span class="self">self</span>.sort_of_ty(ty)<span class="question-mark">?</span>,
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
+            rty::GenericParamDefKind::Base =&gt; {
+                <span class="prelude-val">Some</span>(rty::Sort::Param(rty::ParamTy { index, name: param.name }))
+            }
+            rty::GenericParamDefKind::Const { .. } =&gt; {
+                <span class="kw">let </span>ty = <span class="self">self</span>.tcx().type_of(def_id).instantiate_identity();
+                <span class="self">self</span>.sort_of_rust_ty(parent, ty)<span class="question-mark">?
+            </span>}
+            rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Lifetime =&gt; <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Ok</span>(sort)
     }
 
-    <span class="kw">fn </span>sort_of_self_param(<span class="self">self</span>, owner: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.map().get_generics(owner.expect_local())<span class="question-mark">?</span>.unwrap();
-        <span class="kw">let </span><span class="prelude-val">Some</span>(kind) = generics.self_kind.as_ref() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-        <span class="kw">let </span>sort = <span class="kw">match </span>kind {
-            fhir::GenericParamKind::Base =&gt; <span class="prelude-val">Some</span>(rty::Sort::Param(rty::SELF_PARAM_TY)),
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
+    <span class="kw">fn </span>sort_of_self_param(<span class="self">self</span>, trait_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="self">self</span>.def_kind(trait_id), DefKind::Trait));
+        <span class="kw">let </span>generics = <span class="self">self</span>.generics_of(trait_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>sort = <span class="kw">match </span><span class="kw-2">&amp;</span>generics.param_at(<span class="number">0</span>, <span class="self">self</span>)<span class="question-mark">?</span>.kind {
+            rty::GenericParamDefKind::Base =&gt; <span class="prelude-val">Some</span>(rty::Sort::Param(rty::SELF_PARAM_TY)),
+            rty::GenericParamDefKind::Const { .. }
+            | rty::GenericParamDefKind::Type { .. }
+            | rty::GenericParamDefKind::Lifetime =&gt; <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Ok</span>(sort)
     }
@@ -265,7 +280,7 @@
         }
     }
 
-    <span class="kw">fn </span>sort_of_self_ty(
+    <span class="kw">fn </span>sort_of_rust_ty(
         <span class="self">self</span>,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
@@ -274,11 +289,12 @@
         <span class="kw">let </span>sort = <span class="kw">match </span>ty.kind() {
             ty::TyKind::Bool =&gt; <span class="prelude-val">Some</span>(rty::Sort::Bool),
             ty::TyKind::Slice(<span class="kw">_</span>) | ty::TyKind::Int(<span class="kw">_</span>) | ty::TyKind::Uint(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Int),
+            ty::TyKind::Str =&gt; <span class="prelude-val">Some</span>(rty::Sort::Str),
             ty::TyKind::Adt(adt_def, args) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
                 <span class="kw">let </span>sort_def = <span class="self">self</span>.adt_sort_def_of(adt_def.did())<span class="question-mark">?</span>;
                 <span class="kw">for </span>arg <span class="kw">in </span>sort_def.filter_generic_args(args) {
-                    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.sort_of_self_ty(def_id, arg.expect_ty())<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.sort_of_rust_ty(def_id, arg.expect_ty())<span class="question-mark">? </span><span class="kw">else </span>{
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
                     };
                     sort_args.push(sort);
@@ -291,15 +307,15 @@
                     </span>.tcx()
                     .generics_of(def_id)
                     .param_at(p.index <span class="kw">as </span>usize, <span class="self">self</span>.tcx());
-                <span class="self">self</span>.sort_of_generic_param(generic_param_def.def_id.expect_local())<span class="question-mark">?
+                <span class="self">self</span>.sort_of_generic_param(generic_param_def.def_id)<span class="question-mark">?
             </span>}
             ty::TyKind::Float(<span class="kw">_</span>)
-            | ty::TyKind::Str
             | ty::TyKind::Char
             | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(<span class="kw">_</span>)
             | ty::TyKind::Array(..)
+            | ty::TyKind::Alias(..)
             | ty::TyKind::Never =&gt; <span class="prelude-val">Some</span>(rty::Sort::unit()),
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"unexpected self ty {ty:?}"</span>),
         };
