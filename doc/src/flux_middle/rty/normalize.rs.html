@@ -296,7 +296,7 @@
                 <span class="kw">let </span>res = lam.apply(args);
                 <span class="self">Self</span>::at_base(res, espan)
             }
-            <span class="kw">_ </span>=&gt; Expr::app(func.clone(), args, espan),
+            <span class="kw">_ </span>=&gt; ExprKind::App(func.clone(), args.into()).intern_at_opt(espan),
         }
     }
 }

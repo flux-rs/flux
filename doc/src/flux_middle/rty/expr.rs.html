@@ -1136,18 +1136,6 @@
 <a href="#1136" id="1136">1136</a>
 <a href="#1137" id="1137">1137</a>
 <a href="#1138" id="1138">1138</a>
-<a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a>
-<a href="#1141" id="1141">1141</a>
-<a href="#1142" id="1142">1142</a>
-<a href="#1143" id="1143">1143</a>
-<a href="#1144" id="1144">1144</a>
-<a href="#1145" id="1145">1145</a>
-<a href="#1146" id="1146">1146</a>
-<a href="#1147" id="1147">1147</a>
-<a href="#1148" id="1148">1148</a>
-<a href="#1149" id="1149">1149</a>
-<a href="#1150" id="1150">1150</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1445,8 +1433,12 @@
 }
 
 <span class="kw">impl </span>ExprKind {
-    <span class="kw">fn </span>intern_at(<span class="self">self</span>, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
+    <span class="kw">pub fn </span>intern_at_opt(<span class="self">self</span>, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
         Interned::new(ExprS { kind: <span class="self">self</span>, espan })
+    }
+
+    <span class="kw">pub fn </span>intern_at(<span class="self">self</span>, espan: ESpan) -&gt; Expr {
+        <span class="self">self</span>.intern_at_opt(<span class="prelude-val">Some</span>(espan))
     }
 
     <span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Expr {
@@ -1460,7 +1452,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(base) = base
         {
-            kind.clone().intern_at(<span class="prelude-val">Some</span>(espan.with_base(base)))
+            kind.clone().intern_at(espan.with_base(base))
         } <span class="kw">else </span>{
             <span class="self">self
         </span>}
@@ -1486,14 +1478,14 @@
     <span class="kw">pub fn </span>and_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, <span class="prelude-val">None</span>))
+            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
             .unwrap_or_else(Expr::tt)
     }
 
     <span class="kw">pub fn </span>or_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, <span class="prelude-val">None</span>))
+            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e))
             .unwrap_or_else(Expr::ff)
     }
 
@@ -1559,8 +1551,8 @@
         Expr::tuple(List::empty())
     }
 
-    <span class="kw">pub fn </span>var(var: Var, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::Var(var).intern_at(espan)
+    <span class="kw">pub fn </span>var(var: Var) -&gt; Expr {
+        ExprKind::Var(var).intern()
     }
 
     <span class="kw">pub fn </span>fvar(name: Name) -&gt; Expr {
@@ -1579,24 +1571,20 @@
         Var::EarlyParam(EarlyReftParam { index, name }).to_expr()
     }
 
-    <span class="kw">pub fn </span>local(local: Local, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::Local(local).intern_at(espan)
+    <span class="kw">pub fn </span>local(local: Local) -&gt; Expr {
+        ExprKind::Local(local).intern()
     }
 
     <span class="kw">pub fn </span>constant(c: Constant) -&gt; Expr {
         ExprKind::Constant(c).intern()
     }
 
-    <span class="kw">pub fn </span>constant_at(c: Constant, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::Constant(c).intern_at(espan)
+    <span class="kw">pub fn </span>const_def_id(c: DefId) -&gt; Expr {
+        ExprKind::ConstDefId(c).intern()
     }
 
-    <span class="kw">pub fn </span>const_def_id(c: DefId, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::ConstDefId(c).intern_at(espan)
-    }
-
-    <span class="kw">pub fn </span>const_generic(param: ParamConst, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
+    <span class="kw">pub fn </span>const_generic(param: ParamConst) -&gt; Expr {
+        ExprKind::Var(Var::ConstGeneric(param)).intern()
     }
 
     <span class="kw">pub fn </span>aggregate(kind: AggregateKind, flds: List&lt;Expr&gt;) -&gt; Expr {
@@ -1624,13 +1612,8 @@
         }
     }
 
-    <span class="kw">pub fn </span>ite(
-        p: <span class="kw">impl </span>Into&lt;Expr&gt;,
-        e1: <span class="kw">impl </span>Into&lt;Expr&gt;,
-        e2: <span class="kw">impl </span>Into&lt;Expr&gt;,
-        espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;,
-    ) -&gt; Expr {
-        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
+    <span class="kw">pub fn </span>ite(p: <span class="kw">impl </span>Into&lt;Expr&gt;, e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>abs(lam: Lambda) -&gt; Expr {
@@ -1653,37 +1636,28 @@
         ExprKind::ForAll(expr).intern()
     }
 
-    <span class="kw">pub fn </span>binary_op(
-        op: BinOp,
-        e1: <span class="kw">impl </span>Into&lt;Expr&gt;,
-        e2: <span class="kw">impl </span>Into&lt;Expr&gt;,
-        espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;,
-    ) -&gt; Expr {
-        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
+    <span class="kw">pub fn </span>binary_op(op: BinOp, e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>unit_adt(def_id: DefId) -&gt; Expr {
         Expr::adt(def_id, List::empty())
     }
 
-    <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: <span class="kw">impl </span>Into&lt;List&lt;Expr&gt;&gt;, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::App(func.into(), args.into()).intern_at(espan)
+    <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: <span class="kw">impl </span>Into&lt;List&lt;Expr&gt;&gt;) -&gt; Expr {
+        ExprKind::App(func.into(), args.into()).intern()
     }
 
     <span class="kw">pub fn </span>global_func(func: Symbol, kind: SpecFuncKind) -&gt; Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 
-    <span class="kw">pub fn </span>unary_op(op: UnOp, e: <span class="kw">impl </span>Into&lt;Expr&gt;, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::UnaryOp(op, e.into()).intern_at(espan)
-    }
-
-    <span class="kw">pub fn </span>eq_at(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(espan)
-    }
-
     <span class="kw">pub fn </span>eq(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        <span class="self">Self</span>::eq_at(e1, e2, <span class="prelude-val">None</span>)
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+    }
+
+    <span class="kw">pub fn </span>unary_op(op: UnOp, e: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::UnaryOp(op, e.into()).intern()
     }
 
     <span class="kw">pub fn </span>ne(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
@@ -1710,15 +1684,12 @@
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    <span class="kw">pub fn </span>field_proj(e: <span class="kw">impl </span>Into&lt;Expr&gt;, proj: FieldProj, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::FieldProj(e.into(), proj).intern_at(espan)
+    <span class="kw">pub fn </span>field_proj(e: <span class="kw">impl </span>Into&lt;Expr&gt;, proj: FieldProj) -&gt; Expr {
+        ExprKind::FieldProj(e.into(), proj).intern()
     }
 
     <span class="kw">pub fn </span>field_projs(e: <span class="kw">impl </span>Into&lt;Expr&gt;, projs: <span class="kw-2">&amp;</span>[FieldProj]) -&gt; Expr {
-        projs
-            .iter()
-            .copied()
-            .fold(e.into(), |e, p| Expr::field_proj(e, p, <span class="prelude-val">None</span>))
+        projs.iter().copied().fold(e.into(), Expr::field_proj)
     }
 
     <span class="kw">pub fn </span>path_proj(base: Expr, field: FieldIdx) -&gt; Expr {
@@ -1757,7 +1728,7 @@
 
     <span class="kw">pub fn </span>from_const(tcx: TyCtxt, c: <span class="kw-2">&amp;</span>Const) -&gt; Expr {
         <span class="kw">match </span><span class="kw-2">&amp;</span>c.kind {
-            ConstKind::Param(param_const) =&gt; Expr::const_generic(<span class="kw-2">*</span>param_const, <span class="prelude-val">None</span>),
+            ConstKind::Param(param_const) =&gt; Expr::const_generic(<span class="kw-2">*</span>param_const),
             ConstKind::Value(ty, scalar) =&gt; {
                 <span class="kw">let </span>val = const_eval::scalar_int_to_rty_constant2(tcx, <span class="kw-2">*</span>scalar, ty).unwrap();
                 Expr::constant(val)
@@ -1806,21 +1777,25 @@
                         <span class="kw">let </span>e2_span = e2.span();
                         <span class="kw">match </span>(op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)), <span class="kw">_</span>) =&gt; {
-                                Expr::constant_at(Constant::Bool(<span class="bool-val">false</span>), e1_span)
+                                ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)).intern_at_opt(e1_span)
                             }
                             (BinOp::And, <span class="kw">_</span>, ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>))) =&gt; {
-                                Expr::constant_at(Constant::Bool(<span class="bool-val">false</span>), e2_span)
+                                ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)).intern_at_opt(e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>)), <span class="kw">_</span>) =&gt; e2,
                             (BinOp::And, <span class="kw">_</span>, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>))) =&gt; e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) =&gt; {
                                 <span class="kw">let </span>e2_span = e2.span();
                                 <span class="kw">match </span>Expr::const_op(op, c1, c2) {
-                                    <span class="prelude-val">Some</span>(c) =&gt; Expr::constant_at(c, span.or(e2_span)),
-                                    <span class="prelude-val">None </span>=&gt; Expr::binary_op(op.clone(), e1, e2, span),
+                                    <span class="prelude-val">Some</span>(c) =&gt; {
+                                        ExprKind::Constant(c).intern_at_opt(span.or(e2_span))
+                                    }
+                                    <span class="prelude-val">None </span>=&gt; {
+                                        ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span)
+                                    }
                                 }
                             }
-                            <span class="kw">_ </span>=&gt; Expr::binary_op(op.clone(), e1, e2, span),
+                            <span class="kw">_ </span>=&gt; ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) =&gt; {
@@ -1831,9 +1806,10 @@
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) =&gt; e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) =&gt; {
-                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone(), span)
+                                ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
+                                    .intern_at_opt(span)
                             }
-                            <span class="kw">_ </span>=&gt; Expr::unary_op(UnOp::Not, e, span),
+                            <span class="kw">_ </span>=&gt; ExprKind::UnaryOp(UnOp::Not, e).intern_at_opt(span),
                         }
                     }
                     <span class="kw">_ </span>=&gt; expr.super_fold_with(<span class="self">self</span>),
@@ -1875,7 +1851,7 @@
         <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect_vec();
-        <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args);
         Lambda::with_sorts(body, inputs, output)
     }
 
@@ -1897,7 +1873,7 @@
     </span><span class="kw">pub fn </span>proj_and_reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field_idx() <span class="kw">as </span>usize].clone(),
-            <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj, <span class="prelude-val">None</span>),
+            <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj),
         }
     }
 
@@ -1932,7 +1908,7 @@
 
 <span class="kw">impl </span>Var {
     <span class="kw">pub fn </span>to_expr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
-        Expr::var(<span class="kw-2">*</span><span class="self">self</span>, <span class="prelude-val">None</span>)
+        Expr::var(<span class="kw-2">*</span><span class="self">self</span>)
     }
 }
 
@@ -1963,8 +1939,8 @@
 <span class="kw">impl </span>Loc {
     <span class="kw">pub fn </span>to_expr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
         <span class="kw">match </span><span class="self">self </span>{
-            Loc::Local(local) =&gt; Expr::local(<span class="kw-2">*</span>local, <span class="prelude-val">None</span>),
-            Loc::Var(var) =&gt; Expr::var(<span class="kw-2">*</span>var, <span class="prelude-val">None</span>),
+            Loc::Local(local) =&gt; Expr::local(<span class="kw-2">*</span>local),
+            Loc::Var(var) =&gt; Expr::var(<span class="kw-2">*</span>var),
         }
     }
 }
@@ -1978,7 +1954,7 @@
             <span class="kw">type </span>Output = Expr;
 
             <span class="kw">fn </span><span class="macro-nonterminal">$method</span>(<span class="self">self</span>, rhs: Rhs) -&gt; <span class="self">Self</span>::Output {
-                Expr::binary_op(BinOp::<span class="macro-nonterminal">$op</span>, <span class="self">self</span>, rhs, <span class="prelude-val">None</span>)
+                Expr::binary_op(BinOp::<span class="macro-nonterminal">$op</span>, <span class="self">self</span>, rhs)
             }
         }
 
@@ -1989,7 +1965,7 @@
             <span class="kw">type </span>Output = Expr;
 
             <span class="kw">fn </span><span class="macro-nonterminal">$method</span>(<span class="self">self</span>, rhs: Rhs) -&gt; <span class="self">Self</span>::Output {
-                Expr::binary_op(BinOp::<span class="macro-nonterminal">$op</span>, <span class="self">self</span>, rhs, <span class="prelude-val">None</span>)
+                Expr::binary_op(BinOp::<span class="macro-nonterminal">$op</span>, <span class="self">self</span>, rhs)
             }
         }
     )<span class="kw-2">*</span>};
@@ -2022,7 +1998,7 @@
 
 <span class="kw">impl </span>From&lt;Var&gt; <span class="kw">for </span>Expr {
     <span class="kw">fn </span>from(var: Var) -&gt; <span class="self">Self </span>{
-        Expr::var(var, <span class="prelude-val">None</span>)
+        Expr::var(var)
     }
 }
 

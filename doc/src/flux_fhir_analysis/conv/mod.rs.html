@@ -2034,6 +2034,30 @@
 <a href="#2034" id="2034">2034</a>
 <a href="#2035" id="2035">2035</a>
 <a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
+<a href="#2040" id="2040">2040</a>
+<a href="#2041" id="2041">2041</a>
+<a href="#2042" id="2042">2042</a>
+<a href="#2043" id="2043">2043</a>
+<a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2126,8 +2150,8 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
     kind: LookupResultKind&lt;<span class="lifetime">'a</span>&gt;,
-    <span class="doccomment">/// The span of the variable that originated the lookup. Used to report bugs.
-    </span>span: Span,
+    <span class="doccomment">/// The span of the variable that originated the lookup.
+    </span>var_span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -2137,13 +2161,13 @@
         entry: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ParamEntry,
         kind: LayerKind,
         <span class="doccomment">/// The index of the parameter in the layer.
-        </span>idx: u32,
+        </span>index: u32,
     },
     EarlyParam {
         name: Symbol,
         sort: rty::Sort,
         <span class="doccomment">/// The index of the parameter.
-        </span>idx: u32,
+        </span>index: u32,
     },
 }
 
@@ -3467,17 +3491,17 @@
                 <span class="kw">let </span>kind = LookupResultKind::LateBound {
                     debruijn,
                     entry,
-                    idx: idx <span class="kw">as </span>u32,
+                    index: idx <span class="kw">as </span>u32,
                     kind: layer.kind,
                 };
-                <span class="kw">return </span>LookupResult { span: var.span, kind };
+                <span class="kw">return </span>LookupResult { var_span: var.span, kind };
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>((idx, <span class="kw">_</span>, (name, sort))) = <span class="self">self</span>.early_bound.get_full(<span class="kw-2">&amp;</span>id) {
             LookupResult {
-                span: var.span,
+                var_span: var.span,
                 kind: LookupResultKind::EarlyParam {
-                    idx: idx <span class="kw">as </span>u32,
+                    index: idx <span class="kw">as </span>u32,
                     name: <span class="kw-2">*</span>name,
                     sort: sort.clone(),
                 },
@@ -3532,40 +3556,43 @@
 
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
-        <span class="kw">let </span>espan = <span class="prelude-val">Some</span>(ESpan::new(expr.span));
+        <span class="kw">let </span>espan = ESpan::new(expr.span);
         <span class="kw">let </span>expr = <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>var.res {
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::Const(def_id) =&gt; rty::ExprKind::ConstDefId(def_id).intern_at(espan),
                     ExprRes::ConstGeneric(def_id) =&gt; {
-                        rty::Expr::const_generic(
+                        rty::ExprKind::Var(rty::Var::ConstGeneric(
                             <span class="self">self</span>.genv.def_id_to_param_const(def_id.expect_local()),
-                            espan,
-                        )
+                        ))
+                        .intern_at(espan)
                     }
                     ExprRes::NumConst(num) =&gt; {
-                        rty::Expr::constant_at(rty::Constant::from(num), espan)
+                        rty::ExprKind::Constant(rty::Constant::from(num)).intern_at(espan)
                     }
                     ExprRes::GlobalFunc(..) =&gt; {
                         <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected func in var position"</span>)
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) =&gt; rty::Expr::constant_at(conv_lit(<span class="kw-2">*</span>lit), espan),
+            fhir::ExprKind::Literal(lit) =&gt; {
+                rty::ExprKind::Constant(conv_lit(<span class="kw-2">*</span>lit)).intern_at(espan)
+            }
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; {
-                rty::Expr::binary_op(
+                rty::ExprKind::BinaryOp(
                     <span class="self">self</span>.conv_bin_op(<span class="kw-2">*</span>op, expr.fhir_id),
                     <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,
-                    espan,
                 )
+                .intern_at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) =&gt; {
-                rty::Expr::unary_op(conv_un_op(<span class="kw-2">*</span>op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>, espan)
+                rty::ExprKind::UnaryOp(conv_un_op(<span class="kw-2">*</span>op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>).intern_at(espan)
             }
             fhir::ExprKind::App(func, args) =&gt; {
-                rty::Expr::app(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>, espan)
+                rty::ExprKind::App(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>)
+                    .intern_at(espan)
             }
             fhir::ExprKind::Alias(alias, args) =&gt; {
                 <span class="kw">let </span>args = args
@@ -3573,17 +3600,17 @@
                     .map(|arg| <span class="self">self</span>.conv_expr(env, arg))
                     .try_collect()<span class="question-mark">?</span>;
                 <span class="kw">let </span>alias = <span class="self">self</span>.conv_alias_reft(env, alias)<span class="question-mark">?</span>;
-                rty::Expr::alias(alias, args)
+                rty::ExprKind::Alias(alias, args).intern_at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
-                rty::Expr::ite(
+                rty::ExprKind::IfThenElse(
                     <span class="self">self</span>.conv_expr(env, p)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,
-                    espan,
                 )
+                .intern_at(espan)
             }
-            fhir::ExprKind::Dot(var, fld) =&gt; env.lookup(var).get_field(<span class="kw-2">*</span>fld),
+            fhir::ExprKind::Dot(var, fld) =&gt; env.lookup(var).get_field(<span class="kw-2">*</span>fld, espan),
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(expr, fhir_id))
     }
@@ -3656,9 +3683,16 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(coercions) = <span class="self">self</span>.wfckresults.coercions().get(fhir_id) {
             <span class="kw">for </span>coercion <span class="kw">in </span>coercions {
                 expr = <span class="kw">match </span><span class="kw-2">*</span>coercion {
-                    rty::Coercion::Inject(def_id) =&gt; rty::Expr::adt(def_id, List::singleton(expr)),
+                    rty::Coercion::Inject(def_id) =&gt; {
+                        rty::ExprKind::Aggregate(
+                            rty::AggregateKind::Adt(def_id),
+                            List::singleton(expr),
+                        )
+                        .intern_at_opt(span)
+                    }
                     rty::Coercion::Project(def_id) =&gt; {
-                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: <span class="number">0 </span>}, span)
+                        rty::ExprKind::FieldProj(expr, rty::FieldProj::Adt { def_id, field: <span class="number">0 </span>})
+                            .intern_at_opt(span)
                     }
                 };
             }
@@ -3735,26 +3769,40 @@
 
 <span class="kw">impl </span>LookupResult&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>to_expr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rty::Expr {
+        <span class="kw">let </span>espan = ESpan::new(<span class="self">self</span>.var_span);
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } =&gt; {
+            LookupResultKind::LateBound {
+                debruijn,
+                entry: ParamEntry { name, .. },
+                kind,
+                index,
+            } =&gt; {
                 <span class="kw">match </span><span class="kw-2">*</span>kind {
                     LayerKind::List { bound_regions } =&gt; {
-                        rty::Expr::bvar(
+                        rty::ExprKind::Var(rty::Var::Bound(
                             <span class="kw-2">*</span>debruijn,
-                            BoundVar::from_u32(bound_regions + <span class="kw-2">*</span>idx),
-                            rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
-                        )
+                            rty::BoundReft {
+                                var: BoundVar::from_u32(bound_regions + <span class="kw-2">*</span>index),
+                                kind: rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
+                            },
+                        ))
+                        .intern_at(espan)
                     }
                     LayerKind::Coalesce(def_id) =&gt; {
-                        rty::Expr::field_proj(
-                            rty::Expr::bvar(<span class="kw-2">*</span>debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon),
-                            rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>idx },
-                            <span class="prelude-val">None</span>,
-                        )
+                        <span class="kw">let </span>var = rty::ExprKind::Var(rty::Var::Bound(
+                            <span class="kw-2">*</span>debruijn,
+                            rty::BoundReft { var: BoundVar::ZERO, kind: rty::BoundReftKind::Annon },
+                        ))
+                        .intern_at(espan);
+                        rty::ExprKind::FieldProj(var, rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>index })
+                            .intern_at(espan)
                     }
                 }
             }
-            LookupResultKind::EarlyParam { idx, name, .. } =&gt; rty::Expr::early_param(<span class="kw-2">*</span>idx, <span class="kw-2">*</span>name),
+            <span class="kw-2">&amp;</span>LookupResultKind::EarlyParam { index, name, .. } =&gt; {
+                rty::ExprKind::Var(rty::Var::EarlyParam(rty::EarlyReftParam { index, name }))
+                    .intern_at(espan)
+            }
         }
     }
 
@@ -3773,22 +3821,22 @@
     }
 
     <span class="kw">fn </span>to_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rty::Path {
-        <span class="self">self</span>.to_expr()
-            .to_path()
-            .unwrap_or_else(|| <span class="macro">span_bug!</span>(<span class="self">self</span>.span, <span class="string">"expected path, found `{:?}`"</span>, <span class="self">self</span>.to_expr()))
+        <span class="self">self</span>.to_expr().to_path().unwrap_or_else(|| {
+            <span class="macro">span_bug!</span>(<span class="self">self</span>.var_span, <span class="string">"expected path, found `{:?}`"</span>, <span class="self">self</span>.to_expr())
+        })
     }
 
-    <span class="kw">fn </span>get_field(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Ident) -&gt; rty::Expr {
+    <span class="kw">fn </span>get_field(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Ident, espan: ESpan) -&gt; rty::Expr {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sort_def) = <span class="self">self</span>.is_adt() {
             <span class="kw">let </span>def_id = sort_def.did();
             <span class="kw">let </span>i = sort_def
                 .field_index(fld.name)
                 .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">"field `{fld:?}` not found in {def_id:?}"</span>));
-            rty::Expr::field_proj(
+            rty::ExprKind::FieldProj(
                 <span class="self">self</span>.to_expr(),
                 rty::FieldProj::Adt { def_id, field: i <span class="kw">as </span>u32 },
-                <span class="prelude-val">None</span>,
             )
+            .intern_at(espan)
         } <span class="kw">else </span>{
             <span class="macro">span_bug!</span>(fld.span, <span class="string">"expected adt sort"</span>)
         }

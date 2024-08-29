@@ -626,13 +626,13 @@
 <span class="doccomment">/// `a % b`
 </span><span class="kw">fn </span>mk_rem_rules() -&gt; RuleMatcher&lt;<span class="number">2</span>&gt; {
     <span class="macro">primop_rules!</span> {
-        <span class="kw">fn</span>(a: T, b: T) -&gt; T[E::binary_op(Mod, a, b, <span class="prelude-val">None</span>)]
+        <span class="kw">fn</span>(a: T, b: T) -&gt; T[E::binary_op(Mod, a, b)]
         requires E::ne(b, <span class="number">0</span>) =&gt; ConstrReason::Rem
         <span class="kw">if </span>T.is_unsigned()
 
         <span class="kw">fn</span>(a: T, b: T) -&gt; T{v: E::implies(
                                    E::and(E::ge(a, <span class="number">0</span>), E::ge(b, <span class="number">0</span>)),
-                                   E::eq(v, E::binary_op(Mod, a, b, <span class="prelude-val">None</span>))) }
+                                   E::eq(v, E::binary_op(Mod, a, b))) }
         requires E::ne(b, <span class="number">0</span>) =&gt; ConstrReason::Rem
         <span class="kw">if </span>T.is_signed()
     }

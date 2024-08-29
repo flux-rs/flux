@@ -3033,7 +3033,7 @@
             }
             Constant::Char =&gt; <span class="prelude-val">Ok</span>(Ty::char()),
             Constant::Param(param_const, ty) =&gt; {
-                <span class="kw">let </span>idx = Expr::const_generic(<span class="kw-2">*</span>param_const, <span class="prelude-val">None</span>);
+                <span class="kw">let </span>idx = Expr::const_generic(<span class="kw-2">*</span>param_const);
                 <span class="kw">let </span>ty_ctor = Refiner::default(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.generics)
                     .refine_ty_ctor(ty)
                     .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
@@ -3351,12 +3351,12 @@
 }
 
 <span class="kw">fn </span>bool_int_cast(b: <span class="kw-2">&amp;</span>Expr, int_ty: IntTy) -&gt; Ty {
-    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
+    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>);
     Ty::indexed(BaseTy::Int(int_ty), idx)
 }
 
 <span class="kw">fn </span>bool_uint_cast(b: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy) -&gt; Ty {
-    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
+    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>);
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 
