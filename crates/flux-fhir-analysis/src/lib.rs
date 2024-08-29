@@ -27,6 +27,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
+    query_bug,
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
@@ -105,7 +106,7 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
     let (params, invariants) = match &genv.map().expect_item(def_id)?.kind {
         fhir::ItemKind::Enum(enum_def) => (&enum_def.params, &enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (&struct_def.params, &struct_def.invariants),
-        _ => bug!("expected struct or enum"),
+        _ => Err(query_bug!(def_id, "expected struct or enum"))?,
     };
     let wfckresults = genv.check_wf(def_id)?;
     conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)?
@@ -173,9 +174,7 @@ fn assoc_refinements_of(
                 })
                 .collect()
         }
-        _ => {
-            bug!("expected trait or impl");
-        }
+        _ => Err(query_bug!(local_id, "expected trait or impl"))?,
     };
     Ok(rty::AssocRefinements { items: predicates })
 }
@@ -225,9 +224,7 @@ fn sort_of_assoc_reft(
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
-        _ => {
-            bug!("expected trait or impl");
-        }
+        _ => Err(query_bug!(def_id, "expected trait or impl")),
     }
 }
 
@@ -271,7 +268,9 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 has_self: rustc_generics.orig.has_self,
             }
         }
-        kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
+        kind => {
+            Err(query_bug!(local_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?
+        }
     };
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), local_id, "generics.rty", &generics).unwrap();
@@ -323,7 +322,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                     let wfckresults = genv.check_wf(parent)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
-                k => bug!("non-type def {k:?} {def_id:?}"),
+                k => Err(query_bug!(def_id, "non-type def def {k:?} {def_id:?}"))?,
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
@@ -331,9 +330,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             let ty = genv.lower_type_of(def_id)?.skip_binder();
             Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
         }
-        kind => {
-            bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))
-        }
+        kind => Err(query_bug!(def_id, "`{:?}` not supported", kind.descr(def_id.to_def_id())))?,
     };
     Ok(rty::EarlyBinder(ty))
 }
@@ -365,7 +362,7 @@ fn variants_of(
                 .transpose()?
                 .map(rty::EarlyBinder)
         }
-        _ => bug!("expected struct or enum"),
+        _ => Err(query_bug!(def_id, "expected struct or enum"))?,
     };
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), def_id, "rty", &variants).unwrap();

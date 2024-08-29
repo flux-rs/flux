@@ -10,6 +10,7 @@ use flux_infer::{
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
+    query_bug,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
@@ -1204,10 +1205,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Ty::mk_box(self.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
                 .with_span(span)
         } else {
-            Err(CheckerError::bug(
-                format!("unsupported unsize cast from `{src:?}` to `{dst:?}`",),
-                span,
-            ))
+            Err(query_bug!("unsupported unsize cast from `{src:?}` to `{dst:?}`")).with_span(span)
         }
     }
 
@@ -1676,11 +1674,6 @@ pub(crate) mod errors {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
-
-        #[track_caller]
-        pub fn bug(msg: impl ToString, span: Span) -> Self {
-            CheckerErrKind::bug(msg).at(span)
-        }
     }
 
     #[derive(Debug)]
@@ -1691,11 +1684,6 @@ pub(crate) mod errors {
     }
 
     impl CheckerErrKind {
-        #[track_caller]
-        pub fn bug(msg: impl ToString) -> Self {
-            Self::Query(QueryErr::bug(msg))
-        }
-
         pub fn at(self, span: Span) -> CheckerError {
             CheckerError { kind: self, span }
         }

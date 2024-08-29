@@ -5,6 +5,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::{QueryErr, QueryResult},
+    query_bug,
     rty::{
         self,
         evars::{EVarSol, UnsolvedEvar},
@@ -490,7 +491,7 @@ impl Sub {
                 debug_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
-            _ => Err(QueryErr::bug(format!("incompatible types: `{a:?}` - `{b:?}`")))?,
+            _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
         }
     }
 
@@ -558,7 +559,7 @@ impl Sub {
                 }
                 Ok(())
             }
-            _ => Err(QueryErr::bug(format!("incompatible base types: `{a:?}` - `{b:?}`")))?,
+            _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
 
@@ -580,10 +581,7 @@ impl Sub {
                 debug_assert_eq!(c1, c2);
                 return Ok(());
             }
-            _ => {
-                let note = format!("incompatible generic args: `{arg1:?}` `{arg2:?}`");
-                return Err(QueryErr::bug(note).into());
-            }
+            _ => Err(query_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}`"))?,
         };
         match variance {
             Variance::Covariant => self.tys(infcx, &ty1, &ty2),

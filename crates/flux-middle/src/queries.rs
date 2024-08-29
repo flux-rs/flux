@@ -75,14 +75,25 @@ pub enum QueryErr {
         impl_id: DefId,
         name: Symbol,
     },
-    /// Used to report bugs, typically this means executing an arm in a match we though it was unreachable.
-    /// Use this instead of panicking if it is easy to return a [`QueryErr`]. Use [`QueryErr::bug`] to
-    /// construct this variant.
+    /// Used to report bugs, typically this means executing an arm in a match we though it was
+    /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
+    /// [`QueryErr::bug`] or [`query_bug!`] to construct this variant to track source location.
     Bug {
+        def_id: Option<DefId>,
         location: String,
         msg: String,
     },
     Emitted(ErrorGuaranteed),
+}
+
+#[macro_export]
+macro_rules! query_bug {
+    ($fmt:literal $(,$args:expr)* $(,)?) => {
+        $crate::queries::QueryErr::bug(None, format_args!($fmt, $($args),*))
+    };
+    ($def_id:expr, $fmt:literal $(,$args:expr)* $(,)? ) => {
+        $crate::queries::QueryErr::bug(Some($def_id.into()), format_args!($fmt, $($args),*))
+    };
 }
 
 impl QueryErr {
@@ -91,8 +102,9 @@ impl QueryErr {
     }
 
     #[track_caller]
-    pub fn bug(msg: impl ToString) -> Self {
+    pub fn bug(def_id: Option<DefId>, msg: impl ToString) -> Self {
         QueryErr::Bug {
+            def_id,
             location: format!("{}", std::panic::Location::caller()),
             msg: msg.to_string(),
         }
@@ -697,8 +709,11 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.code(E0999);
                         diag
                     }
-                    QueryErr::Bug { location, msg } => {
+                    QueryErr::Bug { def_id, location, msg } => {
                         let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                        if let Some(def_id) = def_id {
+                            diag.span(tcx.def_span(def_id));
+                        }
                         diag.arg("location", location);
                         diag.note(msg);
                         diag
