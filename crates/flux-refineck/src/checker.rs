@@ -1270,7 +1270,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Constant::Char => Ok(Ty::char()),
             Constant::Param(param_const, ty) => {
-                let idx = Expr::const_generic(*param_const, None);
+                let idx = Expr::const_generic(*param_const);
                 let ty_ctor = Refiner::default(self.genv, &self.generics)
                     .refine_ty_ctor(ty)
                     .with_span(self.body.span())?;
@@ -1588,12 +1588,12 @@ impl Mode for RefineMode {
 }
 
 fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0, None);
+    let idx = Expr::ite(b, 1, 0);
     Ty::indexed(BaseTy::Int(int_ty), idx)
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0, None);
+    let idx = Expr::ite(b, 1, 0);
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 

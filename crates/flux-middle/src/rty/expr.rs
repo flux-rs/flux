@@ -295,7 +295,7 @@ newtype_index! {
 }
 
 impl ExprKind {
-    fn intern_at(self, espan: Option<ESpan>) -> Expr {
+    pub fn intern_at(self, espan: Option<ESpan>) -> Expr {
         Interned::new(ExprS { kind: self, espan })
     }
 
@@ -336,14 +336,14 @@ impl Expr {
     pub fn and_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, None))
+            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
             .unwrap_or_else(Expr::tt)
     }
 
     pub fn or_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, None))
+            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e))
             .unwrap_or_else(Expr::ff)
     }
 
@@ -409,8 +409,8 @@ impl Expr {
         Expr::tuple(List::empty())
     }
 
-    pub fn var(var: Var, espan: Option<ESpan>) -> Expr {
-        ExprKind::Var(var).intern_at(espan)
+    pub fn var(var: Var) -> Expr {
+        ExprKind::Var(var).intern()
     }
 
     pub fn fvar(name: Name) -> Expr {
@@ -429,24 +429,20 @@ impl Expr {
         Var::EarlyParam(EarlyReftParam { index, name }).to_expr()
     }
 
-    pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
-        ExprKind::Local(local).intern_at(espan)
+    pub fn local(local: Local) -> Expr {
+        ExprKind::Local(local).intern()
     }
 
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn constant_at(c: Constant, espan: Option<ESpan>) -> Expr {
-        ExprKind::Constant(c).intern_at(espan)
+    pub fn const_def_id(c: DefId) -> Expr {
+        ExprKind::ConstDefId(c).intern()
     }
 
-    pub fn const_def_id(c: DefId, espan: Option<ESpan>) -> Expr {
-        ExprKind::ConstDefId(c).intern_at(espan)
-    }
-
-    pub fn const_generic(param: ParamConst, espan: Option<ESpan>) -> Expr {
-        ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
+    pub fn const_generic(param: ParamConst) -> Expr {
+        ExprKind::Var(Var::ConstGeneric(param)).intern()
     }
 
     pub fn aggregate(kind: AggregateKind, flds: List<Expr>) -> Expr {
@@ -474,13 +470,8 @@ impl Expr {
         }
     }
 
-    pub fn ite(
-        p: impl Into<Expr>,
-        e1: impl Into<Expr>,
-        e2: impl Into<Expr>,
-        espan: Option<ESpan>,
-    ) -> Expr {
-        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
+    pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
     pub fn abs(lam: Lambda) -> Expr {
@@ -503,37 +494,28 @@ impl Expr {
         ExprKind::ForAll(expr).intern()
     }
 
-    pub fn binary_op(
-        op: BinOp,
-        e1: impl Into<Expr>,
-        e2: impl Into<Expr>,
-        espan: Option<ESpan>,
-    ) -> Expr {
-        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
+    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
     pub fn unit_adt(def_id: DefId) -> Expr {
         Expr::adt(def_id, List::empty())
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern_at(espan)
+    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern()
     }
 
     pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 
-    pub fn unary_op(op: UnOp, e: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
-        ExprKind::UnaryOp(op, e.into()).intern_at(espan)
-    }
-
-    pub fn eq_at(e1: impl Into<Expr>, e2: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(espan)
-    }
-
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Self::eq_at(e1, e2, None)
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+    }
+
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern()
     }
 
     pub fn ne(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -560,15 +542,15 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn field_proj(e: impl Into<Expr>, proj: FieldProj, espan: Option<ESpan>) -> Expr {
-        ExprKind::FieldProj(e.into(), proj).intern_at(espan)
+    pub fn field_proj(e: impl Into<Expr>, proj: FieldProj) -> Expr {
+        ExprKind::FieldProj(e.into(), proj).intern()
     }
 
     pub fn field_projs(e: impl Into<Expr>, projs: &[FieldProj]) -> Expr {
         projs
             .iter()
             .copied()
-            .fold(e.into(), |e, p| Expr::field_proj(e, p, None))
+            .fold(e.into(), |e, p| Expr::field_proj(e, p))
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
@@ -607,7 +589,7 @@ impl Expr {
 
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
         match &c.kind {
-            ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
+            ConstKind::Param(param_const) => Expr::const_generic(*param_const),
             ConstKind::Value(ty, scalar) => {
                 let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
                 Expr::constant(val)
@@ -656,21 +638,21 @@ impl Expr {
                         let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
-                                Expr::constant_at(Constant::Bool(false), e1_span)
+                                ExprKind::Constant(Constant::Bool(false)).intern_at(e1_span)
                             }
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                Expr::constant_at(Constant::Bool(false), e2_span)
+                                ExprKind::Constant(Constant::Bool(false)).intern_at(e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => Expr::constant_at(c, span.or(e2_span)),
-                                    None => Expr::binary_op(op.clone(), e1, e2, span),
+                                    Some(c) => ExprKind::Constant(c).intern_at(span.or(e2_span)),
+                                    None => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at(span),
                                 }
                             }
-                            _ => Expr::binary_op(op.clone(), e1, e2, span),
+                            _ => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -681,9 +663,10 @@ impl Expr {
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone(), span)
+                                ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
+                                    .intern_at(span)
                             }
-                            _ => Expr::unary_op(UnOp::Not, e, span),
+                            _ => ExprKind::UnaryOp(UnOp::Not, e).intern_at(span),
                         }
                     }
                     _ => expr.super_fold_with(self),
@@ -725,7 +708,7 @@ impl Expr {
         let args = (0..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect_vec();
-        let body = Expr::app(self, args, None);
+        let body = Expr::app(self, args);
         Lambda::with_sorts(body, inputs, output)
     }
 
@@ -747,7 +730,7 @@ impl Expr {
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
             ExprKind::Aggregate(_, flds) => flds[proj.field_idx() as usize].clone(),
-            _ => Expr::field_proj(self.clone(), proj, None),
+            _ => Expr::field_proj(self.clone(), proj),
         }
     }
 
@@ -782,7 +765,7 @@ impl KVar {
 
 impl Var {
     pub fn to_expr(&self) -> Expr {
-        Expr::var(*self, None)
+        Expr::var(*self)
     }
 }
 
@@ -813,8 +796,8 @@ impl Path {
 impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
-            Loc::Local(local) => Expr::local(*local, None),
-            Loc::Var(var) => Expr::var(*var, None),
+            Loc::Local(local) => Expr::local(*local),
+            Loc::Var(var) => Expr::var(*var),
         }
     }
 }
@@ -828,7 +811,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs, None)
+                Expr::binary_op(BinOp::$op, self, rhs)
             }
         }
 
@@ -839,7 +822,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs, None)
+                Expr::binary_op(BinOp::$op, self, rhs)
             }
         }
     )*};
@@ -872,7 +855,7 @@ impl From<Name> for Expr {
 
 impl From<Var> for Expr {
     fn from(var: Var) -> Self {
-        Expr::var(var, None)
+        Expr::var(var)
     }
 }
 
