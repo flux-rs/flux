@@ -1622,18 +1622,19 @@ impl ConvCtxt<'_, '_, '_> {
         let span = expr.span();
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
-                let kind = match *coercion {
+                expr = match *coercion {
                     rty::Coercion::Inject(def_id) => {
                         rty::ExprKind::Aggregate(
                             rty::AggregateKind::Adt(def_id),
                             List::singleton(expr),
                         )
+                        .intern_at_opt(span)
                     }
                     rty::Coercion::Project(def_id) => {
                         rty::ExprKind::FieldProj(expr, rty::FieldProj::Adt { def_id, field: 0 })
+                            .intern_at_opt(span)
                     }
                 };
-                expr = kind.intern_at_opt(span)
             }
         }
         expr

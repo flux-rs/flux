@@ -551,10 +551,7 @@ impl Expr {
     }
 
     pub fn field_projs(e: impl Into<Expr>, projs: &[FieldProj]) -> Expr {
-        projs
-            .iter()
-            .copied()
-            .fold(e.into(), |e, p| Expr::field_proj(e, p))
+        projs.iter().copied().fold(e.into(), Expr::field_proj)
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
