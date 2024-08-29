@@ -1261,7 +1261,7 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::ForAll(expr) => ExprKind::ForAll(expr.try_fold_with(folder)?),
         };
-        Ok(kind.intern_at(span))
+        Ok(kind.intern_at_opt(span))
     }
 }
 

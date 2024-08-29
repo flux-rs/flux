@@ -131,7 +131,7 @@ impl<'a> Normalizer<'a> {
                 let res = lam.apply(args);
                 Self::at_base(res, espan)
             }
-            _ => ExprKind::App(func.clone(), args.into()).intern_at(espan),
+            _ => ExprKind::App(func.clone(), args.into()).intern_at_opt(espan),
         }
     }
 }

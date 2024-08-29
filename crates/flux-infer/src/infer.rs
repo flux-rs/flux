@@ -639,7 +639,7 @@ impl Sub {
                 infcx.unify_exprs(e1, e2);
                 let span = e2.span();
                 infcx.check_pred(
-                    ExprKind::BinaryOp(rty::BinOp::Eq, e1.into(), e2.into()).intern_at(span),
+                    ExprKind::BinaryOp(rty::BinOp::Eq, e1.into(), e2.into()).intern_at_opt(span),
                     self.tag(),
                 );
             }

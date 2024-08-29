@@ -295,8 +295,12 @@ newtype_index! {
 }
 
 impl ExprKind {
-    pub fn intern_at(self, espan: Option<ESpan>) -> Expr {
+    pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
         Interned::new(ExprS { kind: self, espan })
+    }
+
+    pub fn intern_at(self, espan: ESpan) -> Expr {
+        self.intern_at_opt(Some(espan))
     }
 
     fn intern(self) -> Expr {
@@ -310,7 +314,7 @@ impl Expr {
         if let Some(espan) = self.espan
             && let Some(base) = base
         {
-            kind.clone().intern_at(Some(espan.with_base(base)))
+            kind.clone().intern_at(espan.with_base(base))
         } else {
             self
         }
@@ -638,21 +642,25 @@ impl Expr {
                         let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at(e1_span)
+                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e1_span)
                             }
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at(e2_span)
+                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => ExprKind::Constant(c).intern_at(span.or(e2_span)),
-                                    None => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at(span),
+                                    Some(c) => {
+                                        ExprKind::Constant(c).intern_at_opt(span.or(e2_span))
+                                    }
+                                    None => {
+                                        ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span)
+                                    }
                                 }
                             }
-                            _ => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at(span),
+                            _ => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -664,9 +672,9 @@ impl Expr {
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
                                 ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
-                                    .intern_at(span)
+                                    .intern_at_opt(span)
                             }
-                            _ => ExprKind::UnaryOp(UnOp::Not, e).intern_at(span),
+                            _ => ExprKind::UnaryOp(UnOp::Not, e).intern_at_opt(span),
                         }
                     }
                     _ => expr.super_fold_with(self),
