@@ -1749,18 +1749,6 @@
 <a href="#1749" id="1749">1749</a>
 <a href="#1750" id="1750">1750</a>
 <a href="#1751" id="1751">1751</a>
-<a href="#1752" id="1752">1752</a>
-<a href="#1753" id="1753">1753</a>
-<a href="#1754" id="1754">1754</a>
-<a href="#1755" id="1755">1755</a>
-<a href="#1756" id="1756">1756</a>
-<a href="#1757" id="1757">1757</a>
-<a href="#1758" id="1758">1758</a>
-<a href="#1759" id="1759">1759</a>
-<a href="#1760" id="1760">1760</a>
-<a href="#1761" id="1761">1761</a>
-<a href="#1762" id="1762">1762</a>
-<a href="#1763" id="1763">1763</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -1773,6 +1761,7 @@
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
+    query_bug,
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
@@ -2967,10 +2956,7 @@
             Ty::mk_box(<span class="self">self</span>.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
                 .with_span(span)
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(CheckerError::bug(
-                <span class="macro">format!</span>(<span class="string">"unsupported unsize cast from `{src:?}` to `{dst:?}`"</span>,),
-                span,
-            ))
+            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"unsupported unsize cast from `{src:?}` to `{dst:?}`"</span>)).with_span(span)
         }
     }
 
@@ -3439,11 +3425,6 @@
         <span class="kw">pub fn </span>opaque_struct(def_id: DefId, span: Span) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
-
-        <span class="attr">#[track_caller]
-        </span><span class="kw">pub fn </span>bug(msg: <span class="kw">impl </span>ToString, span: Span) -&gt; <span class="self">Self </span>{
-            CheckerErrKind::bug(msg).at(span)
-        }
     }
 
     <span class="attr">#[derive(Debug)]
@@ -3454,11 +3435,6 @@
     }
 
     <span class="kw">impl </span>CheckerErrKind {
-        <span class="attr">#[track_caller]
-        </span><span class="kw">pub fn </span>bug(msg: <span class="kw">impl </span>ToString) -&gt; <span class="self">Self </span>{
-            <span class="self">Self</span>::Query(QueryErr::bug(msg))
-        }
-
         <span class="kw">pub fn </span>at(<span class="self">self</span>, span: Span) -&gt; CheckerError {
             CheckerError { kind: <span class="self">self</span>, span }
         }

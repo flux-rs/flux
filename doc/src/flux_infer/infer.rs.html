@@ -759,8 +759,6 @@
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
 <a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -768,6 +766,7 @@
     global_env::GlobalEnv,
     intern::List,
     queries::{QueryErr, QueryResult},
+    query_bug,
     rty::{
         <span class="self">self</span>,
         evars::{EVarSol, UnsolvedEvar},
@@ -1253,7 +1252,7 @@
                 <span class="macro">debug_assert_eq!</span>(alias_ty_a, alias_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{a:?}` - `{b:?}`"</span>)))<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible types: `{a:?}` - `{b:?}`"</span>))<span class="question-mark">?</span>,
         }
     }
 
@@ -1321,7 +1320,7 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible base types: `{a:?}` - `{b:?}`"</span>)))<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible base types: `{a:?}` - `{b:?}`"</span>))<span class="question-mark">?</span>,
         }
     }
 
@@ -1343,10 +1342,7 @@
                 <span class="macro">debug_assert_eq!</span>(c1, c2);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
-            <span class="kw">_ </span>=&gt; {
-                <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}`"</span>);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::bug(note).into());
-            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}`"</span>))<span class="question-mark">?</span>,
         };
         <span class="kw">match </span>variance {
             Variance::Covariant =&gt; <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2),

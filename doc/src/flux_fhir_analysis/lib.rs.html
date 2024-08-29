@@ -477,9 +477,6 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -509,6 +506,7 @@
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
+    query_bug,
     rty::{<span class="self">self</span>, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
@@ -587,7 +585,7 @@
     <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id)<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; (<span class="kw-2">&amp;</span>enum_def.params, <span class="kw-2">&amp;</span>enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) =&gt; (<span class="kw-2">&amp;</span>struct_def.params, <span class="kw-2">&amp;</span>struct_def.invariants),
-        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct or enum"</span>),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
     conv::conv_invariants(genv, def_id, params, invariants, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
@@ -655,9 +653,7 @@
                 })
                 .collect()
         }
-        <span class="kw">_ </span>=&gt; {
-            <span class="macro">bug!</span>(<span class="string">"expected trait or impl"</span>);
-        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
     };
     <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
 }
@@ -707,9 +703,7 @@
             <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
-        <span class="kw">_ </span>=&gt; {
-            <span class="macro">bug!</span>(<span class="string">"expected trait or impl"</span>);
-        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected trait or impl"</span>)),
     }
 }
 
@@ -753,7 +747,9 @@
                 has_self: rustc_generics.orig.has_self,
             }
         }
-        kind =&gt; <span class="macro">bug!</span>(<span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>),
+        kind =&gt; {
+            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>))<span class="question-mark">?
+        </span>}
     };
     <span class="kw">if </span>config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), local_id, <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
@@ -805,7 +801,7 @@
                     <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
                     conv::conv_ty(genv, ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                 </span>}
-                k =&gt; <span class="macro">bug!</span>(<span class="string">"non-type def {k:?} {def_id:?}"</span>),
+                k =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"non-type def def {k:?} {def_id:?}"</span>))<span class="question-mark">?</span>,
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
@@ -813,9 +809,7 @@
             <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
             Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty_ctor(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
         </span>}
-        kind =&gt; {
-            <span class="macro">bug!</span>(<span class="string">"`{:?}` not supported"</span>, kind.descr(def_id.to_def_id()))
-        }
+        kind =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"`{:?}` not supported"</span>, kind.descr(def_id.to_def_id())))<span class="question-mark">?</span>,
     };
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(ty))
 }
@@ -847,7 +841,7 @@
                 .transpose()<span class="question-mark">?
                 </span>.map(rty::EarlyBinder)
         }
-        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct or enum"</span>),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">if </span>config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
