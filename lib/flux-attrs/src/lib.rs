@@ -5,8 +5,17 @@ use proc_macro2::{Ident, TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
 
-pub const FLUX_ATTRS: &[&str] =
-    &["opaque", "invariant", "trusted", "generics", "assoc", "refined_by", "variant", "field"];
+pub const FLUX_ATTRS: &[&str] = &[
+    "assoc",
+    "field",
+    "generics",
+    "invariant",
+    "opaque",
+    "refined_by",
+    "sig",
+    "trusted",
+    "variant",
+];
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     extern_spec::transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
