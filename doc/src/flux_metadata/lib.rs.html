@@ -325,6 +325,82 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -344,9 +420,10 @@
 <span class="kw">mod </span>decoder;
 <span class="kw">mod </span>encoder;
 
-<span class="kw">use </span>std::path::PathBuf;
+<span class="kw">use </span>std::{hash::Hash, path::PathBuf};
 
 <span class="kw">use </span>decoder::decode_crate_metadata;
+<span class="kw">use </span>derive_where::derive_where;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
@@ -356,8 +433,8 @@
     queries::QueryResult,
     rty,
 };
-<span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::def::DefKind;
+<span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
+<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::LocalDefId};
 <span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_session::{
@@ -376,253 +453,308 @@
 <span class="kw">const </span>METADATA_VERSION: u8 = <span class="number">0</span>;
 <span class="kw">const </span>METADATA_HEADER: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[<span class="string">b'f'</span>, <span class="string">b'l'</span>, <span class="string">b'u'</span>, <span class="string">b'x'</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, METADATA_VERSION];
 
-<span class="kw">pub struct </span>CStore {
-    meta: FxHashMap&lt;CrateNum, CrateMetadata&gt;,
+<span class="attr">#[derive(Default)]
+</span><span class="kw">pub struct </span>CStore {
+    local_tables: UnordMap&lt;CrateNum, Tables&lt;DefIndex&gt;&gt;,
+    extern_tables: Tables&lt;DefId&gt;,
 }
 
 <span class="attr">#[derive(Default, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>CrateMetadata {
-    generics_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::Generics&gt;&gt;,
-    refinement_generics_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
-    predicates_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
-    item_bounds: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;&gt;,
-    assoc_refinements_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
-    assoc_refinements_def:
-        FxHashMap&lt;(DefIndex, Symbol), QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
-    sort_of_assoc_reft:
-        FxHashMap&lt;(DefIndex, Symbol), QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;&gt;,
-    fn_sigs: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;,
-    adt_defs: FxHashMap&lt;DefIndex, QueryResult&lt;rty::AdtDef&gt;&gt;,
-    adt_sort_defs: FxHashMap&lt;DefIndex, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
-    variants:
-        FxHashMap&lt;DefIndex, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
-    type_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;,
+    local_tables: Tables&lt;DefIndex&gt;,
+    extern_tables: Tables&lt;DefId&gt;,
+}
+
+<span class="doccomment">/// Trait to deal with the fact that `assoc_refinmenents_of` and `assoc_refinements_def` use
+/// `(K, Symbol)` as key;
+</span><span class="kw">trait </span>Key {
+    <span class="kw">type </span>KeyIndex;
+    <span class="kw">fn </span>crate_num(<span class="self">self</span>) -&gt; CrateNum;
+    <span class="kw">fn </span>to_index(<span class="self">self</span>) -&gt; <span class="self">Self</span>::KeyIndex;
+    <span class="kw">fn </span>name(<span class="self">self</span>, tcx: TyCtxt) -&gt; String;
+}
+
+<span class="kw">impl </span>Key <span class="kw">for </span>DefId {
+    <span class="kw">type </span>KeyIndex = DefIndex;
+
+    <span class="kw">fn </span>crate_num(<span class="self">self</span>) -&gt; CrateNum {
+        <span class="self">self</span>.krate
+    }
+
+    <span class="kw">fn </span>to_index(<span class="self">self</span>) -&gt; <span class="self">Self</span>::KeyIndex {
+        <span class="self">self</span>.index
+    }
+
+    <span class="kw">fn </span>name(<span class="self">self</span>, tcx: TyCtxt) -&gt; String {
+        tcx.def_path_str(<span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl </span>Key <span class="kw">for </span>(DefId, Symbol) {
+    <span class="kw">type </span>KeyIndex = (DefIndex, Symbol);
+
+    <span class="kw">fn </span>crate_num(<span class="self">self</span>) -&gt; CrateNum {
+        <span class="self">self</span>.<span class="number">0</span>.krate
+    }
+
+    <span class="kw">fn </span>to_index(<span class="self">self</span>) -&gt; <span class="self">Self</span>::KeyIndex {
+        (<span class="self">self</span>.<span class="number">0</span>.index, <span class="self">self</span>.<span class="number">1</span>)
+    }
+
+    <span class="kw">fn </span>name(<span class="self">self</span>, tcx: TyCtxt) -&gt; String {
+        <span class="macro">format!</span>(<span class="string">"{}::{}"</span>, tcx.def_path_str(<span class="self">self</span>.<span class="number">0</span>), <span class="self">self</span>.<span class="number">1</span>)
+    }
+}
+
+<span class="attr">#[derive_where(Default)]
+#[derive(TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>Tables&lt;K: Eq + Hash&gt; {
+    generics_of: UnordMap&lt;K, QueryResult&lt;rty::Generics&gt;&gt;,
+    refinement_generics_of: UnordMap&lt;K, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
+    predicates_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
+    item_bounds: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;&gt;,
+    assoc_refinements_of: UnordMap&lt;K, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
+    assoc_refinements_def: UnordMap&lt;(K, Symbol), QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
+    sort_of_assoc_reft: UnordMap&lt;(K, Symbol), QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;&gt;,
+    fn_sig: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;,
+    adt_def: UnordMap&lt;K, QueryResult&lt;rty::AdtDef&gt;&gt;,
+    adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
+    variants: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
+    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>CStore {
     <span class="kw">pub fn </span>load(tcx: TyCtxt, sess: <span class="kw-2">&amp;</span>FluxSession) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>meta = tcx
-            .crates(())
-            .iter()
-            .filter_map(|crate_num| {
-                <span class="kw">let </span>path = flux_metadata_extern_location(tcx, <span class="kw-2">*</span>crate_num)<span class="question-mark">?</span>;
-                <span class="kw">let </span>meta = decode_crate_metadata(tcx, sess, path.as_path())<span class="question-mark">?</span>;
-                <span class="prelude-val">Some</span>((<span class="kw-2">*</span>crate_num, meta))
-            })
-            .collect();
-        <span class="self">Self </span>{ meta }
+        <span class="kw">let </span><span class="kw-2">mut </span>cstore = CStore::default();
+        <span class="kw">for </span>crate_num <span class="kw">in </span>tcx.crates(()) {
+            <span class="kw">let </span><span class="prelude-val">Some</span>(path) = flux_metadata_extern_location(tcx, <span class="kw-2">*</span>crate_num) <span class="kw">else </span>{ <span class="kw">continue </span>};
+            <span class="kw">let </span><span class="prelude-val">Some</span>(meta) = decode_crate_metadata(tcx, sess, path.as_path()) <span class="kw">else </span>{ <span class="kw">continue </span>};
+            cstore.local_tables.insert(<span class="kw-2">*</span>crate_num, meta.local_tables);
+            cstore.merge_extern_tables(tcx, sess, meta.extern_tables);
+        }
+        cstore
     }
+
+    <span class="kw">fn </span>merge_extern_tables(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        tcx: TyCtxt,
+        sess: <span class="kw-2">&amp;</span>FluxSession,
+        extern_tables: Tables&lt;DefId&gt;,
+    ) {
+        <span class="macro">macro_rules!</span> merge_extern_table {
+            (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$tcx</span>:expr, <span class="macro-nonterminal">$table</span>:ident, <span class="macro-nonterminal">$extern_tables</span>:expr) =&gt; {{
+                <span class="comment">// This is technically observing the order becauses it has side effects, but it's ok
+                // because we emit a fatal error and abort the process
+                </span><span class="macro-nonterminal">$extern_tables</span>.<span class="macro-nonterminal">$table</span>.keys().map(|k| {
+                    <span class="kw">if </span><span class="self">self</span>.<span class="macro-nonterminal">$table</span>(<span class="kw-2">*</span>k).is_some() {
+                        sess.emit_fatal(errors::DuplicateSpec::new(<span class="macro-nonterminal">$tcx</span>, <span class="kw-2">*</span>k));
+                    }
+                });
+                <span class="macro-nonterminal">$self
+                    </span>.extern_tables
+                    .<span class="macro-nonterminal">$table
+                    </span>.extend_unord(extern_tables.<span class="macro-nonterminal">$table</span>.into_items());
+            }};
+        }
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, generics_of, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, refinement_generics_of, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, predicates_of, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, item_bounds, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, assoc_refinements_of, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, assoc_refinements_def, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, sort_of_assoc_reft, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, fn_sig, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, adt_def, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, adt_sort_def, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, variants, extern_tables);
+        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, type_of, extern_tables);
+    }
+}
+
+<span class="macro">macro_rules!</span> get {
+    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$table</span>:ident, <span class="macro-nonterminal">$key</span>:expr) =&gt; {{
+        <span class="kw">let </span>key = <span class="macro-nonterminal">$key</span>;
+        <span class="kw">let </span>this = <span class="macro-nonterminal">$self</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(tables) = this.local_tables.get(<span class="kw-2">&amp;</span>key.crate_num()) {
+            tables.<span class="macro-nonterminal">$table</span>.get(<span class="kw-2">&amp;</span>key.to_index()).cloned()
+        } <span class="kw">else </span>{
+            this.extern_tables.<span class="macro-nonterminal">$table</span>.get(<span class="kw-2">&amp;</span>key).cloned()
+        }
+    }};
 }
 
 <span class="kw">impl </span>CrateStore <span class="kw">for </span>CStore {
     <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.fn_sigs
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, fn_sig, def_id)
     }
 
     <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtDef&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.adt_defs
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, adt_def, def_id)
     }
 
     <span class="kw">fn </span>adt_sort_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtSortDef&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.adt_sort_defs
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, adt_sort_def, def_id)
     }
 
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
     ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.variants
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, variants, def_id)
     }
 
     <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.type_of
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, type_of, def_id)
     }
 
     <span class="kw">fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::Generics&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.generics_of
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, generics_of, def_id)
     }
 
     <span class="kw">fn </span>refinement_generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::RefinementGenerics&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.refinement_generics_of
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, refinement_generics_of, def_id)
     }
 
     <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.item_bounds
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, item_bounds, def_id)
     }
 
     <span class="kw">fn </span>predicates_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.predicates_of
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, predicates_of, def_id)
     }
 
     <span class="kw">fn </span>assoc_refinements_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AssocRefinements&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.assoc_refinements_of
-            .get(<span class="kw-2">&amp;</span>def_id.index)
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, assoc_refinements_of, def_id)
     }
 
     <span class="kw">fn </span>assoc_refinements_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.assoc_refinements_def
-            .get(<span class="kw-2">&amp;</span>(def_id.index, name))
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, assoc_refinements_def, key)
     }
 
     <span class="kw">fn </span>sort_of_assoc_reft(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -&gt; OptResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt; {
-        <span class="self">self</span>.meta
-            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
-            </span>.sort_of_assoc_reft
-            .get(<span class="kw-2">&amp;</span>(def_id.index, name))
-            .cloned()
+        <span class="macro">get!</span>(<span class="self">self</span>, sort_of_assoc_reft, key)
     }
 }
 
 <span class="kw">impl </span>CrateMetadata {
-    <span class="kw">fn </span>new(genv: <span class="kw-2">&amp;</span>GlobalEnv) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>tcx = genv.tcx();
-        <span class="kw">let </span><span class="kw-2">mut </span>data = CrateMetadata::default();
+    <span class="kw">fn </span>new(genv: GlobalEnv) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>local_tables = Tables::default();
+        encode_def_ids(
+            genv,
+            genv.iter_local_def_id().map(LocalDefId::to_def_id),
+            <span class="kw-2">&amp;mut </span>local_tables,
+            |def_id| def_id.index,
+        );
 
-        <span class="kw">for </span>local_id <span class="kw">in </span>tcx.iter_local_def_id() {
-            <span class="kw">let </span>def_id = local_id.to_def_id();
-            <span class="kw">let </span>def_kind = tcx.def_kind(local_id);
+        <span class="kw">let </span><span class="kw-2">mut </span>extern_tables = Tables::default();
+        encode_def_ids(genv, genv.iter_extern_def_id(), <span class="kw-2">&amp;mut </span>extern_tables, |def_id| def_id);
 
-            <span class="kw">match </span>def_kind {
-                DefKind::Trait =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
+        CrateMetadata { local_tables, extern_tables }
+    }
+}
+
+<span class="kw">fn </span>encode_def_ids&lt;K: Eq + Hash + Copy&gt;(
+    genv: GlobalEnv,
+    def_ids: <span class="kw">impl </span>IntoIterator&lt;Item = DefId&gt;,
+    tables: <span class="kw-2">&amp;mut </span>Tables&lt;K&gt;,
+    mk_key: <span class="kw">impl </span>Fn(DefId) -&gt; K,
+) {
+    <span class="kw">for </span>def_id <span class="kw">in </span>def_ids {
+        <span class="kw">let </span>def_kind = genv.def_kind(def_id);
+        <span class="kw">let </span>key = mk_key(def_id);
+
+        <span class="kw">match </span>def_kind {
+            DefKind::Trait =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+                <span class="kw">let </span>assocs = genv.assoc_refinements_of(def_id);
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
+                    <span class="kw">for </span>assoc <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
+                        <span class="kw">let </span>key = mk_key(assoc.container_def_id);
+                        tables.sort_of_assoc_reft.insert(
+                            (key, assoc.name),
+                            genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
+                        );
+                    }
+                }
+                tables.assoc_refinements_of.insert(key, assocs);
+            }
+            DefKind::Impl { of_trait } =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+
+                <span class="kw">if </span>of_trait {
                     <span class="kw">let </span>assocs = genv.assoc_refinements_of(def_id);
                     <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
                         <span class="kw">for </span>assoc <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
-                            data.sort_of_assoc_reft.insert(
-                                (assoc.container_def_id.index, assoc.name),
+                            <span class="kw">let </span>key = mk_key(assoc.container_def_id);
+                            tables.assoc_refinements_def.insert(
+                                (key, assoc.name),
+                                genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
+                            );
+                            tables.sort_of_assoc_reft.insert(
+                                (key, assoc.name),
                                 genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
                             );
                         }
                     }
-                    data.assoc_refinements_of.insert(def_id.index, assocs);
+                    tables.assoc_refinements_of.insert(key, assocs);
                 }
-                DefKind::Impl { of_trait } =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
-
-                    <span class="kw">if </span>of_trait {
-                        <span class="kw">let </span>assocs = genv.assoc_refinements_of(def_id);
-                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(assocs) = <span class="kw-2">&amp;</span>assocs {
-                            <span class="kw">for </span>assoc <span class="kw">in </span><span class="kw-2">&amp;</span>assocs.items {
-                                data.assoc_refinements_def.insert(
-                                    (assoc.container_def_id.index, assoc.name),
-                                    genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
-                                );
-                                data.sort_of_assoc_reft.insert(
-                                    (assoc.container_def_id.index, assoc.name),
-                                    genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                                );
-                            }
-                        }
-                        data.assoc_refinements_of.insert(def_id.index, assocs);
-                    }
-                }
-                DefKind::Fn | DefKind::AssocFn =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.fn_sigs.insert(def_id.index, genv.fn_sig(def_id));
-                }
-                DefKind::Enum | DefKind::Struct =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.adt_defs.insert(def_id.index, genv.adt_def(def_id));
-                    data.adt_sort_defs
-                        .insert(def_id.index, genv.adt_sort_def_of(def_id));
-                    data.variants.insert(def_id.index, genv.variants_of(def_id));
-                    data.type_of.insert(def_id.index, genv.type_of(def_id));
-                }
-                DefKind::TyAlias { .. } =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    data.adt_sort_defs
-                        .insert(def_id.index, genv.adt_sort_def_of(def_id));
-                    data.type_of.insert(def_id.index, genv.type_of(def_id));
-                }
-                DefKind::OpaqueTy =&gt; {
-                    data.generics_of
-                        .insert(def_id.index, genv.generics_of(def_id));
-                    data.predicates_of
-                        .insert(def_id.index, genv.predicates_of(def_id));
-                    data.item_bounds
-                        .insert(def_id.index, genv.item_bounds(def_id));
-                    data.refinement_generics_of
-                        .insert(def_id.index, genv.refinement_generics_of(def_id));
-                }
-                <span class="kw">_ </span>=&gt; {}
             }
+            DefKind::Fn | DefKind::AssocFn =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+                tables.fn_sig.insert(key, genv.fn_sig(def_id));
+            }
+            DefKind::Enum | DefKind::Struct =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+                tables.adt_def.insert(key, genv.adt_def(def_id));
+                tables
+                    .adt_sort_def
+                    .insert(key, genv.adt_sort_def_of(def_id));
+                tables.variants.insert(key, genv.variants_of(def_id));
+                tables.type_of.insert(key, genv.type_of(def_id));
+            }
+            DefKind::TyAlias { .. } =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+                tables
+                    .adt_sort_def
+                    .insert(key, genv.adt_sort_def_of(def_id));
+                tables.type_of.insert(key, genv.type_of(def_id));
+            }
+            DefKind::OpaqueTy =&gt; {
+                tables.generics_of.insert(key, genv.generics_of(def_id));
+                tables.predicates_of.insert(key, genv.predicates_of(def_id));
+                tables.item_bounds.insert(key, genv.item_bounds(def_id));
+                tables
+                    .refinement_generics_of
+                    .insert(key, genv.refinement_generics_of(def_id));
+            }
+            <span class="kw">_ </span>=&gt; {}
         }
-        data
     }
 }
 
@@ -652,4 +784,24 @@
 </span><span class="kw">const </span>SYMBOL_STR: u8 = <span class="number">0</span>;
 <span class="kw">const </span>SYMBOL_OFFSET: u8 = <span class="number">1</span>;
 <span class="kw">const </span>SYMBOL_PREINTERNED: u8 = <span class="number">2</span>;
+
+<span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
+    <span class="kw">use </span>flux_macros::Diagnostic;
+    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
+
+    <span class="kw">use </span><span class="kw">crate</span>::Key;
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(metadata_duplicate_spec, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateSpec {
+        def_name: String,
+    }
+
+    <span class="kw">impl </span>DuplicateSpec {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(tcx: TyCtxt, key: <span class="kw">impl </span>Key) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ def_name: key.name(tcx) }
+        }
+    }
+}
 </code></pre></div></section></main></body></html>

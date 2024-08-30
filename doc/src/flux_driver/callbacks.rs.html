@@ -333,7 +333,7 @@
             <span class="kw">let </span>arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, <span class="kw-2">&amp;</span>sess, Box::new(cstore), <span class="kw-2">&amp;</span>arena, providers, |genv| {
                 <span class="kw">if </span>check_crate(genv).is_ok() {
-                    save_metadata(<span class="kw-2">&amp;</span>genv);
+                    save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -375,7 +375,7 @@
     }
 }
 
-<span class="kw">fn </span>save_metadata(genv: <span class="kw-2">&amp;</span>GlobalEnv) {
+<span class="kw">fn </span>save_metadata(genv: GlobalEnv) {
     <span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">if </span>tcx
         .sess

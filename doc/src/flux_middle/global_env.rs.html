@@ -515,6 +515,21 @@
 <a href="#515" id="515">515</a>
 <a href="#516" id="516">516</a>
 <a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -867,6 +882,21 @@
     </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
         <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
         <span class="self">self</span>.extern_id_of(local_id).unwrap_or(def_id)
+    }
+
+    <span class="doccomment">/// Iterator over all local def ids that are not a extern spec
+    </span><span class="kw">pub fn </span>iter_local_def_id(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = LocalDefId&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'tcx</span>, <span class="lifetime">'genv</span>&gt; {
+        <span class="comment">// FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
+        // an `#[extern_spec]` annotation and are thus not being excluded here
+        </span><span class="self">self</span>.tcx()
+            .iter_local_def_id()
+            .filter(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.extern_id_of(<span class="kw-2">*</span>local_def_id).is_none())
+    }
+
+    <span class="kw">pub fn </span>iter_extern_def_id(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = DefId&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'tcx</span>, <span class="lifetime">'genv</span>&gt; {
+        <span class="self">self</span>.tcx()
+            .iter_local_def_id()
+            .filter_map(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.extern_id_of(local_def_id))
     }
 
     <span class="doccomment">/// If `local_def_id` is an id for an extern spec return the extern id.

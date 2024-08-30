@@ -29,8 +29,6 @@
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
 
 <span class="kw">use crate</span>::{intern::List, queries::QueryResult, rty};
@@ -48,13 +46,11 @@
     <span class="kw">fn </span>assoc_refinements_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AssocRefinements&gt;;
     <span class="kw">fn </span>assoc_refinements_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;;
     <span class="kw">fn </span>sort_of_assoc_reft(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -&gt; OptResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;;
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,

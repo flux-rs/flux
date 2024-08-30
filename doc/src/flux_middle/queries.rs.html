@@ -1314,7 +1314,7 @@
             <span class="kw">let </span>impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.assoc_refinement_def)(genv, local_id, name)
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
                 lam
             } <span class="kw">else </span>{
                 <span class="macro">bug!</span>(<span class="string">"TODO: implement for external crates"</span>)
@@ -1332,7 +1332,7 @@
             <span class="kw">let </span>impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.sort_of_assoc_reft)(genv, local_id, name)
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(sort) = genv.cstore().sort_of_assoc_reft((def_id, name)) {
                 sort
             } <span class="kw">else </span>{
                 <span class="macro">bug!</span>(<span class="string">"TODO: implement for external crates"</span>)
