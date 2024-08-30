@@ -140,12 +140,12 @@ impl ExternFn {
                 *first = if receiver.colon_token.is_some() {
                     // If there's a colon this is an arbitrary self types and we leave it as is.
                     let receiver_ty = &receiver.ty;
-                    parse_quote! { #ident : #receiver_ty }
+                    parse_quote!(#ident : #receiver_ty)
                 } else if let Some((ampersand, lft)) = &receiver.reference {
                     let mutbl = receiver.mutability;
-                    parse_quote! { #ident : #ampersand #lft #mutbl #self_ty }
+                    parse_quote!(#ident : #ampersand #lft #mutbl #self_ty)
                 } else {
-                    parse_quote! { #ident : #self_ty }
+                    parse_quote!(#ident : #self_ty)
                 };
             }
         }
