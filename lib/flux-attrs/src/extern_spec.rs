@@ -5,12 +5,12 @@ use quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::{
     braced,
     parse::{Parse, ParseStream},
-    parse_quote_spanned,
+    parse_quote, parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
     token::Brace,
-    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, Signature, Token,
-    Type, TypePath,
+    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Signature, Token, Type,
+    TypePath,
 };
 
 use crate::flux_tool_attrs;
@@ -62,7 +62,7 @@ struct ExternItemImpl {
 impl ExternItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
-            ExternItem::Struct(ItemStruct { attrs, .. })
+            ExternItem::Struct(syn::ItemStruct { attrs, .. })
             | ExternItem::Enum(syn::ItemEnum { attrs, .. })
             | ExternItem::Trait(syn::ItemTrait { attrs, .. })
             | ExternItem::Fn(ExternFn { attrs, .. })
@@ -122,9 +122,32 @@ impl ExternFn {
         trait_: Option<&syn::Path>,
         mangle: bool,
     ) {
+        flux_tool_attrs(&mut self.attrs);
+        if let Some(self_ty) = self_ty {
+            self.change_receiver(self_ty);
+        }
         self.fill_body(mod_path, self_ty, trait_);
         if mangle {
             self.sig.ident = format_ident!("__flux_extern_spec_{}", self.sig.ident);
+        }
+    }
+
+    fn change_receiver(&mut self, self_ty: &syn::Type) {
+        if let Some(first) = self.sig.inputs.first_mut() {
+            if let FnArg::Receiver(receiver) = first {
+                let ident = format_ident!("__self", span = receiver.self_token.span);
+
+                *first = if receiver.colon_token.is_some() {
+                    // If there's a colon this is an arbitrary self types and we leave it as is.
+                    let receiver_ty = &receiver.ty;
+                    parse_quote! { #ident : #receiver_ty }
+                } else if let Some((ampersand, lft)) = &receiver.reference {
+                    let mutbl = receiver.mutability;
+                    parse_quote! { #ident : #ampersand #lft #mutbl #self_ty }
+                } else {
+                    parse_quote! { #ident : #self_ty }
+                };
+            }
         }
     }
 
@@ -150,7 +173,7 @@ impl ExternFn {
             }
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
-        let args = params_to_args(&self.sig.inputs);
+        let args = fn_params_to_args(&self.sig.inputs);
         self.block = Some(quote!( { #fn_path :: <#generic_args> ( #args ) } ));
     }
 }
@@ -552,16 +575,16 @@ fn generic_params_to_fields(
 }
 
 // Cribbed from Prusti's extern_spec_rewriter
-fn params_to_args(params: &Punctuated<FnArg, Token!(,)>) -> Punctuated<Expr, Token!(,)> {
+fn fn_params_to_args(params: &Punctuated<FnArg, Token!(,)>) -> Punctuated<Expr, Token!(,)> {
     params
         .iter()
         .map(|param| -> Expr {
-            let span = param.span();
             match param {
                 FnArg::Typed(pat_type) => {
                     match pat_type.pat.as_ref() {
-                        syn::Pat::Ident(ident) => {
-                            parse_quote_spanned! {span => #ident }
+                        syn::Pat::Ident(pat) => {
+                            let ident = &pat.ident;
+                            parse_quote!(#ident)
                         }
                         _ => {
                             unimplemented!(
@@ -570,7 +593,10 @@ fn params_to_args(params: &Punctuated<FnArg, Token!(,)>) -> Punctuated<Expr, Tok
                         }
                     }
                 }
-                FnArg::Receiver(_) => parse_quote_spanned! {span => self},
+                FnArg::Receiver(_) => {
+                    let span = param.span();
+                    parse_quote_spanned!(span=> self)
+                }
             }
         })
         .collect()
