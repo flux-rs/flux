@@ -21,23 +21,24 @@ pub(crate) fn transform_extern_spec(
 ) -> syn::Result<TokenStream> {
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
-    let mod_path = mod_path.as_ref();
+    let mod_use = mod_path.map(UseWildcard);
     match syn::parse2::<ExternItem>(tokens)? {
-        ExternItem::Struct(item_struct) => extern_struct_to_tokens(mod_path, item_struct),
-        ExternItem::Enum(item_enum) => extern_enum_to_tokens(mod_path, item_enum),
-        ExternItem::Trait(item_trait) => extern_trait_to_tokens(mod_path, item_trait),
-        ExternItem::Fn(extern_fn) => extern_fn_to_tokens(mod_path, extern_fn),
-        ExternItem::Impl(extern_item_impl) => extern_impl_to_tokens(mod_path, extern_item_impl),
+        ExternItem::Struct(item_struct) => extern_struct_to_tokens(mod_use, item_struct),
+        ExternItem::Enum(item_enum) => extern_enum_to_tokens(mod_use, item_enum),
+        ExternItem::Trait(item_trait) => extern_trait_to_tokens(mod_use, item_trait),
+        ExternItem::Fn(extern_fn) => extern_fn_to_tokens(mod_use, extern_fn),
+        ExternItem::Impl(extern_item_impl) => extern_impl_to_tokens(mod_use, extern_item_impl),
     }
 }
 
 fn extern_fn_to_tokens(
-    mod_path: Option<&syn::Path>,
+    mod_use: Option<UseWildcard>,
     mut extern_fn: ExternFn,
 ) -> syn::Result<TokenStream> {
-    extern_fn.prepare(mod_path, None, None, true);
+    extern_fn.prepare(None, None, true);
     Ok(quote! {
         const _: () = {
+            #mod_use
             #extern_fn
         };
     })
@@ -71,7 +72,7 @@ fn extern_fn_to_tokens(
 /// }
 /// ```
 fn extern_enum_to_tokens(
-    mod_path: Option<&syn::Path>,
+    mod_use: Option<UseWildcard>,
     mut item_enum: syn::ItemEnum,
 ) -> syn::Result<TokenStream> {
     let span = item_enum.span();
@@ -86,19 +87,13 @@ fn extern_enum_to_tokens(
 
     let dummy_variant_name = format_ident!("__FluxExternVariant");
     let args = generic_params_to_args(&item_enum.generics.params);
-    let dummy_variant: syn::Variant = if let Some(mod_path) = mod_path {
-        parse_quote_spanned! {span =>
-            #dummy_variant_name ( #mod_path :: #ident < #args > )
-        }
-    } else {
-        parse_quote_spanned! {span =>
-            #dummy_variant_name ( #ident < #args >)
-        }
-    };
+    let dummy_variant = parse_quote!(#dummy_variant_name ( #ident < #args >));
     item_enum.variants.push(dummy_variant);
 
-    Ok(quote_spanned! {span =>
+    Ok(quote_spanned! {span=>
         const _: () = {
+            #mod_use
+
             #[allow(unused, dead_code)]
             #[flux_tool::extern_spec]
             #item_enum
@@ -123,7 +118,7 @@ fn extern_enum_to_tokens(
 /// struct FluxExternStructVec<T>(std::vec::Vec<T>);
 /// ```
 fn extern_struct_to_tokens(
-    mod_path: Option<&syn::Path>,
+    mod_use: Option<UseWildcard>,
     item_struct: syn::ItemStruct,
 ) -> syn::Result<TokenStream> {
     let item_struct_span = item_struct.span();
@@ -141,14 +136,12 @@ fn extern_struct_to_tokens(
     flux_tool_attrs(&mut attrs);
     let generics = item_struct.generics;
     let args = generic_params_to_args(&generics.params);
-    let field = if let Some(mod_path) = mod_path {
-        quote!(#mod_path :: #struct_ident < #args >)
-    } else {
-        quote!(#struct_ident < #args >)
-    };
+    let field = quote!(#struct_ident < #args >);
 
     Ok(quote_spanned! {item_struct_span =>
         const _: () = {
+            #mod_use
+
             #[flux_tool::extern_spec]
             #[allow(unused, dead_code)]
             #(#attrs)*
@@ -176,7 +169,7 @@ fn extern_struct_to_tokens(
 /// trait __FluxExternTraitMyTrait: MyTrait {}
 /// ```
 fn extern_trait_to_tokens(
-    mod_path: Option<&syn::Path>,
+    mod_use: Option<UseWildcard>,
     item_trait: syn::ItemTrait,
 ) -> syn::Result<TokenStream> {
     let item_trait_span = item_trait.span();
@@ -201,18 +194,12 @@ fn extern_trait_to_tokens(
     let args = generic_params_to_args(&generics.params);
 
     let dummy_ident = format_ident!("__FluxExternTrait{}", trait_ident);
+    let super_trait = quote!(#trait_ident < # args >);
 
-    let super_trait = if let Some(mod_path) = mod_path {
-        quote_spanned! {item_trait_span =>
-            #mod_path :: #trait_ident < #args >
-        }
-    } else {
-        quote_spanned! {item_trait_span =>
-            #trait_ident < # args >
-        }
-    };
     Ok(quote_spanned! {item_trait_span =>
         const _: () = {
+            #mod_use
+
             #[flux_tool::extern_spec]
             #[allow(unused, dead_code)]
             #(#attrs)*
@@ -222,10 +209,10 @@ fn extern_trait_to_tokens(
 }
 
 fn extern_impl_to_tokens(
-    mod_path: Option<&syn::Path>,
+    mod_use: Option<UseWildcard>,
     mut extern_item_impl: ExternItemImpl,
 ) -> syn::Result<TokenStream> {
-    extern_item_impl.prepare(mod_path);
+    extern_item_impl.prepare();
 
     let dummy_impl_struct = &extern_item_impl.dummy_ident;
     let generics = &extern_item_impl.generics;
@@ -234,6 +221,8 @@ fn extern_impl_to_tokens(
     Ok(quote! {
         #[allow(unused, dead_code, unused_variables)]
         const _: () = {
+            #mod_use
+
             #[flux_tool::ignore]
             struct #dummy_impl_struct #generics ( #fields );
 
@@ -281,11 +270,11 @@ impl ExternItem {
 }
 
 impl ExternItemImpl {
-    fn prepare(&mut self, mod_path: Option<&syn::Path>) {
+    fn prepare(&mut self) {
         let trait_ = self.trait_.as_ref().map(|(_, path, _)| path);
 
         for item in &mut self.items {
-            item.prepare(mod_path, Some(&self.self_ty), trait_, false);
+            item.prepare(Some(&self.self_ty), trait_, false);
         }
     }
 }
@@ -322,18 +311,12 @@ impl ToTokens for ExternItemImpl {
 }
 
 impl ExternFn {
-    fn prepare(
-        &mut self,
-        mod_path: Option<&syn::Path>,
-        self_ty: Option<&syn::Type>,
-        trait_: Option<&syn::Path>,
-        mangle: bool,
-    ) {
+    fn prepare(&mut self, self_ty: Option<&syn::Type>, trait_: Option<&syn::Path>, mangle: bool) {
         flux_tool_attrs(&mut self.attrs);
         if let Some(self_ty) = self_ty {
             self.change_receiver(self_ty);
         }
-        self.fill_body(mod_path, self_ty, trait_);
+        self.fill_body(self_ty, trait_);
         if mangle {
             self.sig.ident = format_ident!("__flux_extern_spec_{}", self.sig.ident);
         }
@@ -358,30 +341,18 @@ impl ExternFn {
         }
     }
 
-    fn fill_body(
-        &mut self,
-        mod_path: Option<&syn::Path>,
-        self_ty: Option<&syn::Type>,
-        trait_: Option<&syn::Path>,
-    ) {
+    fn fill_body(&mut self, self_ty: Option<&syn::Type>, trait_: Option<&syn::Path>) {
         let ident = &self.sig.ident;
-        let fn_path = match (mod_path, self_ty, trait_) {
-            (None, None, _) => quote_spanned! { ident.span() => #ident },
-            (Some(mod_path), None, _) => quote_spanned!(ident.span()=> #mod_path :: #ident ),
-            (None, Some(self_ty), None) => quote_spanned!(ident.span()=> < #self_ty > :: #ident ),
-            (None, Some(self_ty), Some(trait_)) => {
-                quote_spanned!(ident.span()=> < #self_ty as #trait_ > :: #ident )
-            }
-            (Some(mod_path), Some(self_ty), None) => {
-                quote_spanned!(ident.span()=> < #mod_path :: #self_ty > :: #ident )
-            }
-            (Some(mod_path), Some(self_ty), Some(trait_)) => {
-                quote_spanned!(ident.span()=> < #mod_path :: #self_ty as #trait_ > :: #ident )
+        let fn_path = match (self_ty, trait_) {
+            (None, _) => quote!(#ident),
+            (Some(self_ty), None) => quote!(< #self_ty > :: #ident),
+            (Some(self_ty), Some(trait_)) => {
+                quote!(< #self_ty as #trait_ > :: #ident)
             }
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
-        let args = fn_params_to_args(&self.sig.inputs);
-        self.block = Some(quote!( { #fn_path :: <#generic_args> ( #args ) } ));
+        let fn_args = fn_params_to_args(&self.sig.inputs);
+        self.block = Some(quote!( { #fn_path :: <#generic_args> ( #fn_args ) } ));
     }
 }
 
@@ -606,4 +577,13 @@ fn fn_params_to_args(params: &Punctuated<FnArg, Token!(,)>) -> Punctuated<Expr, 
             }
         })
         .collect()
+}
+
+struct UseWildcard(syn::Path);
+
+impl ToTokens for UseWildcard {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let path = &self.0;
+        tokens.extend(quote!(use #path::*;))
+    }
 }
