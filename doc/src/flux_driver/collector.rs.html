@@ -1103,40 +1103,6 @@
 <a href="#1103" id="1103">1103</a>
 <a href="#1104" id="1104">1104</a>
 <a href="#1105" id="1105">1105</a>
-<a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
-<a href="#1114" id="1114">1114</a>
-<a href="#1115" id="1115">1115</a>
-<a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
-<a href="#1118" id="1118">1118</a>
-<a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
-<a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
-<a href="#1125" id="1125">1125</a>
-<a href="#1126" id="1126">1126</a>
-<a href="#1127" id="1127">1127</a>
-<a href="#1128" id="1128">1128</a>
-<a href="#1129" id="1129">1129</a>
-<a href="#1130" id="1130">1130</a>
-<a href="#1131" id="1131">1131</a>
-<a href="#1132" id="1132">1132</a>
-<a href="#1133" id="1133">1133</a>
-<a href="#1134" id="1134">1134</a>
-<a href="#1135" id="1135">1135</a>
-<a href="#1136" id="1136">1136</a>
-<a href="#1137" id="1137">1137</a>
-<a href="#1138" id="1138">1138</a>
-<a href="#1139" id="1139">1139</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
@@ -1778,40 +1744,6 @@
         <span class="kw">let </span>trait_ref = rustc_middle::ty::TraitRef::new(<span class="self">self</span>.tcx, trait_ref.def_id, args);
 
         <span class="comment">// 5. Resolve the trait_ref to an impl_id
-        </span><span class="kw">let </span>(impl_id, <span class="kw">_</span>) =
-            resolve_trait_ref_impl_id(<span class="self">self</span>.tcx, fake_method_def_id, trait_ref).unwrap();
-        <span class="prelude-val">Some</span>(impl_id)
-    }
-
-    <span class="doccomment">/// Given as input a fake_method_def_id `fake` where
-    ///     `fn fake() where Ty : Trait, {}`
-    /// we want to
-    /// 1. extract the [`TraitRef`] for `&lt;Ty as Trait&gt;` and then
-    /// 2. query [`resolve_trait_ref_impl_id`] to get the impl_id for the above trait-implementation.
-    ///    TODO: sadly the [`resolve_trait_ref_impl_id`] fails for this? see `extern_spec_impl01.rs`
-    ///
-    /// [`TraitRef`]: rustc_middle::ty::TraitRef
-    </span><span class="attr">#[allow(dead_code)]
-    </span><span class="kw">fn </span>extract_extern_def_id_from_extern_spec_impl_new(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        _def_id: LocalDefId,
-        items: <span class="kw-2">&amp;</span>[ImplItemRef],
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="comment">// 1. Find the fake_method's def_id
-        </span><span class="kw">let </span>fake_method_def_id = <span class="self">self</span>.fake_method_of(items)<span class="question-mark">?</span>;
-
-        <span class="comment">// 2. Get the fake_method's trait_ref
-        </span><span class="kw">let </span>trait_ref = {
-            <span class="self">self</span>.tcx
-                .predicates_of(fake_method_def_id)
-                .predicates
-                .iter()
-                .filter_map(|(c, <span class="kw">_</span>)| c.as_trait_clause()<span class="question-mark">?</span>.no_bound_vars())
-                .find(|p| <span class="self">self</span>.is_good_trait_predicate(p))<span class="question-mark">?
-                </span>.trait_ref
-        };
-
-        <span class="comment">// 3. Resolve the trait_ref to an impl_id
         </span><span class="kw">let </span>(impl_id, <span class="kw">_</span>) =
             resolve_trait_ref_impl_id(<span class="self">self</span>.tcx, fake_method_def_id, trait_ref).unwrap();
         <span class="prelude-val">Some</span>(impl_id)
