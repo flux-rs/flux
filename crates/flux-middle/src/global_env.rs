@@ -352,6 +352,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.extern_id_of(local_id).unwrap_or(def_id)
     }
 
+    /// Iterator over all local def ids that are not a extern spec
+    pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
+        // FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
+        // an `#[extern_spec]` annotation and are thus not being excluded here
+        self.tcx()
+            .iter_local_def_id()
+            .filter(move |local_def_id| self.extern_id_of(*local_def_id).is_none())
+    }
+
+    pub fn iter_extern_def_id(self) -> impl Iterator<Item = DefId> + use<'tcx, 'genv> {
+        self.tcx()
+            .iter_local_def_id()
+            .filter_map(move |local_def_id| self.extern_id_of(local_def_id))
+    }
+
     /// If `local_def_id` is an id for an extern spec return the extern id.
     pub fn extern_id_of(self, local_def_id: LocalDefId) -> Option<DefId> {
         self.collect_specs()

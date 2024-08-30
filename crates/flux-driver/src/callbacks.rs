@@ -71,7 +71,7 @@ impl FluxCallbacks {
             let arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
                 if check_crate(genv).is_ok() {
-                    save_metadata(&genv);
+                    save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -113,7 +113,7 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
     }
 }
 
-fn save_metadata(genv: &GlobalEnv) {
+fn save_metadata(genv: GlobalEnv) {
     let tcx = genv.tcx();
     if tcx
         .sess

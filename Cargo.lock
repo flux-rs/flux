@@ -545,6 +545,7 @@ dependencies = [
 name = "flux-metadata"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
  "flux-common",
  "flux-errors",
  "flux-macros",

@@ -531,7 +531,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
-            } else if let Some(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
+            } else if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
                 lam
             } else {
                 bug!("TODO: implement for external crates")
@@ -549,7 +549,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.sort_of_assoc_reft)(genv, local_id, name)
-            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
+            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft((def_id, name)) {
                 sort
             } else {
                 bug!("TODO: implement for external crates")
