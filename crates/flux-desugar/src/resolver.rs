@@ -23,7 +23,7 @@ use rustc_hir::{
     ParamName, PrimTy, CRATE_HIR_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
-use rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
+use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
 
 use self::refinement_resolver::RefinementResolver;
 
@@ -59,186 +59,11 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     specs: &'genv Specs,
     output: ResolverOutput,
     ribs: PerNS<Vec<Rib>>,
+    extern_crates: Rib,
+    prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     err: Option<ErrorGuaranteed>,
-}
-
-#[derive(Debug, Default)]
-struct Rib {
-    bindings: FxHashMap<Symbol, hir::def::Res>,
-}
-
-impl Rib {
-    fn new() -> Self {
-        Self { bindings: Default::default() }
-    }
-}
-
-impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
-    type NestedFilter = rustc_middle::hir::nested_filter::All;
-
-    fn nested_visit_map(&mut self) -> Self::Map {
-        self.genv.hir()
-    }
-
-    fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
-        self.push_rib(TypeNS);
-        self.push_rib(ValueNS);
-        for item_id in module.item_ids {
-            let item = self.genv.hir().item(*item_id);
-            let def_kind = match item.kind {
-                ItemKind::Use(path, kind) => {
-                    match kind {
-                        hir::UseKind::Single => {
-                            self.define_res_in(
-                                path.segments.last().unwrap().ident.name,
-                                path.res[0],
-                                TypeNS,
-                            );
-                        }
-                        hir::UseKind::Glob => {
-                            let res = path.segments.last().unwrap().res;
-                            let hir::def::Res::Def(DefKind::Mod, module_id) = res else {
-                                continue;
-                            };
-                            for child in module_children(self.genv.tcx(), module_id) {
-                                if let Some(ns @ (TypeNS | ValueNS)) = child.res.ns() {
-                                    self.define_res_in(child.ident.name, map_res(child.res), ns);
-                                }
-                            }
-                        }
-                        hir::UseKind::ListStem => {}
-                    }
-                    continue;
-                }
-                ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
-                ItemKind::Struct(..) => DefKind::Struct,
-                ItemKind::Trait(..) => DefKind::Trait,
-                ItemKind::Mod(..) => DefKind::Mod,
-                ItemKind::Const(..) => DefKind::Const,
-                _ => continue,
-            };
-            if let Some(ns) = def_kind.ns() {
-                self.define_res_in(
-                    item.ident.name,
-                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
-                    ns,
-                );
-            }
-        }
-        // Flux items are always defined at the top-level
-        if hir_id == CRATE_HIR_ID {
-            self.collect_flux_global_items();
-            for qualifier in &self.specs.qualifs {
-                collect_err!(self, self.resolve_qualifier(qualifier));
-            }
-
-            for defn in &self.specs.func_defs {
-                collect_err!(self, self.resolve_defn(defn));
-            }
-        }
-
-        hir::intravisit::walk_mod(self, module, hir_id);
-        self.pop_rib(ValueNS);
-        self.pop_rib(TypeNS);
-    }
-
-    fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
-        self.push_rib(TypeNS);
-        self.push_rib(ValueNS);
-        match item.kind {
-            ItemKind::Trait(_, _, generics, ..) => {
-                self.define_generics(generics);
-                self.define_res_in(
-                    kw::SelfUpper,
-                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
-                    TypeNS,
-                );
-                collect_err!(self, self.resolve_trait(item.owner_id));
-            }
-            ItemKind::Impl(impl_) => {
-                self.define_generics(impl_.generics);
-                self.define_res_in(
-                    kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
-                        forbid_generic: false,
-                        is_trait_impl: impl_.of_trait.is_some(),
-                    },
-                    TypeNS,
-                );
-                collect_err!(self, self.resolve_impl(item.owner_id));
-            }
-            ItemKind::TyAlias(_, generics) => {
-                self.define_generics(generics);
-                collect_err!(self, self.resolve_type_alias(item.owner_id));
-            }
-            ItemKind::Enum(.., generics) => {
-                self.define_generics(generics);
-                self.define_res_in(
-                    kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
-                        forbid_generic: false,
-                        is_trait_impl: false,
-                    },
-                    TypeNS,
-                );
-                collect_err!(self, self.resolve_enum_def(item.owner_id));
-            }
-            ItemKind::Struct(.., generics) => {
-                self.define_generics(generics);
-                self.define_res_in(
-                    kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
-                        forbid_generic: false,
-                        is_trait_impl: false,
-                    },
-                    TypeNS,
-                );
-                collect_err!(self, self.resolve_struct_def(item.owner_id));
-            }
-            ItemKind::Fn(_, generics, _) => {
-                self.define_generics(generics);
-                collect_err!(self, self.resolve_fn_sig(item.owner_id));
-            }
-            _ => {}
-        }
-        hir::intravisit::walk_item(self, item);
-        self.pop_rib(ValueNS);
-        self.pop_rib(TypeNS);
-    }
-
-    fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
-        self.push_rib(TypeNS);
-        self.define_generics(impl_item.generics);
-        if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
-        }
-        hir::intravisit::walk_impl_item(self, impl_item);
-        self.pop_rib(TypeNS);
-    }
-
-    fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
-        self.push_rib(TypeNS);
-        self.define_generics(trait_item.generics);
-        if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
-        }
-        hir::intravisit::walk_trait_item(self, trait_item);
-        self.pop_rib(TypeNS);
-    }
-}
-
-fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
-    if let Some(local_id) = def_id.as_local() {
-        tcx.module_children_local(local_id)
-    } else {
-        tcx.module_children(def_id)
-    }
 }
 
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
@@ -247,10 +72,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: PerNS {
-                type_ns: vec![builtin_types_rib(), extern_crates_rib(genv.tcx())],
-                value_ns: vec![],
-                macro_ns: vec![],
+            ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![] },
+            extern_crates: extern_crates_rib(genv.tcx()),
+            prelude: PerNS {
+                type_ns: builtin_types_rib(),
+                value_ns: Rib::new(RibKind::Normal),
+                macro_ns: Rib::new(RibKind::Normal),
             },
             err: None,
             func_decls: Default::default(),
@@ -279,12 +106,66 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         );
     }
 
+    fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {
+        for item_id in item_ids {
+            let item = self.genv.hir().item(*item_id);
+            let def_kind = match item.kind {
+                ItemKind::Use(path, kind) => {
+                    match kind {
+                        hir::UseKind::Single => {
+                            let name = path.segments.last().unwrap().ident.name;
+                            for res in &path.res {
+                                if let Some(ns @ (TypeNS | ValueNS)) = res.ns() {
+                                    self.define_res_in(name, *res, ns);
+                                }
+                            }
+                        }
+                        hir::UseKind::Glob => {
+                            let is_prelude = is_prelude_import(self.genv.tcx(), item);
+                            for mod_child in glob_imports(self.genv.tcx(), path) {
+                                if let Some(ns @ (TypeNS | ValueNS)) = mod_child.res.ns() {
+                                    let name = mod_child.ident.name;
+                                    let res = map_res(mod_child.res);
+                                    if is_prelude {
+                                        self.define_in_prelude(name, res, ns);
+                                    } else {
+                                        self.define_res_in(name, res, ns);
+                                    }
+                                }
+                            }
+                        }
+                        hir::UseKind::ListStem => {}
+                    }
+                    continue;
+                }
+                ItemKind::TyAlias(..) => DefKind::TyAlias,
+                ItemKind::Enum(..) => DefKind::Enum,
+                ItemKind::Struct(..) => DefKind::Struct,
+                ItemKind::Trait(..) => DefKind::Trait,
+                ItemKind::Mod(..) => DefKind::Mod,
+                ItemKind::Const(..) => DefKind::Const,
+                _ => continue,
+            };
+            if let Some(ns) = def_kind.ns() {
+                self.define_res_in(
+                    item.ident.name,
+                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    ns,
+                );
+            }
+        }
+    }
+
     fn define_res_in(&mut self, name: Symbol, res: hir::def::Res, ns: Namespace) {
         self.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
     }
 
-    fn push_rib(&mut self, ns: Namespace) {
-        self.ribs[ns].push(Rib::new());
+    fn define_in_prelude(&mut self, name: Symbol, res: hir::def::Res, ns: Namespace) {
+        self.prelude[ns].bindings.insert(name, res);
+    }
+
+    fn push_rib(&mut self, ns: Namespace, kind: RibKind) {
+        self.ribs[ns].push(Rib::new(kind));
     }
 
     fn pop_rib(&mut self, ns: Namespace) {
@@ -401,6 +282,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(res) = rib.bindings.get(&ident.name) {
                 return Some(*res);
             }
+            if matches!(rib.kind, RibKind::Module) {
+                break;
+            }
+        }
+        if ns == TypeNS {
+            if let Some(res) = self.extern_crates.bindings.get(&ident.name) {
+                return Some(*res);
+            }
+        }
+        if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
+            return Some(*res);
         }
         None
     }
@@ -422,6 +314,185 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 }
 
+impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
+    type NestedFilter = rustc_middle::hir::nested_filter::All;
+
+    fn nested_visit_map(&mut self) -> Self::Map {
+        self.genv.hir()
+    }
+
+    fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+        self.push_rib(TypeNS, RibKind::Module);
+        self.push_rib(ValueNS, RibKind::Module);
+
+        self.define_items(module.item_ids);
+
+        // Flux items are always defined at the top-level
+        if hir_id == CRATE_HIR_ID {
+            self.collect_flux_global_items();
+            for qualifier in &self.specs.qualifs {
+                collect_err!(self, self.resolve_qualifier(qualifier));
+            }
+
+            for defn in &self.specs.func_defs {
+                collect_err!(self, self.resolve_defn(defn));
+            }
+        }
+        hir::intravisit::walk_mod(self, module, hir_id);
+        self.pop_rib(ValueNS);
+        self.pop_rib(TypeNS);
+    }
+
+    fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
+        self.push_rib(TypeNS, RibKind::Normal);
+        self.push_rib(ValueNS, RibKind::Normal);
+
+        let item_ids = block.stmts.iter().filter_map(|stmt| {
+            if let hir::StmtKind::Item(item_id) = &stmt.kind {
+                Some(item_id)
+            } else {
+                None
+            }
+        });
+        self.define_items(item_ids);
+
+        hir::intravisit::walk_block(self, block);
+        self.pop_rib(ValueNS);
+        self.pop_rib(TypeNS);
+    }
+
+    fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
+        self.push_rib(TypeNS, RibKind::Normal);
+        self.push_rib(ValueNS, RibKind::Normal);
+        match item.kind {
+            ItemKind::Trait(_, _, generics, ..) => {
+                self.define_generics(generics);
+                self.define_res_in(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    TypeNS,
+                );
+                collect_err!(self, self.resolve_trait(item.owner_id));
+            }
+            ItemKind::Impl(impl_) => {
+                self.define_generics(impl_.generics);
+                self.define_res_in(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: false,
+                        is_trait_impl: impl_.of_trait.is_some(),
+                    },
+                    TypeNS,
+                );
+                collect_err!(self, self.resolve_impl(item.owner_id));
+            }
+            ItemKind::TyAlias(_, generics) => {
+                self.define_generics(generics);
+                collect_err!(self, self.resolve_type_alias(item.owner_id));
+            }
+            ItemKind::Enum(.., generics) => {
+                self.define_generics(generics);
+                self.define_res_in(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: false,
+                        is_trait_impl: false,
+                    },
+                    TypeNS,
+                );
+                collect_err!(self, self.resolve_enum_def(item.owner_id));
+            }
+            ItemKind::Struct(.., generics) => {
+                self.define_generics(generics);
+                self.define_res_in(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: false,
+                        is_trait_impl: false,
+                    },
+                    TypeNS,
+                );
+                collect_err!(self, self.resolve_struct_def(item.owner_id));
+            }
+            ItemKind::Fn(_, generics, _) => {
+                self.define_generics(generics);
+                collect_err!(self, self.resolve_fn_sig(item.owner_id));
+            }
+            _ => {}
+        }
+        hir::intravisit::walk_item(self, item);
+        self.pop_rib(ValueNS);
+        self.pop_rib(TypeNS);
+    }
+
+    fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
+        self.push_rib(TypeNS, RibKind::Normal);
+        self.define_generics(impl_item.generics);
+        if let hir::ImplItemKind::Fn(..) = impl_item.kind {
+            collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
+        }
+        hir::intravisit::walk_impl_item(self, impl_item);
+        self.pop_rib(TypeNS);
+    }
+
+    fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
+        self.push_rib(TypeNS, RibKind::Normal);
+        self.define_generics(trait_item.generics);
+        if let hir::TraitItemKind::Fn(..) = trait_item.kind {
+            collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
+        }
+        hir::intravisit::walk_trait_item(self, trait_item);
+        self.pop_rib(TypeNS);
+    }
+}
+
+#[derive(Debug)]
+enum RibKind {
+    /// Any other rib without extra rules.
+    Normal,
+    /// We pass through a module. Lookups of items should stop here.
+    Module,
+}
+
+#[derive(Debug)]
+struct Rib {
+    kind: RibKind,
+    bindings: FxHashMap<Symbol, hir::def::Res>,
+}
+
+impl Rib {
+    fn new(kind: RibKind) -> Self {
+        Self { kind, bindings: Default::default() }
+    }
+}
+
+fn module_children<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> &'tcx [ModChild] {
+    if let Some(local_id) = def_id.as_local() {
+        tcx.module_children_local(local_id)
+    } else {
+        tcx.module_children(def_id)
+    }
+}
+
+fn glob_imports<'tcx>(tcx: TyCtxt<'tcx>, path: &hir::UsePath) -> &'tcx [ModChild] {
+    let res = path.segments.last().unwrap().res;
+    let hir::def::Res::Def(DefKind::Mod, module_id) = res else {
+        return &[];
+    };
+    module_children(tcx, module_id)
+}
+
+fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
+    tcx.hir()
+        .attrs(item.hir_id())
+        .iter()
+        .any(|attr| attr.path_matches(&[sym::prelude_import]))
+}
+
+/// Abstraction over [`surface::PathSegment`] and [`surface::PathExprSegment`]
 trait Segment {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
@@ -786,6 +857,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
 
 fn builtin_types_rib() -> Rib {
     Rib {
+        kind: RibKind::Normal,
         bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
@@ -794,7 +866,7 @@ fn builtin_types_rib() -> Rib {
 }
 
 fn extern_crates_rib(tcx: TyCtxt) -> Rib {
-    let mut rib = Rib::new();
+    let mut rib = Rib::new(RibKind::Normal);
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
         if let Some(extern_crate) = tcx.extern_crate(*cnum)
