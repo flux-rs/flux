@@ -248,8 +248,10 @@ impl CrateMetadata {
             &mut local_tables,
             |def_id| def_id.index,
         );
+
         let mut extern_tables = Tables::default();
         encode_def_ids(genv, genv.iter_extern_def_id(), &mut extern_tables, |def_id| def_id);
+
         CrateMetadata { local_tables, extern_tables }
     }
 }
