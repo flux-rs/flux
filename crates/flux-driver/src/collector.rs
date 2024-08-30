@@ -644,40 +644,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Some(impl_id)
     }
 
-    /// Given as input a fake_method_def_id `fake` where
-    ///     `fn fake() where Ty : Trait, {}`
-    /// we want to
-    /// 1. extract the [`TraitRef`] for `<Ty as Trait>` and then
-    /// 2. query [`resolve_trait_ref_impl_id`] to get the impl_id for the above trait-implementation.
-    ///    TODO: sadly the [`resolve_trait_ref_impl_id`] fails for this? see `extern_spec_impl01.rs`
-    ///
-    /// [`TraitRef`]: rustc_middle::ty::TraitRef
-    #[allow(dead_code)]
-    fn extract_extern_def_id_from_extern_spec_impl_new(
-        &mut self,
-        _def_id: LocalDefId,
-        items: &[ImplItemRef],
-    ) -> Option<DefId> {
-        // 1. Find the fake_method's def_id
-        let fake_method_def_id = self.fake_method_of(items)?;
-
-        // 2. Get the fake_method's trait_ref
-        let trait_ref = {
-            self.tcx
-                .predicates_of(fake_method_def_id)
-                .predicates
-                .iter()
-                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| self.is_good_trait_predicate(p))?
-                .trait_ref
-        };
-
-        // 3. Resolve the trait_ref to an impl_id
-        let (impl_id, _) =
-            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
-        Some(impl_id)
-    }
-
     fn extract_extern_def_id_from_extern_spec_trait(
         &mut self,
         def_id: LocalDefId,

@@ -8,7 +8,7 @@ use syn::{
     parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::{Brace, Comma},
+    token::Brace,
     Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, Signature, Token,
     Type, TypePath,
 };
@@ -26,13 +26,10 @@ pub(crate) fn transform_extern_spec(
         ExternItem::Enum(item_enum) => extern_enum_spec(mod_path, item_enum),
         ExternItem::Trait(item_trait) => extern_trait_spec(mod_path, item_trait),
         ExternItem::Fn(mut extern_fn) => {
-            extern_fn.prepare(&mod_path, None, &None, true);
+            extern_fn.prepare(&mod_path, None, None, true);
             Ok(extern_fn.into_token_stream())
         }
-        ExternItem::Impl(mut extern_item_impl) => {
-            extern_item_impl.prepare(mod_path)?;
-            Ok(extern_item_impl.into_token_stream())
-        }
+        ExternItem::Impl(extern_item_impl) => extern_impl_spec(mod_path, extern_item_impl),
     }
 }
 
@@ -59,7 +56,7 @@ struct ExternItemImpl {
     brace_token: Brace,
     items: Vec<ExternFn>,
     mod_path: Option<syn::Path>,
-    dummy_ident: Option<syn::Ident>,
+    dummy_ident: syn::Ident,
 }
 
 impl ExternItem {
@@ -77,78 +74,27 @@ impl ExternItem {
 impl ExternItemImpl {
     fn prepare(&mut self, mod_path: Option<syn::Path>) -> syn::Result<()> {
         self.mod_path = mod_path;
-        // TODO(RJ): need a unique-id instead of this hack (#generics), to generate distinct struct (names)
-        // for multiple impl blocks for the same type (see rset03.rs)
+        let trait_ = self.trait_.as_ref().map(|(_, path, _)| path);
 
-        let trait_ = self.trait_.as_ref().map(|(_, path, _)| path.clone());
-
-        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
-        if let Some(trait_path) = &trait_ {
-            dummy_prefix.push_str(&create_dummy_string_from_path(trait_path)?);
-        }
-
-        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
         for item in &mut self.items {
-            item.prepare(&self.mod_path, Some(&self.self_ty), &trait_, false);
+            item.prepare(&self.mod_path, Some(&self.self_ty), trait_, false);
         }
         Ok(())
-    }
-
-    fn find_generics_attr(&self) -> Option<&Attribute> {
-        self.attrs.iter().find(|attr| {
-            let segments = &attr.path().segments;
-            if segments.len() != 2 {
-                return false;
-            }
-            segments[0].ident == "flux" && segments[1].ident == "generics"
-        })
-    }
-
-    fn dummy_impl_struct(&self) -> syn::ItemStruct {
-        let self_ty = &self.self_ty;
-
-        let mut params = self.generics.params.clone();
-        strip_generics_defaults(&mut params);
-
-        let struct_field: syn::FieldsUnnamed = if let Some(mod_path) = &self.mod_path {
-            if params.is_empty() {
-                parse_quote_spanned!(self_ty.span()=> ( #mod_path :: #self_ty ) )
-            } else {
-                parse_quote_spanned!(self_ty.span()=> ( #params, #mod_path :: #self_ty ) )
-            }
-        } else if params.is_empty() {
-            parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
-        } else {
-            parse_quote_spanned!(self_ty.span()=> ( #params, #self_ty ) )
-        };
-
-        syn::ItemStruct {
-            attrs: self.find_generics_attr().into_iter().cloned().collect(),
-            vis: syn::Visibility::Inherited,
-            struct_token: syn::token::Struct { span: self.impl_token.span },
-            ident: self.dummy_ident.as_ref().unwrap().clone(),
-            generics: self.generics.clone(),
-            fields: syn::Fields::Unnamed(struct_field),
-            semi_token: Some(syn::token::Semi { spans: [self.impl_token.span] }),
-        }
     }
 }
 
 impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let dummy_struct = self.dummy_impl_struct();
-        dummy_struct.to_tokens(tokens);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        quote!(#[allow(unused, dead_code)]).to_tokens(tokens);
-        quote!(#[flux::extern_spec]).to_tokens(tokens);
         tokens.append_all(&self.attrs);
 
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
 
-        let dummy_ident = self.dummy_ident.as_ref().unwrap();
-        quote!(#dummy_ident #ty_generics).to_tokens(tokens);
+        self.dummy_ident.to_tokens(tokens);
+        ty_generics.to_tokens(tokens);
+
         where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
             for item in &self.items {
@@ -157,10 +103,6 @@ impl ToTokens for ExternItemImpl {
 
             if let Some((_, trait_, _for_token)) = &self.trait_ {
                 let self_ty = &self.self_ty;
-                quote!(#[allow(unused_variables)]).to_tokens(tokens);
-                // TODO: this is simpler but somehow fails, see note in [_extract_extern_def_id_from_extern_spec_impl_new]
-                // let fake_fn =
-                //     quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
                 quote!(
                     #[flux_tool::fake_impl]
                     #[flux_tool::ignore]
@@ -177,7 +119,7 @@ impl ExternFn {
         &mut self,
         mod_path: &Option<syn::Path>,
         self_ty: Option<&syn::Type>,
-        trait_: &Option<syn::Path>,
+        trait_: Option<&syn::Path>,
         mangle: bool,
     ) {
         self.fill_body(mod_path, self_ty, trait_);
@@ -190,7 +132,7 @@ impl ExternFn {
         &mut self,
         mod_path: &Option<syn::Path>,
         self_ty: Option<&syn::Type>,
-        trait_: &Option<syn::Path>,
+        trait_: Option<&syn::Path>,
     ) {
         let ident = &self.sig.ident;
         let fn_path = match (mod_path, self_ty, trait_) {
@@ -297,6 +239,12 @@ impl Parse for ExternItemImpl {
             items.push(content.parse()?);
         }
 
+        let mut dummy_prefix = "__FluxExternImplStruct".to_string();
+        if let Some(trait_path) = trait_.as_ref().map(|(_, path, _)| path) {
+            dummy_prefix.push_str(&create_dummy_string_from_path(trait_path)?);
+        }
+        let dummy_ident = create_dummy_ident(&mut dummy_prefix, &self_ty)?;
+
         Ok(ExternItemImpl {
             attrs,
             impl_token,
@@ -306,7 +254,7 @@ impl Parse for ExternItemImpl {
             brace_token,
             items,
             mod_path: None,
-            dummy_ident: None,
+            dummy_ident,
         })
     }
 }
@@ -356,38 +304,6 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
         Ok(ident)
     } else {
         Err(syn::Error::new(path.span(), format!("invalid extern_spec: empty Path {:?}", path)))
-    }
-}
-
-/// Takes a `syn::Generics` (obtained from the *definition* of a struct or impl) and removes all the
-/// stuff that is not needed for *uses* i.e. in the anonymous field of the dummy struct.
-///
-/// Example:
-/// Given
-/// ```ignore
-/// #[extern_spec]
-/// struct HashSet<T, S = RandomState>;
-/// ```
-/// we want to remove the `S = RandomState` part from the generics of the dummy struct to generate
-/// ```ignore
-/// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
-/// ```
-fn strip_generics_defaults(params: &mut Punctuated<GenericParam, Comma>) {
-    for param in params {
-        match param {
-            GenericParam::Type(type_param) => {
-                type_param.bounds = Punctuated::new();
-                type_param.eq_token = None;
-                type_param.default = None;
-            }
-            GenericParam::Lifetime(lifetime_param) => {
-                lifetime_param.colon_token = None;
-            }
-            GenericParam::Const(const_param) => {
-                const_param.eq_token = None;
-                const_param.default = None;
-            }
-        }
     }
 }
 
@@ -569,24 +485,67 @@ fn extern_trait_spec(
     })
 }
 
+fn extern_impl_spec(
+    mod_path: Option<syn::Path>,
+    mut extern_item_impl: ExternItemImpl,
+) -> syn::Result<TokenStream> {
+    extern_item_impl.prepare(mod_path)?;
+
+    let dummy_impl_struct = &extern_item_impl.dummy_ident;
+    let generics = &extern_item_impl.generics;
+    let fields = generic_params_to_fields(&extern_item_impl.generics.params);
+
+    Ok(quote! {
+        #[allow(unused, dead_code, unused_variables)]
+        const _: () = {
+            #[flux_tool::ignore]
+            struct #dummy_impl_struct #generics ( #fields );
+
+            #[flux_tool::extern_spec]
+            #extern_item_impl
+        };
+    })
+}
+
 // Cribbed from Prusti's extern_spec_rewriter
 fn generic_params_to_args(
     generic_params: &Punctuated<GenericParam, Token!(,)>,
 ) -> Punctuated<GenericArgument, Token!(,)> {
     generic_params
         .iter()
-        .flat_map(|param| -> Option<GenericArgument> {
+        .map(|param| -> GenericArgument {
             let span = param.span();
             match param {
                 GenericParam::Type(syn::TypeParam { ident, .. }) => {
-                    Some(parse_quote_spanned! { span => #ident })
+                    parse_quote_spanned!(span => #ident )
                 }
                 GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
-                    Some(parse_quote_spanned! { span => #lifetime })
+                    parse_quote_spanned!(span => #lifetime )
                 }
                 GenericParam::Const(syn::ConstParam { ident, .. }) => {
-                    Some(parse_quote_spanned! {span => #ident })
+                    parse_quote_spanned!(span => #ident )
                 }
+            }
+        })
+        .collect()
+}
+
+/// Given a list of generic parameters creates a list of fields that use all non-const parameters
+fn generic_params_to_fields(
+    params: &Punctuated<GenericParam, Token![,]>,
+) -> Punctuated<syn::Field, Token![,]> {
+    params
+        .iter()
+        .filter_map(|param| -> Option<syn::Field> {
+            let span = param.span();
+            match param {
+                GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
+                    Some(parse_quote_spanned!(span=> &#lifetime ()))
+                }
+                GenericParam::Type(syn::TypeParam { ident, .. }) => {
+                    Some(parse_quote_spanned!(span=> #ident))
+                }
+                GenericParam::Const(..) => None,
             }
         })
         .collect()
