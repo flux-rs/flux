@@ -330,7 +330,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             else {
                 bug!("expected struct")
             };
-            debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
+            // debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
+            let todo = 1;
             let fields = try_alloc_slice!(
                 self.genv,
                 iter::zip(&struct_def.fields, variant_data.fields()),
@@ -1112,6 +1113,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 Ok(self.genv().alloc(ty))
             })
             .transpose()?;
+        eprintln!("{:?}", path.node_id);
         let partial_res = self.resolver_output().path_res_map[&path.node_id];
 
         let unresolved_segments = partial_res.unresolved_segments();

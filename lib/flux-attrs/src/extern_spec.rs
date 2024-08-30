@@ -119,33 +119,42 @@ fn extern_enum_to_tokens(
 /// ```
 fn extern_struct_to_tokens(
     mod_use: Option<UseWildcard>,
-    item_struct: syn::ItemStruct,
+    mut item_struct: syn::ItemStruct,
 ) -> syn::Result<TokenStream> {
     let item_struct_span = item_struct.span();
-    let fields_span = item_struct.fields.span();
-    let syn::Fields::Unit = item_struct.fields else {
-        return Err(syn::Error::new(
-            fields_span,
-            "invalid extern spec: extern specs on structs cannot have fields, i.e. they must look like struct Vec<T>;",
-        ));
-    };
-
     let struct_ident = item_struct.ident;
-    let dummy_ident = format_ident!("__FluxExternStruct{}", struct_ident);
-    let mut attrs = item_struct.attrs;
-    flux_tool_attrs(&mut attrs);
-    let generics = item_struct.generics;
-    let args = generic_params_to_args(&generics.params);
-    let field = quote!(#struct_ident < #args >);
+
+    flux_tool_attrs(&mut item_struct.attrs);
+    for field in &mut item_struct.fields {
+        flux_tool_attrs(&mut field.attrs);
+    }
+
+    item_struct.ident = format_ident!("__FluxExternStruct{}", struct_ident);
+
+    let args = generic_params_to_args(&item_struct.generics.params);
+    match &mut item_struct.fields {
+        syn::Fields::Named(fields) => {
+            let name = format_ident!("__FluxExternField");
+            let field = parse_quote!(#name : #struct_ident <#args>);
+            fields.named.push(field);
+        }
+        syn::Fields::Unnamed(fields) => {
+            let field = parse_quote!(#struct_ident < #args > );
+            fields.unnamed.push(field);
+        }
+        syn::Fields::Unit => {
+            let field = parse_quote!((#struct_ident < #args >));
+            item_struct.fields = syn::Fields::Unnamed(field);
+        }
+    }
 
     Ok(quote_spanned! {item_struct_span =>
+        #[allow(unused, dead_code)]
         const _: () = {
             #mod_use
 
             #[flux_tool::extern_spec]
-            #[allow(unused, dead_code)]
-            #(#attrs)*
-            struct #dummy_ident #generics (#field);
+            #item_struct
         };
     })
 }

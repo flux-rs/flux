@@ -11,6 +11,7 @@ use flux_middle::{
 };
 use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
 use hir::{def::DefKind, intravisit::Visitor as _, ItemId, ItemKind, OwnerId};
+use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -628,6 +629,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
+        eprintln!("{:?} -> {:?}", path.node_id, path.segments.iter().map(|s| s.ident).format("::"));
         // This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
         // This is ok because we will only proceed to further stages if the entire path is resolved.
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
@@ -635,11 +637,13 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                 .output
                 .path_res_map
                 .insert(path.node_id, partial_res);
+            eprintln!("resolved with global");
             return;
         }
-        if self.resolve_path_with_table(path) {
-            return;
-        }
+        // if self.resolve_path_with_table(path) {
+        //     eprintln!("resolved with table");
+        //     return;
+        // }
         self.errors.emit(errors::UnresolvedPath::new(path));
     }
 
