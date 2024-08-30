@@ -6,6 +6,7 @@
     let_chains,
     min_specialization,
     never_type,
+    precise_capturing,
     rustc_private,
     unwrap_infallible
 )]

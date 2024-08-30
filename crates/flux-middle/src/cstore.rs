@@ -15,13 +15,11 @@ pub trait CrateStore {
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements>;
     fn assoc_refinements_def(
         &self,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -> OptResult<rty::EarlyBinder<rty::Lambda>>;
     fn sort_of_assoc_reft(
         &self,
-        def_id: DefId,
-        name: Symbol,
+        key: (DefId, Symbol),
     ) -> OptResult<Option<rty::EarlyBinder<rty::FuncSort>>>;
     fn variants(
         &self,
