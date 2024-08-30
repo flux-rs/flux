@@ -173,7 +173,7 @@ macro_rules! get {
         let key = $key;
         let this = $self;
         if let Some(tables) = this.local_tables.get(&key.crate_num()) {
-            Some(tables.$table[&key.to_index()].clone())
+            tables.$table.get(&key.to_index()).cloned()
         } else {
             this.extern_tables.$table.get(&key).cloned()
         }
