@@ -1113,7 +1113,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 Ok(self.genv().alloc(ty))
             })
             .transpose()?;
-        eprintln!("{:?}", path.node_id);
         let partial_res = self.resolver_output().path_res_map[&path.node_id];
 
         let unresolved_segments = partial_res.unresolved_segments();

@@ -280,6 +280,7 @@ impl ExternItem {
 
 impl ExternItemImpl {
     fn prepare(&mut self) {
+        flux_tool_attrs(&mut self.attrs);
         let trait_ = self.trait_.as_ref().map(|(_, path, _)| path);
 
         for item in &mut self.items {

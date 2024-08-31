@@ -631,10 +631,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
 
+        let def_id = adt_def.did();
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+            rty::GenericArgs::identity_for_item(genv, def_id)?,
             fields,
             idxs,
         );
@@ -642,7 +643,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)?))
     }
 
-    pub(crate) fn conv_struct_def_variant(
+    pub(crate) fn conv_struct_variant(
         genv: GlobalEnv,
         adt_def_id: LocalDefId,
         struct_def: &fhir::StructDef,
@@ -654,6 +655,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let adt_def = genv.adt_def(adt_def_id)?;
+            // We use `adt_def.did()` because `adt_def_id` can be an extern spec
+            let def_id = adt_def.did();
 
             let fields = fields
                 .iter()
@@ -662,7 +665,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id.to_def_id(),
+                def_id,
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -675,7 +678,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+                rty::GenericArgs::identity_for_item(genv, def_id)?,
                 fields,
                 idx,
             );

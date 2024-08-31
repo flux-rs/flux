@@ -352,7 +352,7 @@ fn variants_of(
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, &wfckresults)?
+            conv::ConvCtxt::conv_struct_variant(genv, def_id, struct_def, &wfckresults)?
                 .map(|variants| {
                     variants
                         .into_iter()
