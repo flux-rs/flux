@@ -405,27 +405,22 @@ pub struct ResolverOutput {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum MaybeExternId {
-    Local(LocalDefId),
-    Extern(LocalDefId, DefId),
+pub enum MaybeExternId<Id = LocalDefId> {
+    Local(Id),
+    Extern(Id, DefId),
 }
 
-impl MaybeExternId {
-    pub fn local_id(self) -> LocalDefId {
+impl<Id> MaybeExternId<Id> {
+    pub fn map_local<R>(self, f: impl FnOnce(Id) -> R) -> MaybeExternId<R> {
         match self {
-            MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
+            MaybeExternId::Local(local_id) => MaybeExternId::Local(f(local_id)),
+            MaybeExternId::Extern(local_id, def_id) => MaybeExternId::Extern(f(local_id), def_id),
         }
     }
 
-    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the [`LocalDefId`] into a
-    /// [`DefId`] if [`Local`].
-    ///
-    /// [`Local`]: MaybeExternId::Local
-    /// [`Extern`]: MaybeExternId::Extern
-    pub fn resolved_def_id(self) -> DefId {
+    pub fn local_id(self) -> Id {
         match self {
-            MaybeExternId::Local(local_id) => local_id.to_def_id(),
-            MaybeExternId::Extern(_, def_id) => def_id,
+            MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
         }
     }
 
@@ -442,6 +437,20 @@ impl MaybeExternId {
             Some(def_id)
         } else {
             None
+        }
+    }
+}
+
+impl<Id: Into<DefId>> MaybeExternId<Id> {
+    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the [`LocalDefId`] into a
+    /// [`DefId`] if [`Local`].
+    ///
+    /// [`Local`]: MaybeExternId::Local
+    /// [`Extern`]: MaybeExternId::Extern
+    pub fn resolved_def_id(self) -> DefId {
+        match self {
+            MaybeExternId::Local(local_id) => local_id.into(),
+            MaybeExternId::Extern(_, def_id) => def_id,
         }
     }
 }
