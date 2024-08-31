@@ -337,11 +337,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 iter::zip(&struct_def.fields, variant_data.fields()),
                 |(ty, hir_field)| {
                     if let Some(ty) = ty {
-                        Ok(fhir::FieldDef {
-                            ty: self.desugar_ty(ty)?,
-                            def_id: hir_field.def_id,
-                            lifted: false,
-                        })
+                        Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
                     } else {
                         self.as_lift_cx().lift_field_def(hir_field)
                     }
@@ -404,17 +400,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef<'genv>> {
         if let Some(variant_def) = variant_def {
-            let fields = try_alloc_slice!(
-                self.genv,
-                iter::zip(&variant_def.fields, hir_variant.data.fields()),
-                |(ty, hir_field)| {
-                    Ok(fhir::FieldDef {
-                        ty: self.desugar_ty(ty)?,
-                        def_id: hir_field.def_id,
-                        lifted: false,
-                    })
-                }
-            )?;
+            let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
+                Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
+            })?;
 
             let ret = if let Some(ret) = &variant_def.ret {
                 self.desugar_variant_ret(ret)?

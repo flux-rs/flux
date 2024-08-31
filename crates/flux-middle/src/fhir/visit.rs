@@ -206,7 +206,7 @@ pub fn walk_variant<'v, V: Visitor<'v>>(vis: &mut V, variant: &VariantDef<'v>) {
 }
 
 pub fn walk_field_def<'v, V: Visitor<'v>>(vis: &mut V, field: &FieldDef<'v>) {
-    let FieldDef { def_id: _, ty, lifted: _ } = field;
+    let FieldDef { ty, lifted: _ } = field;
     vis.visit_ty(ty);
 }
 

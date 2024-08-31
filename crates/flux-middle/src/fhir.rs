@@ -420,7 +420,6 @@ pub enum StructKind<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct FieldDef<'fhir> {
-    pub def_id: LocalDefId,
     pub ty: Ty<'fhir>,
     /// Whether this field was [lifted] from a `hir` field
     ///
