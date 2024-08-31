@@ -403,3 +403,51 @@ pub struct ResolverOutput {
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub enum MaybeExternId {
+    Local(LocalDefId),
+    Extern(LocalDefId, DefId),
+}
+
+impl MaybeExternId {
+    pub fn local_id(self) -> LocalDefId {
+        match self {
+            MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
+        }
+    }
+
+    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the [`LocalDefId`] into a
+    /// [`DefId`] if [`Local`].
+    ///
+    /// [`Local`]: MaybeExternId::Local
+    /// [`Extern`]: MaybeExternId::Extern
+    pub fn resolved_def_id(self) -> DefId {
+        match self {
+            MaybeExternId::Local(local_id) => local_id.to_def_id(),
+            MaybeExternId::Extern(_, def_id) => def_id,
+        }
+    }
+
+    /// Returns `true` if the maybe extern id is [`Local`].
+    ///
+    /// [`Local`]: MaybeExternId::Local
+    #[must_use]
+    pub fn is_local(self) -> bool {
+        matches!(self, Self::Local(..))
+    }
+
+    pub fn as_extern(self) -> Option<DefId> {
+        if let MaybeExternId::Extern(_, def_id) = self {
+            Some(def_id)
+        } else {
+            None
+        }
+    }
+}
+
+impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
+    fn into_query_param(self) -> DefId {
+        self.resolved_def_id()
+    }
+}

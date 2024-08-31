@@ -8,7 +8,10 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_middle::ty::{ParamConst, TyCtxt, Variance};
+use rustc_middle::{
+    query::IntoQueryParam,
+    ty::{ParamConst, TyCtxt, Variance},
+};
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -18,6 +21,7 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{self, lowering, ty},
+    MaybeExternId,
 };
 
 #[derive(Clone, Copy)]
@@ -96,8 +100,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.arena.alloc_slice_fill_iter(it)
     }
 
-    pub fn def_kind(&self, def_id: impl Into<DefId>) -> DefKind {
-        self.tcx().def_kind(def_id.into())
+    pub fn def_kind(&self, def_id: impl IntoQueryParam<DefId>) -> DefKind {
+        self.tcx().def_kind(def_id.into_query_param())
     }
 
     /// Allocates space to store `cap` elements of type `T`.
@@ -161,8 +165,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.mir(self, def_id)
     }
 
-    pub fn lower_generics_of(self, def_id: impl Into<DefId>) -> QueryResult<ty::Generics<'tcx>> {
-        self.inner.queries.lower_generics_of(self, def_id.into())
+    pub fn lower_generics_of(self, def_id: DefId) -> QueryResult<ty::Generics<'tcx>> {
+        self.inner.queries.lower_generics_of(self, def_id)
     }
 
     pub fn lower_predicates_of(
@@ -183,12 +187,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_fn_sig(self, def_id.into())
     }
 
-    pub fn adt_def(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
-        self.inner.queries.adt_def(self, def_id.into())
+    pub fn adt_def(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::AdtDef> {
+        self.inner.queries.adt_def(self, def_id.into_query_param())
     }
 
-    pub fn adt_sort_def_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtSortDef> {
-        self.inner.queries.adt_sort_def_of(self, def_id.into())
+    pub fn adt_sort_def_of(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::AdtSortDef> {
+        self.inner
+            .queries
+            .adt_sort_def_of(self, def_id.into_query_param())
     }
 
     pub fn check_wf(self, flux_id: impl Into<FluxLocalDefId>) -> QueryResult<Rc<rty::WfckResults>> {
@@ -217,8 +226,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
-    pub fn generics_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
-        self.inner.queries.generics_of(self, def_id.into())
+    pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
+        self.inner
+            .queries
+            .generics_of(self, def_id.into_query_param())
     }
 
     pub fn refinement_generics_of(
@@ -349,7 +360,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
     pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
         let Some(local_id) = def_id.as_local() else { return def_id };
-        self.extern_id_of(local_id).unwrap_or(def_id)
+        self.maybe_extern_id(local_id).resolved_def_id()
     }
 
     /// Iterator over all local def ids that are not a extern spec
@@ -358,21 +369,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         // an `#[extern_spec]` annotation and are thus not being excluded here
         self.tcx()
             .iter_local_def_id()
-            .filter(move |local_def_id| self.extern_id_of(*local_def_id).is_none())
+            .filter(move |local_def_id| self.maybe_extern_id(*local_def_id).is_local())
     }
 
     pub fn iter_extern_def_id(self) -> impl Iterator<Item = DefId> + use<'tcx, 'genv> {
         self.tcx()
             .iter_local_def_id()
-            .filter_map(move |local_def_id| self.extern_id_of(local_def_id))
+            .filter_map(move |local_def_id| self.maybe_extern_id(local_def_id).as_extern())
     }
 
-    /// If `local_def_id` is an id for an extern spec return the extern id.
-    pub fn extern_id_of(self, local_def_id: LocalDefId) -> Option<DefId> {
+    pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {
         self.collect_specs()
             .local_id_to_extern_id
-            .get(&local_def_id)
-            .copied()
+            .get(&local_id)
+            .map_or_else(
+                || MaybeExternId::Local(local_id),
+                |def_id| MaybeExternId::Extern(local_id, *def_id),
+            )
     }
 
     /// If `extern_def_id` is an extern spec return the corresponding local id.

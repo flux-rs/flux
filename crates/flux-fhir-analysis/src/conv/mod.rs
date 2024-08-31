@@ -24,6 +24,7 @@ use flux_middle::{
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
     rustc::{self},
+    MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -200,15 +201,20 @@ pub(crate) fn conv_generics(
     genv: GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
-    extern_id: Option<DefId>,
-    is_trait: Option<LocalDefId>,
+    def_id: MaybeExternId,
+    is_trait: Option<MaybeExternId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
         let kind = generics
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
-        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
+        rty::GenericParamDef {
+            index: 0,
+            name: kw::SelfUpper,
+            def_id: def_id.resolved_def_id(),
+            kind,
+        }
     });
     let mut params = opt_self
         .into_iter()
@@ -229,7 +235,7 @@ pub(crate) fn conv_generics(
         .collect_vec();
 
     // HACK(nilehmann) add host param for effect to std/core external specs
-    if let Some(extern_id) = extern_id {
+    if let Some(extern_id) = def_id.as_extern() {
         if let Some((pos, param)) = genv
             .lower_generics_of(extern_id)?
             .params
@@ -596,9 +602,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(output, vars))
     }
 
-    pub(crate) fn conv_enum_def_variants(
+    pub(crate) fn conv_enum_variants(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
@@ -615,7 +621,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn conv_enum_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         variant: &fhir::VariantDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
@@ -645,7 +651,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<Vec<rty::PolyVariant>>> {
@@ -655,8 +661,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let adt_def = genv.adt_def(adt_def_id)?;
-            // We use `adt_def.did()` because `adt_def_id` can be an extern spec
-            let def_id = adt_def.did();
 
             let fields = fields
                 .iter()
@@ -665,7 +669,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                def_id,
+                adt_def_id.resolved_def_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -678,7 +682,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, def_id)?,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())?,
                 fields,
                 idx,
             );
