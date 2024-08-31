@@ -239,9 +239,8 @@ fn item_bounds(
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = genv.maybe_extern_id(def_id);
-    let resolved_def_id = def_id.resolved_def_id();
 
-    let rustc_generics = genv.lower_generics_of(def_id.resolved_def_id())?;
+    let rustc_generics = genv.lower_generics_of(def_id.local_id().to_def_id())?;
 
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
@@ -258,7 +257,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
             let generics = genv
                 .map()
                 .get_generics(def_id.local_id())?
-                .unwrap_or_else(|| bug!("no generics for {:?}", resolved_def_id));
+                .ok_or_else(|| query_bug!(def_id, "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, &rustc_generics, generics, def_id, is_trait)?
         }
         DefKind::Closure => {
@@ -272,7 +271,8 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         kind => Err(query_bug!(def_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), resolved_def_id, "generics.rty", &generics).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "generics.rty", &generics)
+            .unwrap();
     }
     Ok(generics)
 }
@@ -339,7 +339,6 @@ fn variants_of(
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let resolved_id = def_id.resolved_def_id();
     let local_id = def_id.local_id();
 
     let item = &genv.map().expect_item(local_id)?;
@@ -368,7 +367,7 @@ fn variants_of(
         _ => Err(query_bug!(def_id, "expected struct or enum"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), resolved_id, "rty", &variants).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "rty", &variants).unwrap();
     }
     Ok(variants)
 }
