@@ -1101,8 +1101,6 @@
 <a href="#1101" id="1101">1101</a>
 <a href="#1102" id="1102">1102</a>
 <a href="#1103" id="1103">1103</a>
-<a href="#1104" id="1104">1104</a>
-<a href="#1105" id="1105">1105</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
@@ -1316,23 +1314,15 @@
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span><span class="kw-2">mut </span>opaque = attrs.opaque();
-
         <span class="kw">let </span>refined_by = attrs.refined_by();
-
         <span class="kw">let </span>generics = attrs.generics();
 
-        <span class="kw">let </span>fields = data
-            .fields()
-            .iter()
-            .map(|field| <span class="self">self</span>.parse_field_spec(field, opaque))
-            .try_collect_exhaust()<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>invariants = attrs.invariants();
-
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
-            <span class="comment">// extern_spec dummy structs are always opaque because they contain
-            // one field: the external struct they are meant to represent.
-            </span>opaque = <span class="bool-val">true</span>;
+        <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
+        <span class="kw">let </span>extern_id = <span class="kw">if </span>is_extern_spec {
+            <span class="comment">// If there's only one field it corresponds to the special field to extract the struct
+            // def_id. This means the user didn't specify any fields and thus we consider the struct
+            // as opaque.
+            </span>opaque = data.fields().len() == <span class="number">1</span>;
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)<span class="question-mark">?</span>;
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
@@ -1340,6 +1330,16 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
+
+        <span class="comment">// For extern specs, we skip the last field containing the information to extract the def_id
+        </span><span class="kw">let </span>fields = data
+            .fields()
+            .iter()
+            .take(data.fields().len() - (is_extern_spec <span class="kw">as </span>usize))
+            .map(|field| <span class="self">self</span>.parse_field_spec(field, opaque))
+            .try_collect_exhaust()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>invariants = attrs.invariants();
 
         <span class="self">self</span>.specs.structs.insert(
             owner_id,
@@ -1390,23 +1390,10 @@
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
-
         <span class="kw">let </span>refined_by = attrs.refined_by();
 
-        <span class="kw">let </span>enum_variants = <span class="kw">if </span>attrs.extern_spec() {
-            enum_def.variants.split_last().unwrap().<span class="number">1
-        </span>} <span class="kw">else </span>{
-            enum_def.variants
-        };
-
-        <span class="kw">let </span>variants = enum_variants
-            .iter()
-            .map(|variant| <span class="self">self</span>.parse_variant(variant, refined_by.is_some()))
-            .try_collect_exhaust()<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>invariants = attrs.invariants();
-
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
+        <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
+        <span class="kw">let </span>extern_id = <span class="kw">if </span>is_extern_spec {
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)<span class="question-mark">?</span>;
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
@@ -1414,6 +1401,16 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
+
+        <span class="comment">// For extern specs, we skip the last variant containing the information to extract the def_id
+        </span><span class="kw">let </span>variants = enum_def
+            .variants
+            .iter()
+            .take(enum_def.variants.len() - (is_extern_spec <span class="kw">as </span>usize))
+            .map(|variant| <span class="self">self</span>.parse_variant(variant, refined_by.is_some()))
+            .try_collect_exhaust()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>invariants = attrs.invariants();
 
         <span class="self">self</span>.specs.enums.insert(
             owner_id,
@@ -1655,7 +1652,7 @@
         def_id: LocalDefId,
         data: <span class="kw-2">&amp;</span>VariantData,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_field) = data.fields().first() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_field) = data.fields().last() {
             <span class="kw">let </span>ty = <span class="self">self</span>.tcx.type_of(extern_field.def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_def) = ty.skip_binder().ty_adt_def() {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(adt_def.did());
@@ -1670,8 +1667,7 @@
         enum_def: <span class="kw-2">&amp;</span>EnumDef,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fake) = enum_def.variants.last() {
-            <span class="kw">let </span>zog = <span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(def_id, <span class="kw-2">&amp;</span>fake.data)<span class="question-mark">?</span>;
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(zog);
+            <span class="kw">return </span><span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(def_id, <span class="kw-2">&amp;</span>fake.data);
         }
         <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::MalformedExternSpec { span: <span class="self">self</span>.tcx.def_span(def_id) }))
     }

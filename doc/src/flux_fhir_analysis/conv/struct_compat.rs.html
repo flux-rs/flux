@@ -738,6 +738,7 @@
         refining::Refiner,
     },
     rustc::ty::{<span class="self">self</span>, FieldIdx, VariantIdx},
+    MaybeExternId,
 };
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -791,17 +792,16 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>variants(
     genv: GlobalEnv,
     variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
-    adt_def_id: LocalDefId,
+    adt_def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
-    <span class="kw">let </span>adt_def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
-
-    <span class="kw">let </span>generics = genv.generics_of(adt_def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>resolved_def_id = adt_def_id.resolved_def_id();
+    <span class="kw">let </span>generics = genv.generics_of(resolved_def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>refiner = Refiner::default(genv, <span class="kw-2">&amp;</span>generics);
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
+    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, resolved_def_id);
     <span class="comment">// TODO check same number of variants
     </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
         <span class="kw">let </span>variant_idx = VariantIdx::from_usize(i);
-        <span class="kw">let </span>expected = refiner.refine_variant_def(adt_def_id, variant_idx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>expected = refiner.refine_variant_def(resolved_def_id, variant_idx)<span class="question-mark">?</span>;
         zipper.zip_variant(variant, <span class="kw-2">&amp;</span>expected, variant_idx);
     }
 

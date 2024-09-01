@@ -374,9 +374,6 @@
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
@@ -408,7 +405,7 @@
 };
 <span class="kw">use </span>flux_syntax::surface;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
-<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, def_id::DefId, OwnerId};
+<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, OwnerId};
 <span class="kw">use </span>rustc_span::def_id::LocalDefId;
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
@@ -500,9 +497,7 @@
                     nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Type(..) =&gt; {
-                    <span class="kw">let </span>assoc_ty = cx
-                        .as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-                        .desugar_assoc_type()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>assoc_ty = cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_assoc_type()<span class="question-mark">?</span>;
                     <span class="kw">let </span>item =
                         fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty), owner_id };
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
@@ -526,9 +521,7 @@
                     nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Type(..) =&gt; {
-                    <span class="kw">let </span>assoc_ty = cx
-                        .as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-                        .desugar_assoc_type()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>assoc_ty = cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_assoc_type()<span class="question-mark">?</span>;
                     <span class="kw">let </span>item = fhir::ImplItem {
                         kind: fhir::ImplItemKind::Type(assoc_ty),
                         owner_id,
@@ -559,10 +552,13 @@
     <span class="kw">fn </span>as_rust_item_ctxt&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>,
         owner_id: OwnerId,
-        extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
         opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     ) -&gt; RustItemCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        RustItemCtxt::new(<span class="self">self</span>.genv, owner_id, extern_id, <span class="self">self</span>.resolver_output, opaque_tys)
+        <span class="kw">let </span>owner_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(owner_id.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        RustItemCtxt::new(<span class="self">self</span>.genv, owner_id, <span class="self">self</span>.resolver_output, opaque_tys)
     }
 
     <span class="kw">fn </span>desugar_fn_spec(
@@ -572,7 +568,7 @@
     ) -&gt; QueryResult&lt;(fhir::FnSig&lt;<span class="lifetime">'genv</span>&gt;, UnordMap&lt;LocalDefId, fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = Default::default();
         <span class="kw">let </span>fn_sig = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, fn_spec.extern_id, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys))
+            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys))
             .desugar_fn_sig(fn_spec)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -602,7 +598,7 @@
     ) -&gt; QueryResult&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>extern_id = enum_def.extern_id;
         <span class="kw">let </span>enum_def = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, extern_id, <span class="prelude-val">None</span>)
+            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_enum_def(enum_def)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -619,7 +615,7 @@
     ) -&gt; QueryResult&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>extern_id = struct_def.extern_id;
         <span class="kw">let </span>struct_def = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, extern_id, <span class="prelude-val">None</span>)
+            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_struct_def(struct_def)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -635,7 +631,7 @@
         ty_alias: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::TyAlias&gt;,
     ) -&gt; QueryResult&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>ty_alias = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
+            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_type_alias(ty_alias)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -651,7 +647,7 @@
         trait_: <span class="kw-2">&amp;</span>surface::Trait,
     ) -&gt; QueryResult&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>trait_ = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
+            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_trait(trait_)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -666,9 +662,7 @@
         owner_id: OwnerId,
         impl_: <span class="kw-2">&amp;</span>surface::Impl,
     ) -&gt; QueryResult&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>impl_ = <span class="self">self
-            </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-            .desugar_impl(impl_)<span class="question-mark">?</span>;
+        <span class="kw">let </span>impl_ = <span class="self">self</span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_impl(impl_)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>config::dump_fhir() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id.def_id, <span class="string">"fhir"</span>, <span class="kw-2">&amp;</span>impl_).unwrap();

@@ -700,7 +700,7 @@
 }
 
 <span class="kw">pub fn </span>walk_field_def&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, field: <span class="kw-2">&amp;</span>FieldDef&lt;<span class="lifetime">'v</span>&gt;) {
-    <span class="kw">let </span>FieldDef { def_id: <span class="kw">_</span>, ty, lifted: <span class="kw">_ </span>} = field;
+    <span class="kw">let </span>FieldDef { ty, lifted: <span class="kw">_ </span>} = field;
     vis.visit_ty(ty);
 }
 

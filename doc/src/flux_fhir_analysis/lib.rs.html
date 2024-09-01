@@ -477,6 +477,8 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -497,7 +499,7 @@
 <span class="kw">use </span>std::rc::Rc;
 
 <span class="kw">use </span>conv::bug_on_infer_sort;
-<span class="kw">use </span>flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+<span class="kw">use </span>flux_common::{dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
@@ -716,9 +718,10 @@
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>))
 }
 
-<span class="kw">fn </span>generics_of(genv: GlobalEnv, local_id: LocalDefId) -&gt; QueryResult&lt;rty::Generics&gt; {
-    <span class="kw">let </span>def_id = local_id.to_def_id();
-    <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id)<span class="question-mark">?</span>;
+<span class="kw">fn </span>generics_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::Generics&gt; {
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
+
+    <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id.local_id().to_def_id())<span class="question-mark">?</span>;
 
     <span class="kw">let </span>def_kind = genv.def_kind(def_id);
     <span class="kw">let </span>generics = <span class="kw">match </span>def_kind {
@@ -731,13 +734,12 @@
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn =&gt; {
-            <span class="kw">let </span>is_trait = (def_kind == DefKind::Trait).then_some(local_id);
+            <span class="kw">let </span>is_trait = (def_kind == DefKind::Trait).then_some(def_id);
             <span class="kw">let </span>generics = genv
                 .map()
-                .get_generics(local_id)<span class="question-mark">?
-                </span>.unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no generics for {:?}"</span>, def_id));
-            <span class="kw">let </span>extern_id = genv.extern_id_of(local_id);
-            conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, extern_id, is_trait)<span class="question-mark">?
+                .get_generics(def_id.local_id())<span class="question-mark">?
+                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id, <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
+            conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, def_id, is_trait)<span class="question-mark">?
         </span>}
         DefKind::Closure =&gt; {
             rty::Generics {
@@ -747,12 +749,11 @@
                 has_self: rustc_generics.orig.has_self,
             }
         }
-        kind =&gt; {
-            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>))<span class="question-mark">?
-        </span>}
+        kind =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">if </span>config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), local_id, <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics)
+            .unwrap();
     }
     <span class="prelude-val">Ok</span>(generics)
 }
@@ -818,20 +819,23 @@
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-    <span class="kw">let </span>item = <span class="kw-2">&amp;</span>genv.map().expect_item(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
+    <span class="kw">let </span>local_id = def_id.local_id();
+
+    <span class="kw">let </span>item = <span class="kw-2">&amp;</span>genv.map().expect_item(local_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; {
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>variants =
-                conv::ConvCtxt::conv_enum_def_variants(genv, def_id, enum_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+                conv::ConvCtxt::conv_enum_variants(genv, def_id, enum_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                     </span>.into_iter()
                     .map(|variant| normalize(genv, variant))
                     .try_collect()<span class="question-mark">?</span>;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) =&gt; {
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
+            conv::ConvCtxt::conv_struct_variant(genv, def_id, struct_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                 </span>.map(|variants| {
                     variants
                         .into_iter()
@@ -844,7 +848,7 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">if </span>config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
     }
     <span class="prelude-val">Ok</span>(variants)
 }

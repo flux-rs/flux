@@ -2058,6 +2058,17 @@
 <a href="#2058" id="2058">2058</a>
 <a href="#2059" id="2059">2059</a>
 <a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2084,6 +2095,7 @@
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
     rustc::{<span class="self">self</span>},
+    MaybeExternId,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
@@ -2179,7 +2191,7 @@
     <span class="kw">let </span>params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| def_id_to_param_ty(genv, def_id.expect_local()))
+        .map(|def_id| def_id_to_param_ty(genv, <span class="kw-2">*</span>def_id))
         .collect();
     <span class="kw">let </span>fields = refined_by
         .fields
@@ -2260,15 +2272,20 @@
     genv: GlobalEnv,
     rust_generics: <span class="kw-2">&amp;</span>rustc::ty::Generics,
     generics: <span class="kw-2">&amp;</span>fhir::Generics,
-    extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
-    is_trait: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;,
+    def_id: MaybeExternId,
+    is_trait: <span class="prelude-ty">Option</span>&lt;MaybeExternId&gt;,
 ) -&gt; QueryResult&lt;rty::Generics&gt; {
     <span class="kw">let </span>opt_self = is_trait.map(|def_id| {
         <span class="kw">let </span>kind = generics
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
-        rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
+        rty::GenericParamDef {
+            index: <span class="number">0</span>,
+            name: kw::SelfUpper,
+            def_id: def_id.resolved_def_id(),
+            kind,
+        }
     });
     <span class="kw">let </span><span class="kw-2">mut </span>params = opt_self
         .into_iter()
@@ -2289,7 +2306,7 @@
         .collect_vec();
 
     <span class="comment">// HACK(nilehmann) add host param for effect to std/core external specs
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = extern_id {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = def_id.as_extern() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>((pos, param)) = genv
             .lower_generics_of(extern_id)<span class="question-mark">?
             </span>.params
@@ -2656,9 +2673,9 @@
         <span class="prelude-val">Ok</span>(rty::Binder::new(output, vars))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_def_variants(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_variants(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
         wfckresults: <span class="kw-2">&amp;</span>WfckResults,
     ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
@@ -2675,7 +2692,7 @@
 
     <span class="kw">fn </span>conv_enum_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
         wfckresults: <span class="kw-2">&amp;</span>WfckResults,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
@@ -2684,17 +2701,17 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
         env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, variant.params)<span class="question-mark">?</span>);
 
-        <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = variant
             .fields
             .iter()
             .map(|field| cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field.ty))
             .try_collect()<span class="question-mark">?</span>;
 
+        <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>idxs = cx.conv_refine_arg(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx)<span class="question-mark">?</span>;
         <span class="kw">let </span>variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id)<span class="question-mark">?</span>,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())<span class="question-mark">?</span>,
             fields,
             idxs,
         );
@@ -2702,9 +2719,9 @@
         <span class="prelude-val">Ok</span>(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_def_variant(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
         wfckresults: <span class="kw-2">&amp;</span>WfckResults,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;Vec&lt;rty::PolyVariant&gt;&gt;&gt; {
@@ -2722,7 +2739,7 @@
 
             <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
             <span class="kw">let </span>idx = rty::Expr::adt(
-                adt_def_id.to_def_id(),
+                adt_def_id.resolved_def_id(),
                 (<span class="number">0</span>..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -2735,7 +2752,7 @@
             );
             <span class="kw">let </span>variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id)<span class="question-mark">?</span>,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())<span class="question-mark">?</span>,
                 fields,
                 idx,
             );
@@ -3033,8 +3050,8 @@
                         }
                     }
                     fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
-                        <span class="kw">let </span>owner_id = <span class="self">self</span>.genv.hir().ty_param_owner(def_id.expect_local());
-                        <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv, def_id.expect_local());
+                        <span class="kw">let </span>owner_id = <span class="self">self</span>.genv.tcx().parent(def_id);
+                        <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv, def_id);
                         <span class="kw">let </span>param = <span class="self">self
                             </span>.genv
                             .generics_of(owner_id)<span class="question-mark">?
@@ -3266,7 +3283,7 @@
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
-                rty::BaseTy::Param(def_id_to_param_ty(<span class="self">self</span>.genv, def_id.expect_local()))
+                rty::BaseTy::Param(def_id_to_param_ty(<span class="self">self</span>.genv, <span class="kw-2">*</span>def_id))
             }
             fhir::Res::SelfTyParam { .. } =&gt; rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; {
@@ -3915,7 +3932,7 @@
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real),
         fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) =&gt; {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(genv, def_id.expect_local())))
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(genv, def_id)))
         }
         fhir::SortRes::SelfParam { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } =&gt; {
@@ -3981,11 +3998,16 @@
     }
 }
 
-<span class="kw">fn </span>def_id_to_param_ty(genv: GlobalEnv, def_id: LocalDefId) -&gt; rty::ParamTy {
-    rty::ParamTy {
-        index: genv.def_id_to_param_index(def_id.to_def_id()),
-        name: genv.tcx().hir().ty_param_name(def_id),
-    }
+<span class="kw">fn </span>def_id_to_param_ty(genv: GlobalEnv, def_id: DefId) -&gt; rty::ParamTy {
+    <span class="kw">let </span>def_kind = genv.tcx().def_kind(def_id);
+    <span class="kw">let </span>name = <span class="kw">match </span>def_kind {
+        DefKind::Trait | DefKind::TraitAlias =&gt; kw::SelfUpper,
+        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam =&gt; {
+            genv.tcx().item_name(def_id)
+        }
+        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"ty_param_name: {:?} is a {:?} not a type parameter"</span>, def_id, def_kind),
+    };
+    rty::ParamTy { index: genv.def_id_to_param_index(def_id), name }
 }
 
 <span class="kw">mod </span>errors {

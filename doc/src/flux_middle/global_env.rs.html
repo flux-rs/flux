@@ -530,6 +530,19 @@
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -540,7 +553,10 @@
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt, Variance};
+<span class="kw">use </span>rustc_middle::{
+    query::IntoQueryParam,
+    ty::{ParamConst, TyCtxt, Variance},
+};
 <span class="kw">pub use </span>rustc_span::{symbol::Ident, Symbol};
 
 <span class="kw">use crate</span>::{
@@ -550,6 +566,7 @@
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{<span class="self">self</span>, lowering, ty},
+    MaybeExternId,
 };
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -628,8 +645,8 @@
         <span class="self">self</span>.inner.arena.alloc_slice_fill_iter(it)
     }
 
-    <span class="kw">pub fn </span>def_kind(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; DefKind {
-        <span class="self">self</span>.tcx().def_kind(def_id.into())
+    <span class="kw">pub fn </span>def_kind(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;) -&gt; DefKind {
+        <span class="self">self</span>.tcx().def_kind(def_id.into_query_param())
     }
 
     <span class="doccomment">/// Allocates space to store `cap` elements of type `T`.
@@ -693,8 +710,8 @@
         <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
-        <span class="self">self</span>.inner.queries.lower_generics_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
+        <span class="self">self</span>.inner.queries.lower_generics_of(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>lower_predicates_of(
@@ -715,12 +732,17 @@
         <span class="self">self</span>.inner.queries.lower_fn_sig(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>adt_def(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
-        <span class="self">self</span>.inner.queries.adt_def(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>adt_def(<span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
+        <span class="self">self</span>.inner.queries.adt_def(<span class="self">self</span>, def_id.into_query_param())
     }
 
-    <span class="kw">pub fn </span>adt_sort_def_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
-        <span class="self">self</span>.inner.queries.adt_sort_def_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>adt_sort_def_of(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
+        <span class="self">self</span>.inner
+            .queries
+            .adt_sort_def_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>check_wf(<span class="self">self</span>, flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
@@ -749,8 +771,10 @@
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
-    <span class="kw">pub fn </span>generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
-        <span class="self">self</span>.inner.queries.generics_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
+        <span class="self">self</span>.inner
+            .queries
+            .generics_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>refinement_generics_of(
@@ -878,33 +902,35 @@
             == def_id
     }
 
-    <span class="doccomment">/// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
-    </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
-        <span class="self">self</span>.extern_id_of(local_id).unwrap_or(def_id)
-    }
-
     <span class="doccomment">/// Iterator over all local def ids that are not a extern spec
     </span><span class="kw">pub fn </span>iter_local_def_id(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = LocalDefId&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'tcx</span>, <span class="lifetime">'genv</span>&gt; {
         <span class="comment">// FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
         // an `#[extern_spec]` annotation and are thus not being excluded here
         </span><span class="self">self</span>.tcx()
             .iter_local_def_id()
-            .filter(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.extern_id_of(<span class="kw-2">*</span>local_def_id).is_none())
+            .filter(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.maybe_extern_id(<span class="kw-2">*</span>local_def_id).is_local())
     }
 
     <span class="kw">pub fn </span>iter_extern_def_id(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = DefId&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'tcx</span>, <span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.tcx()
             .iter_local_def_id()
-            .filter_map(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.extern_id_of(local_def_id))
+            .filter_map(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.maybe_extern_id(local_def_id).as_extern())
     }
 
-    <span class="doccomment">/// If `local_def_id` is an id for an extern spec return the extern id.
-    </span><span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, local_def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+    <span class="doccomment">/// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
+    </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
+        <span class="self">self</span>.maybe_extern_id(local_id).resolved_def_id()
+    }
+
+    <span class="kw">pub fn </span>maybe_extern_id(<span class="self">self</span>, local_id: LocalDefId) -&gt; MaybeExternId {
         <span class="self">self</span>.collect_specs()
             .local_id_to_extern_id
-            .get(<span class="kw-2">&amp;</span>local_def_id)
-            .copied()
+            .get(<span class="kw-2">&amp;</span>local_id)
+            .map_or_else(
+                || MaybeExternId::Local(local_id),
+                |def_id| MaybeExternId::Extern(local_id, <span class="kw-2">*</span>def_id),
+            )
     }
 
     <span class="doccomment">/// If `extern_def_id` is an extern spec return the corresponding local id.

@@ -781,6 +781,7 @@
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -874,9 +875,10 @@
     (<span class="macro-nonterminal">$fmt</span>:literal $(,<span class="macro-nonterminal">$args</span>:expr)* $(,)<span class="question-mark">?</span>) =&gt; {
         <span class="macro-nonterminal">$crate::queries::QueryErr::bug</span>(<span class="prelude-val">None</span>, <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>))
     };
-    (<span class="macro-nonterminal">$def_id</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal $(,<span class="macro-nonterminal">$args</span>:expr)* $(,)<span class="question-mark">? </span>) =&gt; {
-        <span class="macro-nonterminal">$crate::queries::QueryErr::bug</span>(<span class="prelude-val">Some</span>(<span class="macro-nonterminal">$def_id</span>.into()), <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>))
-    };
+    (<span class="macro-nonterminal">$def_id</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal $(,<span class="macro-nonterminal">$args</span>:expr)* $(,)<span class="question-mark">? </span>) =&gt; {{
+        <span class="kw">let </span>def_id = rustc_middle::query::IntoQueryParam::into_query_param(<span class="macro-nonterminal">$def_id</span>);
+        <span class="macro-nonterminal">$crate::queries::QueryErr::bug</span>(<span class="prelude-val">Some</span>(def_id), <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>))
+    }};
 }
 
 <span class="kw">impl </span>QueryErr {

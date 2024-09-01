@@ -919,6 +919,7 @@
 <a href="#919" id="919">919</a>
 <a href="#920" id="920">920</a>
 <a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1390,7 +1391,7 @@
     }
 }
 
-<span class="kw">fn </span>module_children&lt;<span class="lifetime">'tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, def_id: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[ModChild] {
+<span class="kw">fn </span>module_children(tcx: TyCtxt, def_id: DefId) -&gt; <span class="kw-2">&amp;</span>[ModChild] {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
     } <span class="kw">else </span>{
@@ -1406,7 +1407,8 @@
     module_children(tcx, module_id)
 }
 
-<span class="kw">fn </span>is_prelude_import(tcx: TyCtxt, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; bool {
+<span class="doccomment">/// Return true if the item has a `#[prelude_import]` annotation
+</span><span class="kw">fn </span>is_prelude_import(tcx: TyCtxt, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; bool {
     tcx.hir()
         .attrs(item.hir_id())
         .iter()

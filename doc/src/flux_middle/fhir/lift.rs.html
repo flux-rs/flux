@@ -775,12 +775,12 @@
         <span class="kw">let </span>hir::Node::Field(field_def) = <span class="self">self</span>.genv.tcx().hir_node_by_def_id(def_id) <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected a field"</span>)
         };
-        <span class="prelude-val">Ok</span>(fhir::FieldDef { def_id, ty: <span class="self">self</span>.lift_ty(field_def.ty)<span class="question-mark">?</span>, lifted: <span class="bool-val">true </span>})
+        <span class="self">self</span>.lift_field_def(field_def)
     }
 
     <span class="kw">pub fn </span>lift_field_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, field_def: <span class="kw-2">&amp;</span>hir::FieldDef) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FieldDef&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(field_def.ty)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: <span class="bool-val">true </span>})
+        <span class="prelude-val">Ok</span>(fhir::FieldDef { ty, lifted: <span class="bool-val">true </span>})
     }
 
     <span class="kw">pub fn </span>lift_enum_variant_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantDef&lt;<span class="lifetime">'genv</span>&gt;&gt; {
