@@ -239,12 +239,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let hir::Node::Field(field_def) = self.genv.tcx().hir_node_by_def_id(def_id) else {
             bug!("expected a field")
         };
-        Ok(fhir::FieldDef { def_id, ty: self.lift_ty(field_def.ty)?, lifted: true })
+        self.lift_field_def(field_def)
     }
 
     pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef<'genv>> {
         let ty = self.lift_ty(field_def.ty)?;
-        Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
+        Ok(fhir::FieldDef { ty, lifted: true })
     }
 
     pub fn lift_enum_variant_id(&mut self, def_id: LocalDefId) -> Result<fhir::VariantDef<'genv>> {

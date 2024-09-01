@@ -17,6 +17,7 @@ use flux_middle::{
         refining::Refiner,
     },
     rustc::ty::{self, FieldIdx, VariantIdx},
+    MaybeExternId,
 };
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
@@ -70,17 +71,16 @@ pub(crate) fn fn_sig(
 pub(crate) fn variants(
     genv: GlobalEnv,
     variants: &[rty::PolyVariant],
-    adt_def_id: LocalDefId,
+    adt_def_id: MaybeExternId,
 ) -> QueryResult<Vec<rty::PolyVariant>> {
-    let adt_def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
-
-    let generics = genv.generics_of(adt_def_id)?;
+    let resolved_def_id = adt_def_id.resolved_def_id();
+    let generics = genv.generics_of(resolved_def_id)?;
     let refiner = Refiner::default(genv, &generics);
-    let mut zipper = Zipper::new(genv, adt_def_id);
+    let mut zipper = Zipper::new(genv, resolved_def_id);
     // TODO check same number of variants
     for (i, variant) in variants.iter().enumerate() {
         let variant_idx = VariantIdx::from_usize(i);
-        let expected = refiner.refine_variant_def(adt_def_id, variant_idx)?;
+        let expected = refiner.refine_variant_def(resolved_def_id, variant_idx)?;
         zipper.zip_variant(variant, &expected, variant_idx);
     }
 

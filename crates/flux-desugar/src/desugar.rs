@@ -5,7 +5,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
-    try_alloc_slice, ResolverOutput,
+    try_alloc_slice, MaybeExternId, ResolverOutput,
 };
 use flux_syntax::{
     surface::{self, visit::Visitor as _, NodeId},
@@ -99,8 +99,7 @@ fn collect_generics_in_params(
 pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    owner: OwnerId,
-    extern_id: Option<DefId>,
+    owner: MaybeExternId<OwnerId>,
     fn_sig_scope: Option<NodeId>,
     resolver_output: &'genv ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
@@ -116,15 +115,13 @@ struct FluxItemCtxt<'genv, 'tcx> {
 impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        owner: OwnerId,
-        extern_id: Option<DefId>,
+        owner: MaybeExternId<OwnerId>,
         resolver_output: &'genv ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         RustItemCtxt {
             genv,
             owner,
-            extern_id,
             fn_sig_scope: None,
             local_id_gen: IndexGen::new(),
             resolver_output,
@@ -132,18 +129,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> RustItemCtxt<'b, 'genv, 'tcx> {
-        RustItemCtxt::new(
-            self.genv,
-            owner,
-            self.extern_id,
-            self.resolver_output,
-            self.opaque_tys.as_deref_mut(),
-        )
+    fn with_new_owner<'b>(
+        &'b mut self,
+        owner: MaybeExternId<OwnerId>,
+    ) -> RustItemCtxt<'b, 'genv, 'tcx> {
+        RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'genv, 'tcx> {
-        LiftCtxt::new(self.genv, self.owner, &self.local_id_gen, self.opaque_tys.as_deref_mut())
+        LiftCtxt::new(
+            self.genv,
+            self.owner.local_id(),
+            &self.local_id_gen,
+            self.opaque_tys.as_deref_mut(),
+        )
     }
 
     pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Trait<'genv>> {
@@ -193,7 +192,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn desugar_generics(&mut self, generics: &surface::Generics) -> Result<fhir::Generics<'genv>> {
-        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+        let hir_generics = self
+            .genv
+            .hir()
+            .get_generics(self.owner.local_id().def_id)
+            .unwrap();
 
         // 1. Collect generic type parameters by their name
         let hir_params_map: FxHashMap<_, _> = hir_generics
@@ -292,7 +295,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         refined_by: &surface::RefineParams,
     ) -> Result<fhir::RefinedBy<'genv>> {
-        let generics = self.genv.tcx().generics_of(self.owner);
+        let generics = self.genv.tcx().generics_of(self.owner.local_id());
         let generic_id_to_var_idx =
             collect_generics_in_params(generics, self.resolver_output, refined_by);
 
@@ -325,22 +328,24 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let kind = if struct_def.opaque {
             fhir::StructKind::Opaque
         } else {
-            let hir::ItemKind::Struct(variant_data, _) =
-                &self.genv.hir().expect_item(self.owner.def_id).kind
+            let hir::ItemKind::Struct(variant_data, _) = &self
+                .genv
+                .hir()
+                .expect_item(self.owner.local_id().def_id)
+                .kind
             else {
                 bug!("expected struct")
             };
-            debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
+            debug_assert_eq!(
+                struct_def.fields.len(),
+                variant_data.fields().len() - (self.owner.is_extern() as usize)
+            );
             let fields = try_alloc_slice!(
                 self.genv,
                 iter::zip(&struct_def.fields, variant_data.fields()),
                 |(ty, hir_field)| {
                     if let Some(ty) = ty {
-                        Ok(fhir::FieldDef {
-                            ty: self.desugar_ty(ty)?,
-                            def_id: hir_field.def_id,
-                            lifted: false,
-                        })
+                        Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
                     } else {
                         self.as_lift_cx().lift_field_def(hir_field)
                     }
@@ -364,7 +369,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         enum_def: &surface::EnumDef,
     ) -> Result<fhir::EnumDef<'genv>> {
-        let def_id = self.owner.def_id;
+        let def_id = self.owner.local_id().def_id;
         let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
@@ -403,17 +408,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef<'genv>> {
         if let Some(variant_def) = variant_def {
-            let fields = try_alloc_slice!(
-                self.genv,
-                iter::zip(&variant_def.fields, hir_variant.data.fields()),
-                |(ty, hir_field)| {
-                    Ok(fhir::FieldDef {
-                        ty: self.desugar_ty(ty)?,
-                        def_id: hir_field.def_id,
-                        lifted: false,
-                    })
-                }
-            )?;
+            let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
+                Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
+            })?;
 
             let ret = if let Some(ret) = &variant_def.ret {
                 self.desugar_variant_ret(ret)?
@@ -639,8 +636,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let def_id = item_id.owner_id.def_id;
                 let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
+                // FIXME(nilehmann) since we can only pass local ids for opaque types it means we
+                // can't support extern specs with opaque types.
                 let opaque_ty = self
-                    .with_new_owner(item_id.owner_id)
+                    .with_new_owner(MaybeExternId::Local(item_id.owner_id))
                     .desugar_opaque_ty_for_async(returns)?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
@@ -731,12 +730,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<DefId> {
-        let local_id = self.owner.def_id;
-        let maybe_extern_id = self.genv.resolve_maybe_extern_id(local_id.to_def_id());
+        let local_id = self.owner.local_id();
+        let resolved_id = self.owner.resolved_def_id();
 
         match self.resolver_output().path_res_map[&path.node_id].full_res()? {
-            fhir::Res::Def(DefKind::Enum, def_id) if def_id == maybe_extern_id => {}
-            fhir::Res::SelfTyAlias { .. } => return Some(maybe_extern_id),
+            fhir::Res::Def(DefKind::Enum, def_id) if def_id == resolved_id => {}
+            fhir::Res::SelfTyAlias { .. } => return Some(resolved_id),
             _ => return None,
         }
 
@@ -762,7 +761,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             i += 1;
         }
 
-        Some(maybe_extern_id)
+        Some(resolved_id)
     }
 
     fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {
@@ -1433,7 +1432,10 @@ fn desugar_base_sort<'genv>(
 
 impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+        FhirId {
+            owner: FluxOwnerId::Rust(self.owner.local_id()),
+            local_id: self.local_id_gen.fresh(),
+        }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
@@ -1453,8 +1455,10 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
         let def_id = item_id.owner_id.def_id;
         let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
+        // FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
+        // support extern specs with opaque types.
         let opaque_ty = self
-            .with_new_owner(item_id.owner_id)
+            .with_new_owner(MaybeExternId::Local(item_id.owner_id))
             .desugar_opaque_ty_for_impl_trait(bounds)?;
         self.insert_opaque_ty(def_id, opaque_ty);
 

@@ -18,7 +18,7 @@ mod wf;
 use std::rc::Rc;
 
 use conv::bug_on_infer_sort;
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
@@ -237,9 +237,10 @@ fn item_bounds(
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
 }
 
-fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
-    let def_id = local_id.to_def_id();
-    let rustc_generics = genv.lower_generics_of(def_id)?;
+fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
+    let def_id = genv.maybe_extern_id(def_id);
+
+    let rustc_generics = genv.lower_generics_of(def_id.local_id().to_def_id())?;
 
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
@@ -252,13 +253,12 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn => {
-            let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
+            let is_trait = (def_kind == DefKind::Trait).then_some(def_id);
             let generics = genv
                 .map()
-                .get_generics(local_id)?
-                .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
-            let extern_id = genv.extern_id_of(local_id);
-            conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)?
+                .get_generics(def_id.local_id())?
+                .ok_or_else(|| query_bug!(def_id, "no generics for {def_id:?}"))?;
+            conv::conv_generics(genv, &rustc_generics, generics, def_id, is_trait)?
         }
         DefKind::Closure => {
             rty::Generics {
@@ -268,12 +268,11 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 has_self: rustc_generics.orig.has_self,
             }
         }
-        kind => {
-            Err(query_bug!(local_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?
-        }
+        kind => Err(query_bug!(def_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), local_id, "generics.rty", &generics).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "generics.rty", &generics)
+            .unwrap();
     }
     Ok(generics)
 }
@@ -339,20 +338,23 @@ fn variants_of(
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let item = &genv.map().expect_item(def_id)?;
+    let def_id = genv.maybe_extern_id(def_id);
+    let local_id = def_id.local_id();
+
+    let item = &genv.map().expect_item(local_id)?;
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
-            let wfckresults = genv.check_wf(def_id)?;
+            let wfckresults = genv.check_wf(local_id)?;
             let variants =
-                conv::ConvCtxt::conv_enum_def_variants(genv, def_id, enum_def, &wfckresults)?
+                conv::ConvCtxt::conv_enum_variants(genv, def_id, enum_def, &wfckresults)?
                     .into_iter()
                     .map(|variant| normalize(genv, variant))
                     .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
-            let wfckresults = genv.check_wf(def_id)?;
-            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, &wfckresults)?
+            let wfckresults = genv.check_wf(local_id)?;
+            conv::ConvCtxt::conv_struct_variant(genv, def_id, struct_def, &wfckresults)?
                 .map(|variants| {
                     variants
                         .into_iter()
@@ -365,7 +367,7 @@ fn variants_of(
         _ => Err(query_bug!(def_id, "expected struct or enum"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id, "rty", &variants).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "rty", &variants).unwrap();
     }
     Ok(variants)
 }

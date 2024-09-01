@@ -211,23 +211,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let mut opaque = attrs.opaque();
-
         let refined_by = attrs.refined_by();
-
         let generics = attrs.generics();
 
-        let fields = data
-            .fields()
-            .iter()
-            .map(|field| self.parse_field_spec(field, opaque))
-            .try_collect_exhaust()?;
-
-        let invariants = attrs.invariants();
-
-        let extern_id = if attrs.extern_spec() {
-            // extern_spec dummy structs are always opaque because they contain
-            // one field: the external struct they are meant to represent.
-            opaque = true;
+        let is_extern_spec = attrs.extern_spec();
+        let extern_id = if is_extern_spec {
+            // If there's only one field it corresponds to the special field to extract the struct
+            // def_id. This means the user didn't specify any fields and thus we consider the struct
+            // as opaque.
+            opaque = data.fields().len() == 1;
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
@@ -235,6 +227,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         } else {
             None
         };
+
+        // For extern specs, we skip the last field containing the information to extract the def_id
+        let fields = data
+            .fields()
+            .iter()
+            .take(data.fields().len() - (is_extern_spec as usize))
+            .map(|field| self.parse_field_spec(field, opaque))
+            .try_collect_exhaust()?;
+
+        let invariants = attrs.invariants();
 
         self.specs.structs.insert(
             owner_id,
@@ -285,23 +287,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
-
         let refined_by = attrs.refined_by();
 
-        let enum_variants = if attrs.extern_spec() {
-            enum_def.variants.split_last().unwrap().1
-        } else {
-            enum_def.variants
-        };
-
-        let variants = enum_variants
-            .iter()
-            .map(|variant| self.parse_variant(variant, refined_by.is_some()))
-            .try_collect_exhaust()?;
-
-        let invariants = attrs.invariants();
-
-        let extern_id = if attrs.extern_spec() {
+        let is_extern_spec = attrs.extern_spec();
+        let extern_id = if is_extern_spec {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
@@ -309,6 +298,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         } else {
             None
         };
+
+        // For extern specs, we skip the last variant containing the information to extract the def_id
+        let variants = enum_def
+            .variants
+            .iter()
+            .take(enum_def.variants.len() - (is_extern_spec as usize))
+            .map(|variant| self.parse_variant(variant, refined_by.is_some()))
+            .try_collect_exhaust()?;
+
+        let invariants = attrs.invariants();
 
         self.specs.enums.insert(
             owner_id,
@@ -550,7 +549,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         data: &VariantData,
     ) -> Result<DefId> {
-        if let Some(extern_field) = data.fields().first() {
+        if let Some(extern_field) = data.fields().last() {
             let ty = self.tcx.type_of(extern_field.def_id);
             if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
                 return Ok(adt_def.did());
@@ -565,8 +564,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         enum_def: &EnumDef,
     ) -> Result<DefId> {
         if let Some(fake) = enum_def.variants.last() {
-            let zog = self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data)?;
-            return Ok(zog);
+            return self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data);
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }

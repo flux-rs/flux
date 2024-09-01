@@ -24,6 +24,7 @@ use flux_middle::{
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
     rustc::{self},
+    MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -119,7 +120,7 @@ pub(crate) fn conv_adt_sort_def(
     let params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| def_id_to_param_ty(genv, def_id.expect_local()))
+        .map(|def_id| def_id_to_param_ty(genv, *def_id))
         .collect();
     let fields = refined_by
         .fields
@@ -200,15 +201,20 @@ pub(crate) fn conv_generics(
     genv: GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
-    extern_id: Option<DefId>,
-    is_trait: Option<LocalDefId>,
+    def_id: MaybeExternId,
+    is_trait: Option<MaybeExternId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
         let kind = generics
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
-        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
+        rty::GenericParamDef {
+            index: 0,
+            name: kw::SelfUpper,
+            def_id: def_id.resolved_def_id(),
+            kind,
+        }
     });
     let mut params = opt_self
         .into_iter()
@@ -229,7 +235,7 @@ pub(crate) fn conv_generics(
         .collect_vec();
 
     // HACK(nilehmann) add host param for effect to std/core external specs
-    if let Some(extern_id) = extern_id {
+    if let Some(extern_id) = def_id.as_extern() {
         if let Some((pos, param)) = genv
             .lower_generics_of(extern_id)?
             .params
@@ -596,9 +602,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(output, vars))
     }
 
-    pub(crate) fn conv_enum_def_variants(
+    pub(crate) fn conv_enum_variants(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
@@ -615,7 +621,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn conv_enum_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         variant: &fhir::VariantDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
@@ -624,17 +630,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, variant.params)?);
 
-        let adt_def = genv.adt_def(adt_def_id)?;
         let fields = variant
             .fields
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
 
+        let adt_def = genv.adt_def(adt_def_id)?;
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())?,
             fields,
             idxs,
         );
@@ -642,9 +648,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)?))
     }
 
-    pub(crate) fn conv_struct_def_variant(
+    pub(crate) fn conv_struct_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<Vec<rty::PolyVariant>>> {
@@ -662,7 +668,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id.to_def_id(),
+                adt_def_id.resolved_def_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -675,7 +681,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())?,
                 fields,
                 idx,
             );
@@ -973,8 +979,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         }
                     }
                     fhir::Res::Def(DefKind::TyParam, def_id) => {
-                        let owner_id = self.genv.hir().ty_param_owner(def_id.expect_local());
-                        let param_ty = def_id_to_param_ty(self.genv, def_id.expect_local());
+                        let owner_id = self.genv.tcx().parent(def_id);
+                        let param_ty = def_id_to_param_ty(self.genv, def_id);
                         let param = self
                             .genv
                             .generics_of(owner_id)?
@@ -1206,7 +1212,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                rty::BaseTy::Param(def_id_to_param_ty(self.genv, def_id.expect_local()))
+                rty::BaseTy::Param(def_id_to_param_ty(self.genv, *def_id))
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
@@ -1855,7 +1861,7 @@ fn conv_sort_path(
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return Ok(rty::Sort::Real),
         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) => {
-            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id.expect_local())))
+            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)))
         }
         fhir::SortRes::SelfParam { .. } => return Ok(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } => {
@@ -1921,11 +1927,16 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
     }
 }
 
-fn def_id_to_param_ty(genv: GlobalEnv, def_id: LocalDefId) -> rty::ParamTy {
-    rty::ParamTy {
-        index: genv.def_id_to_param_index(def_id.to_def_id()),
-        name: genv.tcx().hir().ty_param_name(def_id),
-    }
+fn def_id_to_param_ty(genv: GlobalEnv, def_id: DefId) -> rty::ParamTy {
+    let def_kind = genv.tcx().def_kind(def_id);
+    let name = match def_kind {
+        DefKind::Trait | DefKind::TraitAlias => kw::SelfUpper,
+        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam => {
+            genv.tcx().item_name(def_id)
+        }
+        _ => bug!("ty_param_name: {:?} is a {:?} not a type parameter", def_id, def_kind),
+    };
+    rty::ParamTy { index: genv.def_id_to_param_index(def_id), name }
 }
 
 mod errors {

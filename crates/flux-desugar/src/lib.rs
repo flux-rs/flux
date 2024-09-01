@@ -29,7 +29,7 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{self as hir, def_id::DefId, OwnerId};
+use rustc_hir::{self as hir, OwnerId};
 use rustc_span::def_id::LocalDefId;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -121,9 +121,7 @@ pub fn desugar<'genv>(
                     nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Type(..) => {
-                    let assoc_ty = cx
-                        .as_rust_item_ctxt(owner_id, None, None)
-                        .desugar_assoc_type()?;
+                    let assoc_ty = cx.as_rust_item_ctxt(owner_id, None).desugar_assoc_type()?;
                     let item =
                         fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty), owner_id };
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
@@ -147,9 +145,7 @@ pub fn desugar<'genv>(
                     nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Type(..) => {
-                    let assoc_ty = cx
-                        .as_rust_item_ctxt(owner_id, None, None)
-                        .desugar_assoc_type()?;
+                    let assoc_ty = cx.as_rust_item_ctxt(owner_id, None).desugar_assoc_type()?;
                     let item = fhir::ImplItem {
                         kind: fhir::ImplItemKind::Type(assoc_ty),
                         owner_id,
@@ -180,10 +176,13 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
     fn as_rust_item_ctxt<'a>(
         &'a self,
         owner_id: OwnerId,
-        extern_id: Option<DefId>,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> RustItemCtxt<'_, 'genv, 'tcx> {
-        RustItemCtxt::new(self.genv, owner_id, extern_id, self.resolver_output, opaque_tys)
+        let owner_id = self
+            .genv
+            .maybe_extern_id(owner_id.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        RustItemCtxt::new(self.genv, owner_id, self.resolver_output, opaque_tys)
     }
 
     fn desugar_fn_spec(
@@ -193,7 +192,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
     ) -> QueryResult<(fhir::FnSig<'genv>, UnordMap<LocalDefId, fhir::Node<'genv>>)> {
         let mut opaque_tys = Default::default();
         let fn_sig = self
-            .as_rust_item_ctxt(owner_id, fn_spec.extern_id, Some(&mut opaque_tys))
+            .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
             .desugar_fn_sig(fn_spec)?;
 
         if config::dump_fhir() {
@@ -223,7 +222,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
     ) -> QueryResult<fhir::Item<'genv>> {
         let extern_id = enum_def.extern_id;
         let enum_def = self
-            .as_rust_item_ctxt(owner_id, extern_id, None)
+            .as_rust_item_ctxt(owner_id, None)
             .desugar_enum_def(enum_def)?;
 
         if config::dump_fhir() {
@@ -240,7 +239,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
     ) -> QueryResult<fhir::Item<'genv>> {
         let extern_id = struct_def.extern_id;
         let struct_def = self
-            .as_rust_item_ctxt(owner_id, extern_id, None)
+            .as_rust_item_ctxt(owner_id, None)
             .desugar_struct_def(struct_def)?;
 
         if config::dump_fhir() {
@@ -256,7 +255,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         ty_alias: Option<&surface::TyAlias>,
     ) -> QueryResult<fhir::Item<'genv>> {
         let ty_alias = self
-            .as_rust_item_ctxt(owner_id, None, None)
+            .as_rust_item_ctxt(owner_id, None)
             .desugar_type_alias(ty_alias)?;
 
         if config::dump_fhir() {
@@ -272,7 +271,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         trait_: &surface::Trait,
     ) -> QueryResult<fhir::Item<'genv>> {
         let trait_ = self
-            .as_rust_item_ctxt(owner_id, None, None)
+            .as_rust_item_ctxt(owner_id, None)
             .desugar_trait(trait_)?;
 
         if config::dump_fhir() {
@@ -287,9 +286,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         owner_id: OwnerId,
         impl_: &surface::Impl,
     ) -> QueryResult<fhir::Item<'genv>> {
-        let impl_ = self
-            .as_rust_item_ctxt(owner_id, None, None)
-            .desugar_impl(impl_)?;
+        let impl_ = self.as_rust_item_ctxt(owner_id, None).desugar_impl(impl_)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id.def_id, "fhir", &impl_).unwrap();
