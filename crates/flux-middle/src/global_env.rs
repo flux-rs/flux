@@ -16,7 +16,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, VariantIdx},
+    fhir::{self, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
@@ -134,6 +134,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_func_defns(*self)
     }
 
+    pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
+        self.inner.queries.qualifiers(self)
+    }
+
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     pub fn qualifiers_for(
         self,
@@ -146,9 +150,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|qual| qual.name)
             .collect();
         Ok(self
-            .inner
-            .queries
-            .qualifiers(self)?
+            .qualifiers()?
             .iter()
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
@@ -200,8 +202,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .adt_sort_def_of(self, def_id.into_query_param())
     }
 
-    pub fn check_wf(self, flux_id: impl Into<FluxLocalDefId>) -> QueryResult<Rc<rty::WfckResults>> {
-        self.inner.queries.check_wf(self, flux_id.into())
+    pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
+        self.inner.queries.check_wf(self, def_id)
     }
 
     pub fn impl_trait_ref(

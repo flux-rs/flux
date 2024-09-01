@@ -171,7 +171,7 @@ impl ErrorEmitter for Errors<'_> {
 impl ErrorCollector<ErrorGuaranteed> for Errors<'_> {
     type Result = Result<(), ErrorGuaranteed>;
 
-    fn collect_err(&mut self, err: ErrorGuaranteed) {
+    fn collect(&mut self, err: ErrorGuaranteed) {
         *self.err.get_mut() = Some(err);
     }
 

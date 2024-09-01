@@ -10,7 +10,7 @@ pub trait ErrorEmitter {
 pub trait ErrorCollector<E> {
     type Result;
 
-    fn collect_err(&mut self, err: E);
+    fn collect(&mut self, err: E);
 
     fn into_result(self) -> Self::Result;
 }
@@ -18,7 +18,7 @@ pub trait ErrorCollector<E> {
 impl ErrorCollector<ErrorGuaranteed> for Option<ErrorGuaranteed> {
     type Result = Result<(), ErrorGuaranteed>;
 
-    fn collect_err(&mut self, err: ErrorGuaranteed) {
+    fn collect(&mut self, err: ErrorGuaranteed) {
         *self = Some(err).or(*self);
     }
 
@@ -34,7 +34,7 @@ impl ErrorCollector<ErrorGuaranteed> for Option<ErrorGuaranteed> {
 pub trait ResultExt<T, E> {
     fn into_control_flow(self) -> ControlFlow<E, T>;
 
-    fn collect_err(self, collector: &mut impl ErrorCollector<E>);
+    fn collect_err(self, collector: &mut impl ErrorCollector<E>) -> Option<T>;
 
     #[track_caller]
     fn emit<'a>(self, emitter: &'a impl ErrorEmitter) -> Result<T, ErrorGuaranteed>
@@ -50,9 +50,13 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
         }
     }
 
-    fn collect_err(self, collector: &mut impl ErrorCollector<E>) {
-        if let Err(err) = self {
-            collector.collect_err(err);
+    fn collect_err(self, collector: &mut impl ErrorCollector<E>) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(err) => {
+                collector.collect(err);
+                None
+            }
         }
     }
 

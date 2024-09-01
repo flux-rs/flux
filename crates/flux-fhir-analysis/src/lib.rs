@@ -23,7 +23,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    fhir::{self, FluxLocalDefId},
+    fhir,
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -77,17 +77,28 @@ fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDec
 
 fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
     let mut defns = FxHashMap::default();
+
+    // Collect and emit all errors
+    let mut errors = Errors::new(genv.sess());
     for func in genv.map().spec_funcs() {
-        let wfckresults = genv.check_wf(FluxLocalDefId::Flux(func.name))?;
-        if let Some(defn) = conv::conv_defn(genv, func, &wfckresults)? {
+        let Some(wfckresults) = wf::check_fn_spec(genv, func).collect_err(&mut errors) else {
+            continue;
+        };
+        let Ok(defn) = conv::conv_defn(genv, func, &wfckresults).emit(&errors) else {
+            continue;
+        };
+        if let Some(defn) = defn {
             defns.insert(defn.name, defn);
         }
     }
-    let defns = rty::SpecFuncDefns::new(defns).map_err(|cycle| {
-        let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
-        genv.sess()
-            .emit_err(errors::DefinitionCycle::new(span, cycle))
-    })?;
+    errors.into_result()?;
+
+    let defns = rty::SpecFuncDefns::new(defns)
+        .map_err(|cycle| {
+            let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
+            errors::DefinitionCycle::new(span, cycle)
+        })
+        .emit(&genv)?;
 
     Ok(defns)
 }
@@ -96,7 +107,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
         .map(|qualifier| {
-            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
+            let wfckresults = wf::check_qualifier(genv, qualifier)?;
             normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults)?)
         })
         .try_collect()
@@ -397,16 +408,9 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     Ok(fn_sig)
 }
 
-fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResults>> {
-    let wfckresults = match flux_id {
-        FluxLocalDefId::Flux(sym) => {
-            wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())?
-        }
-        FluxLocalDefId::Rust(def_id) => {
-            let node = genv.desugar(def_id)?;
-            wf::check_node(genv, &node)?
-        }
-    };
+fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {
+    let node = genv.desugar(def_id)?;
+    let wfckresults = wf::check_node(genv, &node)?;
     Ok(Rc::new(wfckresults))
 }
 
@@ -444,19 +448,9 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
     }
 
-    for defn in genv.map().spec_funcs() {
-        let _ = genv
-            .check_wf(FluxLocalDefId::Flux(defn.name))
-            .emit(&errors)
-            .ok();
-    }
-
-    for qualifier in genv.map().qualifiers() {
-        let _ = genv
-            .check_wf(FluxLocalDefId::Flux(qualifier.name))
-            .emit(&errors)
-            .ok();
-    }
+    // Query qualifiers and spec funcs to report wf errors
+    let _ = genv.qualifiers().emit(&errors);
+    let _ = genv.spec_func_defns().emit(&errors);
 
     errors.into_result()
 }

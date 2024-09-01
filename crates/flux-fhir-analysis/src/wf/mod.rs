@@ -26,22 +26,21 @@ use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_flux_item(genv: GlobalEnv, item: &fhir::FluxItem) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(item.name());
+pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Flux(qual.name);
     let mut infcx = InferCtxt::new(genv, owner);
-    match item {
-        fhir::FluxItem::Qualifier(qualifier) => {
-            infcx.insert_params(qualifier.args)?;
-            infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
-        }
-        fhir::FluxItem::Func(func) => {
-            if let Some(body) = &func.body {
-                infcx.insert_params(func.args)?;
-                let output =
-                    conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
-                infcx.check_expr(body, &output)?;
-            }
-        }
+    infcx.insert_params(qual.args)?;
+    infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
+    Ok(infcx.into_results())
+}
+
+pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Flux(func.name);
+    let mut infcx = InferCtxt::new(genv, owner);
+    if let Some(body) = &func.body {
+        infcx.insert_params(func.args)?;
+        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
+        infcx.check_expr(body, &output)?;
     }
     Ok(infcx.into_results())
 }

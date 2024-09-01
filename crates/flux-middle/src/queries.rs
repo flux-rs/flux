@@ -16,7 +16,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    fhir::{self, FluxLocalDefId},
+    fhir,
     global_env::GlobalEnv,
     intern::List,
     pretty,
@@ -134,7 +134,7 @@ pub struct Providers {
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
     pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
-    pub check_wf: for<'genv> fn(GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
+    pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
     pub variants_of: fn(
@@ -202,7 +202,7 @@ pub struct Queries<'genv, 'tcx> {
     func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
-    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
+    check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
@@ -403,9 +403,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn check_wf(
         &self,
         genv: GlobalEnv<'genv, '_>,
-        flux_id: FluxLocalDefId,
+        def_id: LocalDefId,
     ) -> QueryResult<Rc<rty::WfckResults>> {
-        run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
+        run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
     }
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
