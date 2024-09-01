@@ -543,6 +543,9 @@
 <a href="#543" id="543">543</a>
 <a href="#544" id="544">544</a>
 <a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -779,11 +782,11 @@
 
     <span class="kw">pub fn </span>refinement_generics_of(
         <span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::RefinementGenerics&gt; {
         <span class="self">self</span>.inner
             .queries
-            .refinement_generics_of(<span class="self">self</span>, def_id.into())
+            .refinement_generics_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>predicates_of(
@@ -854,11 +857,6 @@
         <span class="self">self</span>.inner.queries.lower_late_bound_vars(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>get_generic_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>fhir::GenericParam&gt; {
-        <span class="kw">let </span>owner = <span class="self">self</span>.hir().ty_param_owner(def_id);
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.map().get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(def_id))
-    }
-
     <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, res: fhir::Res) -&gt; bool {
         res.is_box(<span class="self">self</span>.tcx())
     }
@@ -920,7 +918,7 @@
     <span class="doccomment">/// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
     </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
         <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
-        <span class="self">self</span>.maybe_extern_id(local_id).resolved_def_id()
+        <span class="self">self</span>.maybe_extern_id(local_id).resolved_id()
     }
 
     <span class="kw">pub fn </span>maybe_extern_id(<span class="self">self</span>, local_id: LocalDefId) -&gt; MaybeExternId {
@@ -1002,6 +1000,14 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.generics()))
         }
+    }
+
+    <span class="kw">pub fn </span>get_generic_param(
+        <span class="self">self</span>,
+        def_id: LocalDefId,
+    ) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::GenericParam&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">let </span>owner = <span class="self">self</span>.genv.hir().ty_param_owner(def_id);
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(def_id))
     }
 
     <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {

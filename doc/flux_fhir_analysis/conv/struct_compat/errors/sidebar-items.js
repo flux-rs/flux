@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FieldCountMismatch","IncompatiblParamCount","IncompatibleRefinement"]};
+window.SIDEBAR_ITEMS = {"struct":["FieldCountMismatch","IncompatibleParamCount","IncompatibleRefinement"]};

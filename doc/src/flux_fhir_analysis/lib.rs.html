@@ -479,6 +479,15 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -752,8 +761,7 @@
         kind =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">if </span>config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics)
-            .unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
     }
     <span class="prelude-val">Ok</span>(generics)
 }
@@ -789,16 +797,20 @@
 }
 
 <span class="kw">fn </span>type_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
     <span class="kw">let </span>ty = <span class="kw">match </span>genv.def_kind(def_id) {
         DefKind::TyAlias { .. } =&gt; {
-            <span class="kw">let </span>alias = genv.map().expect_item(def_id)<span class="question-mark">?</span>.expect_type_alias();
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>alias = genv
+                .map()
+                .expect_item(def_id.local_id())<span class="question-mark">?
+                </span>.expect_type_alias();
+            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
             conv::expand_type_alias(genv, def_id, alias, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
         </span>}
         DefKind::TyParam =&gt; {
-            <span class="kw">match </span><span class="kw-2">&amp;</span>genv.get_generic_param(def_id)<span class="question-mark">?</span>.kind {
+            <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().get_generic_param(def_id.local_id())<span class="question-mark">?</span>.kind {
                 fhir::GenericParamKind::Type { default: <span class="prelude-val">Some</span>(ty) } =&gt; {
-                    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
+                    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id.local_id());
                     <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
                     conv::conv_ty(genv, ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                 </span>}
@@ -807,10 +819,10 @@
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
             <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
+            <span class="kw">let </span>ty = genv.lower_type_of(def_id.local_id())<span class="question-mark">?</span>.skip_binder();
             Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty_ctor(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
         </span>}
-        kind =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"`{:?}` not supported"</span>, kind.descr(def_id.to_def_id())))<span class="question-mark">?</span>,
+        kind =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"`{:?}` not supported"</span>, kind.descr(def_id.resolved_id())))<span class="question-mark">?</span>,
     };
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(ty))
 }
@@ -848,14 +860,15 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">if </span>config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
     }
     <span class="prelude-val">Ok</span>(variants)
 }
 
 <span class="kw">fn </span>fn_sig(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
-    <span class="kw">let </span>fn_sig = genv.desugar(def_id)<span class="question-mark">?</span>.fn_sig().unwrap();
-    <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
+    <span class="kw">let </span>fn_sig = genv.desugar(def_id.local_id())<span class="question-mark">?</span>.fn_sig().unwrap();
+    <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
     <span class="kw">let </span>defns = genv.spec_func_defns()<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
         </span>.map(|fn_sig| fn_sig.normalize(defns));
@@ -863,8 +876,13 @@
     <span class="kw">if </span>config::dump_rty() {
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>refinement_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
-        dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"rty"</span>, (generics, refinement_generics, <span class="kw-2">&amp;</span>fn_sig))
-            .unwrap();
+        dbg::dump_item_info(
+            genv.tcx(),
+            def_id.resolved_id(),
+            <span class="string">"rty"</span>,
+            (generics, refinement_generics, <span class="kw-2">&amp;</span>fn_sig),
+        )
+        .unwrap();
     }
     <span class="prelude-val">Ok</span>(fn_sig)
 }

@@ -2065,10 +2065,6 @@
 <a href="#2065" id="2065">2065</a>
 <a href="#2066" id="2066">2066</a>
 <a href="#2067" id="2067">2067</a>
-<a href="#2068" id="2068">2068</a>
-<a href="#2069" id="2069">2069</a>
-<a href="#2070" id="2070">2070</a>
-<a href="#2071" id="2071">2071</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2206,14 +2202,14 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expand_type_alias(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
 
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), alias.params)<span class="question-mark">?</span>);
+    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.resolved_id(), alias.params)<span class="question-mark">?</span>);
 
     <span class="kw">let </span>ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>alias.ty)<span class="question-mark">?</span>;
 
@@ -2280,12 +2276,7 @@
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
-        rty::GenericParamDef {
-            index: <span class="number">0</span>,
-            name: kw::SelfUpper,
-            def_id: def_id.resolved_def_id(),
-            kind,
-        }
+        rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     <span class="kw">let </span><span class="kw-2">mut </span>params = opt_self
         .into_iter()
@@ -2406,13 +2397,14 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_fn_decl(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
 
-    <span class="kw">let </span>late_bound_regions = refining::refine_bound_variables(<span class="kw-2">&amp;</span>genv.lower_late_bound_vars(def_id)<span class="question-mark">?</span>);
+    <span class="kw">let </span>late_bound_regions =
+        refining::refine_bound_variables(<span class="kw-2">&amp;</span>genv.lower_late_bound_vars(def_id.local_id())<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, decl.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
     env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>);
@@ -2711,7 +2703,7 @@
         <span class="kw">let </span>idxs = cx.conv_refine_arg(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx)<span class="question-mark">?</span>;
         <span class="kw">let </span>variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())<span class="question-mark">?</span>,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>,
             fields,
             idxs,
         );
@@ -2739,7 +2731,7 @@
 
             <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
             <span class="kw">let </span>idx = rty::Expr::adt(
-                adt_def_id.resolved_def_id(),
+                adt_def_id.resolved_id(),
                 (<span class="number">0</span>..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -2752,7 +2744,7 @@
             );
             <span class="kw">let </span>variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())<span class="question-mark">?</span>,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>,
                 fields,
                 idx,
             );

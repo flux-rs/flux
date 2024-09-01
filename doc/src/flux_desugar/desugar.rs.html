@@ -2222,7 +2222,7 @@
 
     <span class="kw">fn </span>check_variant_ret_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
         <span class="kw">let </span>local_id = <span class="self">self</span>.owner.local_id();
-        <span class="kw">let </span>resolved_id = <span class="self">self</span>.owner.resolved_def_id();
+        <span class="kw">let </span>resolved_id = <span class="self">self</span>.owner.resolved_id();
 
         <span class="kw">match </span><span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>path.node_id].full_res()<span class="question-mark">? </span>{
             fhir::Res::Def(DefKind::Enum, def_id) <span class="kw">if </span>def_id == resolved_id =&gt; {}

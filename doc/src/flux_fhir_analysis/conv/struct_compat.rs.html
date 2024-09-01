@@ -709,16 +709,6 @@
 <a href="#709" id="709">709</a>
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -742,24 +732,23 @@
 };
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_alias(
     genv: GlobalEnv,
     alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
     ty: <span class="kw-2">&amp;</span>rty::Ty,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;rty::Ty&gt; {
-    <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
+    <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id.to_def_id());
+    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
 
     <span class="kw">if </span>zipper.zip_ty(ty, <span class="kw-2">&amp;</span>expected).is_err() {
         zipper
             .errors
-            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id.to_def_id(), alias));
+            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
     }
 
     zipper.errors.into_result()<span class="question-mark">?</span>;
@@ -771,11 +760,9 @@
     genv: GlobalEnv,
     decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
     fn_sig: <span class="kw-2">&amp;</span>rty::PolyFnSig,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
-    <span class="kw">let </span>def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
-
-    <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
+    <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 
@@ -794,14 +781,13 @@
     variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
     adt_def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
-    <span class="kw">let </span>resolved_def_id = adt_def_id.resolved_def_id();
-    <span class="kw">let </span>generics = genv.generics_of(resolved_def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>generics = genv.generics_of(adt_def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>refiner = Refiner::default(genv, <span class="kw-2">&amp;</span>generics);
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, resolved_def_id);
+    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
     <span class="comment">// TODO check same number of variants
     </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
         <span class="kw">let </span>variant_idx = VariantIdx::from_usize(i);
-        <span class="kw">let </span>expected = refiner.refine_variant_def(resolved_def_id, variant_idx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>expected = refiner.refine_variant_def(adt_def_id.resolved_id(), variant_idx)<span class="question-mark">?</span>;
         zipper.zip_variant(variant, <span class="kw-2">&amp;</span>expected, variant_idx);
     }
 
@@ -815,7 +801,7 @@
 
 <span class="kw">struct </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    owner_id: DefId,
+    owner_id: MaybeExternId,
     locs: UnordMap&lt;rty::Loc, rty::Ty&gt;,
     holes: Holes,
     a_index: DebruijnIndex,
@@ -868,7 +854,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: DefId) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: MaybeExternId) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
             owner_id,
@@ -911,7 +897,7 @@
     <span class="kw">fn </span>zip_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, a: <span class="kw-2">&amp;</span>rty::FnSig, b: <span class="kw-2">&amp;</span>rty::FnSig) {
         <span class="kw">if </span>a.inputs().len() != b.inputs().len() {
             <span class="self">self</span>.errors
-                .emit(errors::IncompatiblParamCount::new(<span class="self">self</span>.genv, decl, <span class="self">self</span>.owner_id));
+                .emit(errors::IncompatibleParamCount::new(<span class="self">self</span>.genv, decl, <span class="self">self</span>.owner_id));
             <span class="kw">return</span>;
         }
         <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(a.inputs(), b.inputs()).enumerate() {
@@ -1202,11 +1188,6 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>local_id_for_maybe_extern(genv: GlobalEnv, def_id: DefId) -&gt; LocalDefId {
-    genv.get_local_id_for_extern(def_id)
-        .unwrap_or_else(|| def_id.expect_local())
-}
-
 <span class="kw">enum </span>Error {
     Incompatible,
 }
@@ -1220,11 +1201,9 @@
         global_env::GlobalEnv,
         rty,
         rustc::ty::{FieldIdx, VariantIdx},
+        MaybeExternId,
     };
-    <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_span::{Span, DUMMY_SP};
-
-    <span class="kw">use </span><span class="kw">super</span>::local_id_for_maybe_extern;
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
@@ -1241,13 +1220,13 @@
     <span class="kw">impl </span>IncompatibleRefinement {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>type_alias(
             genv: GlobalEnv,
-            def_id: DefId,
+            def_id: MaybeExternId,
             type_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
         ) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>tcx = genv.tcx();
             <span class="self">Self </span>{
                 span: type_alias.ty.span,
-                def_descr: tcx.def_descr(def_id),
+                def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: <span class="prelude-val">Some</span>(tcx.def_span(def_id)),
                 expected_ty: <span class="macro">format!</span>(<span class="string">"{}"</span>, tcx.type_of(def_id).skip_binder()),
             }
@@ -1255,29 +1234,33 @@
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_input(
             genv: GlobalEnv,
-            def_id: DefId,
+            fn_id: MaybeExternId,
             decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
             pos: usize,
         ) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>expected_decl = genv
                 .tcx()
-                .hir_node_by_def_id(local_id_for_maybe_extern(genv, def_id))
+                .hir_node_by_def_id(fn_id.local_id())
                 .fn_decl()
                 .unwrap();
 
             <span class="kw">let </span>expected_ty = expected_decl.inputs[pos];
             <span class="self">Self </span>{
                 span: decl.inputs[pos].span,
-                def_descr: genv.tcx().def_descr(def_id),
+                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span: <span class="prelude-val">Some</span>(expected_ty.span),
                 expected_ty: rustc_hir_pretty::ty_to_string(<span class="kw-2">&amp;</span>genv.tcx(), <span class="kw-2">&amp;</span>expected_ty),
             }
         }
 
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_output(genv: GlobalEnv, def_id: DefId, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) -&gt; <span class="self">Self </span>{
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_output(
+            genv: GlobalEnv,
+            fn_id: MaybeExternId,
+            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+        ) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>expected_decl = genv
                 .tcx()
-                .hir_node_by_def_id(local_id_for_maybe_extern(genv, def_id))
+                .hir_node_by_def_id(fn_id.local_id())
                 .fn_decl()
                 .unwrap();
 
@@ -1288,7 +1271,7 @@
             <span class="kw">let </span>spec_span = decl.output.ret.span;
             <span class="self">Self </span>{
                 span: spec_span,
-                def_descr: genv.tcx().def_descr(def_id),
+                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span: <span class="prelude-val">Some</span>(expected_decl.output.span()),
                 expected_ty,
             }
@@ -1296,7 +1279,7 @@
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>ensures(
             genv: GlobalEnv,
-            def_id: DefId,
+            fn_id: MaybeExternId,
             decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
             expected: <span class="kw-2">&amp;</span>rty::Ty,
             i: usize,
@@ -1307,7 +1290,7 @@
             <span class="kw">let </span>tcx = genv.tcx();
             <span class="self">Self </span>{
                 span: ty.span,
-                def_descr: tcx.def_descr(def_id),
+                def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: <span class="prelude-val">None</span>,
                 expected_ty: <span class="macro">format!</span>(<span class="string">"{}"</span>, expected.to_rustc(tcx)),
             }
@@ -1315,16 +1298,15 @@
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>field(
             genv: GlobalEnv,
-            adt_def_id: DefId,
+            adt_id: MaybeExternId,
             variant_idx: VariantIdx,
             field_idx: FieldIdx,
         ) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>tcx = genv.tcx();
-            <span class="kw">let </span>adt_def = tcx.adt_def(adt_def_id);
+            <span class="kw">let </span>adt_def = tcx.adt_def(adt_id);
             <span class="kw">let </span>field_def = <span class="kw-2">&amp;</span>adt_def.variant(variant_idx).fields[field_idx];
 
-            <span class="kw">let </span>local_id = local_id_for_maybe_extern(genv, adt_def_id);
-            <span class="kw">let </span>item = genv.map().expect_item(local_id).unwrap();
+            <span class="kw">let </span>item = genv.map().expect_item(adt_id.local_id()).unwrap();
             <span class="kw">let </span>span = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
                 fhir::ItemKind::Enum(enum_def) =&gt; {
                     enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
@@ -1350,7 +1332,7 @@
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatiblParamCount {
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleParamCount {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
@@ -1361,9 +1343,9 @@
         def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
-    <span class="kw">impl </span>IncompatiblParamCount {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: DefId) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id);
+    <span class="kw">impl </span>IncompatibleParamCount {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: MaybeExternId) -&gt; <span class="self">Self </span>{
+            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id.resolved_id());
 
             <span class="kw">let </span>span = <span class="kw">if </span>!decl.inputs.is_empty() {
                 decl.inputs[decl.inputs.len() - <span class="number">1</span>]
@@ -1412,17 +1394,15 @@
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
             genv: GlobalEnv,
             found: usize,
-            adt_def_id: DefId,
+            adt_def_id: MaybeExternId,
             variant_idx: VariantIdx,
         ) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>adt_def = genv.tcx().adt_def(adt_def_id);
             <span class="kw">let </span>expected_variant = adt_def.variant(variant_idx);
 
-            <span class="kw">let </span>local_id = local_id_for_maybe_extern(genv, adt_def_id);
-
             <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
             // count mismatch.
-            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.map().node(local_id)
+            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
                 &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
                 &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
             {
