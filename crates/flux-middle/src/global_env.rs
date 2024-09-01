@@ -234,11 +234,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn refinement_generics_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::RefinementGenerics> {
         self.inner
             .queries
-            .refinement_generics_of(self, def_id.into())
+            .refinement_generics_of(self, def_id.into_query_param())
     }
 
     pub fn predicates_of(
@@ -309,11 +309,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> QueryResult<&fhir::GenericParam> {
-        let owner = self.hir().ty_param_owner(def_id);
-        Ok(self.map().get_generics(owner)?.unwrap().get_param(def_id))
-    }
-
     pub fn is_box(&self, res: fhir::Res) -> bool {
         res.is_box(self.tcx())
     }
@@ -375,7 +370,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
     pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
         let Some(local_id) = def_id.as_local() else { return def_id };
-        self.maybe_extern_id(local_id).resolved_def_id()
+        self.maybe_extern_id(local_id).resolved_id()
     }
 
     pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {
@@ -457,6 +452,14 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         } else {
             Ok(Some(self.node(def_id)?.generics()))
         }
+    }
+
+    pub fn get_generic_param(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv fhir::GenericParam<'genv>> {
+        let owner = self.genv.hir().ty_param_owner(def_id);
+        Ok(self.get_generics(owner)?.unwrap().get_param(def_id))
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {

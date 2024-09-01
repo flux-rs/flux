@@ -135,14 +135,14 @@ pub(crate) fn conv_adt_sort_def(
 
 pub(crate) fn expand_type_alias(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), alias.params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
 
@@ -209,12 +209,7 @@ pub(crate) fn conv_generics(
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
-        rty::GenericParamDef {
-            index: 0,
-            name: kw::SelfUpper,
-            def_id: def_id.resolved_def_id(),
-            kind,
-        }
+        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let mut params = opt_self
         .into_iter()
@@ -335,13 +330,14 @@ pub(crate) fn conv_qualifier(
 
 pub(crate) fn conv_fn_decl(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     decl: &fhir::FnDecl,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
-    let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
+    let late_bound_regions =
+        refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id.local_id())?);
 
     let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
@@ -640,7 +636,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())?,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
             fields,
             idxs,
         );
@@ -668,7 +664,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id.resolved_def_id(),
+                adt_def_id.resolved_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -681,7 +677,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_def_id())?,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
                 fields,
                 idx,
             );

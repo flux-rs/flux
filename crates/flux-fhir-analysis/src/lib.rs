@@ -271,8 +271,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         kind => Err(query_bug!(def_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "generics.rty", &generics)
-            .unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), "generics.rty", &generics).unwrap();
     }
     Ok(generics)
 }
@@ -308,16 +307,20 @@ fn refinement_generics_of(
 }
 
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+    let def_id = genv.maybe_extern_id(def_id);
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
-            let alias = genv.map().expect_item(def_id)?.expect_type_alias();
-            let wfckresults = genv.check_wf(def_id)?;
+            let alias = genv
+                .map()
+                .expect_item(def_id.local_id())?
+                .expect_type_alias();
+            let wfckresults = genv.check_wf(def_id.local_id())?;
             conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
         }
         DefKind::TyParam => {
-            match &genv.get_generic_param(def_id)?.kind {
+            match &genv.map().get_generic_param(def_id.local_id())?.kind {
                 fhir::GenericParamKind::Type { default: Some(ty) } => {
-                    let parent = genv.tcx().local_parent(def_id);
+                    let parent = genv.tcx().local_parent(def_id.local_id());
                     let wfckresults = genv.check_wf(parent)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
@@ -326,10 +329,10 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
             let generics = genv.generics_of(def_id)?;
-            let ty = genv.lower_type_of(def_id)?.skip_binder();
+            let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
             Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
         }
-        kind => Err(query_bug!(def_id, "`{:?}` not supported", kind.descr(def_id.to_def_id())))?,
+        kind => Err(query_bug!(def_id, "`{:?}` not supported", kind.descr(def_id.resolved_id())))?,
     };
     Ok(rty::EarlyBinder(ty))
 }
@@ -367,14 +370,15 @@ fn variants_of(
         _ => Err(query_bug!(def_id, "expected struct or enum"))?,
     };
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_def_id(), "rty", &variants).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), "rty", &variants).unwrap();
     }
     Ok(variants)
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let fn_sig = genv.desugar(def_id)?.fn_sig().unwrap();
-    let wfckresults = genv.check_wf(def_id)?;
+    let def_id = genv.maybe_extern_id(def_id);
+    let fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
+    let wfckresults = genv.check_wf(def_id.local_id())?;
     let defns = genv.spec_func_defns()?;
     let fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
@@ -382,8 +386,13 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
         let refinement_generics = genv.refinement_generics_of(def_id)?;
-        dbg::dump_item_info(genv.tcx(), def_id, "rty", (generics, refinement_generics, &fn_sig))
-            .unwrap();
+        dbg::dump_item_info(
+            genv.tcx(),
+            def_id.resolved_id(),
+            "rty",
+            (generics, refinement_generics, &fn_sig),
+        )
+        .unwrap();
     }
     Ok(fn_sig)
 }
