@@ -1,3 +1,5 @@
+//! This crate contains common type definitions that are used by other crates.
+
 #![feature(
     associated_type_defaults,
     box_patterns,
@@ -10,8 +12,6 @@
     rustc_private,
     unwrap_infallible
 )]
-
-//! This crate contains common type definitions that are used by other crates.
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -404,9 +404,14 @@ pub struct ResolverOutput {
     pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
+/// Id for a local item that may represent an external spec. This enum serves as a type-level
+/// reminder to handle local items cautiously as they can refer to extern specs. The enum is generic
+/// on the local `Id` because sometimes we use it with an [`OwnerId`].
 #[derive(Clone, Copy, Debug)]
 pub enum MaybeExternId<Id = LocalDefId> {
+    /// An id for a local spec.
     Local(Id),
+    /// An id for an external spec.
     Extern(Id, DefId),
 }
 
@@ -432,6 +437,14 @@ impl<Id> MaybeExternId<Id> {
         matches!(self, Self::Local(..))
     }
 
+    /// Returns `true` if the maybe extern id is [`Extern`].
+    ///
+    /// [`Extern`]: MaybeExternId::Extern
+    #[must_use]
+    pub fn is_extern(&self) -> bool {
+        matches!(self, Self::Extern(..))
+    }
+
     pub fn as_extern(self) -> Option<DefId> {
         if let MaybeExternId::Extern(_, def_id) = self {
             Some(def_id)
@@ -442,7 +455,7 @@ impl<Id> MaybeExternId<Id> {
 }
 
 impl<Id: Into<DefId>> MaybeExternId<Id> {
-    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the [`LocalDefId`] into a
+    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the local id into a
     /// [`DefId`] if [`Local`].
     ///
     /// [`Local`]: MaybeExternId::Local

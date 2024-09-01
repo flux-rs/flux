@@ -357,12 +357,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
-    pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
-        let Some(local_id) = def_id.as_local() else { return def_id };
-        self.maybe_extern_id(local_id).resolved_def_id()
-    }
-
     /// Iterator over all local def ids that are not a extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
         // FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
@@ -376,6 +370,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx()
             .iter_local_def_id()
             .filter_map(move |local_def_id| self.maybe_extern_id(local_def_id).as_extern())
+    }
+
+    /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
+    pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
+        let Some(local_id) = def_id.as_local() else { return def_id };
+        self.maybe_extern_id(local_id).resolved_def_id()
     }
 
     pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {

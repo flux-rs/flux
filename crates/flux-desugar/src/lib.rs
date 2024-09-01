@@ -29,7 +29,7 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{self as hir, def_id::DefId, OwnerId};
+use rustc_hir::{self as hir, OwnerId};
 use rustc_span::def_id::LocalDefId;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;

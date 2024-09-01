@@ -129,14 +129,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> RustItemCtxt<'b, 'genv, 'tcx> {
-        let todo = 0;
-        RustItemCtxt::new(
-            self.genv,
-            MaybeExternId::Local(owner),
-            self.resolver_output,
-            self.opaque_tys.as_deref_mut(),
-        )
+    fn with_new_owner<'b>(
+        &'b mut self,
+        owner: MaybeExternId<OwnerId>,
+    ) -> RustItemCtxt<'b, 'genv, 'tcx> {
+        RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'genv, 'tcx> {
@@ -339,8 +336,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             else {
                 bug!("expected struct")
             };
-            // debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
-            let todo = 1;
+            debug_assert_eq!(
+                struct_def.fields.len(),
+                variant_data.fields().len() - (self.owner.is_extern() as usize)
+            );
             let fields = try_alloc_slice!(
                 self.genv,
                 iter::zip(&struct_def.fields, variant_data.fields()),
@@ -637,8 +636,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let def_id = item_id.owner_id.def_id;
                 let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
+                // FIXME(nilehmann) since we can only pass local ids for opaque types it means we
+                // can't support extern specs with opaque types.
                 let opaque_ty = self
-                    .with_new_owner(item_id.owner_id)
+                    .with_new_owner(MaybeExternId::Local(item_id.owner_id))
                     .desugar_opaque_ty_for_async(returns)?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
@@ -1454,8 +1455,10 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
         let def_id = item_id.owner_id.def_id;
         let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
+        // FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
+        // support extern specs with opaque types.
         let opaque_ty = self
-            .with_new_owner(item_id.owner_id)
+            .with_new_owner(MaybeExternId::Local(item_id.owner_id))
             .desugar_opaque_ty_for_impl_trait(bounds)?;
         self.insert_opaque_ty(def_id, opaque_ty);
 

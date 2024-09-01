@@ -469,7 +469,7 @@ impl Rib {
     }
 }
 
-fn module_children<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> &'tcx [ModChild] {
+fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
     if let Some(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
     } else {
@@ -485,6 +485,7 @@ fn glob_imports<'tcx>(tcx: TyCtxt<'tcx>, path: &hir::UsePath) -> &'tcx [ModChild
     module_children(tcx, module_id)
 }
 
+/// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
     tcx.hir()
         .attrs(item.hir_id())

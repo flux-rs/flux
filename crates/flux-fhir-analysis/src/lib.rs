@@ -18,7 +18,7 @@ mod wf;
 use std::rc::Rc;
 
 use conv::bug_on_infer_sort;
-use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
