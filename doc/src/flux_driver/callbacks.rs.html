@@ -260,6 +260,7 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -346,6 +347,7 @@
         <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_wf"</span>);
 
         flux_fhir_analysis::check_crate_wf(genv)<span class="question-mark">?</span>;
+
         <span class="kw">let </span><span class="kw-2">mut </span>ck = CrateChecker::new(genv);
 
         <span class="kw">let </span>crate_items = genv.tcx().hir_crate_items(());
@@ -412,8 +414,8 @@
     <span class="kw">fn </span>check_def_catching_bugs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>this = std::panic::AssertUnwindSafe(<span class="self">self</span>);
         <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"def_id: {:?}, span: {:?}"</span>, def_id, this.genv.tcx().def_span(def_id));
-        flux_common::bug::catch_bugs(<span class="kw-2">&amp;</span>msg, <span class="kw">move </span>|| this.check_def(def_id)).and_then(|err| err)
-    }
+        flux_common::bug::catch_bugs(<span class="kw-2">&amp;</span>msg, <span class="kw">move </span>|| this.check_def(def_id))<span class="question-mark">?
+    </span>}
 
     <span class="kw">fn </span>check_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if </span>!<span class="self">self</span>.matches_check_def(def_id) {

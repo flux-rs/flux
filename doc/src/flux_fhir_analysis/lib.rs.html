@@ -482,12 +482,6 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -513,7 +507,7 @@
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, FluxLocalDefId},
+    fhir,
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -567,17 +561,28 @@
 
 <span class="kw">fn </span>spec_func_defns(genv: GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>defns = FxHashMap::default();
+
+    <span class="comment">// Collect and emit all errors
+    </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
     <span class="kw">for </span>func <span class="kw">in </span>genv.map().spec_funcs() {
-        <span class="kw">let </span>wfckresults = genv.check_wf(FluxLocalDefId::Flux(func.name))<span class="question-mark">?</span>;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = conv::conv_defn(genv, func, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">? </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_fn_spec(genv, func).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
+            <span class="kw">continue</span>;
+        };
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(defn) = conv::conv_defn(genv, func, <span class="kw-2">&amp;</span>wfckresults).emit(<span class="kw-2">&amp;</span>errors) <span class="kw">else </span>{
+            <span class="kw">continue</span>;
+        };
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
             defns.insert(defn.name, defn);
         }
     }
-    <span class="kw">let </span>defns = rty::SpecFuncDefns::new(defns).map_err(|cycle| {
-        <span class="kw">let </span>span = genv.map().spec_func(cycle[<span class="number">0</span>]).unwrap().body.unwrap().span;
-        genv.sess()
-            .emit_err(errors::DefinitionCycle::new(span, cycle))
-    })<span class="question-mark">?</span>;
+    errors.into_result()<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>defns = rty::SpecFuncDefns::new(defns)
+        .map_err(|cycle| {
+            <span class="kw">let </span>span = genv.map().spec_func(cycle[<span class="number">0</span>]).unwrap().body.unwrap().span;
+            errors::DefinitionCycle::new(span, cycle)
+        })
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(defns)
 }
@@ -586,7 +591,7 @@
     genv.map()
         .qualifiers()
         .map(|qualifier| {
-            <span class="kw">let </span>wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = wf::check_qualifier(genv, qualifier)<span class="question-mark">?</span>;
             normalize(genv, conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>)
         })
         .try_collect()
@@ -887,16 +892,9 @@
     <span class="prelude-val">Ok</span>(fn_sig)
 }
 
-<span class="kw">fn </span>check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
-    <span class="kw">let </span>wfckresults = <span class="kw">match </span>flux_id {
-        FluxLocalDefId::Flux(sym) =&gt; {
-            wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())<span class="question-mark">?
-        </span>}
-        FluxLocalDefId::Rust(def_id) =&gt; {
-            <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
-            wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?
-        </span>}
-    };
+<span class="kw">fn </span>check_wf(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
+    <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }
 
@@ -934,19 +932,9 @@
         }
     }
 
-    <span class="kw">for </span>defn <span class="kw">in </span>genv.map().spec_funcs() {
-        <span class="kw">let _ </span>= genv
-            .check_wf(FluxLocalDefId::Flux(defn.name))
-            .emit(<span class="kw-2">&amp;</span>errors)
-            .ok();
-    }
-
-    <span class="kw">for </span>qualifier <span class="kw">in </span>genv.map().qualifiers() {
-        <span class="kw">let _ </span>= genv
-            .check_wf(FluxLocalDefId::Flux(qualifier.name))
-            .emit(<span class="kw-2">&amp;</span>errors)
-            .ok();
-    }
+    <span class="comment">// Query qualifiers and spec funcs to report wf errors
+    </span><span class="kw">let _ </span>= genv.qualifiers().emit(<span class="kw-2">&amp;</span>errors);
+    <span class="kw">let _ </span>= genv.spec_func_defns().emit(<span class="kw-2">&amp;</span>errors);
 
     errors.into_result()
 }

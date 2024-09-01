@@ -546,6 +546,8 @@
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -564,7 +566,7 @@
 
 <span class="kw">use crate</span>::{
     cstore::CrateStoreDyn,
-    fhir::{<span class="self">self</span>, FluxLocalDefId, VariantIdx},
+    fhir::{<span class="self">self</span>, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
@@ -682,6 +684,10 @@
         <span class="self">self</span>.inner.queries.spec_func_defns(<span class="kw-2">*</span><span class="self">self</span>)
     }
 
+    <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[rty::Qualifier]&gt; {
+        <span class="self">self</span>.inner.queries.qualifiers(<span class="self">self</span>)
+    }
+
     <span class="doccomment">/// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     </span><span class="kw">pub fn </span>qualifiers_for(
         <span class="self">self</span>,
@@ -694,9 +700,7 @@
             .map(|qual| qual.name)
             .collect();
         <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.inner
-            .queries
-            .qualifiers(<span class="self">self</span>)<span class="question-mark">?
+            </span>.qualifiers()<span class="question-mark">?
             </span>.iter()
             .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
     }
@@ -748,8 +752,8 @@
             .adt_sort_def_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
-    <span class="kw">pub fn </span>check_wf(<span class="self">self</span>, flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
-        <span class="self">self</span>.inner.queries.check_wf(<span class="self">self</span>, flux_id.into())
+    <span class="kw">pub fn </span>check_wf(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
+        <span class="self">self</span>.inner.queries.check_wf(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>impl_trait_ref(

@@ -222,7 +222,7 @@
             <span class="kw">match </span>x {
                 <span class="prelude-val">Ok</span>(x) =&gt; f(acc, x),
                 <span class="prelude-val">Err</span>(e) =&gt; {
-                    <span class="self">self</span>.collector.collect_err(e);
+                    <span class="self">self</span>.collector.collect(e);
                     <span class="kw">try </span>{ acc }
                 }
             }

@@ -67,6 +67,10 @@
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
@@ -79,7 +83,7 @@
 <span class="kw">pub trait </span>ErrorCollector&lt;E&gt; {
     <span class="kw">type </span><span class="prelude-ty">Result</span>;
 
-    <span class="kw">fn </span>collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E);
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E);
 
     <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Result;
 }
@@ -87,7 +91,7 @@
 <span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span><span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; {
     <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt;;
 
-    <span class="kw">fn </span>collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {
         <span class="kw-2">*</span><span class="self">self </span>= <span class="prelude-val">Some</span>(err).or(<span class="kw-2">*</span><span class="self">self</span>);
     }
 
@@ -103,7 +107,7 @@
 <span class="kw">pub trait </span>ResultExt&lt;T, E&gt; {
     <span class="kw">fn </span>into_control_flow(<span class="self">self</span>) -&gt; ControlFlow&lt;E, T&gt;;
 
-    <span class="kw">fn </span>collect_err(<span class="self">self</span>, collector: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>ErrorCollector&lt;E&gt;);
+    <span class="kw">fn </span>collect_err(<span class="self">self</span>, collector: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>ErrorCollector&lt;E&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;;
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="self">self</span>, emitter: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw">impl </span>ErrorEmitter) -&gt; <span class="prelude-ty">Result</span>&lt;T, ErrorGuaranteed&gt;
@@ -119,9 +123,13 @@
         }
     }
 
-    <span class="kw">fn </span>collect_err(<span class="self">self</span>, collector: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>ErrorCollector&lt;E&gt;) {
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self </span>{
-            collector.collect_err(err);
+    <span class="kw">fn </span>collect_err(<span class="self">self</span>, collector: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>ErrorCollector&lt;E&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="prelude-val">Ok</span>(v) =&gt; <span class="prelude-val">Some</span>(v),
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                collector.collect(err);
+                <span class="prelude-val">None
+            </span>}
         }
     }
 
