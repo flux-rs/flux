@@ -731,7 +731,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<DefId> {
         let local_id = self.owner.local_id();
-        let resolved_id = self.owner.resolved_def_id();
+        let resolved_id = self.owner.resolved_id();
 
         match self.resolver_output().path_res_map[&path.node_id].full_res()? {
             fhir::Res::Def(DefKind::Enum, def_id) if def_id == resolved_id => {}

@@ -445,6 +445,14 @@ impl<Id> MaybeExternId<Id> {
         matches!(self, Self::Extern(..))
     }
 
+    pub fn as_local(self) -> Option<Id> {
+        if let MaybeExternId::Local(local_id) = self {
+            Some(local_id)
+        } else {
+            None
+        }
+    }
+
     pub fn as_extern(self) -> Option<DefId> {
         if let MaybeExternId::Extern(_, def_id) = self {
             Some(def_id)
@@ -460,7 +468,7 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
     ///
     /// [`Local`]: MaybeExternId::Local
     /// [`Extern`]: MaybeExternId::Extern
-    pub fn resolved_def_id(self) -> DefId {
+    pub fn resolved_id(self) -> DefId {
         match self {
             MaybeExternId::Local(local_id) => local_id.into(),
             MaybeExternId::Extern(_, def_id) => def_id,
@@ -470,6 +478,6 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
 
 impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
     fn into_query_param(self) -> DefId {
-        self.resolved_def_id()
+        self.resolved_id()
     }
 }
