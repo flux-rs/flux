@@ -251,8 +251,6 @@ fn item_bounds(
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = genv.maybe_extern_id(def_id);
 
-    let rustc_generics = genv.lower_generics_of(def_id.local_id().to_def_id())?;
-
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
         DefKind::Impl { .. }
@@ -269,14 +267,15 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .map()
                 .get_generics(def_id.local_id())?
                 .ok_or_else(|| query_bug!(def_id, "no generics for {def_id:?}"))?;
-            conv::conv_generics(genv, &rustc_generics, generics, def_id, is_trait)?
+            conv::conv_generics(genv, generics, def_id, is_trait)?
         }
         DefKind::Closure => {
+            let rustc_generics = genv.tcx().generics_of(def_id.local_id());
             rty::Generics {
                 own_params: List::empty(),
-                parent: rustc_generics.parent(),
-                parent_count: rustc_generics.parent_count(),
-                has_self: rustc_generics.orig.has_self,
+                parent: rustc_generics.parent,
+                parent_count: rustc_generics.parent_count,
+                has_self: rustc_generics.has_self,
             }
         }
         kind => Err(query_bug!(def_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?,

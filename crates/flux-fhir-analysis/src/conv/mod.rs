@@ -199,7 +199,6 @@ pub(crate) fn conv_opaque_ty(
 
 pub(crate) fn conv_generics(
     genv: GlobalEnv,
-    rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
     def_id: MaybeExternId,
     is_trait: Option<MaybeExternId>,
@@ -211,9 +210,10 @@ pub(crate) fn conv_generics(
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
+    let rust_generics = genv.tcx().generics_of(def_id.local_id());
     let mut params = opt_self
         .into_iter()
-        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+        .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
             let param = generics
                 .params
@@ -232,7 +232,7 @@ pub(crate) fn conv_generics(
     // HACK(nilehmann) add host param for effect to std/core external specs
     if let Some(extern_id) = def_id.as_extern() {
         if let Some((pos, param)) = genv
-            .lower_generics_of(extern_id)?
+            .lower_generics_of(extern_id)
             .params
             .iter()
             .find_position(|p| p.is_host_effect())
@@ -251,9 +251,9 @@ pub(crate) fn conv_generics(
 
     Ok(rty::Generics {
         own_params: List::from_vec(params),
-        parent: rust_generics.parent(),
-        parent_count: rust_generics.parent_count(),
-        has_self: rust_generics.orig.has_self,
+        parent: rust_generics.parent,
+        parent_count: rust_generics.parent_count,
+        has_self: rust_generics.has_self,
     })
 }
 

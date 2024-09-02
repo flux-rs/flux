@@ -167,7 +167,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.mir(self, def_id)
     }
 
-    pub fn lower_generics_of(self, def_id: DefId) -> QueryResult<ty::Generics<'tcx>> {
+    pub fn lower_generics_of(self, def_id: DefId) -> ty::Generics<'tcx> {
         self.inner.queries.lower_generics_of(self, def_id)
     }
 

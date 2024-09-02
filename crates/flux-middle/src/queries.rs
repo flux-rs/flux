@@ -194,7 +194,7 @@ pub struct Queries<'genv, 'tcx> {
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_crate: OnceCell<fhir::Crate<'genv>>,
-    lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
+    lower_generics_of: Cache<DefId, ty::Generics<'tcx>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
@@ -309,12 +309,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: DefId,
-    ) -> QueryResult<ty::Generics<'tcx>> {
+    ) -> ty::Generics<'tcx> {
         run_with_cache(&self.lower_generics_of, def_id, || {
             let generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
-                .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -435,8 +433,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(generics) = genv.cstore().generics_of(def_id) {
                 generics
             } else {
-                let generics = genv.lower_generics_of(def_id)?;
-                refining::refine_generics(&generics)
+                refining::refine_generics(&genv.lower_generics_of(def_id))
             }
         })
     }

@@ -900,7 +900,7 @@ fn lower_bound_region(
     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
-pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, UnsupportedReason> {
+pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Generics {
     let params = List::from_vec(
         generics
             .own_params
@@ -908,7 +908,7 @@ pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, 
             .map(lower_generic_param_def)
             .collect(),
     );
-    Ok(Generics { params, orig: generics })
+    Generics { params, orig: generics }
 }
 
 fn lower_generic_param_def(generic: &rustc_ty::GenericParamDef) -> GenericParamDef {
