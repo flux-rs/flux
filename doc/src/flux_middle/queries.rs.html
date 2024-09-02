@@ -779,9 +779,6 @@
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -978,7 +975,7 @@
     resolve_crate: OnceCell&lt;<span class="kw">crate</span>::ResolverOutput&gt;,
     desugar: Cache&lt;LocalDefId, QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     fhir_crate: OnceCell&lt;fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;&gt;,
-    lower_generics_of: Cache&lt;DefId, QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;,
+    lower_generics_of: Cache&lt;DefId, ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     lower_predicates_of: Cache&lt;DefId, QueryResult&lt;ty::GenericPredicates&gt;&gt;,
     lower_type_of: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt;&gt;,
     lower_fn_sig: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt;&gt;,
@@ -1093,12 +1090,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
-    ) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
+    ) -&gt; ty::Generics&lt;<span class="lifetime">'tcx</span>&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_generics_of, def_id, || {
             <span class="kw">let </span>generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
-                .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -1219,8 +1214,7 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(generics) = genv.cstore().generics_of(def_id) {
                 generics
             } <span class="kw">else </span>{
-                <span class="kw">let </span>generics = genv.lower_generics_of(def_id)<span class="question-mark">?</span>;
-                refining::refine_generics(<span class="kw-2">&amp;</span>generics)
+                refining::refine_generics(<span class="kw-2">&amp;</span>genv.lower_generics_of(def_id))
             }
         })
     }

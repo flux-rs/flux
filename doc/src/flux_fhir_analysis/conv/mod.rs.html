@@ -2266,7 +2266,6 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generics(
     genv: GlobalEnv,
-    rust_generics: <span class="kw-2">&amp;</span>rustc::ty::Generics,
     generics: <span class="kw-2">&amp;</span>fhir::Generics,
     def_id: MaybeExternId,
     is_trait: <span class="prelude-ty">Option</span>&lt;MaybeExternId&gt;,
@@ -2278,9 +2277,10 @@
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
         rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
+    <span class="kw">let </span>rust_generics = genv.tcx().generics_of(def_id.local_id());
     <span class="kw">let </span><span class="kw-2">mut </span>params = opt_self
         .into_iter()
-        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+        .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
             <span class="comment">// We have to filter out late bound parameters
             </span><span class="kw">let </span>param = generics
                 .params
@@ -2299,8 +2299,8 @@
     <span class="comment">// HACK(nilehmann) add host param for effect to std/core external specs
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = def_id.as_extern() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>((pos, param)) = genv
-            .lower_generics_of(extern_id)<span class="question-mark">?
-            </span>.params
+            .lower_generics_of(extern_id)
+            .params
             .iter()
             .find_position(|p| p.is_host_effect())
         {
@@ -2318,9 +2318,9 @@
 
     <span class="prelude-val">Ok</span>(rty::Generics {
         own_params: List::from_vec(params),
-        parent: rust_generics.parent(),
-        parent_count: rust_generics.parent_count(),
-        has_self: rust_generics.orig.has_self,
+        parent: rust_generics.parent,
+        parent_count: rust_generics.parent_count,
+        has_self: rust_generics.has_self,
     })
 }
 

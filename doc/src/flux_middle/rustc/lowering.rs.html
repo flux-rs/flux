@@ -1982,7 +1982,7 @@
     <span class="prelude-val">Ok</span>(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generics(generics: <span class="kw-2">&amp;</span>rustc_ty::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;Generics, UnsupportedReason&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generics(generics: <span class="kw-2">&amp;</span>rustc_ty::Generics) -&gt; Generics {
     <span class="kw">let </span>params = List::from_vec(
         generics
             .own_params
@@ -1990,7 +1990,7 @@
             .map(lower_generic_param_def)
             .collect(),
     );
-    <span class="prelude-val">Ok</span>(Generics { params, orig: generics })
+    Generics { params, orig: generics }
 }
 
 <span class="kw">fn </span>lower_generic_param_def(generic: <span class="kw-2">&amp;</span>rustc_ty::GenericParamDef) -&gt; GenericParamDef {

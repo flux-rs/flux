@@ -717,7 +717,7 @@
         <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
+    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: DefId) -&gt; ty::Generics&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.inner.queries.lower_generics_of(<span class="self">self</span>, def_id)
     }
 
