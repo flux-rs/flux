@@ -201,9 +201,9 @@ pub(crate) fn conv_generics(
     genv: GlobalEnv,
     generics: &fhir::Generics,
     def_id: MaybeExternId,
-    is_trait: Option<MaybeExternId>,
+    is_trait: bool,
 ) -> QueryResult<rty::Generics> {
-    let opt_self = is_trait.map(|def_id| {
+    let opt_self = is_trait.then(|| {
         let kind = generics
             .self_kind
             .as_ref()

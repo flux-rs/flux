@@ -262,11 +262,11 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn => {
-            let is_trait = (def_kind == DefKind::Trait).then_some(def_id);
+            let is_trait = def_kind == DefKind::Trait;
             let generics = genv
                 .map()
                 .get_generics(def_id.local_id())?
-                .ok_or_else(|| query_bug!(def_id, "no generics for {def_id:?}"))?;
+                .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)?
         }
         DefKind::Closure => {
@@ -278,7 +278,12 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 has_self: rustc_generics.has_self,
             }
         }
-        kind => Err(query_bug!(def_id, "generics_of called on `{def_id:?}` with kind `{kind:?}`"))?,
+        kind => {
+            Err(query_bug!(
+                def_id.local_id(),
+                "generics_of called on `{def_id:?}` with kind `{kind:?}`"
+            ))?
+        }
     };
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), "generics.rty", &generics).unwrap();
@@ -334,7 +339,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                     let wfckresults = genv.check_wf(parent)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
-                k => Err(query_bug!(def_id, "non-type def def {k:?} {def_id:?}"))?,
+                k => Err(query_bug!(def_id.local_id(), "non-type def def {k:?} {def_id:?}"))?,
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
@@ -342,7 +347,13 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
             Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
         }
-        kind => Err(query_bug!(def_id, "`{:?}` not supported", kind.descr(def_id.resolved_id())))?,
+        kind => {
+            Err(query_bug!(
+                def_id.local_id(),
+                "`{:?}` not supported",
+                kind.descr(def_id.resolved_id())
+            ))?
+        }
     };
     Ok(rty::EarlyBinder(ty))
 }
@@ -377,7 +388,7 @@ fn variants_of(
                 .transpose()?
                 .map(rty::EarlyBinder)
         }
-        _ => Err(query_bug!(def_id, "expected struct or enum"))?,
+        _ => Err(query_bug!(def_id.local_id(), "expected struct or enum"))?,
     };
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), "rty", &variants).unwrap();

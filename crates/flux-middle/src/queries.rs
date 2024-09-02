@@ -92,8 +92,7 @@ macro_rules! query_bug {
         $crate::queries::QueryErr::bug(None, format_args!($fmt, $($args),*))
     };
     ($def_id:expr, $fmt:literal $(,$args:expr)* $(,)? ) => {{
-        let def_id = rustc_middle::query::IntoQueryParam::into_query_param($def_id);
-        $crate::queries::QueryErr::bug(Some(def_id), format_args!($fmt, $($args),*))
+        $crate::queries::QueryErr::bug(Some($def_id.into()), format_args!($fmt, $($args),*))
     }};
 }
 
