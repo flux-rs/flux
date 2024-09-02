@@ -2268,9 +2268,9 @@
     genv: GlobalEnv,
     generics: <span class="kw-2">&amp;</span>fhir::Generics,
     def_id: MaybeExternId,
-    is_trait: <span class="prelude-ty">Option</span>&lt;MaybeExternId&gt;,
+    is_trait: bool,
 ) -&gt; QueryResult&lt;rty::Generics&gt; {
-    <span class="kw">let </span>opt_self = is_trait.map(|def_id| {
+    <span class="kw">let </span>opt_self = is_trait.then(|| {
         <span class="kw">let </span>kind = generics
             .self_kind
             .as_ref()
