@@ -429,7 +429,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
         };
 
-        Ok(fhir::PathSegment { res, ident: segment.ident, args, bindings })
+        Ok(fhir::PathSegment { res, ident: segment.ident, args, constraints: bindings })
     }
 
     fn lift_generic_args(
@@ -458,17 +458,17 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_assoc_item_constraints(
         &mut self,
-        bindings: &[hir::AssocItemConstraint<'_>],
-    ) -> Result<&'genv [fhir::TypeBinding<'genv>]> {
-        try_alloc_slice!(self.genv, bindings, |binding| {
-            let hir::AssocItemConstraintKind::Equality { term } = binding.kind else {
+        constraints: &[hir::AssocItemConstraint<'_>],
+    ) -> Result<&'genv [fhir::AssocItemConstraint<'genv>]> {
+        try_alloc_slice!(self.genv, constraints, |cstr| {
+            let hir::AssocItemConstraintKind::Equality { term } = cstr.kind else {
                 return self.emit_unsupported("unsupported type binding");
             };
             let hir::Term::Ty(term) = term else {
                 return self.emit_unsupported("unsupported type binding");
             };
-            let term = self.lift_ty(term)?;
-            Ok(fhir::TypeBinding { ident: binding.ident, term })
+            let kind = fhir::AssocItemConstraintKind::Equality { term: self.lift_ty(term)? };
+            Ok(fhir::AssocItemConstraint { ident: cstr.ident, kind })
         })
     }
 

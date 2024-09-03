@@ -1,10 +1,10 @@
 use super::{
-    AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
-    ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
-    SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind,
-    TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
+    Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
+    Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, Node,
+    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineArg,
+    RefineArgKind, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem,
+    TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -143,8 +143,8 @@ pub trait Visitor<'v>: Sized {
         walk_path_segment(self, segment);
     }
 
-    fn visit_type_binding(&mut self, binding: &TypeBinding<'v>) {
-        walk_type_binding(self, binding);
+    fn visit_assoc_item_constraint(&mut self, constraint: &AssocItemConstraint<'v>) {
+        walk_assoc_item_constraint(self, constraint);
     }
 
     fn visit_sort(&mut self, sort: &Sort<'v>) {
@@ -419,12 +419,18 @@ pub fn walk_path<'v, V: Visitor<'v>>(vis: &mut V, path: &Path<'v>) {
 
 pub fn walk_path_segment<'v, V: Visitor<'v>>(vis: &mut V, segment: &PathSegment<'v>) {
     walk_list!(vis, visit_generic_arg, segment.args);
-    walk_list!(vis, visit_type_binding, segment.bindings);
+    walk_list!(vis, visit_assoc_item_constraint, segment.constraints);
 }
 
-pub fn walk_type_binding<'v, V: Visitor<'v>>(vis: &mut V, binding: &TypeBinding<'v>) {
-    let TypeBinding { ident: _, term } = binding;
-    vis.visit_ty(term);
+pub fn walk_assoc_item_constraint<'v, V: Visitor<'v>>(
+    vis: &mut V,
+    constraint: &AssocItemConstraint<'v>,
+) {
+    match &constraint.kind {
+        AssocItemConstraintKind::Equality { term } => {
+            vis.visit_ty(term);
+        }
+    }
 }
 
 pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {

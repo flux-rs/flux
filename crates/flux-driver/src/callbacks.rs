@@ -164,17 +164,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                // Skip trait methods without body
-                if self
-                    .genv
-                    .tcx()
-                    .hir_node_by_def_id(def_id)
-                    .body_id()
-                    .is_some()
-                {
-                    refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)?;
-                }
-                Ok(())
+                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;

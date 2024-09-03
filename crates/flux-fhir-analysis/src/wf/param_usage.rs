@@ -203,6 +203,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
                 self.xi.rollback_to(snapshot);
             }
         }
-        walk_list!(self, visit_type_binding, segment.bindings);
+        walk_list!(self, visit_assoc_item_constraint, segment.constraints);
     }
 }

@@ -664,9 +664,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             hir::LangItem::Future,
             DUMMY_SP,
             &[],
-            self.genv.alloc_slice(&[fhir::TypeBinding {
+            self.genv.alloc_slice(&[fhir::AssocItemConstraint {
                 ident: surface::Ident::with_dummy_span(sym::Output),
-                term: output,
+                kind: fhir::AssocItemConstraintKind::Equality { term: output },
             }]),
         );
         let bound = fhir::GenericBound::Trait(
@@ -681,7 +681,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         lang_item: hir::LangItem,
         span: Span,
         args: &'genv [fhir::GenericArg<'genv>],
-        bindings: &'genv [fhir::TypeBinding<'genv>],
+        constraints: &'genv [fhir::AssocItemConstraint<'genv>],
     ) -> fhir::Path<'genv> {
         let def_id = self.genv.tcx().require_lang_item(lang_item, Some(span));
         let def_kind = self.genv.def_kind(def_id);
@@ -693,7 +693,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 ident: surface::Ident::new(lang_item.name(), span),
                 res,
                 args,
-                bindings,
+                constraints,
             }]),
             refine: &[],
         }
@@ -959,9 +959,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         &mut self,
         res: Res,
         args: &[surface::GenericArg],
-    ) -> Result<(&'genv [fhir::GenericArg<'genv>], &'genv [fhir::TypeBinding<'genv>])> {
+    ) -> Result<(&'genv [fhir::GenericArg<'genv>], &'genv [fhir::AssocItemConstraint<'genv>])> {
         let mut fhir_args = vec![];
-        let mut bindings = vec![];
+        let mut constraints = vec![];
         if let Res::Def(
             DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
             def_id,
@@ -981,11 +981,16 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     fhir_args.push(fhir::GenericArg::Type(self.genv().alloc(ty)));
                 }
                 surface::GenericArgKind::Constraint(ident, ty) => {
-                    bindings.push(fhir::TypeBinding { ident: *ident, term: self.desugar_ty(ty)? });
+                    constraints.push(fhir::AssocItemConstraint {
+                        ident: *ident,
+                        kind: fhir::AssocItemConstraintKind::Equality {
+                            term: self.desugar_ty(ty)?,
+                        },
+                    });
                 }
             }
         }
-        Ok((self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&bindings)))
+        Ok((self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&constraints)))
     }
 
     fn desugar_ty(&mut self, ty: &surface::Ty) -> Result<fhir::Ty<'genv>> {
@@ -1174,8 +1179,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             .path_res_map
             .get(&segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        let (args, bindings) = self.desugar_generic_args(res, &segment.args)?;
-        Ok(fhir::PathSegment { ident: segment.ident, res, args, bindings })
+        let (args, constraints) = self.desugar_generic_args(res, &segment.args)?;
+        Ok(fhir::PathSegment { ident: segment.ident, res, args, constraints })
     }
 
     fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {

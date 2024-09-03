@@ -658,13 +658,18 @@ pub struct PathSegment<'fhir> {
     pub ident: Ident,
     pub res: Res,
     pub args: &'fhir [GenericArg<'fhir>],
-    pub bindings: &'fhir [TypeBinding<'fhir>],
+    pub constraints: &'fhir [AssocItemConstraint<'fhir>],
 }
 
 #[derive(Clone, Copy)]
-pub struct TypeBinding<'fhir> {
+pub struct AssocItemConstraint<'fhir> {
     pub ident: Ident,
-    pub term: Ty<'fhir>,
+    pub kind: AssocItemConstraintKind<'fhir>,
+}
+
+#[derive(Clone, Copy)]
+pub enum AssocItemConstraintKind<'fhir> {
+    Equality { term: Ty<'fhir> },
 }
 
 #[derive(Clone, Copy)]
@@ -1343,7 +1348,7 @@ impl fmt::Debug for PathSegment<'_> {
             .args
             .iter()
             .map(|a| a as &dyn std::fmt::Debug)
-            .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
+            .chain(self.constraints.iter().map(|b| b as &dyn std::fmt::Debug))
             .collect();
         if !args.is_empty() {
             write!(f, "<{:?}>", args.iter().format(", "))?;
@@ -1362,9 +1367,13 @@ impl fmt::Debug for GenericArg<'_> {
     }
 }
 
-impl fmt::Debug for TypeBinding<'_> {
+impl fmt::Debug for AssocItemConstraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} = {:?}", self.ident, self.term)
+        match &self.kind {
+            AssocItemConstraintKind::Equality { term } => {
+                write!(f, "{:?} = {:?}", self.ident, term)
+            }
+        }
     }
 }
 

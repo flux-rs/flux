@@ -479,18 +479,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .try_collect_vec()?;
         clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
 
-        for binding in trait_segment.bindings {
-            self.conv_type_binding(env, &trait_ref, binding, clauses)?;
+        for cstr in trait_segment.constraints {
+            self.conv_assoc_item_constraint(env, &trait_ref, cstr, clauses)?;
         }
 
         Ok(())
     }
 
-    fn conv_type_binding(
+    fn conv_assoc_item_constraint(
         &mut self,
         env: &mut Env,
         trait_ref: &rty::TraitRef,
-        binding: &fhir::TypeBinding,
+        constraint: &fhir::AssocItemConstraint,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let tcx = self.genv.tcx();
@@ -498,19 +498,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let candidate = self.probe_single_bound_for_assoc_item(
             || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
-            binding.ident,
+            constraint.ident,
         )?;
         let assoc_item = self
-            .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
+            .trait_defines_associated_item_named(
+                candidate.def_id,
+                AssocKind::Type,
+                constraint.ident,
+            )
             .unwrap();
 
         // TODO: when we support generic associated types, we need to also attach the associated generics here
         let args = trait_ref.args.clone();
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
+
+        let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
+
         let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
             projection_ty: alias_ty,
-            term: self.conv_ty(env, &binding.term)?,
+            term: self.conv_ty(env, term)?,
         });
         clauses.push(rty::Clause::new(List::empty(), kind));
         Ok(())
@@ -551,10 +558,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[])?;
         env.push_layer(layer);
 
+        let fhir::AssocItemConstraintKind::Equality { term } =
+            &path.last_segment().constraints[0].kind;
+
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: self.conv_ty(env, path.last_segment().args[0].expect_type())?,
-            output: self.conv_ty(env, &path.last_segment().bindings[0].term)?,
+            output: self.conv_ty(env, term)?,
             kind,
         };
         // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
