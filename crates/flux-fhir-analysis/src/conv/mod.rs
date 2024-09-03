@@ -16,15 +16,15 @@ use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     intern::List,
-    queries::{QueryErr, QueryResult},
+    queries::QueryResult,
+    query_bug,
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self, lowering},
-    MaybeExternId,
+    rustc, MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -1088,11 +1088,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             // trait Child: for<'a> Super<'a> {}
             // fn foo<T: Child>(x: T::Assoc) {}
             // ```
-            //
-            span_bug!(
-                assoc_segment.ident.span,
-                "Associated path with uninferred generic parameters"
-            );
+            Err(self.genv.sess().emit_err(
+                query_bug!("associated path with uninferred generic parameters")
+                    .at(assoc_ident.span),
+            ))?
         };
 
         let trait_ref = {
