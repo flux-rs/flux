@@ -688,7 +688,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 poly_sig,
             )?;
         } else {
-            bug!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty);
+            Err(query_bug!(
+                "check_oblig_fn_trait_pred: unexpected self_ty {:?}",
+                fn_trait_pred.self_ty
+            ))
+            .with_span(self.body.span())?;
         }
         Ok(())
     }
