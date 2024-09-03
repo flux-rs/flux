@@ -17,14 +17,14 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
+    query_bug,
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self},
-    MaybeExternId,
+    rustc, MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -469,50 +469,71 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_param = generics.param_at(0, self.genv)?;
         let mut args = vec![self.ty_to_generic_arg(self_param.kind, span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
-        let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
-        let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         let vars = poly_trait_ref
             .bound_generic_params
             .iter()
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
-        clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+        let poly_trait_ref = rty::Binder::new(
+            rty::TraitRef { def_id: trait_id, args: args.into() },
+            List::from_vec(vars),
+        );
 
-        for binding in trait_segment.bindings {
-            self.conv_type_binding(env, &trait_ref, binding, clauses)?;
+        clauses.push(
+            poly_trait_ref
+                .clone()
+                .map(|trait_ref| {
+                    rty::ClauseKind::Trait(rty::TraitPredicate { trait_ref: trait_ref.clone() })
+                })
+                .into(),
+        );
+
+        for cstr in trait_segment.constraints {
+            self.conv_assoc_item_constraint(env, &poly_trait_ref, cstr, clauses)?;
         }
 
         Ok(())
     }
 
-    fn conv_type_binding(
+    fn conv_assoc_item_constraint(
         &mut self,
         env: &mut Env,
-        trait_ref: &rty::TraitRef,
-        binding: &fhir::TypeBinding,
+        poly_trait_ref: &rty::PolyTraitRef,
+        constraint: &fhir::AssocItemConstraint,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let tcx = self.genv.tcx();
-        let rustc_trait_ref = trait_ref.to_rustc(tcx);
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
-            binding.ident,
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
+            constraint.ident,
         )?;
-        let assoc_item = self
-            .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
-            .unwrap();
+        let assoc_item_id = self
+            .trait_defines_associated_item_named(
+                candidate.def_id(),
+                AssocKind::Type,
+                constraint.ident,
+            )
+            .unwrap()
+            .def_id;
 
-        // TODO: when we support generic associated types, we need to also attach the associated generics here
-        let args = trait_ref.args.clone();
-        let refine_args = List::empty();
-        let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
-        let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-            projection_ty: alias_ty,
-            term: self.conv_ty(env, &binding.term)?,
-        });
-        clauses.push(rty::Clause::new(List::empty(), kind));
+        let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
+        let term = self.conv_ty(env, term)?;
+
+        let clause = poly_trait_ref
+            .clone()
+            .map(|trait_ref| {
+                // TODO: when we support generic associated types, we need to also attach the associated generics here
+                let args = trait_ref.args;
+                let refine_args = List::empty();
+                let projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+            })
+            .into();
+
+        clauses.push(clause);
         Ok(())
     }
 
@@ -551,10 +572,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[])?;
         env.push_layer(layer);
 
+        let fhir::AssocItemConstraintKind::Equality { term } =
+            &path.last_segment().constraints[0].kind;
+
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: self.conv_ty(env, path.last_segment().args[0].expect_type())?,
-            output: self.conv_ty(env, &path.last_segment().bindings[0].term)?,
+            output: self.conv_ty(env, term)?,
             kind,
         };
         // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
@@ -1055,9 +1079,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
             }
         };
-        let generics = self.generics_of_owner()?;
 
-        let trait_ref = self.refine_trait_ref(&generics, bound)?;
+        let Some(trait_ref) = bound.no_bound_vars() else {
+            // This is a programmer error and we should gracefully report it. It's triggered
+            // by code like this
+            // ```
+            // trait Super<'a> { type Assoc; }
+            // trait Child: for<'a> Super<'a> {}
+            // fn foo<T: Child>(x: T::Assoc) {}
+            // ```
+            Err(self.genv.sess().emit_err(
+                query_bug!("associated path with uninferred generic parameters")
+                    .at(assoc_ident.span),
+            ))?
+        };
+
+        let trait_ref = {
+            let generics = self.generics_of_owner()?;
+            let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
+            Refiner::default(self.genv, &generics).refine_trait_ref(&trait_ref)?
+        };
 
         let assoc_item = self
             .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
@@ -1101,7 +1142,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         all_candidates: impl Fn() -> I,
         assoc_ident: rustc_span::symbol::Ident,
-    ) -> Result<ty::TraitRef<'tcx>, ErrorGuaranteed>
+    ) -> Result<ty::PolyTraitRef<'tcx>, ErrorGuaranteed>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
@@ -1124,19 +1165,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
         }
 
-        let Some(bound) = bound.no_bound_vars() else {
-            bug!("higher-ranked trait bounds not supported yet");
-        };
         Ok(bound)
-    }
-
-    fn refine_trait_ref(
-        &self,
-        item_generics: &rty::Generics,
-        trait_ref: ty::TraitRef<'tcx>,
-    ) -> QueryResult<rty::TraitRef> {
-        let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
-        Refiner::default(self.genv, item_generics).refine_trait_ref(&trait_ref)
     }
 
     fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime) -> rty::Region {

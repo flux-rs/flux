@@ -70,8 +70,14 @@ pub fn check_fn(
             return Ok(());
         }
 
-        // Make sure we run convertion and report any errors even if the function is trusted.
+        // Make sure we run convertion and report any errors even if the function is trusted or
+        // doesn't have body.
         force_conv(genv, def_id).emit(&genv)?;
+
+        // Skip trait methods without body
+        if genv.tcx().hir_node_by_def_id(def_id).body_id().is_none() {
+            return Ok(());
+        }
 
         if genv.trusted(def_id) {
             return Ok(());
