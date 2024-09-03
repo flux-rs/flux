@@ -100,6 +100,14 @@ pub struct TraitRef {
     pub args: GenericArgs,
 }
 
+impl TraitRef {
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
+}
+
+pub type PolyTraitRef = Binder<TraitRef>;
+
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
@@ -603,12 +611,6 @@ impl AdtDefData {
         };
         assert_eq!(discrs.len(), variants.len());
         Self { did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
-    }
-}
-
-impl TraitRef {
-    pub fn self_ty(&self) -> &Ty {
-        self.args[0].expect_type()
     }
 }
 

@@ -27,8 +27,8 @@ use super::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
-        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
-        VariantDef,
+        PolyFnSig, PolyTraitRef, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate,
+        UnevaluatedConst, VariantDef,
     },
 };
 use crate::{

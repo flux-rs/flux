@@ -16,14 +16,14 @@ use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     intern::List,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self},
+    rustc::{self, lowering},
     MaybeExternId,
 };
 use itertools::Itertools;
@@ -511,7 +511,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         )?;
         let assoc_item_id = self
             .trait_defines_associated_item_named(
-                candidate.def_id,
+                candidate.def_id(),
                 AssocKind::Type,
                 constraint.ident,
             )
@@ -1079,9 +1079,27 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
             }
         };
-        let generics = self.generics_of_owner()?;
 
-        let trait_ref = self.refine_trait_ref(&generics, bound)?;
+        let Some(trait_ref) = bound.no_bound_vars() else {
+            // This is a programmer error and we should gracefully report it. It's triggered
+            // by code like this
+            // ```
+            // trait Super<'a> { type Assoc; }
+            // trait Child: for<'a> Super<'a> {}
+            // fn foo<T: Child>(x: T::Assoc) {}
+            // ```
+            //
+            span_bug!(
+                assoc_segment.ident.span,
+                "Associated path with uninferred generic parameters"
+            );
+        };
+
+        let trait_ref = {
+            let generics = self.generics_of_owner()?;
+            let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
+            Refiner::default(self.genv, &generics).refine_trait_ref(&trait_ref)?
+        };
 
         let assoc_item = self
             .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
@@ -1125,7 +1143,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         all_candidates: impl Fn() -> I,
         assoc_ident: rustc_span::symbol::Ident,
-    ) -> Result<ty::TraitRef<'tcx>, ErrorGuaranteed>
+    ) -> Result<ty::PolyTraitRef<'tcx>, ErrorGuaranteed>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
@@ -1148,19 +1166,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
         }
 
-        let Some(bound) = bound.no_bound_vars() else {
-            bug!("higher-ranked trait bounds not supported yet");
-        };
         Ok(bound)
-    }
-
-    fn refine_trait_ref(
-        &self,
-        item_generics: &rty::Generics,
-        trait_ref: ty::TraitRef<'tcx>,
-    ) -> QueryResult<rty::TraitRef> {
-        let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
-        Refiner::default(self.genv, item_generics).refine_trait_ref(&trait_ref)
     }
 
     fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime) -> rty::Region {

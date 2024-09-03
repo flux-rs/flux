@@ -256,16 +256,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::Binder::new(value, List::empty()))
     }
 
-    pub(crate) fn refine_binders<S, T, F>(
+    pub fn refine_binders<S, T, F>(
         &self,
-        thing: &rustc::ty::Binder<S>,
+        t: &rustc::ty::Binder<S>,
         mut f: F,
     ) -> QueryResult<rty::Binder<T>>
     where
         F: FnMut(&S) -> QueryResult<T>,
     {
-        let vars = refine_bound_variables(thing.vars());
-        let inner = thing.as_ref().skip_binder();
+        let vars = refine_bound_variables(t.vars());
+        let inner = t.as_ref().skip_binder();
         let inner = f(inner)?;
         Ok(rty::Binder::new(inner, vars))
     }
