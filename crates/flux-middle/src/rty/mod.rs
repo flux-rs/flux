@@ -239,6 +239,8 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
+pub type PolyTraitPredicate = Binder<TraitPredicate>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
@@ -256,6 +258,10 @@ pub type PolyTraitRef = Binder<TraitRef>;
 impl PolyTraitRef {
     pub fn def_id(&self) -> DefId {
         self.as_ref().skip_binder().def_id
+    }
+
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::PolyTraitRef<'tcx> {
+        rustc_middle::ty::Binder::bind_with_vars(self.value.to_rustc(tcx), self.vars.to_rustc(tcx))
     }
 }
 
@@ -291,10 +297,10 @@ impl ExistentialPredicate {
 }
 
 impl PolyExistentialPredicate {
-    fn to_rustc<'tcx>(
+    pub fn to_rustc<'tcx>(
         &self,
         tcx: TyCtxt<'tcx>,
-    ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
+    ) -> rustc_middle::ty::PolyExistentialPredicate<'tcx> {
         assert!(self.vars.is_empty());
         let pred = match &self.value {
             ExistentialPredicate::Trait(trait_ref) => {
@@ -831,6 +837,49 @@ pub enum BoundReftKind {
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
     Refine(Sort, InferMode, BoundReftKind),
+}
+
+impl BoundVariableKind {
+    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
+        if let BoundVariableKind::Refine(sort, mode, kind) = self {
+            (sort, *mode, *kind)
+        } else {
+            bug!("expected `BoundVariableKind::Refine`")
+        }
+    }
+
+    pub fn expect_sort(&self) -> &Sort {
+        self.expect_refine().0
+    }
+}
+
+impl List<BoundVariableKind> {
+    pub fn to_sort_list(&self) -> List<Sort> {
+        self.iter()
+            .map(|kind| {
+                match kind {
+                    BoundVariableKind::Region(_) => {
+                        bug!("`to_sort_list` called on bound variable list with non-refinements")
+                    }
+                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
+                }
+            })
+            .collect()
+    }
+
+    pub fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+        tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
+            match kind {
+                BoundVariableKind::Region(brk) => {
+                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                }
+                BoundVariableKind::Refine(..) => None,
+            }
+        }))
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -1792,6 +1841,12 @@ impl Clause {
     }
 }
 
+impl From<Binder<ClauseKind>> for Clause {
+    fn from(kind: Binder<ClauseKind>) -> Self {
+        Clause { kind }
+    }
+}
+
 impl CoroutineObligPredicate {
     pub fn to_poly_fn_sig(&self) -> PolyFnSig {
         let vars = vec![];
@@ -1833,35 +1888,6 @@ impl RefinementGenerics {
         (0..self.count())
             .map(|i| Ok(f(self.param_at(i, genv)?)))
             .try_collect()
-    }
-}
-
-impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
-        if let BoundVariableKind::Refine(sort, mode, kind) = self {
-            (sort, *mode, *kind)
-        } else {
-            bug!("expected `BoundVariableKind::Refine`")
-        }
-    }
-
-    pub fn expect_sort(&self) -> &Sort {
-        self.expect_refine().0
-    }
-}
-
-impl List<BoundVariableKind> {
-    pub fn to_sort_list(&self) -> List<Sort> {
-        self.iter()
-            .map(|kind| {
-                match kind {
-                    BoundVariableKind::Region(_) => {
-                        bug!("`to_sort_list` called on bound variable list with non-refinements")
-                    }
-                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
-                }
-            })
-            .collect()
     }
 }
 

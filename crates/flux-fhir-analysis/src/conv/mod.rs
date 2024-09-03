@@ -469,18 +469,28 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_param = generics.param_at(0, self.genv)?;
         let mut args = vec![self.ty_to_generic_arg(self_param.kind, span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
-        let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
-        let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         let vars = poly_trait_ref
             .bound_generic_params
             .iter()
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
-        clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+        let poly_trait_ref = rty::Binder::new(
+            rty::TraitRef { def_id: trait_id, args: args.into() },
+            List::from_vec(vars),
+        );
+
+        clauses.push(
+            poly_trait_ref
+                .clone()
+                .map(|trait_ref| {
+                    rty::ClauseKind::Trait(rty::TraitPredicate { trait_ref: trait_ref.clone() })
+                })
+                .into(),
+        );
 
         for cstr in trait_segment.constraints {
-            self.conv_assoc_item_constraint(env, &trait_ref, cstr, clauses)?;
+            self.conv_assoc_item_constraint(env, &poly_trait_ref, cstr, clauses)?;
         }
 
         Ok(())
@@ -489,37 +499,41 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_assoc_item_constraint(
         &mut self,
         env: &mut Env,
-        trait_ref: &rty::TraitRef,
+        poly_trait_ref: &rty::PolyTraitRef,
         constraint: &fhir::AssocItemConstraint,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let tcx = self.genv.tcx();
-        let rustc_trait_ref = trait_ref.to_rustc(tcx);
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
             constraint.ident,
         )?;
-        let assoc_item = self
+        let assoc_item_id = self
             .trait_defines_associated_item_named(
                 candidate.def_id,
                 AssocKind::Type,
                 constraint.ident,
             )
-            .unwrap();
-
-        // TODO: when we support generic associated types, we need to also attach the associated generics here
-        let args = trait_ref.args.clone();
-        let refine_args = List::empty();
-        let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
+            .unwrap()
+            .def_id;
 
         let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
+        let term = self.conv_ty(env, term)?;
 
-        let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-            projection_ty: alias_ty,
-            term: self.conv_ty(env, term)?,
-        });
-        clauses.push(rty::Clause::new(List::empty(), kind));
+        let clause = poly_trait_ref
+            .clone()
+            .map(|trait_ref| {
+                // TODO: when we support generic associated types, we need to also attach the associated generics here
+                let args = trait_ref.args;
+                let refine_args = List::empty();
+                let projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+            })
+            .into();
+
+        clauses.push(clause);
         Ok(())
     }
 
