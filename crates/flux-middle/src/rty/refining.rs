@@ -178,34 +178,35 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     pub fn refine_existential_predicate(
         &self,
-        exi_pred: &rustc::ty::Binder<rustc::ty::ExistentialPredicate>,
-    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
-        assert!(exi_pred.vars().is_empty());
-        let exi_pred = match exi_pred.as_ref().skip_binder() {
-            rustc::ty::ExistentialPredicate::Trait(trait_ref) => {
-                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
-                    def_id: trait_ref.def_id,
-                    args: self.refine_existential_predicate_generic_args(
-                        trait_ref.def_id,
-                        &trait_ref.args,
-                    )?,
-                })
-            }
-            rustc::ty::ExistentialPredicate::Projection(projection) => {
-                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                    def_id: projection.def_id,
-                    args: self.refine_existential_predicate_generic_args(
-                        projection.def_id,
-                        &projection.args,
-                    )?,
-                    term: self.refine_ty(&projection.term)?,
-                })
-            }
-            rustc::ty::ExistentialPredicate::AutoTrait(def_id) => {
-                rty::ExistentialPredicate::AutoTrait(*def_id)
-            }
-        };
-        Ok(rty::Binder::new(exi_pred, List::empty()))
+        poly_pred: &rustc::ty::PolyExistentialPredicate,
+    ) -> QueryResult<rty::PolyExistentialPredicate> {
+        self.refine_binders(poly_pred, |pred| {
+            let pred = match pred {
+                rustc::ty::ExistentialPredicate::Trait(trait_ref) => {
+                    rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                        def_id: trait_ref.def_id,
+                        args: self.refine_existential_predicate_generic_args(
+                            trait_ref.def_id,
+                            &trait_ref.args,
+                        )?,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::Projection(projection) => {
+                    rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: self.refine_existential_predicate_generic_args(
+                            projection.def_id,
+                            &projection.args,
+                        )?,
+                        term: self.refine_ty(&projection.term)?,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::AutoTrait(def_id) => {
+                    rty::ExistentialPredicate::AutoTrait(*def_id)
+                }
+            };
+            Ok(pred)
+        })
     }
 
     pub fn refine_existential_predicate_generic_args(
