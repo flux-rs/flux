@@ -1076,10 +1076,6 @@
 <a href="#1076" id="1076">1076</a>
 <a href="#1077" id="1077">1077</a>
 <a href="#1078" id="1078">1078</a>
-<a href="#1079" id="1079">1079</a>
-<a href="#1080" id="1080">1080</a>
-<a href="#1081" id="1081">1081</a>
-<a href="#1082" id="1082">1082</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1904,36 +1900,32 @@
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     pred: rustc_ty::PolyExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;ExistentialPredicate&gt;, UnsupportedReason&gt; {
-    <span class="kw">if </span>!pred.bound_vars().is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
-            <span class="string">"unsupported existential predicate `{pred:?}`"
-        </span>)));
-    };
-    <span class="kw">let </span>pred = pred.skip_binder();
-    <span class="kw">let </span>exi_pred = <span class="kw">match </span>pred {
-        rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) =&gt; {
-            ExistentialPredicate::Trait(ExistentialTraitRef {
-                def_id: exi_trait_ref.def_id,
-                args: lower_generic_args(tcx, exi_trait_ref.args)<span class="question-mark">?</span>,
-            })
-        }
-        rustc_type_ir::ExistentialPredicate::Projection(exi_proj_pred) =&gt; {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(term) = exi_proj_pred.term.as_type() <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
-                    <span class="string">"unsupported existential predicate `{pred:?}`"
-                </span>)));
-            };
-            ExistentialPredicate::Projection(ExistentialProjection {
-                def_id: exi_proj_pred.def_id,
-                args: lower_generic_args(tcx, exi_proj_pred.args)<span class="question-mark">?</span>,
-                term: lower_ty(tcx, term)<span class="question-mark">?</span>,
-            })
-        }
-        rustc_type_ir::ExistentialPredicate::AutoTrait(def_id) =&gt; {
-            ExistentialPredicate::AutoTrait(def_id)
-        }
-    };
-    <span class="prelude-val">Ok</span>(Binder::dummy(exi_pred))
+    lower_binder(pred, |pred| {
+        <span class="kw">let </span>exi_pred = <span class="kw">match </span>pred {
+            rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) =&gt; {
+                ExistentialPredicate::Trait(ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: lower_generic_args(tcx, exi_trait_ref.args)<span class="question-mark">?</span>,
+                })
+            }
+            rustc_type_ir::ExistentialPredicate::Projection(exi_proj_pred) =&gt; {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(term) = exi_proj_pred.term.as_type() <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
+                        <span class="string">"unsupported existential predicate `{pred:?}`"
+                    </span>)));
+                };
+                ExistentialPredicate::Projection(ExistentialProjection {
+                    def_id: exi_proj_pred.def_id,
+                    args: lower_generic_args(tcx, exi_proj_pred.args)<span class="question-mark">?</span>,
+                    term: lower_ty(tcx, term)<span class="question-mark">?</span>,
+                })
+            }
+            rustc_type_ir::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                ExistentialPredicate::AutoTrait(def_id)
+            }
+        };
+        <span class="prelude-val">Ok</span>(exi_pred)
+    })
 }
 
 <span class="kw">pub fn </span>lower_generic_args&lt;<span class="lifetime">'tcx</span>&gt;(

@@ -962,6 +962,8 @@
 <a href="#962" id="962">962</a>
 <a href="#963" id="963">963</a>
 <a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1063,6 +1065,14 @@
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
 }
+
+<span class="kw">impl </span>TraitRef {
+    <span class="kw">pub fn </span>self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
+        <span class="self">self</span>.args[<span class="number">0</span>].expect_type()
+    }
+}
+
+<span class="kw">pub type </span>PolyTraitRef = Binder&lt;TraitRef&gt;;
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
 </span><span class="kw">pub struct </span>ProjectionPredicate {
@@ -1567,12 +1577,6 @@
         };
         <span class="macro">assert_eq!</span>(discrs.len(), variants.len());
         <span class="self">Self </span>{ did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
-    }
-}
-
-<span class="kw">impl </span>TraitRef {
-    <span class="kw">pub fn </span>self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
-        <span class="self">self</span>.args[<span class="number">0</span>].expect_type()
     }
 }
 

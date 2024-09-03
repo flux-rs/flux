@@ -492,13 +492,19 @@
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
 <a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
-    AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
-    ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
-    SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind,
-    TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
+    Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
+    Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, Node,
+    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineArg,
+    RefineArgKind, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem,
+    TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 <span class="kw">use </span><span class="kw">crate</span>::fhir::StructKind;
 
@@ -637,8 +643,8 @@
         walk_path_segment(<span class="self">self</span>, segment);
     }
 
-    <span class="kw">fn </span>visit_type_binding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding: <span class="kw-2">&amp;</span>TypeBinding&lt;<span class="lifetime">'v</span>&gt;) {
-        walk_type_binding(<span class="self">self</span>, binding);
+    <span class="kw">fn </span>visit_assoc_item_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>AssocItemConstraint&lt;<span class="lifetime">'v</span>&gt;) {
+        walk_assoc_item_constraint(<span class="self">self</span>, constraint);
     }
 
     <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort&lt;<span class="lifetime">'v</span>&gt;) {
@@ -913,12 +919,18 @@
 
 <span class="kw">pub fn </span>walk_path_segment&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_generic_arg, segment.args);
-    <span class="macro">walk_list!</span>(vis, visit_type_binding, segment.bindings);
+    <span class="macro">walk_list!</span>(vis, visit_assoc_item_constraint, segment.constraints);
 }
 
-<span class="kw">pub fn </span>walk_type_binding&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, binding: <span class="kw-2">&amp;</span>TypeBinding&lt;<span class="lifetime">'v</span>&gt;) {
-    <span class="kw">let </span>TypeBinding { ident: <span class="kw">_</span>, term } = binding;
-    vis.visit_ty(term);
+<span class="kw">pub fn </span>walk_assoc_item_constraint&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(
+    vis: <span class="kw-2">&amp;mut </span>V,
+    constraint: <span class="kw-2">&amp;</span>AssocItemConstraint&lt;<span class="lifetime">'v</span>&gt;,
+) {
+    <span class="kw">match </span><span class="kw-2">&amp;</span>constraint.kind {
+        AssocItemConstraintKind::Equality { term } =&gt; {
+            vis.visit_ty(term);
+        }
+    }
 }
 
 <span class="kw">pub fn </span>walk_sort&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, sort: <span class="kw-2">&amp;</span>Sort&lt;<span class="lifetime">'v</span>&gt;) {

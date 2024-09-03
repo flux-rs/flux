@@ -2065,6 +2065,35 @@
 <a href="#2065" id="2065">2065</a>
 <a href="#2066" id="2066">2066</a>
 <a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a>
+<a href="#2074" id="2074">2074</a>
+<a href="#2075" id="2075">2075</a>
+<a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
+<a href="#2080" id="2080">2080</a>
+<a href="#2081" id="2081">2081</a>
+<a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a>
+<a href="#2088" id="2088">2088</a>
+<a href="#2089" id="2089">2089</a>
+<a href="#2090" id="2090">2090</a>
+<a href="#2091" id="2091">2091</a>
+<a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2084,14 +2113,14 @@
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
+    query_bug,
     rty::{
         <span class="self">self</span>,
         fold::TypeFoldable,
         refining::{<span class="self">self</span>, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{<span class="self">self</span>},
-    MaybeExternId,
+    rustc, MaybeExternId,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
@@ -2536,50 +2565,71 @@
         <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[<span class="self">self</span>.ty_to_generic_arg(self_param.kind, span, bounded_ty)<span class="question-mark">?</span>];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
-        <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
-        <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         <span class="kw">let </span>vars = poly_trait_ref
             .bound_generic_params
             .iter()
             .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
             .try_collect_vec()<span class="question-mark">?</span>;
-        clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+        <span class="kw">let </span>poly_trait_ref = rty::Binder::new(
+            rty::TraitRef { def_id: trait_id, args: args.into() },
+            List::from_vec(vars),
+        );
 
-        <span class="kw">for </span>binding <span class="kw">in </span>trait_segment.bindings {
-            <span class="self">self</span>.conv_type_binding(env, <span class="kw-2">&amp;</span>trait_ref, binding, clauses)<span class="question-mark">?</span>;
+        clauses.push(
+            poly_trait_ref
+                .clone()
+                .map(|trait_ref| {
+                    rty::ClauseKind::Trait(rty::TraitPredicate { trait_ref: trait_ref.clone() })
+                })
+                .into(),
+        );
+
+        <span class="kw">for </span>cstr <span class="kw">in </span>trait_segment.constraints {
+            <span class="self">self</span>.conv_assoc_item_constraint(env, <span class="kw-2">&amp;</span>poly_trait_ref, cstr, clauses)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>conv_type_binding(
+    <span class="kw">fn </span>conv_assoc_item_constraint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
-        trait_ref: <span class="kw-2">&amp;</span>rty::TraitRef,
-        binding: <span class="kw-2">&amp;</span>fhir::TypeBinding,
+        poly_trait_ref: <span class="kw-2">&amp;</span>rty::PolyTraitRef,
+        constraint: <span class="kw-2">&amp;</span>fhir::AssocItemConstraint,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
-        <span class="kw">let </span>rustc_trait_ref = trait_ref.to_rustc(tcx);
 
         <span class="kw">let </span>candidate = <span class="self">self</span>.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
-            binding.ident,
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
+            constraint.ident,
         )<span class="question-mark">?</span>;
-        <span class="kw">let </span>assoc_item = <span class="self">self
-            </span>.trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
-            .unwrap();
+        <span class="kw">let </span>assoc_item_id = <span class="self">self
+            </span>.trait_defines_associated_item_named(
+                candidate.def_id(),
+                AssocKind::Type,
+                constraint.ident,
+            )
+            .unwrap()
+            .def_id;
 
-        <span class="comment">// TODO: when we support generic associated types, we need to also attach the associated generics here
-        </span><span class="kw">let </span>args = trait_ref.args.clone();
-        <span class="kw">let </span>refine_args = List::empty();
-        <span class="kw">let </span>alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
-        <span class="kw">let </span>kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-            projection_ty: alias_ty,
-            term: <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>binding.term)<span class="question-mark">?</span>,
-        });
-        clauses.push(rty::Clause::new(List::empty(), kind));
+        <span class="kw">let </span>fhir::AssocItemConstraintKind::Equality { term } = <span class="kw-2">&amp;</span>constraint.kind;
+        <span class="kw">let </span>term = <span class="self">self</span>.conv_ty(env, term)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>clause = poly_trait_ref
+            .clone()
+            .map(|trait_ref| {
+                <span class="comment">// TODO: when we support generic associated types, we need to also attach the associated generics here
+                </span><span class="kw">let </span>args = trait_ref.args;
+                <span class="kw">let </span>refine_args = List::empty();
+                <span class="kw">let </span>projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+            })
+            .into();
+
+        clauses.push(clause);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2618,10 +2668,13 @@
         <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
         env.push_layer(layer);
 
+        <span class="kw">let </span>fhir::AssocItemConstraintKind::Equality { term } =
+            <span class="kw-2">&amp;</span>path.last_segment().constraints[<span class="number">0</span>].kind;
+
         <span class="kw">let </span>pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: <span class="self">self</span>.conv_ty(env, path.last_segment().args[<span class="number">0</span>].expect_type())<span class="question-mark">?</span>,
-            output: <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>path.last_segment().bindings[<span class="number">0</span>].term)<span class="question-mark">?</span>,
+            output: <span class="self">self</span>.conv_ty(env, term)<span class="question-mark">?</span>,
             kind,
         };
         <span class="comment">// FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
@@ -3122,9 +3175,26 @@
                     .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))<span class="question-mark">?
             </span>}
         };
-        <span class="kw">let </span>generics = <span class="self">self</span>.generics_of_owner()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>trait_ref = <span class="self">self</span>.refine_trait_ref(<span class="kw-2">&amp;</span>generics, bound)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = bound.no_bound_vars() <span class="kw">else </span>{
+            <span class="comment">// This is a programmer error and we should gracefully report it. It's triggered
+            // by code like this
+            // ```
+            // trait Super&lt;'a&gt; { type Assoc; }
+            // trait Child: for&lt;'a&gt; Super&lt;'a&gt; {}
+            // fn foo&lt;T: Child&gt;(x: T::Assoc) {}
+            // ```
+            </span><span class="prelude-val">Err</span>(<span class="self">self</span>.genv.sess().emit_err(
+                <span class="macro">query_bug!</span>(<span class="string">"associated path with uninferred generic parameters"</span>)
+                    .at(assoc_ident.span),
+            ))<span class="question-mark">?
+        </span>};
+
+        <span class="kw">let </span>trait_ref = {
+            <span class="kw">let </span>generics = <span class="self">self</span>.generics_of_owner()<span class="question-mark">?</span>;
+            <span class="kw">let </span>trait_ref = <span class="self">self</span>.genv.lower_trait_ref(trait_ref)<span class="question-mark">?</span>;
+            Refiner::default(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?
+        </span>};
 
         <span class="kw">let </span>assoc_item = <span class="self">self
             </span>.trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
@@ -3168,7 +3238,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         all_candidates: <span class="kw">impl </span>Fn() -&gt; I,
         assoc_ident: rustc_span::symbol::Ident,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt;
     <span class="kw">where
         </span>I: Iterator&lt;Item = ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     {
@@ -3191,19 +3261,7 @@
                 .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
         }
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(bound) = bound.no_bound_vars() <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"higher-ranked trait bounds not supported yet"</span>);
-        };
         <span class="prelude-val">Ok</span>(bound)
-    }
-
-    <span class="kw">fn </span>refine_trait_ref(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        item_generics: <span class="kw-2">&amp;</span>rty::Generics,
-        trait_ref: ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; QueryResult&lt;rty::TraitRef&gt; {
-        <span class="kw">let </span>trait_ref = <span class="self">self</span>.genv.lower_trait_ref(trait_ref)<span class="question-mark">?</span>;
-        Refiner::default(<span class="self">self</span>.genv, item_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)
     }
 
     <span class="kw">fn </span>conv_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, lft: fhir::Lifetime) -&gt; rty::Region {

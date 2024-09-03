@@ -1498,6 +1498,15 @@
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
 <a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2158,13 +2167,18 @@
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>res: Res,
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;],
-    <span class="kw">pub </span>bindings: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[TypeBinding&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>constraints: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[AssocItemConstraint&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
 <span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub struct </span>TypeBinding&lt;<span class="lifetime">'fhir</span>&gt; {
+</span><span class="kw">pub struct </span>AssocItemConstraint&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>ident: Ident,
-    <span class="kw">pub </span>term: Ty&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>kind: AssocItemConstraintKind&lt;<span class="lifetime">'fhir</span>&gt;,
+}
+
+<span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub enum </span>AssocItemConstraintKind&lt;<span class="lifetime">'fhir</span>&gt; {
+    Equality { term: Ty&lt;<span class="lifetime">'fhir</span>&gt; },
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2843,7 +2857,7 @@
             </span>.args
             .iter()
             .map(|a| a <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::fmt::Debug)
-            .chain(<span class="self">self</span>.bindings.iter().map(|b| b <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::fmt::Debug))
+            .chain(<span class="self">self</span>.constraints.iter().map(|b| b <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::fmt::Debug))
             .collect();
         <span class="kw">if </span>!args.is_empty() {
             <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
@@ -2862,9 +2876,13 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>TypeBinding&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>AssocItemConstraint&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">"{:?} = {:?}"</span>, <span class="self">self</span>.ident, <span class="self">self</span>.term)
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            AssocItemConstraintKind::Equality { term } =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"{:?} = {:?}"</span>, <span class="self">self</span>.ident, term)
+            }
+        }
     }
 }
 

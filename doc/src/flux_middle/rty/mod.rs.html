@@ -2372,6 +2372,32 @@
 <a href="#2372" id="2372">2372</a>
 <a href="#2373" id="2373">2373</a>
 <a href="#2374" id="2374">2374</a>
+<a href="#2375" id="2375">2375</a>
+<a href="#2376" id="2376">2376</a>
+<a href="#2377" id="2377">2377</a>
+<a href="#2378" id="2378">2378</a>
+<a href="#2379" id="2379">2379</a>
+<a href="#2380" id="2380">2380</a>
+<a href="#2381" id="2381">2381</a>
+<a href="#2382" id="2382">2382</a>
+<a href="#2383" id="2383">2383</a>
+<a href="#2384" id="2384">2384</a>
+<a href="#2385" id="2385">2385</a>
+<a href="#2386" id="2386">2386</a>
+<a href="#2387" id="2387">2387</a>
+<a href="#2388" id="2388">2388</a>
+<a href="#2389" id="2389">2389</a>
+<a href="#2390" id="2390">2390</a>
+<a href="#2391" id="2391">2391</a>
+<a href="#2392" id="2392">2392</a>
+<a href="#2393" id="2393">2393</a>
+<a href="#2394" id="2394">2394</a>
+<a href="#2395" id="2395">2395</a>
+<a href="#2396" id="2396">2396</a>
+<a href="#2397" id="2397">2397</a>
+<a href="#2398" id="2398">2398</a>
+<a href="#2399" id="2399">2399</a>
+<a href="#2400" id="2400">2400</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2613,6 +2639,8 @@
     <span class="kw">pub </span>trait_ref: TraitRef,
 }
 
+<span class="kw">pub type </span>PolyTraitPredicate = Binder&lt;TraitPredicate&gt;;
+
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>TraitRef {
     <span class="kw">pub </span>def_id: DefId,
@@ -2630,6 +2658,10 @@
 <span class="kw">impl </span>PolyTraitRef {
     <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
         <span class="self">self</span>.as_ref().skip_binder().def_id
+    }
+
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
+        rustc_middle::ty::Binder::bind_with_vars(<span class="self">self</span>.value.to_rustc(tcx), <span class="self">self</span>.vars.to_rustc(tcx))
     }
 }
 
@@ -2665,10 +2697,10 @@
 }
 
 <span class="kw">impl </span>PolyExistentialPredicate {
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, rustc_middle::ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
+    ) -&gt; rustc_middle::ty::PolyExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="macro">assert!</span>(<span class="self">self</span>.vars.is_empty());
         <span class="kw">let </span>pred = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.value {
             ExistentialPredicate::Trait(trait_ref) =&gt; {
@@ -3205,6 +3237,49 @@
 </span><span class="kw">pub enum </span>BoundVariableKind {
     Region(BoundRegionKind),
     Refine(Sort, InferMode, BoundReftKind),
+}
+
+<span class="kw">impl </span>BoundVariableKind {
+    <span class="kw">fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) {
+        <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode, kind) = <span class="self">self </span>{
+            (sort, <span class="kw-2">*</span>mode, <span class="kw-2">*</span>kind)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected `BoundVariableKind::Refine`"</span>)
+        }
+    }
+
+    <span class="kw">pub fn </span>expect_sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Sort {
+        <span class="self">self</span>.expect_refine().<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl </span>List&lt;BoundVariableKind&gt; {
+    <span class="kw">pub fn </span>to_sort_list(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; List&lt;Sort&gt; {
+        <span class="self">self</span>.iter()
+            .map(|kind| {
+                <span class="kw">match </span>kind {
+                    BoundVariableKind::Region(<span class="kw">_</span>) =&gt; {
+                        <span class="macro">bug!</span>(<span class="string">"`to_sort_list` called on bound variable list with non-refinements"</span>)
+                    }
+                    BoundVariableKind::Refine(sort, ..) =&gt; sort.clone(),
+                }
+            })
+            .collect()
+    }
+
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::List&lt;rustc_middle::ty::BoundVariableKind&gt; {
+        tcx.mk_bound_variable_kinds_from_iter(<span class="self">self</span>.iter().flat_map(|kind| {
+            <span class="kw">match </span>kind {
+                BoundVariableKind::Region(brk) =&gt; {
+                    <span class="prelude-val">Some</span>(rustc_middle::ty::BoundVariableKind::Region(<span class="kw-2">*</span>brk))
+                }
+                BoundVariableKind::Refine(..) =&gt; <span class="prelude-val">None</span>,
+            }
+        }))
+    }
 }
 
 <span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -4166,6 +4241,12 @@
     }
 }
 
+<span class="kw">impl </span>From&lt;Binder&lt;ClauseKind&gt;&gt; <span class="kw">for </span>Clause {
+    <span class="kw">fn </span>from(kind: Binder&lt;ClauseKind&gt;) -&gt; <span class="self">Self </span>{
+        Clause { kind }
+    }
+}
+
 <span class="kw">impl </span>CoroutineObligPredicate {
     <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PolyFnSig {
         <span class="kw">let </span>vars = <span class="macro">vec!</span>[];
@@ -4207,35 +4288,6 @@
         (<span class="number">0</span>..<span class="self">self</span>.count())
             .map(|i| <span class="prelude-val">Ok</span>(f(<span class="self">self</span>.param_at(i, genv)<span class="question-mark">?</span>)))
             .try_collect()
-    }
-}
-
-<span class="kw">impl </span>BoundVariableKind {
-    <span class="kw">fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) {
-        <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode, kind) = <span class="self">self </span>{
-            (sort, <span class="kw-2">*</span>mode, <span class="kw-2">*</span>kind)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected `BoundVariableKind::Refine`"</span>)
-        }
-    }
-
-    <span class="kw">pub fn </span>expect_sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Sort {
-        <span class="self">self</span>.expect_refine().<span class="number">0
-    </span>}
-}
-
-<span class="kw">impl </span>List&lt;BoundVariableKind&gt; {
-    <span class="kw">pub fn </span>to_sort_list(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; List&lt;Sort&gt; {
-        <span class="self">self</span>.iter()
-            .map(|kind| {
-                <span class="kw">match </span>kind {
-                    BoundVariableKind::Region(<span class="kw">_</span>) =&gt; {
-                        <span class="macro">bug!</span>(<span class="string">"`to_sort_list` called on bound variable list with non-refinements"</span>)
-                    }
-                    BoundVariableKind::Refine(sort, ..) =&gt; sort.clone(),
-                }
-            })
-            .collect()
     }
 }
 

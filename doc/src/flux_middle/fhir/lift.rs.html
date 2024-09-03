@@ -965,7 +965,7 @@
             }
         };
 
-        <span class="prelude-val">Ok</span>(fhir::PathSegment { res, ident: segment.ident, args, bindings })
+        <span class="prelude-val">Ok</span>(fhir::PathSegment { res, ident: segment.ident, args, constraints: bindings })
     }
 
     <span class="kw">fn </span>lift_generic_args(
@@ -994,17 +994,17 @@
 
     <span class="kw">fn </span>lift_assoc_item_constraints(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        bindings: <span class="kw-2">&amp;</span>[hir::AssocItemConstraint&lt;<span class="lifetime">'_</span>&gt;],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::TypeBinding&lt;<span class="lifetime">'genv</span>&gt;]&gt; {
-        <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, bindings, |binding| {
-            <span class="kw">let </span>hir::AssocItemConstraintKind::Equality { term } = binding.kind <span class="kw">else </span>{
+        constraints: <span class="kw-2">&amp;</span>[hir::AssocItemConstraint&lt;<span class="lifetime">'_</span>&gt;],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::AssocItemConstraint&lt;<span class="lifetime">'genv</span>&gt;]&gt; {
+        <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, constraints, |cstr| {
+            <span class="kw">let </span>hir::AssocItemConstraintKind::Equality { term } = cstr.kind <span class="kw">else </span>{
                 <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">"unsupported type binding"</span>);
             };
             <span class="kw">let </span>hir::Term::Ty(term) = term <span class="kw">else </span>{
                 <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">"unsupported type binding"</span>);
             };
-            <span class="kw">let </span>term = <span class="self">self</span>.lift_ty(term)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(fhir::TypeBinding { ident: binding.ident, term })
+            <span class="kw">let </span>kind = fhir::AssocItemConstraintKind::Equality { term: <span class="self">self</span>.lift_ty(term)<span class="question-mark">? </span>};
+            <span class="prelude-val">Ok</span>(fhir::AssocItemConstraint { ident: cstr.ident, kind })
         })
     }
 

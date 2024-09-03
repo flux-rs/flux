@@ -267,6 +267,12 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -339,8 +345,14 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="comment">// Make sure we run convertion and report any errors even if the function is trusted.
+        <span class="comment">// Make sure we run convertion and report any errors even if the function is trusted or
+        // doesn't have body.
         </span>force_conv(genv, def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+
+        <span class="comment">// Skip trait methods without body
+        </span><span class="kw">if </span>genv.tcx().hir_node_by_def_id(def_id).body_id().is_none() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
 
         <span class="kw">if </span>genv.trusted(def_id) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());

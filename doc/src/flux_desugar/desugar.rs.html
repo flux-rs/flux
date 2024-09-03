@@ -1489,6 +1489,11 @@
 <a href="#1489" id="1489">1489</a>
 <a href="#1490" id="1490">1490</a>
 <a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2155,9 +2160,9 @@
             hir::LangItem::Future,
             DUMMY_SP,
             <span class="kw-2">&amp;</span>[],
-            <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[fhir::TypeBinding {
+            <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[fhir::AssocItemConstraint {
                 ident: surface::Ident::with_dummy_span(sym::Output),
-                term: output,
+                kind: fhir::AssocItemConstraintKind::Equality { term: output },
             }]),
         );
         <span class="kw">let </span>bound = fhir::GenericBound::Trait(
@@ -2172,7 +2177,7 @@
         lang_item: hir::LangItem,
         span: Span,
         args: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt;],
-        bindings: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::TypeBinding&lt;<span class="lifetime">'genv</span>&gt;],
+        constraints: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::AssocItemConstraint&lt;<span class="lifetime">'genv</span>&gt;],
     ) -&gt; fhir::Path&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>def_id = <span class="self">self</span>.genv.tcx().require_lang_item(lang_item, <span class="prelude-val">Some</span>(span));
         <span class="kw">let </span>def_kind = <span class="self">self</span>.genv.def_kind(def_id);
@@ -2184,7 +2189,7 @@
                 ident: surface::Ident::new(lang_item.name(), span),
                 res,
                 args,
-                bindings,
+                constraints,
             }]),
             refine: <span class="kw-2">&amp;</span>[],
         }
@@ -2450,9 +2455,9 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         res: Res,
         args: <span class="kw-2">&amp;</span>[surface::GenericArg],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::TypeBinding&lt;<span class="lifetime">'genv</span>&gt;])&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::AssocItemConstraint&lt;<span class="lifetime">'genv</span>&gt;])&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>fhir_args = <span class="macro">vec!</span>[];
-        <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>constraints = <span class="macro">vec!</span>[];
         <span class="kw">if let </span>Res::Def(
             DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
             def_id,
@@ -2472,11 +2477,16 @@
                     fhir_args.push(fhir::GenericArg::Type(<span class="self">self</span>.genv().alloc(ty)));
                 }
                 surface::GenericArgKind::Constraint(ident, ty) =&gt; {
-                    bindings.push(fhir::TypeBinding { ident: <span class="kw-2">*</span>ident, term: <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">? </span>});
+                    constraints.push(fhir::AssocItemConstraint {
+                        ident: <span class="kw-2">*</span>ident,
+                        kind: fhir::AssocItemConstraintKind::Equality {
+                            term: <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>,
+                        },
+                    });
                 }
             }
         }
-        <span class="prelude-val">Ok</span>((<span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>fhir_args), <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>bindings)))
+        <span class="prelude-val">Ok</span>((<span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>fhir_args), <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>constraints)))
     }
 
     <span class="kw">fn </span>desugar_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -2665,8 +2675,8 @@
             .path_res_map
             .get(<span class="kw-2">&amp;</span>segment.node_id)
             .map_or(Res::Err, |r| r.expect_full_res());
-        <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>segment.args)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::PathSegment { ident: segment.ident, res, args, bindings })
+        <span class="kw">let </span>(args, constraints) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>segment.args)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(fhir::PathSegment { ident: segment.ident, res, args, constraints })
     }
 
     <span class="kw">fn </span>ty_path(<span class="kw-2">&amp;</span><span class="self">self</span>, qpath: fhir::QPath&lt;<span class="lifetime">'genv</span>&gt;) -&gt; fhir::Ty&lt;<span class="lifetime">'genv</span>&gt; {

@@ -500,6 +500,7 @@
 <a href="#500" id="500">500</a>
 <a href="#501" id="501">501</a>
 <a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -680,34 +681,35 @@
 
     <span class="kw">pub fn </span>refine_existential_predicate(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        exi_pred: <span class="kw-2">&amp;</span>rustc::ty::Binder&lt;rustc::ty::ExistentialPredicate&gt;,
-    ) -&gt; QueryResult&lt;rty::Binder&lt;rty::ExistentialPredicate&gt;&gt; {
-        <span class="macro">assert!</span>(exi_pred.vars().is_empty());
-        <span class="kw">let </span>exi_pred = <span class="kw">match </span>exi_pred.as_ref().skip_binder() {
-            rustc::ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
-                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
-                    def_id: trait_ref.def_id,
-                    args: <span class="self">self</span>.refine_existential_predicate_generic_args(
-                        trait_ref.def_id,
-                        <span class="kw-2">&amp;</span>trait_ref.args,
-                    )<span class="question-mark">?</span>,
-                })
-            }
-            rustc::ty::ExistentialPredicate::Projection(projection) =&gt; {
-                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                    def_id: projection.def_id,
-                    args: <span class="self">self</span>.refine_existential_predicate_generic_args(
-                        projection.def_id,
-                        <span class="kw-2">&amp;</span>projection.args,
-                    )<span class="question-mark">?</span>,
-                    term: <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">?</span>,
-                })
-            }
-            rustc::ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
-                rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
-            }
-        };
-        <span class="prelude-val">Ok</span>(rty::Binder::new(exi_pred, List::empty()))
+        poly_pred: <span class="kw-2">&amp;</span>rustc::ty::PolyExistentialPredicate,
+    ) -&gt; QueryResult&lt;rty::PolyExistentialPredicate&gt; {
+        <span class="self">self</span>.refine_binders(poly_pred, |pred| {
+            <span class="kw">let </span>pred = <span class="kw">match </span>pred {
+                rustc::ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
+                    rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                        def_id: trait_ref.def_id,
+                        args: <span class="self">self</span>.refine_existential_predicate_generic_args(
+                            trait_ref.def_id,
+                            <span class="kw-2">&amp;</span>trait_ref.args,
+                        )<span class="question-mark">?</span>,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::Projection(projection) =&gt; {
+                    rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: <span class="self">self</span>.refine_existential_predicate_generic_args(
+                            projection.def_id,
+                            <span class="kw-2">&amp;</span>projection.args,
+                        )<span class="question-mark">?</span>,
+                        term: <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">?</span>,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                    rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
+                }
+            };
+            <span class="prelude-val">Ok</span>(pred)
+        })
     }
 
     <span class="kw">pub fn </span>refine_existential_predicate_generic_args(
@@ -758,16 +760,16 @@
         <span class="prelude-val">Ok</span>(rty::Binder::new(value, List::empty()))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_binders&lt;S, T, F&gt;(
+    <span class="kw">pub fn </span>refine_binders&lt;S, T, F&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        thing: <span class="kw-2">&amp;</span>rustc::ty::Binder&lt;S&gt;,
+        t: <span class="kw-2">&amp;</span>rustc::ty::Binder&lt;S&gt;,
         <span class="kw-2">mut </span>f: F,
     ) -&gt; QueryResult&lt;rty::Binder&lt;T&gt;&gt;
     <span class="kw">where
         </span>F: FnMut(<span class="kw-2">&amp;</span>S) -&gt; QueryResult&lt;T&gt;,
     {
-        <span class="kw">let </span>vars = refine_bound_variables(thing.vars());
-        <span class="kw">let </span>inner = thing.as_ref().skip_binder();
+        <span class="kw">let </span>vars = refine_bound_variables(t.vars());
+        <span class="kw">let </span>inner = t.as_ref().skip_binder();
         <span class="kw">let </span>inner = f(inner)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::Binder::new(inner, vars))
     }
