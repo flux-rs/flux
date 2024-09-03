@@ -1749,6 +1749,10 @@
 <a href="#1749" id="1749">1749</a>
 <a href="#1750" id="1750">1750</a>
 <a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2439,7 +2443,11 @@
                 poly_sig,
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>, fn_trait_pred.self_ty);
+            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                <span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>,
+                fn_trait_pred.self_ty
+            ))
+            .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
