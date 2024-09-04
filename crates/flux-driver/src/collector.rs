@@ -640,7 +640,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
         parser(&mut self.parse_sess, &dargs.tokens, entire)
             .map(ctor)
-            .map_err(|err| errors::SyntaxErr::from(err))
+            .map_err(errors::SyntaxErr::from)
             .emit(&self.errors)
     }
 
