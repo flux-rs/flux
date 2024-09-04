@@ -2094,6 +2094,8 @@
 <a href="#2094" id="2094">2094</a>
 <a href="#2095" id="2095">2095</a>
 <a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2236,8 +2238,9 @@
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
+    <span class="kw">let </span>generics = genv.map().get_generics(def_id.local_id())<span class="question-mark">?</span>.unwrap();
 
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
     env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.resolved_id(), alias.params)<span class="question-mark">?</span>);
 
     <span class="kw">let </span>ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>alias.ty)<span class="question-mark">?</span>;
@@ -2435,7 +2438,8 @@
     <span class="kw">let </span>late_bound_regions =
         refining::refine_bound_variables(<span class="kw-2">&amp;</span>genv.lower_late_bound_vars(def_id.local_id())<span class="question-mark">?</span>);
 
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, decl.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
+    <span class="kw">let </span>generics = genv.map().get_generics(def_id.local_id())<span class="question-mark">?</span>.unwrap();
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
     env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];

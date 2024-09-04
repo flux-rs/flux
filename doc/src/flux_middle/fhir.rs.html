@@ -1468,45 +1468,6 @@
 <a href="#1468" id="1468">1468</a>
 <a href="#1469" id="1469">1469</a>
 <a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a>
-<a href="#1472" id="1472">1472</a>
-<a href="#1473" id="1473">1473</a>
-<a href="#1474" id="1474">1474</a>
-<a href="#1475" id="1475">1475</a>
-<a href="#1476" id="1476">1476</a>
-<a href="#1477" id="1477">1477</a>
-<a href="#1478" id="1478">1478</a>
-<a href="#1479" id="1479">1479</a>
-<a href="#1480" id="1480">1480</a>
-<a href="#1481" id="1481">1481</a>
-<a href="#1482" id="1482">1482</a>
-<a href="#1483" id="1483">1483</a>
-<a href="#1484" id="1484">1484</a>
-<a href="#1485" id="1485">1485</a>
-<a href="#1486" id="1486">1486</a>
-<a href="#1487" id="1487">1487</a>
-<a href="#1488" id="1488">1488</a>
-<a href="#1489" id="1489">1489</a>
-<a href="#1490" id="1490">1490</a>
-<a href="#1491" id="1491">1491</a>
-<a href="#1492" id="1492">1492</a>
-<a href="#1493" id="1493">1493</a>
-<a href="#1494" id="1494">1494</a>
-<a href="#1495" id="1495">1495</a>
-<a href="#1496" id="1496">1496</a>
-<a href="#1497" id="1497">1497</a>
-<a href="#1498" id="1498">1498</a>
-<a href="#1499" id="1499">1499</a>
-<a href="#1500" id="1500">1500</a>
-<a href="#1501" id="1501">1501</a>
-<a href="#1502" id="1502">1502</a>
-<a href="#1503" id="1503">1503</a>
-<a href="#1504" id="1504">1504</a>
-<a href="#1505" id="1505">1505</a>
-<a href="#1506" id="1506">1506</a>
-<a href="#1507" id="1507">1507</a>
-<a href="#1508" id="1508">1508</a>
-<a href="#1509" id="1509">1509</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1630,9 +1591,9 @@
 
     <span class="kw">pub fn </span>generics(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Node::Item(item) =&gt; item.generics(),
-            Node::TraitItem(trait_item) =&gt; trait_item.generics(),
-            Node::ImplItem(impl_item) =&gt; impl_item.generics(),
+            Node::Item(item) =&gt; <span class="kw-2">&amp;</span>item.generics,
+            Node::TraitItem(trait_item) =&gt; <span class="kw-2">&amp;</span>trait_item.generics,
+            Node::ImplItem(impl_item) =&gt; <span class="kw-2">&amp;</span>impl_item.generics,
         }
     }
 
@@ -1656,24 +1617,13 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Item&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>owner_id: OwnerId,
+    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>kind: ItemKind&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="doccomment">/// Whether this is a spec for an extern item
     </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Item&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>generics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ItemKind::Enum(enum_def) =&gt; <span class="kw-2">&amp;</span>enum_def.generics,
-            ItemKind::Struct(struct_def) =&gt; <span class="kw-2">&amp;</span>struct_def.generics,
-            ItemKind::TyAlias(ty_alias) =&gt; <span class="kw-2">&amp;</span>ty_alias.generics,
-            ItemKind::Trait(trait_) =&gt; <span class="kw-2">&amp;</span>trait_.generics,
-            ItemKind::Impl(impl_) =&gt; <span class="kw-2">&amp;</span>impl_.generics,
-            ItemKind::Fn(fn_sig) =&gt; <span class="kw-2">&amp;</span>fn_sig.decl.generics,
-            ItemKind::OpaqueTy(opaque_ty) =&gt; <span class="kw-2">&amp;</span>opaque_ty.generics,
-        }
-    }
-
     <span class="kw">pub fn </span>expect_enum(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>EnumDef&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="kw">if let </span>ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             enum_def
@@ -1729,45 +1679,29 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TraitItem&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>owner_id: OwnerId,
+    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>kind: TraitItemKind&lt;<span class="lifetime">'fhir</span>&gt;,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; TraitItem&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>generics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            TraitItemKind::Fn(fn_sig) =&gt; <span class="kw-2">&amp;</span>fn_sig.decl.generics,
-            TraitItemKind::Type(assoc_ty) =&gt; <span class="kw-2">&amp;</span>assoc_ty.generics,
-        }
-    }
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>TraitItemKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Fn(FnSig&lt;<span class="lifetime">'fhir</span>&gt;),
-    Type(AssocType&lt;<span class="lifetime">'fhir</span>&gt;),
+    Type,
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>kind: ImplItemKind&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="doccomment">/// Whether this is a spec for an extern item
     </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; ImplItem&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>generics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ImplItemKind::Fn(fn_sig) =&gt; <span class="kw-2">&amp;</span>fn_sig.decl.generics,
-            ImplItemKind::Type(assoc_type) =&gt; <span class="kw-2">&amp;</span>assoc_type.generics,
-        }
-    }
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ImplItemKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Fn(FnSig&lt;<span class="lifetime">'fhir</span>&gt;),
-    Type(AssocType&lt;<span class="lifetime">'fhir</span>&gt;),
+    Type,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1828,7 +1762,6 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Trait&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>assoc_refinements: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[TraitAssocReft&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
@@ -1850,7 +1783,6 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Impl&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>assoc_refinements: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[ImplAssocReft&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
@@ -1872,13 +1804,7 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>AssocType&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
-}
-
-<span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>bounds: GenericBounds&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -1901,7 +1827,6 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TyAlias&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -1914,7 +1839,6 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>StructDef&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>kind: StructKind&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -1938,7 +1862,6 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EnumDef&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>variants: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[VariantDef&lt;<span class="lifetime">'fhir</span>&gt;],
@@ -1966,7 +1889,6 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="doccomment">/// example: vec![(0 &lt;= n), (l: i32)]
     </span><span class="kw">pub </span>requires: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Requires&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="doccomment">/// example: vec![(x: StrRef(l))]
@@ -2690,19 +2612,19 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FnDecl&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">if </span>!<span class="self">self</span>.generics.refinement_params.is_empty() {
-            <span class="macro">write!</span>(
-                f,
-                <span class="string">"for&lt;{}&gt; "</span>,
-                <span class="self">self</span>.generics
-                    .refinement_params
-                    .iter()
-                    .format_with(<span class="string">", "</span>, |param, f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}: {:?}"</span>, param.name, param.sort))
-                    })
-            )<span class="question-mark">?</span>;
-        }
-        <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
+        <span class="comment">// if !self.generics.refinement_params.is_empty() {
+        //     write!(
+        //         f,
+        //         "for&lt;{}&gt; ",
+        //         self.generics
+        //             .refinement_params
+        //             .iter()
+        //             .format_with(", ", |param, f| {
+        //                 f(&amp;format_args!("{}: {:?}", param.name, param.sort))
+        //             })
+        //     )?;
+        // }
+        </span><span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
             <span class="macro">write!</span>(f, <span class="string">"[{:?}] "</span>, <span class="self">self</span>.requires.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
         }
         <span class="macro">write!</span>(f, <span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="self">self</span>.inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output)

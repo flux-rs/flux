@@ -525,15 +525,6 @@
 <a href="#525" id="525">525</a>
 <a href="#526" id="526">526</a>
 <a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -555,28 +546,9 @@
 
 <span class="kw">pub struct </span>LiftCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
-}
-
-<span class="kw">pub fn </span>lift_type_alias&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    owner_id: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyAlias&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-    <span class="kw">let </span>local_id_gen = IndexGen::new();
-    LiftCtxt::new(genv, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>).lift_type_alias()
-}
-
-<span class="kw">pub fn </span>lift_fn_decl&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    owner_id: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;, UnordMap&lt;LocalDefId, fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;)&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = Default::default();
-    <span class="kw">let </span>local_id_gen = IndexGen::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(genv, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
-    <span class="kw">let </span>fn_decl = cx.lift_fn_decl()<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>((fn_decl, opaque_tys))
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; LiftCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -584,7 +556,7 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner: OwnerId,
         local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
-        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, opaque_tys, local_id_gen, owner }
     }
@@ -699,19 +671,28 @@
         <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
     }
 
-    <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>hir::ItemKind::OpaqueTy(opaque_ty) =
             <span class="self">self</span>.genv.hir().expect_item(<span class="self">self</span>.owner.def_id).kind
         <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>)
         };
 
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics()<span class="question-mark">?</span>;
         <span class="kw">let </span>bounds =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>opaque_ty.bounds, |bound| <span class="self">self</span>.lift_generic_bound(bound))<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>opaque_ty =
-            fhir::OpaqueTy { generics: <span class="self">self</span>.lift_generics_inner(opaque_ty.generics)<span class="question-mark">?</span>, bounds };
-        <span class="prelude-val">Ok</span>(opaque_ty)
+        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { bounds };
+        <span class="kw">let </span>owner_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(<span class="self">self</span>.owner.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        <span class="prelude-val">Ok</span>(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::OpaqueTy(opaque_ty),
+            owner_id: owner_id.local_id(),
+            extern_id: owner_id.as_extern(),
+        })
     }
 
     <span class="kw">pub fn </span>lift_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -723,7 +704,6 @@
             .fn_sig_by_hir_id(hir_id)
             .expect(<span class="string">"item does not have a `FnDecl`"</span>);
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics()<span class="question-mark">?</span>;
         <span class="kw">let </span>inputs = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>fn_sig.decl.inputs, |ty| <span class="self">self</span>.lift_ty(ty))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>output = fhir::FnOutput {
@@ -732,14 +712,7 @@
             ret: <span class="self">self</span>.lift_fn_ret_ty(<span class="kw-2">&amp;</span>fn_sig.decl.output)<span class="question-mark">?</span>,
         };
 
-        <span class="prelude-val">Ok</span>(fhir::FnDecl {
-            generics,
-            requires: <span class="kw-2">&amp;</span>[],
-            inputs,
-            output,
-            span: fn_sig.span,
-            lifted: <span class="bool-val">true</span>,
-        })
+        <span class="prelude-val">Ok</span>(fhir::FnDecl { requires: <span class="kw-2">&amp;</span>[], inputs, output, span: fn_sig.span, lifted: <span class="bool-val">true </span>})
     }
 
     <span class="kw">fn </span>lift_fn_ret_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret_ty: <span class="kw-2">&amp;</span>hir::FnRetTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -752,7 +725,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>lift_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyAlias&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>lift_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().expect_item(<span class="self">self</span>.owner.def_id);
         <span class="kw">let </span>hir::ItemKind::TyAlias(ty, <span class="kw">_</span>) = item.kind <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected type alias"</span>);
@@ -761,13 +734,22 @@
         <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics()<span class="question-mark">?</span>;
         <span class="kw">let </span>refined_by = <span class="self">self</span>.lift_refined_by();
         <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::TyAlias {
-            generics,
+        <span class="kw">let </span>ty_alias = fhir::TyAlias {
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             params: <span class="kw-2">&amp;</span>[],
             ty,
             span: item.span,
             lifted: <span class="bool-val">true</span>,
+        };
+        <span class="kw">let </span>owner_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(<span class="self">self</span>.owner.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        <span class="prelude-val">Ok</span>(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::TyAlias(ty_alias),
+            owner_id: owner_id.local_id(),
+            extern_id: owner_id.as_extern(),
         })
     }
 
@@ -1019,7 +1001,7 @@
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
-    <span class="kw">fn </span>insert_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;) {
+    <span class="kw">fn </span>insert_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, opaque_ty: fhir::Item&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="self">self</span>.opaque_tys
             .as_mut()
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"`impl Trait` not supported in this item {def_id:?}"</span>))
