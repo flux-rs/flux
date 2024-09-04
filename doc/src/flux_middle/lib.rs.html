@@ -479,8 +479,6 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 
 </span><span class="attr">#![feature(
@@ -532,7 +530,6 @@
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>intern::List;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::OwnerId;
 <span class="kw">use </span>rustc_span::{
@@ -847,7 +844,6 @@
     <span class="kw">pub </span>ty_aliases: UnordMap&lt;OwnerId, <span class="prelude-ty">Option</span>&lt;surface::TyAlias&gt;&gt;,
     <span class="kw">pub </span>ignores: UnordMap&lt;LocalDefId, fhir::Ignored&gt;,
     <span class="kw">pub </span>trusted: UnordMap&lt;LocalDefId, fhir::Trusted&gt;,
-    <span class="kw">pub </span>consts: FxHashSet&lt;LocalDefId&gt;,
     <span class="kw">pub </span>crate_config: <span class="prelude-ty">Option</span>&lt;config::CrateConfig&gt;,
     extern_id_to_local_id: UnordMap&lt;DefId, LocalDefId&gt;,
     local_id_to_extern_id: UnordMap&lt;LocalDefId, DefId&gt;,
