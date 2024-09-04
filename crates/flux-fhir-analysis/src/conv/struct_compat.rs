@@ -266,6 +266,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(pty_a, pty_b)
             }
             (rty::TyKind::Alias(kind_a, aty_a), rty::TyKind::Alias(kind_b, aty_b)) => {
+                println!("TRACE: zip_ty ALIAS ({aty_a:?}, {aty_b:?})");
                 assert_eq_or_incompatible(kind_a, kind_b)?;
                 assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
                 assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
@@ -289,7 +290,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Error> {
-        match (a, b) {
+        println!("TRACE: zip_bty({:?}, {:?})", a, b);
+        let res = match (a, b) {
             (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) => {
                 assert_eq_or_incompatible(ity_a, ity_b)
             }
@@ -347,7 +349,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 bug!("unexpected type `{a:?}`");
             }
             _ => Err(Error::Incompatible),
-        }
+        };
+        println!("TRACE: zip_bty({:?}, {:?}) <OK> ", a, b);
+        res
     }
 
     fn zip_generic_arg(&mut self, a: &rty::GenericArg, b: &rty::GenericArg) -> Result<(), Error> {
