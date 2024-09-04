@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use flux_common::{iter::IterExt, result::ResultExt};
 use flux_config::{self as config, CrateConfig};
-use flux_errors::FluxSession;
+use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{Ignored, Trusted},
     rustc::lowering::resolve_trait_ref_impl_id,
@@ -14,10 +14,11 @@ use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
 use rustc_ast_pretty::pprust::tts_to_string;
-use rustc_errors::{Diagnostic, ErrorGuaranteed};
+use rustc_errors::ErrorGuaranteed;
+use rustc_hir as hir;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
+    def_id::{DefId, LocalDefId},
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
@@ -26,12 +27,11 @@ use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) struct SpecCollector<'tcx, 'a> {
+pub(crate) struct SpecCollector<'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
     parse_sess: ParseSess,
     specs: Specs,
-    sess: &'a FluxSession,
-    error_guaranteed: Option<ErrorGuaranteed>,
+    errors: Errors<'sess>,
 }
 
 macro_rules! attr_name {
@@ -41,109 +41,102 @@ macro_rules! attr_name {
     }};
 }
 
-impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
+impl<'tcx> hir::intravisit::Visitor<'tcx> for SpecCollector<'_, 'tcx> {
+    type NestedFilter = rustc_middle::hir::nested_filter::All;
+
+    fn nested_visit_map(&mut self) -> Self::Map {
+        self.tcx.hir()
+    }
+
+    fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
+        let owner_id = item.owner_id;
+
+        let attrs = self.tcx.hir().attrs(item.hir_id());
+        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
+
+        let _ = match &item.kind {
+            ItemKind::Fn(..) => self.collect_fn_spec(owner_id, attrs),
+            ItemKind::Struct(variant, ..) => self.collect_structc_def(owner_id, attrs, variant),
+            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def),
+            ItemKind::Mod(..) => self.collect_mod(owner_id, attrs),
+            ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs),
+            ItemKind::Const(..) => self.collect_const(owner_id, attrs),
+            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_),
+            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds),
+            _ => Ok(()),
+        };
+        hir::intravisit::walk_item(self, item);
+    }
+
+    fn visit_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) {
+        let owner_id = trait_item.owner_id;
+
+        let attrs = self.tcx.hir().attrs(trait_item.hir_id());
+        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
+
+        if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
+            let _ = self.collect_fn_spec(owner_id, attrs);
+        }
+        hir::intravisit::walk_trait_item(self, trait_item);
+    }
+
+    fn visit_impl_item(&mut self, impl_item: &'tcx rustc_hir::ImplItem<'tcx>) {
+        let owner_id = impl_item.owner_id;
+
+        let attrs = self.tcx.hir().attrs(impl_item.hir_id());
+        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
+
+        if let ImplItemKind::Fn(..) = &impl_item.kind {
+            let _ = self.collect_fn_spec(owner_id, attrs);
+        }
+        hir::intravisit::walk_impl_item(self, impl_item);
+    }
+}
+
+impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a FluxSession) -> Result<Specs> {
         let mut collector = Self {
             tcx,
             parse_sess: ParseSess::default(),
-            sess,
             specs: Specs::default(),
-            error_guaranteed: None,
+            errors: Errors::new(sess),
         };
 
-        collector.parse_crate_spec(tcx.hir().krate_attrs())?;
+        let _ = collector.collect_crate();
+        tcx.hir().walk_toplevel_module(&mut collector);
 
-        let crate_items = tcx.hir_crate_items(());
+        collector.errors.into_result()?;
 
-        for item_id in crate_items.free_items() {
-            let item = tcx.hir().item(item_id);
-            let hir_id = item.hir_id();
-            let attrs = tcx.hir().attrs(hir_id);
-            let owner_id = item.owner_id;
-            let _ = match &item.kind {
-                ItemKind::Fn(..) => collector.parse_fn_spec(owner_id, attrs, DefKind::Fn),
-                ItemKind::Struct(data, ..) => collector.parse_struct_def(owner_id, attrs, data),
-                ItemKind::Enum(def, ..) => collector.parse_enum_def(owner_id, attrs, def),
-                ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
-                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
-                ItemKind::Const(..) => collector.parse_const_spec(owner_id.def_id, item, attrs),
-                ItemKind::Impl(impl_) => collector.parse_impl_specs(owner_id, attrs, impl_),
-                ItemKind::Trait(_, _, _, bounds, _) => {
-                    collector.parse_trait_specs(owner_id, attrs, bounds)
-                }
-                _ => Ok(()),
-            };
-        }
-
-        for trait_item_id in crate_items.trait_items() {
-            let attrs = tcx.hir().attrs(trait_item_id.hir_id());
-            if let rustc_hir::TraitItemKind::Fn(_, _) = tcx.hir().trait_item(trait_item_id).kind {
-                collector.parse_fn_spec(trait_item_id.owner_id, attrs, DefKind::AssocFn)?;
-            }
-        }
-
-        for impl_item_id in crate_items.impl_items() {
-            let impl_item = tcx.hir().impl_item(impl_item_id);
-            let owner_id = impl_item.owner_id;
-            if let ImplItemKind::Fn(..) = &impl_item.kind {
-                let hir_id = impl_item.hir_id();
-                let attrs = tcx.hir().attrs(hir_id);
-                let _ = collector.parse_fn_spec(owner_id, attrs, DefKind::AssocFn);
-            }
-        }
-
-        if let Some(e) = collector.error_guaranteed {
-            Err(e)
-        } else {
-            Ok(collector.specs)
-        }
+        Ok(collector.specs)
     }
 
-    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result {
-        // TODO(atgeller) error if non-crate attributes
-        // TODO(atgeller) error if >1 cfg attributes
-
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
-
+    fn collect_crate(&mut self) -> Result {
+        let mut attrs = self.parse_flux_attrs(self.tcx.hir().krate_attrs(), DefKind::Mod)?;
         self.specs.extend_items(attrs.items());
-
-        let crate_config = attrs.crate_config();
-        self.specs.crate_config = crate_config;
+        self.specs.crate_config = attrs.crate_config();
         Ok(())
     }
 
-    fn parse_mod_spec(&mut self, def_id: LocalDefId, attrs: &[Attribute]) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
+    fn collect_mod(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         self.specs.extend_items(attrs.items());
         Ok(())
     }
 
-    fn parse_const_spec(&mut self, def_id: LocalDefId, item: &Item, attrs: &[Attribute]) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
+    fn collect_const(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, def_id);
-
-        let Some(_ty) = attrs.const_sig() else {
-            return Ok(());
-        };
-
-        let def_id = item.owner_id.def_id;
-        self.specs.consts.insert(def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         Ok(())
     }
 
-    fn parse_trait_specs(
+    fn collect_trait(
         &mut self,
         owner_id: OwnerId,
-        attrs: &[Attribute],
+        mut attrs: FluxAttrs,
         bounds: &GenericBounds,
     ) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
@@ -163,14 +156,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_impl_specs(
+    fn collect_impl(
         &mut self,
         owner_id: OwnerId,
-        attrs: &[Attribute],
+        mut attrs: FluxAttrs,
         impl_: &rustc_hir::Impl,
     ) -> Result {
-        let def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
-        let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
@@ -191,19 +182,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_tyalias_spec(&mut self, owner_id: OwnerId, attrs: &[Attribute]) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::TyAlias)?;
+    fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        self.report_dups(&attrs)?;
         self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         Ok(())
     }
 
-    fn parse_struct_def(
+    fn collect_structc_def(
         &mut self,
         owner_id: OwnerId,
-        attrs: &[Attribute],
+        mut attrs: FluxAttrs,
         data: &VariantData,
     ) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Struct)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
@@ -264,18 +254,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let Some(ty) = field_attr.as_ref()
             && ty.is_refined()
         {
-            return Err(self.emit_err(errors::AttrOnOpaque::new(ty.span, field)));
+            return Err(self.errors.emit(errors::AttrOnOpaque::new(ty.span, field)));
         }
         Ok(field_attr)
     }
 
-    fn parse_enum_def(
+    fn collect_enum_def(
         &mut self,
         owner_id: OwnerId,
-        attrs: &[Attribute],
+        mut attrs: FluxAttrs,
         enum_def: &EnumDef,
     ) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Enum)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
@@ -324,19 +313,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let variant = attrs.variant();
 
         if variant.is_none() && has_refined_by {
-            return Err(self.emit_err(errors::MissingVariant::new(hir_variant.span)));
+            return Err(self
+                .errors
+                .emit(errors::MissingVariant::new(hir_variant.span)));
         }
 
         Ok(variant)
     }
 
-    fn parse_fn_spec(
-        &mut self,
-        owner_id: OwnerId,
-        attrs: &[Attribute],
-        def_kind: DefKind,
-    ) -> Result {
-        let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
+    fn collect_fn_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
@@ -347,7 +332,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let Some(item_ident) = self.tcx.opt_item_ident(owner_id.to_def_id())
             && ident != item_ident
         {
-            return Err(self.emit_err(errors::MismatchedSpecName::new(
+            return Err(self.errors.emit(errors::MismatchedSpecName::new(
                 self.tcx,
                 ident,
                 owner_id.to_def_id(),
@@ -357,7 +342,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
         if attrs.extern_spec() {
             if fn_sig.is_none() {
-                return Err(self.emit_err(errors::MissingFnSigForExternSpec {
+                return Err(self.errors.emit(errors::MissingFnSigForExternSpec {
                     span: self.tcx.def_span(owner_id),
                 }));
             }
@@ -398,9 +383,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 
     fn parse_flux_attr(&mut self, attr_item: &AttrItem, def_kind: DefKind) -> Result<FluxAttr> {
-        let [_, segment] = &attr_item.path.segments[..] else {
-            return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }));
+        let invalid_attr_err = |this: &Self| -> Result<FluxAttr> {
+            Err(this
+                .errors
+                .emit(errors::InvalidAttr { span: attr_item.span() }))
         };
+
+        let [_, segment] = &attr_item.path.segments[..] else { return invalid_attr_err(self) };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", AttrArgs::Delimited(dargs)) => {
@@ -425,9 +414,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                             FluxAttrKind::ImplAssocReft,
                         )?
                     }
-                    _ => {
-                        return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }));
-                    }
+                    _ => return invalid_attr_err(self),
                 }
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
@@ -453,13 +440,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
-                    .emit(self.sess)?
+                    .emit(&self.errors)?
                     .try_into_crate_cfg()
-                    .emit(self.sess)?;
+                    .emit(&self.errors)?;
                 FluxAttrKind::CrateConfig(crate_cfg)
-            }
-            ("constant", AttrArgs::Empty) => {
-                FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore(Ignored::Yes),
             ("ignore", AttrArgs::Delimited(dargs)) => {
@@ -467,7 +451,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 match &val[..] {
                     "yes" => FluxAttrKind::Ignore(Ignored::Yes),
                     "no" => FluxAttrKind::Ignore(Ignored::No),
-                    _ => Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))?,
+                    _ => return invalid_attr_err(self),
                 }
             }
             ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted(Trusted::Yes),
@@ -476,13 +460,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 match &val[..] {
                     "yes" => FluxAttrKind::Trusted(Trusted::Yes),
                     "no" => FluxAttrKind::Trusted(Trusted::No),
-                    _ => Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))?,
+                    _ => return invalid_attr_err(self),
                 }
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("fake_impl", AttrArgs::Empty) => FluxAttrKind::FakeImpl,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
-            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
+            _ => return invalid_attr_err(self),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
     }
@@ -527,7 +511,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 return Ok(def_id);
             }
         }
-        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+        Err(self
+            .errors
+            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
     fn extract_extern_def_id_from_extern_spec_struct(
@@ -541,7 +527,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 return Ok(adt_def.did());
             }
         }
-        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+        Err(self
+            .errors
+            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
     fn extract_extern_def_id_from_extern_spec_enum(
@@ -552,7 +540,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         if let Some(fake) = enum_def.variants.last() {
             return self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data);
         }
-        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+        Err(self
+            .errors
+            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
     fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
@@ -639,7 +629,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         {
             Ok(trait_id)
         } else {
-            Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+            Err(self
+                .errors
+                .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
         }
     }
 
@@ -652,25 +644,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
         parser(&mut self.parse_sess, &dargs.tokens, entire)
             .map(ctor)
-            .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
+            .map_err(|err| errors::SyntaxErr::from(err))
+            .emit(&self.errors)
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result {
-        let mut err = None;
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 if attr.allow_dups() {
                     continue;
                 }
-                err = Some(self.emit_err(errors::DuplicatedAttr { span: attr.span, name }));
+                self.errors
+                    .emit(errors::DuplicatedAttr { span: attr.span, name });
             }
         }
-        if let Some(e) = err {
-            self.error_guaranteed = Some(e);
-            Err(e)
-        } else {
-            Ok(())
-        }
+        self.errors.as_result()
     }
 
     fn collect_ignore_and_trusted(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
@@ -680,13 +668,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         if let Some(trusted) = attrs.trusted() {
             self.specs.trusted.insert(def_id, trusted);
         }
-    }
-
-    #[track_caller]
-    fn emit_err(&mut self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
-        let e = self.sess.emit_err(err);
-        self.error_guaranteed = Some(e);
-        e
     }
 }
 
@@ -715,7 +696,6 @@ enum FluxAttrKind {
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
     Variant(surface::VariantDef),
-    ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore(Ignored),
@@ -794,10 +774,6 @@ impl FluxAttrs {
         read_attr!(self, FnSig)
     }
 
-    fn const_sig(&mut self) -> Option<surface::ConstSig> {
-        read_attr!(self, ConstSig)
-    }
-
     fn qual_names(&mut self) -> Option<surface::QualNames> {
         read_attr!(self, QualNames)
     }
@@ -851,7 +827,6 @@ impl FluxAttrKind {
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),
             FluxAttrKind::ImplAssocReft(_) => attr_name!(ImplAssocReft),
-            FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Generics(_) => attr_name!(Generics),
             FluxAttrKind::Items(_) => attr_name!(Items),

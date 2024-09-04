@@ -141,8 +141,12 @@ impl<'sess> Errors<'sess> {
         Self { sess, err: Cell::new(None) }
     }
 
+    pub fn as_error(&self) -> Option<ErrorGuaranteed> {
+        self.err.get()
+    }
+
     pub fn has_errors(&self) -> bool {
-        self.err.get().is_some()
+        self.as_error().is_some()
     }
 
     #[track_caller]
@@ -150,6 +154,14 @@ impl<'sess> Errors<'sess> {
         let err = self.sess.emit_err(err);
         self.err.set(Some(err));
         err
+    }
+
+    pub fn as_result(&self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = self.as_error() {
+            Err(err)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn into_result(self) -> Result<(), ErrorGuaranteed> {

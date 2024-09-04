@@ -39,6 +39,8 @@ fn extern_fn_to_tokens(
     Ok(quote! {
         const _: () = {
             #mod_use
+
+            #[flux_tool::extern_spec]
             #extern_fn
         };
     })
@@ -369,7 +371,6 @@ impl ExternFn {
 impl ToTokens for ExternFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         debug_assert!(self.block.is_some());
-        tokens.extend(quote!(#[flux_tool::extern_spec]));
         tokens.append_all(&self.attrs);
         self.sig.to_tokens(tokens);
         self.block.to_tokens(tokens);

@@ -49,7 +49,6 @@ use flux_macros::fluent_messages;
 use flux_syntax::surface::{self, NodeId};
 use intern::List;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashSet;
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
@@ -364,7 +363,6 @@ pub struct Specs {
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
-    pub consts: FxHashSet<LocalDefId>,
     pub crate_config: Option<config::CrateConfig>,
     extern_id_to_local_id: UnordMap<DefId, LocalDefId>,
     local_id_to_extern_id: UnordMap<LocalDefId, DefId>,
