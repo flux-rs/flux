@@ -487,7 +487,7 @@
         <span class="kw">let </span>owner_id = <span class="self">self
             </span>.genv
             .maybe_extern_id(owner_id.def_id)
-            .map_local(|def_id| OwnerId { def_id });
+            .map(|def_id| OwnerId { def_id });
         RustItemCtxt::new(<span class="self">self</span>.genv, owner_id, <span class="self">self</span>.resolver_output, opaque_tys)
     }
 }

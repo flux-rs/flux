@@ -609,14 +609,6 @@
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -626,7 +618,7 @@
     Mutability,
 };
 <span class="kw">pub use </span>rustc_span::symbol::Ident;
-<span class="kw">use </span>rustc_span::{def_id::DefId, Span};
+<span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use </span><span class="kw">crate</span>::surface::visit::Visitor;
 
@@ -713,8 +705,6 @@
     <span class="kw">pub </span>opaque: bool,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
     <span class="kw">pub </span>node_id: NodeId,
-    <span class="doccomment">/// Whether the struct is an extern spec for some [DefId]
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="kw">impl </span>StructDef {
@@ -731,8 +721,6 @@
     <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&gt;&gt;,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
     <span class="kw">pub </span>node_id: NodeId,
-    <span class="doccomment">/// Whether the enum is an extern spec for some [DefId]
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="kw">impl </span>EnumDef {
@@ -818,8 +806,6 @@
 </span><span class="kw">pub struct </span>Impl {
     <span class="kw">pub </span>generics: <span class="prelude-ty">Option</span>&lt;Generics&gt;,
     <span class="kw">pub </span>assoc_refinements: Vec&lt;ImplAssocReft&gt;,
-    <span class="doccomment">/// Whether the enum is an extern spec for some [DefId]
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -848,8 +834,6 @@
 </span><span class="kw">pub struct </span>FnSpec {
     <span class="kw">pub </span>fn_sig: <span class="prelude-ty">Option</span>&lt;FnSig&gt;,
     <span class="kw">pub </span>qual_names: <span class="prelude-ty">Option</span>&lt;QualNames&gt;,
-    <span class="doccomment">/// Whether this function is an extern spec for some [DefId]
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="attr">#[derive(Debug)]

@@ -521,10 +521,6 @@
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -683,15 +679,13 @@
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>opaque_ty.bounds, |bound| <span class="self">self</span>.lift_generic_bound(bound))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { bounds };
-        <span class="kw">let </span>owner_id = <span class="self">self
-            </span>.genv
-            .maybe_extern_id(<span class="self">self</span>.owner.def_id)
-            .map_local(|def_id| OwnerId { def_id });
         <span class="prelude-val">Ok</span>(fhir::Item {
             generics,
             kind: fhir::ItemKind::OpaqueTy(opaque_ty),
-            owner_id: owner_id.local_id(),
-            extern_id: owner_id.as_extern(),
+            owner_id: <span class="self">self
+                </span>.genv
+                .maybe_extern_id(<span class="self">self</span>.owner.def_id)
+                .map(|def_id| OwnerId { def_id }),
         })
     }
 
@@ -741,15 +735,13 @@
             span: item.span,
             lifted: <span class="bool-val">true</span>,
         };
-        <span class="kw">let </span>owner_id = <span class="self">self
-            </span>.genv
-            .maybe_extern_id(<span class="self">self</span>.owner.def_id)
-            .map_local(|def_id| OwnerId { def_id });
         <span class="prelude-val">Ok</span>(fhir::Item {
             generics,
             kind: fhir::ItemKind::TyAlias(ty_alias),
-            owner_id: owner_id.local_id(),
-            extern_id: owner_id.as_extern(),
+            owner_id: <span class="self">self
+                </span>.genv
+                .maybe_extern_id(<span class="self">self</span>.owner.def_id)
+                .map(|def_id| OwnerId { def_id }),
         })
     }
 

@@ -899,7 +899,7 @@
 }
 
 <span class="kw">impl</span>&lt;Id&gt; MaybeExternId&lt;Id&gt; {
-    <span class="kw">pub fn </span>map_local&lt;R&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(Id) -&gt; R) -&gt; MaybeExternId&lt;R&gt; {
+    <span class="kw">pub fn </span>map&lt;R&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(Id) -&gt; R) -&gt; MaybeExternId&lt;R&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             MaybeExternId::Local(local_id) =&gt; MaybeExternId::Local(f(local_id)),
             MaybeExternId::Extern(local_id, def_id) =&gt; MaybeExternId::Extern(f(local_id), def_id),

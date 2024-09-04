@@ -2386,14 +2386,14 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_invariants(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), params)<span class="question-mark">?</span>);
+    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.resolved_id(), params)<span class="question-mark">?</span>);
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
 }
 

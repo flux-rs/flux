@@ -333,7 +333,7 @@
             <span class="comment">// Check early refinement parameters in fn-like nodes
             </span><span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
             fhir::visit::walk_node(<span class="self">self</span>, node);
-            <span class="self">self</span>.check_params_are_value_determined(<span class="kw-2">&amp;</span>node.generics().refinement_params);
+            <span class="self">self</span>.check_params_are_value_determined(node.generics().refinement_params);
             <span class="self">self</span>.xi.rollback_to(snapshot);
         } <span class="kw">else </span>{
             fhir::visit::walk_node(<span class="self">self</span>, node);

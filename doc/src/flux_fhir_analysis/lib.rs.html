@@ -495,6 +495,9 @@
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -610,28 +613,31 @@
         .try_collect()
 }
 
-<span class="kw">fn </span>invariants_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
-    <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id)<span class="question-mark">?</span>.kind {
+<span class="kw">fn </span>invariants_of(genv: GlobalEnv, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
+    <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; (<span class="kw-2">&amp;</span>enum_def.params, <span class="kw-2">&amp;</span>enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) =&gt; (<span class="kw-2">&amp;</span>struct_def.params, <span class="kw-2">&amp;</span>struct_def.invariants),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(item.owner_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
-    <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-    conv::conv_invariants(genv, def_id, params, invariants, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
-        </span>.into_iter()
-        .map(|invariant| normalize(genv, invariant))
-        .collect()
+    <span class="kw">let </span>wfckresults = genv.check_wf(item.owner_id.local_id().def_id)<span class="question-mark">?</span>;
+    conv::conv_invariants(
+        genv,
+        item.owner_id.map(|it| it.def_id),
+        params,
+        invariants,
+        <span class="kw-2">&amp;</span>wfckresults,
+    )<span class="question-mark">?
+    </span>.into_iter()
+    .map(|invariant| normalize(genv, invariant))
+    .collect()
 }
 
 <span class="kw">fn </span>adt_def(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt; {
-    <span class="kw">let </span>invariants = invariants_of(genv, def_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>item = genv.map().expect_item(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
+    <span class="kw">let </span>item = genv.map().expect_item(def_id.local_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span>invariants = invariants_of(genv, item)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>adt_def = <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = item.extern_id {
-        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
-    } <span class="kw">else </span>{
-        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(item.owner_id))
-    };
+    <span class="kw">let </span>adt_def = lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id.resolved_id()));
 
     <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
 

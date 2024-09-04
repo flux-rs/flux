@@ -1087,20 +1087,6 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
-<a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
@@ -1280,19 +1266,16 @@
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.impl_assoc_refts();
 
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec()
+        <span class="kw">if </span>attrs.extern_spec()
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(extern_id) =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-            <span class="prelude-val">Some</span>(extern_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
+        }
 
         <span class="self">self</span>.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_refinements, extern_id });
+            .insert(owner_id, surface::Impl { generics, assoc_refinements });
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1318,7 +1301,7 @@
         <span class="kw">let </span>generics = attrs.generics();
 
         <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>is_extern_spec {
+        <span class="kw">if </span>is_extern_spec {
             <span class="comment">// If there's only one field it corresponds to the special field to extract the struct
             // def_id. This means the user didn't specify any fields and thus we consider the struct
             // as opaque.
@@ -1326,10 +1309,7 @@
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)<span class="question-mark">?</span>;
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-            <span class="prelude-val">Some</span>(extern_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
+        }
 
         <span class="comment">// For extern specs, we skip the last field containing the information to extract the def_id
         </span><span class="kw">let </span>fields = data
@@ -1350,7 +1330,6 @@
                 opaque,
                 invariants,
                 node_id: <span class="self">self</span>.parse_sess.next_node_id(),
-                extern_id,
             },
         );
 
@@ -1393,14 +1372,11 @@
         <span class="kw">let </span>refined_by = attrs.refined_by();
 
         <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>is_extern_spec {
+        <span class="kw">if </span>is_extern_spec {
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)<span class="question-mark">?</span>;
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-            <span class="prelude-val">Some</span>(extern_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
+        }
 
         <span class="comment">// For extern specs, we skip the last variant containing the information to extract the def_id
         </span><span class="kw">let </span>variants = enum_def
@@ -1420,7 +1396,6 @@
                 variants,
                 invariants,
                 node_id: <span class="self">self</span>.parse_sess.next_node_id(),
-                extern_id,
             },
         );
         <span class="prelude-val">Ok</span>(())
@@ -1469,7 +1444,7 @@
         };
 
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
-        <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
+        <span class="kw">if </span>attrs.extern_spec() {
             <span class="kw">if </span>fn_sig.is_none() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::MissingFnSigForExternSpec {
                     span: <span class="self">self</span>.tcx.def_span(owner_id),
@@ -1478,13 +1453,10 @@
             <span class="kw">let </span>extern_def_id = <span class="self">self</span>.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)<span class="question-mark">?</span>;
             <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_def_id);
             <span class="comment">// We should never check an extern spec (it will infinitely recurse)
-            </span><span class="prelude-val">Some</span>(extern_def_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
+        </span>}
         <span class="self">self</span>.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, qual_names, extern_id });
+            .insert(owner_id, surface::FnSpec { fn_sig, qual_names });
         <span class="prelude-val">Ok</span>(())
     }
 
