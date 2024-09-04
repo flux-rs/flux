@@ -416,7 +416,7 @@ pub enum MaybeExternId<Id = LocalDefId> {
 }
 
 impl<Id> MaybeExternId<Id> {
-    pub fn map_local<R>(self, f: impl FnOnce(Id) -> R) -> MaybeExternId<R> {
+    pub fn map<R>(self, f: impl FnOnce(Id) -> R) -> MaybeExternId<R> {
         match self {
             MaybeExternId::Local(local_id) => MaybeExternId::Local(f(local_id)),
             MaybeExternId::Extern(local_id, def_id) => MaybeExternId::Extern(f(local_id), def_id),

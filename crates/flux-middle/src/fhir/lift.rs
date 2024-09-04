@@ -156,15 +156,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
         let opaque_ty = fhir::OpaqueTy { bounds };
-        let owner_id = self
-            .genv
-            .maybe_extern_id(self.owner.def_id)
-            .map_local(|def_id| OwnerId { def_id });
         Ok(fhir::Item {
             generics,
             kind: fhir::ItemKind::OpaqueTy(opaque_ty),
-            owner_id: owner_id.local_id(),
-            extern_id: owner_id.as_extern(),
+            owner_id: self
+                .genv
+                .maybe_extern_id(self.owner.def_id)
+                .map(|def_id| OwnerId { def_id }),
         })
     }
 
@@ -214,15 +212,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             span: item.span,
             lifted: true,
         };
-        let owner_id = self
-            .genv
-            .maybe_extern_id(self.owner.def_id)
-            .map_local(|def_id| OwnerId { def_id });
         Ok(fhir::Item {
             generics,
             kind: fhir::ItemKind::TyAlias(ty_alias),
-            owner_id: owner_id.local_id(),
-            extern_id: owner_id.as_extern(),
+            owner_id: self
+                .genv
+                .maybe_extern_id(self.owner.def_id)
+                .map(|def_id| OwnerId { def_id }),
         })
     }
 

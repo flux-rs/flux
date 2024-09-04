@@ -38,7 +38,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{global_env::GlobalEnv, pretty};
+use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
 /// A boolean used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -127,30 +127,20 @@ impl<'fhir> Node<'fhir> {
         }
     }
 
-    pub fn owner_id(&self) -> OwnerId {
+    pub fn owner_id(&self) -> MaybeExternId<OwnerId> {
         match self {
             Node::Item(item) => item.owner_id,
             Node::TraitItem(trait_item) => trait_item.owner_id,
             Node::ImplItem(impl_item) => impl_item.owner_id,
         }
     }
-
-    pub fn extern_id(&self) -> Option<DefId> {
-        match self {
-            Node::Item(item) => item.extern_id,
-            Node::TraitItem(_) => None,
-            Node::ImplItem(item) => item.extern_id,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub struct Item<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
     pub generics: Generics<'fhir>,
     pub kind: ItemKind<'fhir>,
-    /// Whether this is a spec for an extern item
-    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Item<'fhir> {
@@ -208,7 +198,7 @@ pub enum ItemKind<'fhir> {
 
 #[derive(Debug)]
 pub struct TraitItem<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
     pub generics: Generics<'fhir>,
     pub kind: TraitItemKind<'fhir>,
 }
@@ -221,11 +211,9 @@ pub enum TraitItemKind<'fhir> {
 
 #[derive(Debug)]
 pub struct ImplItem<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
     pub kind: ImplItemKind<'fhir>,
     pub generics: Generics<'fhir>,
-    /// Whether this is a spec for an extern item
-    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]

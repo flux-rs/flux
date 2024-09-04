@@ -177,19 +177,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
-        let extern_id = if attrs.extern_spec()
+        if attrs.extern_spec()
             && let Some(extern_id) =
                 self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
+        }
 
         self.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_refinements, extern_id });
+            .insert(owner_id, surface::Impl { generics, assoc_refinements });
 
         Ok(())
     }
@@ -215,7 +212,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let generics = attrs.generics();
 
         let is_extern_spec = attrs.extern_spec();
-        let extern_id = if is_extern_spec {
+        if is_extern_spec {
             // If there's only one field it corresponds to the special field to extract the struct
             // def_id. This means the user didn't specify any fields and thus we consider the struct
             // as opaque.
@@ -223,10 +220,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
+        }
 
         // For extern specs, we skip the last field containing the information to extract the def_id
         let fields = data
@@ -247,7 +241,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 opaque,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-                extern_id,
             },
         );
 
@@ -290,14 +283,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let refined_by = attrs.refined_by();
 
         let is_extern_spec = attrs.extern_spec();
-        let extern_id = if is_extern_spec {
+        if is_extern_spec {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
+        }
 
         // For extern specs, we skip the last variant containing the information to extract the def_id
         let variants = enum_def
@@ -317,7 +307,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 variants,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-                extern_id,
             },
         );
         Ok(())
@@ -366,7 +355,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
-        let extern_id = if attrs.extern_spec() {
+        if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
                     span: self.tcx.def_span(owner_id),
@@ -375,13 +364,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_def_id);
             // We should never check an extern spec (it will infinitely recurse)
-            Some(extern_def_id)
-        } else {
-            None
-        };
+        }
         self.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, qual_names, extern_id });
+            .insert(owner_id, surface::FnSpec { fn_sig, qual_names });
         Ok(())
     }
 

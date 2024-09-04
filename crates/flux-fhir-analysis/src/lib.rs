@@ -113,28 +113,31 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .try_collect()
 }
 
-fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {
-    let (params, invariants) = match &genv.map().expect_item(def_id)?.kind {
+fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
+    let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (&enum_def.params, &enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (&struct_def.params, &struct_def.invariants),
-        _ => Err(query_bug!(def_id, "expected struct or enum"))?,
+        _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
     };
-    let wfckresults = genv.check_wf(def_id)?;
-    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)?
-        .into_iter()
-        .map(|invariant| normalize(genv, invariant))
-        .collect()
+    let wfckresults = genv.check_wf(item.owner_id.local_id().def_id)?;
+    conv::conv_invariants(
+        genv,
+        item.owner_id.map(|it| it.def_id),
+        params,
+        invariants,
+        &wfckresults,
+    )?
+    .into_iter()
+    .map(|invariant| normalize(genv, invariant))
+    .collect()
 }
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
-    let invariants = invariants_of(genv, def_id)?;
-    let item = genv.map().expect_item(def_id)?;
+    let def_id = genv.maybe_extern_id(def_id);
+    let item = genv.map().expect_item(def_id.local_id())?;
+    let invariants = invariants_of(genv, item)?;
 
-    let adt_def = if let Some(extern_id) = item.extern_id {
-        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
-    } else {
-        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(item.owner_id))
-    };
+    let adt_def = lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id.resolved_id()));
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
