@@ -120,7 +120,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
             // Check early refinement parameters in fn-like nodes
             let snapshot = self.xi.snapshot();
             fhir::visit::walk_node(self, node);
-            self.check_params_are_value_determined(&node.generics().refinement_params);
+            self.check_params_are_value_determined(node.generics().refinement_params);
             self.xi.rollback_to(snapshot);
         } else {
             fhir::visit::walk_node(self, node);

@@ -49,7 +49,7 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
 ) -> Result<WfckResults> {
-    let mut infcx = InferCtxt::new(genv, node.owner_id().into());
+    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
 
     insert_params(&mut infcx, node)?;
 
@@ -69,7 +69,7 @@ fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     let genv = infcx.genv;
     if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
     {
-        let parent = genv.tcx().local_parent(owner_id.def_id);
+        let parent = genv.tcx().local_parent(owner_id.local_id().def_id);
         if let Some(generics) = genv.map().get_generics(parent).emit(&genv)? {
             let wfckresults = genv.check_wf(parent).emit(&genv)?;
             for param in generics.refinement_params {

@@ -288,14 +288,14 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
 
 pub(crate) fn conv_invariants(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
     wfckresults: &WfckResults,
 ) -> QueryResult<Vec<rty::Invariant>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
 }
 
