@@ -1,6 +1,5 @@
 // Test use of constant in fn-signature
 
-#[flux::constant]
 pub const FORTY_TWO: usize = 21 + 21;
 
 #[flux::sig(fn() -> usize{v: v < FORTY_TWO})]
