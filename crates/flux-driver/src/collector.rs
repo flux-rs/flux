@@ -14,7 +14,7 @@ use flux_middle::{
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
-    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
+    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemKind, NestedMetaItem,
 };
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::ErrorGuaranteed;
@@ -52,46 +52,17 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for SpecCollector<'_, 'tcx> {
     }
 
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
-        let owner_id = item.owner_id;
-
-        let attrs = self.tcx.hir().attrs(item.hir_id());
-        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
-
-        let _ = match &item.kind {
-            ItemKind::Fn(..) => self.collect_fn_spec(owner_id, attrs),
-            ItemKind::Struct(variant, ..) => self.collect_structc_def(owner_id, attrs, variant),
-            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def),
-            ItemKind::Mod(..) => self.collect_mod(owner_id, attrs),
-            ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs),
-            ItemKind::Const(..) => self.collect_const(owner_id, attrs),
-            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_),
-            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds),
-            _ => Ok(()),
-        };
+        let _ = self.collect_item(item);
         hir::intravisit::walk_item(self, item);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) {
-        let owner_id = trait_item.owner_id;
-
-        let attrs = self.tcx.hir().attrs(trait_item.hir_id());
-        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
-
-        if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
-            let _ = self.collect_fn_spec(owner_id, attrs);
-        }
+        let _ = self.collect_trait_item(trait_item);
         hir::intravisit::walk_trait_item(self, trait_item);
     }
 
     fn visit_impl_item(&mut self, impl_item: &'tcx rustc_hir::ImplItem<'tcx>) {
-        let owner_id = impl_item.owner_id;
-
-        let attrs = self.tcx.hir().attrs(impl_item.hir_id());
-        let Ok(attrs) = self.parse_flux_attrs(attrs, self.tcx.def_kind(owner_id)) else { return };
-
-        if let ImplItemKind::Fn(..) = &impl_item.kind {
-            let _ = self.collect_fn_spec(owner_id, attrs);
-        }
+        let _ = self.collect_impl_item(impl_item);
         hir::intravisit::walk_impl_item(self, impl_item);
     }
 }
@@ -114,24 +85,61 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_crate(&mut self) -> Result {
-        let mut attrs = self.parse_flux_attrs(self.tcx.hir().krate_attrs(), DefKind::Mod)?;
+        let mut attrs = self.parse_flux_attrs(CRATE_DEF_ID)?;
+        self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.specs.extend_items(attrs.items());
         self.specs.crate_config = attrs.crate_config();
         Ok(())
     }
 
-    fn collect_mod(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+    fn collect_item(&mut self, item: &'tcx Item<'tcx>) -> Result {
+        let owner_id = item.owner_id;
+
+        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
-        self.specs.extend_items(attrs.items());
+        match &item.kind {
+            ItemKind::Fn(..) => self.collect_fn_spec(owner_id, attrs),
+            ItemKind::Struct(variant, ..) => self.collect_structc_def(owner_id, attrs, variant),
+            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def),
+            ItemKind::Mod(..) => self.collect_mod(attrs),
+            ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs),
+            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_),
+            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds),
+            _ => Ok(()),
+        }
+    }
+
+    fn collect_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) -> Result {
+        let owner_id = trait_item.owner_id;
+
+        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
+        self.report_dups(&attrs)?;
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
+
+        if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
+            self.collect_fn_spec(owner_id, attrs)?;
+        }
         Ok(())
     }
 
-    fn collect_const(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+    fn collect_impl_item(&mut self, impl_item: &'tcx rustc_hir::ImplItem<'tcx>) -> Result {
+        let owner_id = impl_item.owner_id;
+
+        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
         self.report_dups(&attrs)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
+
+        if let ImplItemKind::Fn(..) = &impl_item.kind {
+            self.collect_fn_spec(owner_id, attrs)?;
+        }
+        Ok(())
+    }
+
+    fn collect_mod(&mut self, mut attrs: FluxAttrs) -> Result {
+        self.specs.extend_items(attrs.items());
         Ok(())
     }
 
@@ -141,9 +149,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         mut attrs: FluxAttrs,
         bounds: &GenericBounds,
     ) -> Result {
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
 
@@ -166,9 +171,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         mut attrs: FluxAttrs,
         impl_: &rustc_hir::Impl,
     ) -> Result {
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
@@ -187,7 +189,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        self.report_dups(&attrs)?;
         self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         Ok(())
     }
@@ -198,9 +199,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         mut attrs: FluxAttrs,
         data: &VariantData,
     ) -> Result {
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
         let mut opaque = attrs.opaque();
         let refined_by = attrs.refined_by();
         let generics = attrs.generics();
@@ -246,8 +244,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         field: &rustc_hir::FieldDef,
         opaque: bool,
     ) -> Result<Option<surface::Ty>> {
-        let attrs = self.tcx.hir().attrs(field.hir_id);
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Field)?;
+        let mut attrs = self.parse_flux_attrs(field.def_id)?;
         self.report_dups(&attrs)?;
         let field_attr = attrs.field();
 
@@ -269,9 +266,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         mut attrs: FluxAttrs,
         enum_def: &EnumDef,
     ) -> Result {
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
 
@@ -310,8 +304,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         hir_variant: &rustc_hir::Variant,
         has_refined_by: bool,
     ) -> Result<Option<surface::VariantDef>> {
-        let attrs = self.tcx.hir().attrs(hir_variant.hir_id);
-        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Variant)?;
+        let mut attrs = self.parse_flux_attrs(hir_variant.def_id)?;
         self.report_dups(&attrs)?;
 
         let variant = attrs.variant();
@@ -326,9 +319,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_fn_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        self.report_dups(&attrs)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
         let fn_sig = attrs.fn_sig();
 
         if let Some(fn_sig) = &fn_sig
@@ -360,7 +350,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
-    fn parse_flux_attrs(&mut self, attrs: &[Attribute], def_kind: DefKind) -> Result<FluxAttrs> {
+    fn parse_flux_attrs(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
+        let def_kind = self.tcx.def_kind(def_id);
+        let hir_id = self.tcx.local_def_id_to_hir_id(def_id);
+        let attrs = self.tcx.hir().attrs(hir_id);
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -551,8 +544,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
-            let attrs = self.tcx.hir().attrs(item.id.hir_id());
-            if let Ok(mut attrs) = self.parse_flux_attrs(attrs, DefKind::Impl { of_trait: false }) {
+            if let Ok(mut attrs) = self.parse_flux_attrs(item.id.owner_id.def_id) {
                 if let AssocItemKind::Fn { .. } = item.kind
                     && attrs.fake_impl()
                 {
