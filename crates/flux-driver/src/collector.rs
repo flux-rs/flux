@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use flux_common::{iter::IterExt, result::ResultExt};
+use flux_common::{
+    iter::IterExt,
+    result::{ErrorCollector, ResultExt},
+};
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
@@ -15,10 +18,10 @@ use rustc_ast::{
 };
 use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir as hir;
 use rustc_hir::{
+    self as hir,
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
@@ -112,6 +115,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_flux_attrs(self.tcx.hir().krate_attrs(), DefKind::Mod)?;
+        self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.specs.extend_items(attrs.items());
         self.specs.crate_config = attrs.crate_config();
         Ok(())
@@ -283,7 +287,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .variants
             .iter()
             .take(enum_def.variants.len() - (is_extern_spec as usize))
-            .map(|variant| self.parse_variant(variant, refined_by.is_some()))
+            .map(|variant| self.collect_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
@@ -301,7 +305,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
-    fn parse_variant(
+    fn collect_variant(
         &mut self,
         hir_variant: &rustc_hir::Variant,
         has_refined_by: bool,
@@ -649,16 +653,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result {
+        let mut err = None;
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 if attr.allow_dups() {
                     continue;
                 }
-                self.errors
-                    .emit(errors::DuplicatedAttr { span: attr.span, name });
+                err.collect(
+                    self.errors
+                        .emit(errors::DuplicatedAttr { span: attr.span, name }),
+                );
             }
         }
-        self.errors.as_result()
+        err.into_result()
     }
 
     fn collect_ignore_and_trusted(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
