@@ -1,6 +1,5 @@
 // Test definition and checking of const in struct
 
-#[flux::constant]
 pub const FORTY_TWO: usize = 21 + 21;
 
 #[flux::refined_by(a:int)]
