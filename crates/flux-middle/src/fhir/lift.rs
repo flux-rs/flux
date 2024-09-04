@@ -19,28 +19,9 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub struct LiftCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
-}
-
-pub fn lift_type_alias<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    owner_id: OwnerId,
-) -> Result<fhir::TyAlias<'genv>> {
-    let local_id_gen = IndexGen::new();
-    LiftCtxt::new(genv, owner_id, &local_id_gen, None).lift_type_alias()
-}
-
-pub fn lift_fn_decl<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    owner_id: OwnerId,
-) -> Result<(fhir::FnDecl<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>)> {
-    let mut opaque_tys = Default::default();
-    let local_id_gen = IndexGen::new();
-    let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
-    let fn_decl = cx.lift_fn_decl()?;
-    Ok((fn_decl, opaque_tys))
 }
 
 impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
@@ -48,7 +29,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
     ) -> Self {
         Self { genv, opaque_tys, local_id_gen, owner }
     }
@@ -163,19 +144,28 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
     }
 
-    fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy<'genv>> {
+    fn lift_opaque_ty(&mut self) -> Result<fhir::Item<'genv>> {
         let hir::ItemKind::OpaqueTy(opaque_ty) =
             self.genv.hir().expect_item(self.owner.def_id).kind
         else {
             bug!("expected opaque type")
         };
 
+        let generics = self.lift_generics()?;
         let bounds =
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
-        let opaque_ty =
-            fhir::OpaqueTy { generics: self.lift_generics_inner(opaque_ty.generics)?, bounds };
-        Ok(opaque_ty)
+        let opaque_ty = fhir::OpaqueTy { bounds };
+        let owner_id = self
+            .genv
+            .maybe_extern_id(self.owner.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::OpaqueTy(opaque_ty),
+            owner_id: owner_id.local_id(),
+            extern_id: owner_id.as_extern(),
+        })
     }
 
     pub fn lift_fn_decl(&mut self) -> Result<fhir::FnDecl<'genv>> {
@@ -187,7 +177,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             .fn_sig_by_hir_id(hir_id)
             .expect("item does not have a `FnDecl`");
 
-        let generics = self.lift_generics()?;
         let inputs = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
 
         let output = fhir::FnOutput {
@@ -196,14 +185,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             ret: self.lift_fn_ret_ty(&fn_sig.decl.output)?,
         };
 
-        Ok(fhir::FnDecl {
-            generics,
-            requires: &[],
-            inputs,
-            output,
-            span: fn_sig.span,
-            lifted: true,
-        })
+        Ok(fhir::FnDecl { requires: &[], inputs, output, span: fn_sig.span, lifted: true })
     }
 
     fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty<'genv>> {
@@ -216,7 +198,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub fn lift_type_alias(&mut self) -> Result<fhir::TyAlias<'genv>> {
+    pub fn lift_type_alias(&mut self) -> Result<fhir::Item<'genv>> {
         let item = self.genv.hir().expect_item(self.owner.def_id);
         let hir::ItemKind::TyAlias(ty, _) = item.kind else {
             bug!("expected type alias");
@@ -225,13 +207,22 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let generics = self.lift_generics()?;
         let refined_by = self.lift_refined_by();
         let ty = self.lift_ty(ty)?;
-        Ok(fhir::TyAlias {
-            generics,
+        let ty_alias = fhir::TyAlias {
             refined_by: self.genv.alloc(refined_by),
             params: &[],
             ty,
             span: item.span,
             lifted: true,
+        };
+        let owner_id = self
+            .genv
+            .maybe_extern_id(self.owner.def_id)
+            .map_local(|def_id| OwnerId { def_id });
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::TyAlias(ty_alias),
+            owner_id: owner_id.local_id(),
+            extern_id: owner_id.as_extern(),
         })
     }
 
@@ -483,7 +474,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
-    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {
+    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::Item<'genv>) {
         self.opaque_tys
             .as_mut()
             .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))

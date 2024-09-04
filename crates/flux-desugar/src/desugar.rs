@@ -1,6 +1,7 @@
 use std::iter;
 
-use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
+use flux_config as config;
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
@@ -102,7 +103,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     owner: MaybeExternId<OwnerId>,
     fn_sig_scope: Option<NodeId>,
     resolver_output: &'genv ResolverOutput,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
 }
 
 struct FluxItemCtxt<'genv, 'tcx> {
@@ -117,7 +118,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: MaybeExternId<OwnerId>,
         resolver_output: &'genv ResolverOutput,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
     ) -> Self {
         RustItemCtxt {
             genv,
@@ -145,14 +146,25 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         )
     }
 
-    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Trait<'genv>> {
+    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
         let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics)?
         } else {
             self.as_lift_cx().lift_generics()?
         };
         let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements);
-        Ok(fhir::Trait { generics, assoc_refinements })
+        let trait_ = fhir::Trait { assoc_refinements };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &trait_).unwrap();
+        }
+
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::Trait(trait_),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     fn desugar_trait_assoc_refts(
@@ -168,14 +180,25 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }))
     }
 
-    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Impl<'genv>> {
+    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Item<'genv>> {
         let generics = if let Some(generics) = &impl_.generics {
             self.desugar_generics(generics)?
         } else {
             self.as_lift_cx().lift_generics()?
         };
         let assoc_refinements = self.desugar_impl_assoc_refts(&impl_.assoc_refinements)?;
-        Ok(fhir::Impl { generics, assoc_refinements })
+        let impl_ = fhir::Impl { assoc_refinements };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &impl_).unwrap();
+        }
+
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::Impl(impl_),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     fn desugar_impl_assoc_refts(
@@ -191,7 +214,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn desugar_generics(&mut self, generics: &surface::Generics) -> Result<fhir::Generics<'genv>> {
+    pub(crate) fn desugar_generics(
+        &mut self,
+        generics: &surface::Generics,
+    ) -> Result<fhir::Generics<'genv>> {
         let hir_generics = self
             .genv
             .hir()
@@ -312,7 +338,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_struct_def(
         &mut self,
         struct_def: &surface::StructDef,
-    ) -> Result<fhir::StructDef<'genv>> {
+    ) -> Result<fhir::Item<'genv>> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
             self.desugar_refined_by(refined_by)?
         } else {
@@ -355,20 +381,26 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         };
 
         let params = self.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(&[]));
-        let struct_def = fhir::StructDef {
+        let struct_def =
+            fhir::StructDef { refined_by: self.genv.alloc(refined_by), params, kind, invariants };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", struct_def)
+                .unwrap();
+        }
+
+        Ok(fhir::Item {
             generics,
-            refined_by: self.genv.alloc(refined_by),
-            params,
-            kind,
-            invariants,
-        };
-        Ok(struct_def)
+            kind: fhir::ItemKind::Struct(struct_def),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     pub(crate) fn desugar_enum_def(
         &mut self,
         enum_def: &surface::EnumDef,
-    ) -> Result<fhir::EnumDef<'genv>> {
+    ) -> Result<fhir::Item<'genv>> {
         let def_id = self.owner.local_id().def_id;
         let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
@@ -392,14 +424,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         })?;
 
         let params = self.desugar_refine_params(enum_def.refined_by.as_deref().unwrap_or(&[]));
-        let enum_def = fhir::EnumDef {
+        let enum_def =
+            fhir::EnumDef { refined_by: self.genv.alloc(refined_by), params, variants, invariants };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &enum_def).unwrap();
+        }
+
+        Ok(fhir::Item {
             generics,
-            refined_by: self.genv.alloc(refined_by),
-            params,
-            variants,
-            invariants,
-        };
-        Ok(enum_def)
+            kind: fhir::ItemKind::Enum(enum_def),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     fn desugar_enum_variant_def(
@@ -450,7 +487,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_type_alias(
         &mut self,
         ty_alias: Option<&surface::TyAlias>,
-    ) -> Result<fhir::TyAlias<'genv>> {
+    ) -> Result<fhir::Item<'genv>> {
         let Some(ty_alias) = ty_alias else {
             return self.as_lift_cx().lift_type_alias();
         };
@@ -466,25 +503,86 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let ty_alias = fhir::TyAlias {
             refined_by: self.genv.alloc(refined_by),
-            generics,
             params,
             ty,
             span: ty_alias.span,
             lifted: false,
         };
-        Ok(ty_alias)
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &ty_alias).unwrap();
+        }
+
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::TyAlias(ty_alias),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
-    pub(crate) fn desugar_assoc_type(&mut self) -> Result<fhir::AssocType<'genv>> {
+    pub(crate) fn desugar_trait_assoc_ty(&mut self) -> Result<fhir::TraitItem<'genv>> {
         let generics = self.as_lift_cx().lift_generics()?;
-        Ok(fhir::AssocType { generics })
+        Ok(fhir::TraitItem {
+            generics,
+            kind: fhir::TraitItemKind::Type,
+            owner_id: self.owner.local_id(),
+        })
     }
 
-    pub(crate) fn desugar_fn_sig(
+    pub(crate) fn desugar_impl_assoc_ty(&mut self) -> Result<fhir::ImplItem<'genv>> {
+        let generics = self.as_lift_cx().lift_generics()?;
+        Ok(fhir::ImplItem {
+            generics,
+            kind: fhir::ImplItemKind::Type,
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
+    }
+
+    pub(crate) fn desugar_item_fn(
         &mut self,
         fn_spec: &surface::FnSpec,
-    ) -> Result<fhir::FnSig<'genv>> {
-        let decl = if let Some(fn_sig) = &fn_spec.fn_sig {
+    ) -> Result<fhir::Item<'genv>> {
+        let (generics, fn_sig) = self.desugar_fn_spec(fn_spec)?;
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::Fn(fn_sig),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
+    }
+
+    pub(crate) fn desugar_trait_fn(
+        &mut self,
+        fn_spec: &surface::FnSpec,
+    ) -> Result<fhir::TraitItem<'genv>> {
+        let (generics, fn_sig) = self.desugar_fn_spec(fn_spec)?;
+        Ok(fhir::TraitItem {
+            generics,
+            kind: fhir::TraitItemKind::Fn(fn_sig),
+            owner_id: self.owner.local_id(),
+        })
+    }
+
+    pub(crate) fn desugar_impl_fn(
+        &mut self,
+        fn_spec: &surface::FnSpec,
+    ) -> Result<fhir::ImplItem<'genv>> {
+        let (generics, fn_sig) = self.desugar_fn_spec(fn_spec)?;
+        Ok(fhir::ImplItem {
+            generics,
+            kind: fhir::ImplItemKind::Fn(fn_sig),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
+    }
+
+    pub(crate) fn desugar_fn_spec(
+        &mut self,
+        fn_spec: &surface::FnSpec,
+    ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
+        let (generics, decl) = if let Some(fn_sig) = &fn_spec.fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
             let mut requires = vec![];
@@ -506,22 +604,28 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             generics.refinement_params = self.desugar_fn_sig_refine_params(fn_sig);
 
             let decl = fhir::FnDecl {
-                generics,
                 requires: self.genv.alloc_slice(&requires),
                 inputs,
                 output,
                 span: fn_sig.span,
                 lifted: false,
             };
-            decl
+            (generics, decl)
         } else {
-            self.as_lift_cx().lift_fn_decl()?
+            (self.as_lift_cx().lift_generics()?, self.as_lift_cx().lift_fn_decl()?)
         };
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
+        }
+
         let qual_names = fn_spec.qual_names.as_ref().map_or(&[][..], |it| &it.names);
-        Ok(fhir::FnSig {
-            qualifiers: self.genv.alloc_slice(qual_names),
-            decl: self.genv.alloc(decl),
-        })
+        Ok((
+            generics,
+            fhir::FnSig {
+                qualifiers: self.genv.alloc_slice(qual_names),
+                decl: self.genv.alloc(decl),
+            },
+        ))
     }
 
     fn desugar_fn_sig_refine_params(
@@ -656,7 +760,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     fn desugar_opaque_ty_for_async(
         &mut self,
         returns: &surface::FnRetTy,
-    ) -> Result<fhir::OpaqueTy<'genv>> {
+    ) -> Result<fhir::Item<'genv>> {
         let output = self.desugar_fn_ret_ty(returns)?;
         // Does this opaque type have any generics?
         let generics = self.as_lift_cx().lift_generics()?;
@@ -673,7 +777,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             fhir::PolyTraitRef { bound_generic_params: &[], trait_ref, span: trait_ref.span },
             fhir::TraitBoundModifier::None,
         );
-        Ok(fhir::OpaqueTy { generics, bounds: self.genv.alloc_slice(&[bound]) })
+        let opaque_ty = fhir::OpaqueTy { bounds: self.genv.alloc_slice(&[bound]) };
+
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::OpaqueTy(opaque_ty),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     fn make_lang_item_path(
@@ -712,10 +823,16 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     fn desugar_opaque_ty_for_impl_trait(
         &mut self,
         bounds: &[surface::TraitRef],
-    ) -> Result<fhir::OpaqueTy<'genv>> {
+    ) -> Result<fhir::Item<'genv>> {
         let generics = self.as_lift_cx().lift_generics()?;
         let bounds = self.desugar_generic_bounds(bounds)?;
-        Ok(fhir::OpaqueTy { generics, bounds })
+        let opaque_ty = fhir::OpaqueTy { bounds };
+        Ok(fhir::Item {
+            generics,
+            kind: fhir::ItemKind::OpaqueTy(opaque_ty),
+            owner_id: self.owner.local_id(),
+            extern_id: self.owner.as_extern(),
+        })
     }
 
     fn desugar_variant_ret(
@@ -764,7 +881,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Some(resolved_id)
     }
 
-    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {
+    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::Item<'genv>) {
         self.opaque_tys
             .as_mut()
             .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
