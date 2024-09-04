@@ -140,8 +140,9 @@ pub(crate) fn expand_type_alias(
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
+    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
 
-    let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
+    let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
@@ -339,7 +340,8 @@ pub(crate) fn conv_fn_decl(
     let late_bound_regions =
         refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id.local_id())?);
 
-    let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults)?;
+    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
+    let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
     let mut requires = vec![];

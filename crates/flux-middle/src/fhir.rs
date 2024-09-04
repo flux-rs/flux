@@ -121,9 +121,9 @@ impl<'fhir> Node<'fhir> {
 
     pub fn generics(self) -> &'fhir Generics<'fhir> {
         match self {
-            Node::Item(item) => item.generics(),
-            Node::TraitItem(trait_item) => trait_item.generics(),
-            Node::ImplItem(impl_item) => impl_item.generics(),
+            Node::Item(item) => &item.generics,
+            Node::TraitItem(trait_item) => &trait_item.generics,
+            Node::ImplItem(impl_item) => &impl_item.generics,
         }
     }
 
@@ -147,24 +147,13 @@ impl<'fhir> Node<'fhir> {
 #[derive(Debug)]
 pub struct Item<'fhir> {
     pub owner_id: OwnerId,
+    pub generics: Generics<'fhir>,
     pub kind: ItemKind<'fhir>,
     /// Whether this is a spec for an extern item
     pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Item<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            ItemKind::Enum(enum_def) => &enum_def.generics,
-            ItemKind::Struct(struct_def) => &struct_def.generics,
-            ItemKind::TyAlias(ty_alias) => &ty_alias.generics,
-            ItemKind::Trait(trait_) => &trait_.generics,
-            ItemKind::Impl(impl_) => &impl_.generics,
-            ItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
-        }
-    }
-
     pub fn expect_enum(&self) -> &EnumDef<'fhir> {
         if let ItemKind::Enum(enum_def) = &self.kind {
             enum_def
@@ -220,45 +209,29 @@ pub enum ItemKind<'fhir> {
 #[derive(Debug)]
 pub struct TraitItem<'fhir> {
     pub owner_id: OwnerId,
+    pub generics: Generics<'fhir>,
     pub kind: TraitItemKind<'fhir>,
-}
-
-impl<'fhir> TraitItem<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            TraitItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            TraitItemKind::Type(assoc_ty) => &assoc_ty.generics,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Type(AssocType<'fhir>),
+    Type,
 }
 
 #[derive(Debug)]
 pub struct ImplItem<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ImplItemKind<'fhir>,
+    pub generics: Generics<'fhir>,
     /// Whether this is a spec for an extern item
     pub extern_id: Option<DefId>,
-}
-
-impl<'fhir> ImplItem<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            ImplItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            ImplItemKind::Type(assoc_type) => &assoc_type.generics,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Type(AssocType<'fhir>),
+    Type,
 }
 
 #[derive(Debug)]
@@ -319,7 +292,6 @@ pub enum TraitBoundModifier {
 
 #[derive(Debug)]
 pub struct Trait<'fhir> {
-    pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [TraitAssocReft<'fhir>],
 }
 
@@ -341,7 +313,6 @@ pub struct TraitAssocReft<'fhir> {
 
 #[derive(Debug)]
 pub struct Impl<'fhir> {
-    pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
 }
 
@@ -363,13 +334,7 @@ pub struct ImplAssocReft<'fhir> {
 }
 
 #[derive(Debug)]
-pub struct AssocType<'fhir> {
-    pub generics: Generics<'fhir>,
-}
-
-#[derive(Debug)]
 pub struct OpaqueTy<'fhir> {
-    pub generics: Generics<'fhir>,
     pub bounds: GenericBounds<'fhir>,
 }
 
@@ -392,7 +357,6 @@ impl<'fhir> Crate<'fhir> {
 
 #[derive(Debug)]
 pub struct TyAlias<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub ty: Ty<'fhir>,
@@ -405,7 +369,6 @@ pub struct TyAlias<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
@@ -429,7 +392,6 @@ pub struct FieldDef<'fhir> {
 
 #[derive(Debug)]
 pub struct EnumDef<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
@@ -457,7 +419,6 @@ pub struct VariantRet<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnDecl<'fhir> {
-    pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Requires<'fhir>],
     /// example: vec![(x: StrRef(l))]
@@ -1181,18 +1142,18 @@ impl fmt::Debug for FnSig<'_> {
 
 impl fmt::Debug for FnDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.generics.refinement_params.is_empty() {
-            write!(
-                f,
-                "for<{}> ",
-                self.generics
-                    .refinement_params
-                    .iter()
-                    .format_with(", ", |param, f| {
-                        f(&format_args!("{}: {:?}", param.name, param.sort))
-                    })
-            )?;
-        }
+        // if !self.generics.refinement_params.is_empty() {
+        //     write!(
+        //         f,
+        //         "for<{}> ",
+        //         self.generics
+        //             .refinement_params
+        //             .iter()
+        //             .format_with(", ", |param, f| {
+        //                 f(&format_args!("{}: {:?}", param.name, param.sort))
+        //             })
+        //     )?;
+        // }
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
