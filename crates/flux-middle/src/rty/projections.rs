@@ -18,6 +18,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
+    intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
     rustc::lowering::lower_ty,
@@ -27,7 +28,7 @@ pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
     genv: GlobalEnv<'genv, 'tcx>,
     selcx: SelectionContext<'cx, 'tcx>,
     def_id: DefId,
-    param_env: Vec<Clause>,
+    param_env: List<Clause>,
 }
 
 impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
@@ -35,11 +36,12 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         genv: GlobalEnv<'genv, 'tcx>,
         infcx: &'cx InferCtxt<'tcx>,
         callsite_def_id: DefId,
-        refine_params: &[Expr],
     ) -> QueryResult<Self> {
         let param_env = genv
             .predicates_of(callsite_def_id)?
-            .instantiate_identity(genv, refine_params)?;
+            .instantiate_identity()
+            .predicates
+            .clone();
         let selcx = SelectionContext::new(infcx);
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
@@ -256,7 +258,7 @@ fn assemble_candidates_from_predicates(
     candidates: &mut Vec<Candidate>,
 ) {
     for predicate in predicates {
-        if let ClauseKind::Projection(pred) = predicate.kind() {
+        if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
             if &pred.projection_ty == obligation {
                 candidates.push(ctor(pred.clone()));
             }

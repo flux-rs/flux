@@ -236,13 +236,13 @@ fn mk_div_rules() -> RuleMatcher<2> {
 /// `a % b`
 fn mk_rem_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T[E::binary_op(Mod, a, b, None)]
+        fn(a: T, b: T) -> T[E::binary_op(Mod, a, b)]
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_unsigned()
 
         fn(a: T, b: T) -> T{v: E::implies(
                                    E::and(E::ge(a, 0), E::ge(b, 0)),
-                                   E::eq(v, E::binary_op(Mod, a, b, None))) }
+                                   E::eq(v, E::binary_op(Mod, a, b))) }
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_signed()
     }

@@ -39,9 +39,7 @@ fn check_invariant(
     invariant: &rty::Invariant,
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
-    let generics = genv.generics_of(def_id).emit(&genv)?;
-    let const_params = generics.const_params(genv).emit(&genv)?;
-    let mut refine_tree = RefineTree::new(const_params);
+    let mut refine_tree = RefineTree::new(genv, def_id).emit(&genv)?;
 
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = refine_tree.refine_ctxt_at_root();
@@ -50,7 +48,7 @@ fn check_invariant(
             .variant_sig(adt_def.did(), variant_idx)
             .emit(&genv)?
             .expect("cannot check opaque structs")
-            .instantiate_identity(&[])
+            .instantiate_identity()
             .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
         for ty in variant.fields() {
@@ -60,7 +58,7 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::default());
+    let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::dummy());
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
     }

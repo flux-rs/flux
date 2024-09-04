@@ -8,10 +8,7 @@ mod sortck;
 
 use std::iter;
 
-use flux_common::{
-    result::{ErrorCollector, ResultExt as _},
-    span_bug,
-};
+use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, visit::Visitor, FluxOwnerId},
@@ -29,22 +26,21 @@ use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_flux_item(genv: GlobalEnv, item: &fhir::FluxItem) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(item.name());
+pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Flux(qual.name);
     let mut infcx = InferCtxt::new(genv, owner);
-    match item {
-        fhir::FluxItem::Qualifier(qualifier) => {
-            infcx.insert_params(qualifier.args)?;
-            infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
-        }
-        fhir::FluxItem::Func(func) => {
-            if let Some(body) = &func.body {
-                infcx.insert_params(func.args)?;
-                let output =
-                    conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
-                infcx.check_expr(body, &output)?;
-            }
-        }
+    infcx.insert_params(qual.args)?;
+    infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
+    Ok(infcx.into_results())
+}
+
+pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Flux(func.name);
+    let mut infcx = InferCtxt::new(genv, owner);
+    if let Some(body) = &func.body {
+        infcx.insert_params(func.args)?;
+        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
+        infcx.check_expr(body, &output)?;
     }
     Ok(infcx.into_results())
 }
@@ -53,7 +49,7 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
 ) -> Result<WfckResults> {
-    let mut infcx = InferCtxt::new(genv, node.owner_id().into());
+    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
 
     insert_params(&mut infcx, node)?;
 
@@ -73,7 +69,7 @@ fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     let genv = infcx.genv;
     if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
     {
-        let parent = genv.tcx().local_parent(owner_id.def_id);
+        let parent = genv.tcx().local_parent(owner_id.local_id().def_id);
         if let Some(generics) = genv.map().get_generics(parent).emit(&genv)? {
             let wfckresults = genv.check_wf(parent).emit(&genv)?;
             for param in generics.refinement_params {
@@ -172,21 +168,18 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 .check_expr(invariant, &rty::Sort::Bool)
                 .collect_err(&mut self.errors);
         }
+
         fhir::visit::walk_enum_def(self, enum_def);
     }
 
     fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
-        let bty = &ret.bty;
-        let Ok(expected) = self
-            .infcx
-            .genv
-            .sort_of_bty(bty)
-            .emit(&self.errors)
-            .transpose()
-            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
-        else {
+        let genv = self.infcx.genv;
+        let enum_id = ret.enum_id;
+        let Ok(adt_sort_def) = genv.adt_sort_def_of(enum_id).emit(&self.errors) else { return };
+        let Ok(args) = rty::GenericArgs::identity_for_item(genv, enum_id).emit(&self.errors) else {
             return;
         };
+        let expected = adt_sort_def.sort(&args);
         self.infcx
             .check_refine_arg(&ret.idx, &expected)
             .collect_err(&mut self.errors);

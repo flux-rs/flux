@@ -25,9 +25,10 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
+        Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
+        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
+        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
+        VariantDef,
     },
 };
 use crate::{
@@ -277,14 +278,25 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, generic_args) = match func.ty(self.rustc_mir, self.tcx).kind() {
-                    rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
-                        let lowered = lower_generic_args(self.tcx, args)
-                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
-                            .emit(self.sess)?;
-                        (*fn_def, CallArgs { orig: args, lowered })
+                let (func, generic_args) = {
+                    let func_ty = func.ty(self.rustc_mir, self.tcx);
+                    match func_ty.kind() {
+                        rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
+                            let lowered = lower_generic_args(self.tcx, args)
+                                .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                                .emit(self.sess)?;
+                            (*fn_def, CallArgs { orig: args, lowered })
+                        }
+                        _ => {
+                            Err(errors::UnsupportedMir::terminator(
+                                span,
+                                UnsupportedReason::new(format!(
+                                    "unsupported callee type `{func_ty:?}`"
+                                )),
+                            ))
+                            .emit(self.sess)?
+                        }
                     }
-                    _ => Err(errors::UnsupportedMir::from(terminator)).emit(self.sess)?,
                 };
 
                 let destination = lower_place(destination)
@@ -407,6 +419,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Ref(region, bk, p) => {
                 Ok(Rvalue::Ref(lower_region(region)?, *bk, lower_place(p)?))
             }
+            rustc_mir::Rvalue::RawPtr(mutbl, place) => {
+                Ok(Rvalue::RawPtr(*mutbl, lower_place(place)?))
+            }
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
@@ -438,9 +453,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, lower_ty(self.tcx, *ty)?))
             }
-            rustc_mir::Rvalue::ThreadLocalRef(_)
-            | rustc_mir::Rvalue::RawPtr(_, _)
-            | rustc_mir::Rvalue::CopyForDeref(_) => {
+            rustc_mir::Rvalue::ThreadLocalRef(_) | rustc_mir::Rvalue::CopyForDeref(_) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
         }
@@ -807,19 +820,34 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
 
 pub fn lower_existential_predicate<'tcx>(
     tcx: TyCtxt<'tcx>,
-    pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
+    pred: rustc_ty::PolyExistentialPredicate<'tcx>,
 ) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
-    if pred.bound_vars().is_empty()
-        && let pred = pred.skip_binder()
-        && let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred
-    {
-        let def_id = exi_trait_ref.def_id;
-        let args = lower_generic_args(tcx, exi_trait_ref.args)?;
-        let exi_trait_ref = ExistentialTraitRef { def_id, args };
-        Ok(Binder::bind_with_vars(ExistentialPredicate::Trait(exi_trait_ref), List::empty()))
-    } else {
-        Err(UnsupportedReason::new(format!("Unsupported existential predicate `{pred:?}`")))
-    }
+    lower_binder(pred, |pred| {
+        let exi_pred = match pred {
+            rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) => {
+                ExistentialPredicate::Trait(ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: lower_generic_args(tcx, exi_trait_ref.args)?,
+                })
+            }
+            rustc_type_ir::ExistentialPredicate::Projection(exi_proj_pred) => {
+                let Some(term) = exi_proj_pred.term.as_type() else {
+                    return Err(UnsupportedReason::new(format!(
+                        "unsupported existential predicate `{pred:?}`"
+                    )));
+                };
+                ExistentialPredicate::Projection(ExistentialProjection {
+                    def_id: exi_proj_pred.def_id,
+                    args: lower_generic_args(tcx, exi_proj_pred.args)?,
+                    term: lower_ty(tcx, term)?,
+                })
+            }
+            rustc_type_ir::ExistentialPredicate::AutoTrait(def_id) => {
+                ExistentialPredicate::AutoTrait(def_id)
+            }
+        };
+        Ok(exi_pred)
+    })
 }
 
 pub fn lower_generic_args<'tcx>(
@@ -868,7 +896,7 @@ fn lower_bound_region(
     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
-pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, UnsupportedReason> {
+pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Generics {
     let params = List::from_vec(
         generics
             .own_params
@@ -876,7 +904,7 @@ pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, 
             .map(lower_generic_param_def)
             .collect(),
     );
-    Ok(Generics { params, orig: generics })
+    Generics { params, orig: generics }
 }
 
 fn lower_generic_param_def(generic: &rustc_ty::GenericParamDef) -> GenericParamDef {

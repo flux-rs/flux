@@ -1,10 +1,10 @@
 use super::{
-    AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
-    ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
-    SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind,
-    TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
+    Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
+    Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, Node,
+    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineArg,
+    RefineArgKind, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem,
+    TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -143,8 +143,8 @@ pub trait Visitor<'v>: Sized {
         walk_path_segment(self, segment);
     }
 
-    fn visit_type_binding(&mut self, binding: &TypeBinding<'v>) {
-        walk_type_binding(self, binding);
+    fn visit_assoc_item_constraint(&mut self, constraint: &AssocItemConstraint<'v>) {
+        walk_assoc_item_constraint(self, constraint);
     }
 
     fn visit_sort(&mut self, sort: &Sort<'v>) {
@@ -181,7 +181,6 @@ pub trait Visitor<'v>: Sized {
 }
 
 pub fn walk_impl<'v, V: Visitor<'v>>(vis: &mut V, impl_: &Impl<'v>) {
-    vis.visit_generics(&impl_.generics);
     walk_list!(vis, visit_impl_assoc_reft, impl_.assoc_refinements);
 }
 
@@ -206,24 +205,21 @@ pub fn walk_variant<'v, V: Visitor<'v>>(vis: &mut V, variant: &VariantDef<'v>) {
 }
 
 pub fn walk_field_def<'v, V: Visitor<'v>>(vis: &mut V, field: &FieldDef<'v>) {
-    let FieldDef { def_id: _, ty, lifted: _ } = field;
+    let FieldDef { ty, lifted: _ } = field;
     vis.visit_ty(ty);
 }
 
 pub fn walk_variant_ret<'v, V: Visitor<'v>>(vis: &mut V, ret: &VariantRet<'v>) {
-    let VariantRet { bty, idx } = ret;
-    vis.visit_bty(bty);
+    let VariantRet { idx, enum_id: _ } = ret;
     vis.visit_refine_arg(idx);
 }
 
 pub fn walk_ty_alias<'v, V: Visitor<'v>>(vis: &mut V, ty_alias: &TyAlias<'v>) {
-    vis.visit_generics(&ty_alias.generics);
     walk_list!(vis, visit_refine_param, ty_alias.params);
     vis.visit_ty(&ty_alias.ty);
 }
 
 pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>) {
-    vis.visit_generics(&opaque_ty.generics);
     walk_list!(vis, visit_generic_bound, opaque_ty.bounds);
 }
 
@@ -247,12 +243,12 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &Node<'v>) {
 }
 
 pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
+    vis.visit_generics(&item.generics);
     match &item.kind {
         ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
         ItemKind::Struct(struct_def) => vis.visit_struct_def(struct_def),
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
         ItemKind::Trait(trait_) => {
-            vis.visit_generics(&trait_.generics);
             walk_list!(vis, visit_trait_assoc_reft, trait_.assoc_refinements);
         }
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
@@ -262,20 +258,18 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
 }
 
 pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'v>) {
+    vis.visit_generics(&trait_item.generics);
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        TraitItemKind::Type(assoc_type) => {
-            vis.visit_generics(&assoc_type.generics);
-        }
+        TraitItemKind::Type => {}
     }
 }
 
 pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>) {
+    vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ImplItemKind::Type(assoc_type) => {
-            vis.visit_generics(&assoc_type.generics);
-        }
+        ImplItemKind::Type => {}
     }
 }
 
@@ -305,7 +299,6 @@ pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
 }
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {
-    vis.visit_generics(&decl.generics);
     walk_list!(vis, visit_requires, decl.requires);
     walk_list!(vis, visit_ty, decl.inputs);
     vis.visit_fn_output(&decl.output);
@@ -420,12 +413,18 @@ pub fn walk_path<'v, V: Visitor<'v>>(vis: &mut V, path: &Path<'v>) {
 
 pub fn walk_path_segment<'v, V: Visitor<'v>>(vis: &mut V, segment: &PathSegment<'v>) {
     walk_list!(vis, visit_generic_arg, segment.args);
-    walk_list!(vis, visit_type_binding, segment.bindings);
+    walk_list!(vis, visit_assoc_item_constraint, segment.constraints);
 }
 
-pub fn walk_type_binding<'v, V: Visitor<'v>>(vis: &mut V, binding: &TypeBinding<'v>) {
-    let TypeBinding { ident: _, term } = binding;
-    vis.visit_ty(term);
+pub fn walk_assoc_item_constraint<'v, V: Visitor<'v>>(
+    vis: &mut V,
+    constraint: &AssocItemConstraint<'v>,
+) {
+    match &constraint.kind {
+        AssocItemConstraintKind::Equality { term } => {
+            vis.visit_ty(term);
+        }
+    }
 }
 
 pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {

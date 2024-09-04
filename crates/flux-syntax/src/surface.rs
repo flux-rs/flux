@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
 };
 pub use rustc_span::symbol::Ident;
-use rustc_span::{def_id::DefId, Span};
+use rustc_span::Span;
 
 use crate::surface::visit::Visitor;
 
@@ -94,8 +94,6 @@ pub struct StructDef {
     pub opaque: bool,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
-    /// Whether the struct is an extern spec for some [DefId]
-    pub extern_id: Option<DefId>,
 }
 
 impl StructDef {
@@ -112,8 +110,6 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
-    /// Whether the enum is an extern spec for some [DefId]
-    pub extern_id: Option<DefId>,
 }
 
 impl EnumDef {
@@ -199,8 +195,6 @@ pub struct ConstSig {
 pub struct Impl {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<ImplAssocReft>,
-    /// Whether the enum is an extern spec for some [DefId]
-    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]
@@ -229,8 +223,6 @@ pub struct TraitAssocReft {
 pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
-    /// Whether this function is an extern spec for some [DefId]
-    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]

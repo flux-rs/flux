@@ -1,6 +1,6 @@
 use super::{
-    Binder, Const, ConstKind, ExistentialPredicate, ExistentialTraitRef, FnSig, GenericArg, Region,
-    Ty, TyKind,
+    Binder, Const, ConstKind, ExistentialPredicate, ExistentialProjection, ExistentialTraitRef,
+    FnSig, GenericArg, Region, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -67,8 +67,17 @@ impl Subst for TraitRef {
 
 impl Subst for ExistentialTraitRef {
     fn subst(&self, args: &[GenericArg]) -> Self {
-        let def_id = self.def_id;
-        ExistentialTraitRef { def_id, args: self.args.subst(args) }
+        ExistentialTraitRef { def_id: self.def_id, args: self.args.subst(args) }
+    }
+}
+
+impl Subst for ExistentialProjection {
+    fn subst(&self, args: &[GenericArg]) -> Self {
+        ExistentialProjection {
+            def_id: self.def_id,
+            args: self.args.subst(args),
+            term: self.term.subst(args),
+        }
     }
 }
 
@@ -78,6 +87,10 @@ impl Subst for ExistentialPredicate {
             ExistentialPredicate::Trait(exi_trait_ref) => {
                 ExistentialPredicate::Trait(exi_trait_ref.subst(args))
             }
+            ExistentialPredicate::Projection(exi_proj_pred) => {
+                ExistentialPredicate::Projection(exi_proj_pred.subst(args))
+            }
+            ExistentialPredicate::AutoTrait(def_id) => ExistentialPredicate::AutoTrait(*def_id),
         }
     }
 }

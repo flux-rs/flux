@@ -89,3 +89,16 @@ impl InvalidAliasReft {
         Self { span: path.span }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_invalid_variant_ret, code = E0999)]
+pub(super) struct InvalidVariantRet {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+impl InvalidVariantRet {
+    pub(super) fn new(path: &surface::Path) -> Self {
+        Self { span: path.span }
+    }
+}

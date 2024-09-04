@@ -178,36 +178,51 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     pub fn refine_existential_predicate(
         &self,
-        exi_pred: &rustc::ty::Binder<rustc::ty::ExistentialPredicate>,
-    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
-        assert!(exi_pred.vars().is_empty());
-        let exi_pred = match exi_pred.as_ref().skip_binder() {
-            rustc::ty::ExistentialPredicate::Trait(exi_trait_ref) => {
-                rty::ExistentialPredicate::Trait(self.refine_exi_trait_ref(exi_trait_ref)?)
-            }
-        };
-        Ok(rty::Binder::new(exi_pred, List::empty()))
+        poly_pred: &rustc::ty::PolyExistentialPredicate,
+    ) -> QueryResult<rty::PolyExistentialPredicate> {
+        self.refine_binders(poly_pred, |pred| {
+            let pred = match pred {
+                rustc::ty::ExistentialPredicate::Trait(trait_ref) => {
+                    rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                        def_id: trait_ref.def_id,
+                        args: self.refine_existential_predicate_generic_args(
+                            trait_ref.def_id,
+                            &trait_ref.args,
+                        )?,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::Projection(projection) => {
+                    rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: self.refine_existential_predicate_generic_args(
+                            projection.def_id,
+                            &projection.args,
+                        )?,
+                        term: self.refine_ty(&projection.term)?,
+                    })
+                }
+                rustc::ty::ExistentialPredicate::AutoTrait(def_id) => {
+                    rty::ExistentialPredicate::AutoTrait(*def_id)
+                }
+            };
+            Ok(pred)
+        })
     }
 
-    pub fn refine_exi_trait_ref(
+    pub fn refine_existential_predicate_generic_args(
         &self,
-        exi_trait_ref: &rustc::ty::ExistentialTraitRef,
-    ) -> QueryResult<rty::ExistentialTraitRef> {
-        let trait_generics = self.generics_of(exi_trait_ref.def_id)?;
-        let exi_trait_ref = rty::ExistentialTraitRef {
-            def_id: exi_trait_ref.def_id,
-            args: exi_trait_ref
-                .args
-                .iter()
-                .enumerate()
-                .map(|(idx, arg)| {
-                    // We need to skip the generic for Self
-                    let param = trait_generics.param_at(idx + 1, self.genv)?;
-                    self.refine_generic_arg(&param, arg)
-                })
-                .try_collect()?,
-        };
-        Ok(exi_trait_ref)
+        def_id: DefId,
+        args: &rustc::ty::GenericArgs,
+    ) -> QueryResult<rty::GenericArgs> {
+        let generics = self.generics_of(def_id)?;
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                // We need to skip the generic for Self
+                let param = generics.param_at(idx + 1, self.genv)?;
+                self.refine_generic_arg(&param, arg)
+            })
+            .try_collect()
     }
 
     pub fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
@@ -242,16 +257,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::Binder::new(value, List::empty()))
     }
 
-    pub(crate) fn refine_binders<S, T, F>(
+    pub fn refine_binders<S, T, F>(
         &self,
-        thing: &rustc::ty::Binder<S>,
+        t: &rustc::ty::Binder<S>,
         mut f: F,
     ) -> QueryResult<rty::Binder<T>>
     where
         F: FnMut(&S) -> QueryResult<T>,
     {
-        let vars = refine_bound_variables(thing.vars());
-        let inner = thing.as_ref().skip_binder();
+        let vars = refine_bound_variables(t.vars());
+        let inner = t.as_ref().skip_binder();
         let inner = f(inner)?;
         Ok(rty::Binder::new(inner, vars))
     }

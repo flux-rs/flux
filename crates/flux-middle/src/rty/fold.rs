@@ -15,10 +15,11 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
-    Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
-    Region, Sort, SortArg, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
+    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialProjection,
+    ExistentialTraitRef, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg,
+    Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SortArg, SubsetTy,
+    TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -241,10 +242,8 @@ pub trait TypeFoldable: TypeVisitable {
         genv: GlobalEnv<'_, 'tcx>,
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
-        refine_params: &[Expr],
     ) -> QueryResult<Self> {
-        let mut normalizer =
-            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
+        let mut normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)?;
         self.try_fold_with(&mut normalizer)
     }
 
@@ -286,38 +285,25 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut ReplaceHoles(f, vec![]))
     }
 
-    /// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
-    /// [`hole`]. It also replaces all existing predicates with a [`hole`].
-    /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
+    /// Remove all refinements and turn each underlying [`BaseTy`] into a [`TyKind::Exists`] with a
+    /// [`TyKind::Constr`] and a [`hole`]. For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes
+    /// `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole
     fn with_holes(&self) -> Self {
-        struct WithHoles {
-            in_exists: bool,
-        }
+        struct WithHoles;
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                match ty.kind() {
-                    TyKind::Indexed(bty, _) => {
-                        if self.in_exists {
-                            ty.super_fold_with(self)
-                        } else {
-                            Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
-                        }
-                    }
-                    TyKind::Exists(ty) => {
-                        Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
-                    }
-                    TyKind::Constr(_, ty) => {
-                        Ty::constr(Expr::hole(HoleKind::Pred), ty.fold_with(self))
-                    }
-                    _ => ty.super_fold_with(self),
+                if let Some(bty) = ty.as_bty_skipping_existentials() {
+                    Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
+                } else {
+                    ty.super_fold_with(self)
                 }
             }
         }
 
-        self.fold_with(&mut WithHoles { in_exists: false })
+        self.fold_with(&mut WithHoles)
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
@@ -504,10 +490,29 @@ impl TypeFoldable for ExistentialTraitRef {
     }
 }
 
+impl TypeVisitable for ExistentialProjection {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.args.visit_with(visitor)?;
+        self.term.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ExistentialProjection {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ExistentialProjection {
+            def_id: self.def_id,
+            args: self.args.try_fold_with(folder)?,
+            term: self.term.try_fold_with(folder)?,
+        })
+    }
+}
+
 impl TypeVisitable for ExistentialPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            ExistentialPredicate::Trait(exi_trait_ref) => exi_trait_ref.visit_with(visitor),
+            ExistentialPredicate::Trait(trait_ref) => trait_ref.visit_with(visitor),
+            ExistentialPredicate::Projection(projection) => projection.visit_with(visitor),
+            ExistentialPredicate::AutoTrait(_) => ControlFlow::Continue(()),
         }
     }
 }
@@ -515,10 +520,13 @@ impl TypeVisitable for ExistentialPredicate {
 impl TypeFoldable for ExistentialPredicate {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
-            ExistentialPredicate::Trait(exi_trait_ref) => {
-                let exi_trait_ref = exi_trait_ref.try_fold_with(folder)?;
-                Ok(ExistentialPredicate::Trait(exi_trait_ref))
+            ExistentialPredicate::Trait(trait_ref) => {
+                Ok(ExistentialPredicate::Trait(trait_ref.try_fold_with(folder)?))
             }
+            ExistentialPredicate::Projection(projection) => {
+                Ok(ExistentialPredicate::Projection(projection.try_fold_with(folder)?))
+            }
+            ExistentialPredicate::AutoTrait(def_id) => Ok(ExistentialPredicate::AutoTrait(*def_id)),
         }
     }
 }
@@ -1039,8 +1047,8 @@ impl TypeSuperFoldable for BaseTy {
                     args.try_fold_with(folder)?,
                 )
             }
-            BaseTy::Dynamic(exi_preds, region) => {
-                BaseTy::Dynamic(exi_preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
+            BaseTy::Dynamic(preds, region) => {
+                BaseTy::Dynamic(preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
         };
         Ok(bty)
@@ -1213,49 +1221,47 @@ impl TypeFoldable for Expr {
 impl TypeSuperFoldable for Expr {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let span = self.span();
-        let expr = match self.kind() {
-            ExprKind::Var(var) => Expr::var(*var, span),
-            ExprKind::Local(local) => Expr::local(*local, span),
-            ExprKind::Constant(c) => Expr::constant_at(*c, span),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did, span),
+        let kind = match self.kind() {
+            ExprKind::Var(var) => ExprKind::Var(*var),
+            ExprKind::Local(local) => ExprKind::Local(*local),
+            ExprKind::Constant(c) => ExprKind::Constant(*c),
+            ExprKind::ConstDefId(did) => ExprKind::ConstDefId(*did),
             ExprKind::BinaryOp(op, e1, e2) => {
-                Expr::binary_op(
+                ExprKind::BinaryOp(
                     op.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
                     e2.try_fold_with(folder)?,
-                    span,
                 )
             }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
-            ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
+            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.try_fold_with(folder)?),
+            ExprKind::FieldProj(e, proj) => ExprKind::FieldProj(e.try_fold_with(folder)?, *proj),
             ExprKind::Aggregate(kind, flds) => {
                 let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                Expr::aggregate(*kind, flds)
+                ExprKind::Aggregate(*kind, flds)
             }
-            ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
+            ExprKind::PathProj(e, field) => ExprKind::PathProj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
-                Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?, span)
+                ExprKind::App(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::ite(
+                ExprKind::IfThenElse(
                     p.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
                     e2.try_fold_with(folder)?,
-                    span,
                 )
             }
-            ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
-            ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
-            ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
-            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
+            ExprKind::Hole(kind) => ExprKind::Hole(kind.try_fold_with(folder)?),
+            ExprKind::KVar(kvar) => ExprKind::KVar(kvar.try_fold_with(folder)?),
+            ExprKind::Abs(lam) => ExprKind::Abs(lam.try_fold_with(folder)?),
+            ExprKind::GlobalFunc(func, kind) => ExprKind::GlobalFunc(*func, *kind),
             ExprKind::Alias(alias, args) => {
                 let alias = alias.try_fold_with(folder)?;
                 let args = args.try_fold_with(folder)?;
-                Expr::alias(alias, args)
+                ExprKind::Alias(alias, args)
             }
-            ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
+            ExprKind::ForAll(expr) => ExprKind::ForAll(expr.try_fold_with(folder)?),
         };
-        Ok(expr)
+        Ok(kind.intern_at_opt(span))
     }
 }
 

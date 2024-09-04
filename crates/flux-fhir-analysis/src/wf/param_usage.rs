@@ -115,6 +115,18 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
 }
 
 impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
+    fn visit_node(&mut self, node: &fhir::Node<'genv>) {
+        if node.fn_sig().is_some() {
+            // Check early refinement parameters in fn-like nodes
+            let snapshot = self.xi.snapshot();
+            fhir::visit::walk_node(self, node);
+            self.check_params_are_value_determined(node.generics().refinement_params);
+            self.xi.rollback_to(snapshot);
+        } else {
+            fhir::visit::walk_node(self, node);
+        }
+    }
+
     fn visit_ty_alias(&mut self, ty_alias: &fhir::TyAlias<'genv>) {
         fhir::visit::walk_ty_alias(self, ty_alias);
         self.check_params_are_value_determined(ty_alias.params);
@@ -158,13 +170,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
         }
     }
 
-    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
-        let snapshot = self.xi.snapshot();
-        fhir::visit::walk_fn_decl(self, decl);
-        self.check_params_are_value_determined(decl.generics.refinement_params);
-        self.xi.rollback_to(snapshot);
-    }
-
     fn visit_fn_output(&mut self, output: &fhir::FnOutput<'genv>) {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_fn_output(self, output);
@@ -203,6 +208,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
                 self.xi.rollback_to(snapshot);
             }
         }
-        walk_list!(self, visit_type_binding, segment.bindings);
+        walk_list!(self, visit_assoc_item_constraint, segment.constraints);
     }
 }

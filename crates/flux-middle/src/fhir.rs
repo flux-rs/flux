@@ -8,10 +8,7 @@
 //!
 //! desugars to
 //!
-//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
-//!
-//! The main analysis performed on the fhir is well-formedness, thus, the fhir keeps track of
-//! spans for refinement expressions to report errors.
+//! `for<n: int, l: loc> fn(&strg<l: i32[n]>) ensures l: i32[n + 1]`.
 //!
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
@@ -41,7 +38,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{global_env::GlobalEnv, pretty};
+use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
 /// A boolean used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -124,50 +121,29 @@ impl<'fhir> Node<'fhir> {
 
     pub fn generics(self) -> &'fhir Generics<'fhir> {
         match self {
-            Node::Item(item) => item.generics(),
-            Node::TraitItem(trait_item) => trait_item.generics(),
-            Node::ImplItem(impl_item) => impl_item.generics(),
+            Node::Item(item) => &item.generics,
+            Node::TraitItem(trait_item) => &trait_item.generics,
+            Node::ImplItem(impl_item) => &impl_item.generics,
         }
     }
 
-    pub fn owner_id(&self) -> OwnerId {
+    pub fn owner_id(&self) -> MaybeExternId<OwnerId> {
         match self {
             Node::Item(item) => item.owner_id,
             Node::TraitItem(trait_item) => trait_item.owner_id,
             Node::ImplItem(impl_item) => impl_item.owner_id,
         }
     }
-
-    pub fn extern_id(&self) -> Option<DefId> {
-        match self {
-            Node::Item(item) => item.extern_id,
-            Node::TraitItem(_) => None,
-            Node::ImplItem(item) => item.extern_id,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub struct Item<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
+    pub generics: Generics<'fhir>,
     pub kind: ItemKind<'fhir>,
-    /// Whether this is a spec for an extern item
-    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Item<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            ItemKind::Enum(enum_def) => &enum_def.generics,
-            ItemKind::Struct(struct_def) => &struct_def.generics,
-            ItemKind::TyAlias(ty_alias) => &ty_alias.generics,
-            ItemKind::Trait(trait_) => &trait_.generics,
-            ItemKind::Impl(impl_) => &impl_.generics,
-            ItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
-        }
-    }
-
     pub fn expect_enum(&self) -> &EnumDef<'fhir> {
         if let ItemKind::Enum(enum_def) = &self.kind {
             enum_def
@@ -222,46 +198,28 @@ pub enum ItemKind<'fhir> {
 
 #[derive(Debug)]
 pub struct TraitItem<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
+    pub generics: Generics<'fhir>,
     pub kind: TraitItemKind<'fhir>,
-}
-
-impl<'fhir> TraitItem<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            TraitItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            TraitItemKind::Type(assoc_ty) => &assoc_ty.generics,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Type(AssocType<'fhir>),
+    Type,
 }
 
 #[derive(Debug)]
 pub struct ImplItem<'fhir> {
-    pub owner_id: OwnerId,
+    pub owner_id: MaybeExternId<OwnerId>,
     pub kind: ImplItemKind<'fhir>,
-    /// Whether this is a spec for an extern item
-    pub extern_id: Option<DefId>,
-}
-
-impl<'fhir> ImplItem<'fhir> {
-    pub fn generics(&self) -> &Generics<'fhir> {
-        match &self.kind {
-            ImplItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
-            ImplItemKind::Type(assoc_type) => &assoc_type.generics,
-        }
-    }
+    pub generics: Generics<'fhir>,
 }
 
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Type(AssocType<'fhir>),
+    Type,
 }
 
 #[derive(Debug)]
@@ -311,6 +269,7 @@ pub enum GenericBound<'fhir> {
 pub struct PolyTraitRef<'fhir> {
     pub bound_generic_params: &'fhir [GenericParam<'fhir>],
     pub trait_ref: Path<'fhir>,
+    pub span: Span,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -321,7 +280,6 @@ pub enum TraitBoundModifier {
 
 #[derive(Debug)]
 pub struct Trait<'fhir> {
-    pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [TraitAssocReft<'fhir>],
 }
 
@@ -343,7 +301,6 @@ pub struct TraitAssocReft<'fhir> {
 
 #[derive(Debug)]
 pub struct Impl<'fhir> {
-    pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
 }
 
@@ -365,13 +322,7 @@ pub struct ImplAssocReft<'fhir> {
 }
 
 #[derive(Debug)]
-pub struct AssocType<'fhir> {
-    pub generics: Generics<'fhir>,
-}
-
-#[derive(Debug)]
 pub struct OpaqueTy<'fhir> {
-    pub generics: Generics<'fhir>,
     pub bounds: GenericBounds<'fhir>,
 }
 
@@ -394,7 +345,6 @@ impl<'fhir> Crate<'fhir> {
 
 #[derive(Debug)]
 pub struct TyAlias<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub ty: Ty<'fhir>,
@@ -407,7 +357,6 @@ pub struct TyAlias<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
@@ -422,7 +371,6 @@ pub enum StructKind<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct FieldDef<'fhir> {
-    pub def_id: LocalDefId,
     pub ty: Ty<'fhir>,
     /// Whether this field was [lifted] from a `hir` field
     ///
@@ -432,7 +380,6 @@ pub struct FieldDef<'fhir> {
 
 #[derive(Debug)]
 pub struct EnumDef<'fhir> {
-    pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
@@ -454,13 +401,12 @@ pub struct VariantDef<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct VariantRet<'fhir> {
-    pub bty: BaseTy<'fhir>,
+    pub enum_id: DefId,
     pub idx: RefineArg<'fhir>,
 }
 
 #[derive(Clone, Copy)]
 pub struct FnDecl<'fhir> {
-    pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Requires<'fhir>],
     /// example: vec![(x: StrRef(l))]
@@ -661,13 +607,18 @@ pub struct PathSegment<'fhir> {
     pub ident: Ident,
     pub res: Res,
     pub args: &'fhir [GenericArg<'fhir>],
-    pub bindings: &'fhir [TypeBinding<'fhir>],
+    pub constraints: &'fhir [AssocItemConstraint<'fhir>],
 }
 
 #[derive(Clone, Copy)]
-pub struct TypeBinding<'fhir> {
+pub struct AssocItemConstraint<'fhir> {
     pub ident: Ident,
-    pub term: Ty<'fhir>,
+    pub kind: AssocItemConstraintKind<'fhir>,
+}
+
+#[derive(Clone, Copy)]
+pub enum AssocItemConstraintKind<'fhir> {
+    Equality { term: Ty<'fhir> },
 }
 
 #[derive(Clone, Copy)]
@@ -1179,18 +1130,18 @@ impl fmt::Debug for FnSig<'_> {
 
 impl fmt::Debug for FnDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.generics.refinement_params.is_empty() {
-            write!(
-                f,
-                "for<{}> ",
-                self.generics
-                    .refinement_params
-                    .iter()
-                    .format_with(", ", |param, f| {
-                        f(&format_args!("{}: {:?}", param.name, param.sort))
-                    })
-            )?;
-        }
+        // if !self.generics.refinement_params.is_empty() {
+        //     write!(
+        //         f,
+        //         "for<{}> ",
+        //         self.generics
+        //             .refinement_params
+        //             .iter()
+        //             .format_with(", ", |param, f| {
+        //                 f(&format_args!("{}: {:?}", param.name, param.sort))
+        //             })
+        //     )?;
+        // }
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
@@ -1346,7 +1297,7 @@ impl fmt::Debug for PathSegment<'_> {
             .args
             .iter()
             .map(|a| a as &dyn std::fmt::Debug)
-            .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
+            .chain(self.constraints.iter().map(|b| b as &dyn std::fmt::Debug))
             .collect();
         if !args.is_empty() {
             write!(f, "<{:?}>", args.iter().format(", "))?;
@@ -1365,9 +1316,13 @@ impl fmt::Debug for GenericArg<'_> {
     }
 }
 
-impl fmt::Debug for TypeBinding<'_> {
+impl fmt::Debug for AssocItemConstraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} = {:?}", self.ident, self.term)
+        match &self.kind {
+            AssocItemConstraintKind::Equality { term } => {
+                write!(f, "{:?} = {:?}", self.ident, term)
+            }
+        }
     }
 }
 

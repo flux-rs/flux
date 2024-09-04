@@ -97,7 +97,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            let sorts = sort_def.sorts(sort_args);
+            let sorts = sort_def.field_sorts(sort_args);
             if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
                     Some(arg.span),
@@ -556,7 +556,7 @@ impl<'genv> InferCtxt<'genv, '_> {
 
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
-            && let [sort] = &sort_def.sorts(sort_args)[..]
+            && let [sort] = &sort_def.field_sorts(sort_args)[..]
         {
             Some((sort_def.did(), sort.clone()))
         } else {
@@ -615,7 +615,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
             fhir::RefineArgKind::Abs(_, _) => {}
             fhir::RefineArgKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-                    let sorts = sort_def.sorts(sort_args);
+                    let sorts = sort_def.field_sorts(sort_args);
                     if flds.len() != sorts.len() {
                         self.errors.emit(errors::ArgCountMismatch::new(
                             Some(idx.span),

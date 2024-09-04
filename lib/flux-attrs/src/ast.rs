@@ -148,7 +148,7 @@ pub enum TraitItem {
 impl Parse for TraitItem {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        flux_tool_attrs(&mut attrs);
         let vis: Visibility = input.parse()?;
         let ahead = input.fork();
 
@@ -981,12 +981,10 @@ impl Parse for Items {
     }
 }
 
-const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted", "generics", "assoc"];
-
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        flux_tool_attrs(&mut attrs);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -1065,7 +1063,7 @@ impl Parse for ItemMod {
 impl Parse for ItemStruct {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        flux_tool_attrs(&mut attrs);
         let vis = input.parse::<Visibility>()?;
         let struct_token = input.parse::<Token![struct]>()?;
         let ident = input.parse::<Ident>()?;
@@ -1258,7 +1256,7 @@ impl Parse for ParamKind {
 impl Parse for ItemEnum {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        flux_tool_attrs(&mut attrs);
         let vis = input.parse::<Visibility>()?;
         let enum_token = input.parse::<Token![enum]>()?;
         let ident = input.parse::<Ident>()?;
@@ -1592,7 +1590,7 @@ impl ImplItem {
 impl Parse for ImplItem {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        flux_tool_attrs(&mut attrs);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();

@@ -13,15 +13,14 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
-    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
-use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
@@ -99,8 +98,17 @@ impl AdtSortDef {
         Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
     }
 
-    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
+    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
+    }
+
+    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+        let sorts = self
+            .filter_generic_args(args)
+            .map(|arg| arg.expect_base().sort())
+            .collect();
+
+        Sort::App(SortCtor::Adt(self.clone()), sorts)
     }
 
     /// Given a list of generic args, returns an iterator of the generic arguments that should be
@@ -155,20 +163,19 @@ impl Generics {
         }
     }
 
-    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
         // FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         let mut res = vec![];
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
             if let GenericParamDefKind::Const { .. } = param.kind
-                && let Some(local_def_id) = param.def_id.as_local()
-                && let Some(sort) = genv.sort_of_generic_param(local_def_id)?
+                && let Some(sort) = genv.sort_of_generic_param(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
                 res.push((param_const, sort));
             }
         }
-        Ok(List::from_vec(res))
+        Ok(res)
     }
 }
 
@@ -182,6 +189,7 @@ pub struct RefinementGenerics {
 #[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 pub struct RefineParam {
     pub sort: Sort,
+    pub name: Symbol,
     pub mode: InferMode,
 }
 
@@ -231,6 +239,8 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
+pub type PolyTraitPredicate = Binder<TraitPredicate>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
@@ -243,27 +253,77 @@ impl TraitRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum ExistentialPredicate {
-    Trait(ExistentialTraitRef),
+pub type PolyTraitRef = Binder<TraitRef>;
+
+impl PolyTraitRef {
+    pub fn def_id(&self) -> DefId {
+        self.as_ref().skip_binder().def_id
+    }
+
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::PolyTraitRef<'tcx> {
+        rustc_middle::ty::Binder::bind_with_vars(self.value.to_rustc(tcx), self.vars.to_rustc(tcx))
+    }
 }
 
-impl Binder<ExistentialPredicate> {
-    fn to_rustc<'tcx>(
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+    Projection(ExistentialProjection),
+    AutoTrait(DefId),
+}
+
+pub type PolyExistentialPredicate = Binder<ExistentialPredicate>;
+
+impl ExistentialPredicate {
+    /// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
+    pub fn stable_cmp(&self, tcx: TyCtxt, other: &Self) -> Ordering {
+        match (self, other) {
+            (ExistentialPredicate::Trait(_), ExistentialPredicate::Trait(_)) => Ordering::Equal,
+            (ExistentialPredicate::Projection(a), ExistentialPredicate::Projection(b)) => {
+                tcx.def_path_hash(a.def_id)
+                    .cmp(&tcx.def_path_hash(b.def_id))
+            }
+            (ExistentialPredicate::AutoTrait(a), ExistentialPredicate::AutoTrait(b)) => {
+                tcx.def_path_hash(*a).cmp(&tcx.def_path_hash(*b))
+            }
+            (ExistentialPredicate::Trait(_), _) => Ordering::Less,
+            (ExistentialPredicate::Projection(_), ExistentialPredicate::Trait(_)) => {
+                Ordering::Greater
+            }
+            (ExistentialPredicate::Projection(_), _) => Ordering::Less,
+            (ExistentialPredicate::AutoTrait(_), _) => Ordering::Greater,
+        }
+    }
+}
+
+impl PolyExistentialPredicate {
+    pub fn to_rustc<'tcx>(
         &self,
         tcx: TyCtxt<'tcx>,
-    ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
+    ) -> rustc_middle::ty::PolyExistentialPredicate<'tcx> {
         assert!(self.vars.is_empty());
-        match self.value {
-            ExistentialPredicate::Trait(ref exi_trait_ref) => {
-                let exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
-                    def_id: exi_trait_ref.def_id,
-                    args: exi_trait_ref.args.to_rustc(tcx),
+        let pred = match &self.value {
+            ExistentialPredicate::Trait(trait_ref) => {
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
                 };
-                let exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
-                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
             }
-        }
+            ExistentialPredicate::Projection(projection) => {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) => {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(*def_id)
+            }
+        };
+        rustc_middle::ty::Binder::dummy(pred)
     }
 }
 
@@ -271,6 +331,21 @@ impl Binder<ExistentialPredicate> {
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+pub type PolyExistentialTraitRef = Binder<ExistentialTraitRef>;
+
+impl PolyExistentialTraitRef {
+    pub fn def_id(&self) -> DefId {
+        self.as_ref().skip_binder().def_id
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialProjection {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+    pub term: Ty,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
@@ -285,6 +360,44 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+impl FnTraitPredicate {
+    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+        let mut vars = vec![];
+
+        let closure_ty = Ty::closure(closure_id, tys);
+        let env_ty = match self.kind {
+            ClosureKind::Fn => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
+            ClosureKind::FnOnce => closure_ty,
+        };
+        let inputs = std::iter::once(env_ty)
+            .chain(self.tupled_args.expect_tuple().iter().cloned())
+            .collect();
+
+        let fn_sig = FnSig::new(
+            List::empty(),
+            inputs,
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+        );
+
+        PolyFnSig::new(fn_sig, List::from(vars))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -465,6 +578,89 @@ pub enum Sort {
     Err,
 }
 
+impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
+        Sort::App(ctor, sorts)
+    }
+
+    pub fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
+    #[track_caller]
+    pub fn expect_func(&self) -> &PolyFuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self, Sort::Loc)
+    }
+
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
+    pub fn is_unit_adt(&self) -> Option<DefId> {
+        if let Sort::App(SortCtor::Adt(sort_def), _) = self
+            && sort_def.fields() == 0
+        {
+            Some(sort_def.did())
+        } else {
+            None
+        }
+    }
+
+    /// Whether the sort is a function with return sort bool
+    pub fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
+    }
+
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Int | Self::Real)
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
+            match sort {
+                Sort::Tuple(flds) => {
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::App(SortCtor::Adt(sort_def), args) => {
+                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                _ => {
+                    f(sort, proj);
+                }
+            }
+        }
+        go(self, &mut f, &mut vec![]);
+    }
+}
+
 /// The size of a [bit-vector]
 ///
 /// [bit-vector]: Sort::BitVec
@@ -643,10 +839,108 @@ pub enum BoundVariableKind {
     Refine(Sort, InferMode, BoundReftKind),
 }
 
+impl BoundVariableKind {
+    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
+        if let BoundVariableKind::Refine(sort, mode, kind) = self {
+            (sort, *mode, *kind)
+        } else {
+            bug!("expected `BoundVariableKind::Refine`")
+        }
+    }
+
+    pub fn expect_sort(&self) -> &Sort {
+        self.expect_refine().0
+    }
+}
+
+impl List<BoundVariableKind> {
+    pub fn to_sort_list(&self) -> List<Sort> {
+        self.iter()
+            .map(|kind| {
+                match kind {
+                    BoundVariableKind::Region(_) => {
+                        bug!("`to_sort_list` called on bound variable list with non-refinements")
+                    }
+                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
+                }
+            })
+            .collect()
+    }
+
+    pub fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+        tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
+            match kind {
+                BoundVariableKind::Region(brk) => {
+                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                }
+                BoundVariableKind::Refine(..) => None,
+            }
+        }))
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Binder<T> {
     vars: List<BoundVariableKind>,
     value: T,
+}
+
+impl<T> Binder<T> {
+    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
+        Binder { vars, value }
+    }
+
+    pub fn dummy(value: T) -> Binder<T> {
+        Binder::new(value, List::empty())
+    }
+
+    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
+        let vars = sorts
+            .iter()
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
+            .collect();
+        Binder { vars, value }
+    }
+
+    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
+        Binder::with_sorts(value, &[sort])
+    }
+
+    pub fn vars(&self) -> &List<BoundVariableKind> {
+        &self.vars
+    }
+
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder { vars: self.vars.clone(), value: &self.value }
+    }
+
+    pub fn skip_binder(self) -> T {
+        self.value
+    }
+
+    pub fn rebind<U>(self, value: U) -> Binder<U> {
+        Binder { vars: self.vars, value }
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
+        Binder { vars: self.vars, value: f(self.value) }
+    }
+
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
+        Ok(Binder { vars: self.vars, value: f(self.value)? })
+    }
+
+    #[track_caller]
+    pub fn sort(&self) -> Sort {
+        match &self.vars[..] {
+            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
+            _ => bug!("expected single-sorted binder"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -721,12 +1015,13 @@ impl TyCtor {
 pub type Ty = Interned<TyS>;
 
 impl Ty {
-    /// Dummy type used for the `Self` of a `TraitRef` created for converting
-    /// a trait object, and which gets removed in `ExistentialTraitRef`.
-    /// This type must not appear anywhere in other converted types.
-    /// `Ty::uninit` does the job, because it cannot appear in the surface.
+    /// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
+    /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
+    /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
+    /// on it). `TyKind::Infer(TyVid(0))` does the job, with the caveat that we must skip 0 when
+    /// generating `TyKind::Infer` for "type holes".
     pub fn trait_object_dummy_self() -> Ty {
-        Ty::uninit()
+        Ty::infer(TyVid::from_u32(0))
     }
 
     pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
@@ -882,25 +1177,6 @@ impl Ty {
         TyKind::Infer(vid).intern()
     }
 
-    /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-    /// to have a unique identifier for each position such that we can infer a region substitution
-    /// when assigning a type to a place. This way we can recover the regions in the original rust
-    /// type. See `flux_refineck::type_env::TypeEnv::assign`
-    pub fn replace_regions_with_unique_vars(&self) -> Ty {
-        struct Replacer {
-            next_rvid: u32,
-        }
-        impl TypeFolder for Replacer {
-            fn fold_region(&mut self, _: &Region) -> Region {
-                let rvid = self.next_rvid;
-                self.next_rvid += 1;
-                Region::ReVar(RegionVid::from_u32(rvid))
-            }
-        }
-
-        self.fold_with(&mut Replacer { next_rvid: 0 })
-    }
-
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -938,12 +1214,12 @@ impl Ty {
                     Mutability::Mut,
                 )
             }
+            TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
             TyKind::Uninit
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_)
-            | TyKind::Infer(_) => bug!(),
+            | TyKind::Blocked(_) => bug!(),
         }
     }
 
@@ -1246,8 +1522,8 @@ impl BaseTy {
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
+            BaseTy::Str => Sort::Str,
             BaseTy::Float(_)
-            | BaseTy::Str
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
@@ -1454,7 +1730,7 @@ impl GenericArg {
         }
     }
 
-    fn from_param_def(param: &GenericParamDef) -> Self {
+    pub fn from_param_def(param: &GenericParamDef) -> Self {
         match param.kind {
             GenericParamDefKind::Type { .. } => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
@@ -1505,13 +1781,22 @@ impl GenericArgs {
         }
     }
 
-    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
-        let mut args = vec![];
-        let generics = genv.generics_of(def_id)?;
-        Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
-            GenericArg::from_param_def(param)
-        })?;
+    /// Creates a `GenericArgs` from the definition of generic parameters, by calling a closure to
+    /// obtain arg. The closures get to observe the `GenericArgs` as they're being built, which can
+    /// be used to correctly replace defaults of generic parameters.
+    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<Self>
+    where
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
+    {
+        let defs = genv.generics_of(def_id)?;
+        let count = defs.count();
+        let mut args = Vec::with_capacity(count);
+        Self::fill_item(genv, &mut args, &defs, &mut mk_kind)?;
         Ok(List::from_vec(args))
+    }
+
+    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+        Self::for_item(genv, def_id.into(), |param, _| GenericArg::from_param_def(param))
     }
 
     fn fill_item<F>(
@@ -1545,47 +1830,20 @@ impl Clause {
         Clause { kind: Binder::new(kind, vars.into()) }
     }
 
-    pub fn kind(&self) -> ClauseKind {
-        // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
+    pub fn kind(&self) -> Binder<ClauseKind> {
+        self.kind.clone()
+    }
+
+    // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of
+    // blindly skipping it here
+    pub fn kind_skipping_binder(&self) -> ClauseKind {
         self.kind.clone().skip_binder()
     }
 }
 
-impl FnTraitPredicate {
-    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
-        let mut vars = vec![];
-
-        let closure_ty = Ty::closure(closure_id, tys);
-        let env_ty = match self.kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-        let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect();
-
-        let fn_sig = FnSig::new(
-            List::empty(),
-            inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
-
-        PolyFnSig::new(fn_sig, List::from(vars))
+impl From<Binder<ClauseKind>> for Clause {
+    fn from(kind: Binder<ClauseKind>) -> Self {
+        Clause { kind }
     }
 }
 
@@ -1633,165 +1891,6 @@ impl RefinementGenerics {
     }
 }
 
-impl Sort {
-    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
-        Sort::Tuple(sorts.into())
-    }
-
-    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
-        Sort::App(ctor, sorts)
-    }
-
-    pub fn unit() -> Self {
-        Self::tuple(vec![])
-    }
-
-    #[track_caller]
-    pub fn expect_func(&self) -> &PolyFuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            bug!("expected `Sort::Func`")
-        }
-    }
-
-    pub fn is_unit(&self) -> bool {
-        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
-    }
-
-    pub fn is_unit_adt(&self) -> Option<DefId> {
-        if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && sort_def.fields() == 0
-        {
-            Some(sort_def.did())
-        } else {
-            None
-        }
-    }
-
-    /// Whether the sort is a function with return sort bool
-    pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
-    }
-
-    /// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, Self::Int | Self::Real)
-    }
-
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
-            match sort {
-                Sort::Tuple(flds) => {
-                    for (i, sort) in flds.iter().enumerate() {
-                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                Sort::App(SortCtor::Adt(sort_def), args) => {
-                    for (i, sort) in sort_def.sorts(args).iter().enumerate() {
-                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
-                        go(sort, f, proj);
-                        proj.pop();
-                    }
-                }
-                _ => {
-                    f(sort, proj);
-                }
-            }
-        }
-        go(self, &mut f, &mut vec![]);
-    }
-}
-
-impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
-        if let BoundVariableKind::Refine(sort, mode, kind) = self {
-            (sort, *mode, *kind)
-        } else {
-            bug!("expected `BoundVariableKind::Refine`")
-        }
-    }
-
-    pub fn expect_sort(&self) -> &Sort {
-        self.expect_refine().0
-    }
-}
-
-impl<T> Binder<T> {
-    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
-        Binder { vars, value }
-    }
-
-    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
-        let vars = sorts
-            .iter()
-            .cloned()
-            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
-            .collect();
-        Binder { vars, value }
-    }
-
-    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder::with_sorts(value, &[sort])
-    }
-
-    pub fn vars(&self) -> &List<BoundVariableKind> {
-        &self.vars
-    }
-
-    pub fn as_ref(&self) -> Binder<&T> {
-        Binder { vars: self.vars.clone(), value: &self.value }
-    }
-
-    pub fn skip_binder(self) -> T {
-        self.value
-    }
-
-    pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars, value }
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
-        Binder { vars: self.vars, value: f(self.value) }
-    }
-
-    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
-        Ok(Binder { vars: self.vars, value: f(self.value)? })
-    }
-
-    #[track_caller]
-    pub fn sort(&self) -> Sort {
-        match &self.vars[..] {
-            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
-            _ => bug!("expected single-sorted binder"),
-        }
-    }
-}
-
-impl List<BoundVariableKind> {
-    pub fn to_sort_list(&self) -> List<Sort> {
-        self.iter()
-            .map(|kind| {
-                match kind {
-                    BoundVariableKind::Region(_) => {
-                        bug!("`to_sort_list` called on bound variable list with non-refinements")
-                    }
-                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
-                }
-            })
-            .collect()
-    }
-}
-
 impl<T> EarlyBinder<T> {
     pub fn as_ref(&self) -> EarlyBinder<&T> {
         EarlyBinder(&self.0)
@@ -1814,6 +1913,16 @@ impl<T> EarlyBinder<T> {
 
     pub fn skip_binder(self) -> T {
         self.0
+    }
+
+    pub fn instantiate_identity(self) -> T {
+        self.0
+    }
+}
+
+impl EarlyBinder<GenericPredicates> {
+    pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
+        EarlyBinder(self.0.predicates.clone())
     }
 }
 
@@ -1890,15 +1999,6 @@ impl<T: TypeFoldable> EarlyBinder<T> {
             ))
             .into_ok()
     }
-
-    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
-        self.0
-            .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::IdentitySubstDelegate,
-                refine_args,
-            ))
-            .into_ok()
-    }
 }
 
 impl EarlyBinder<FuncSort> {
@@ -1911,42 +2011,6 @@ impl EarlyBinder<FuncSort> {
             subst::GenericsSubstForSort { sort_for_param },
             &[],
         ))
-    }
-}
-
-impl EarlyBinder<GenericPredicates> {
-    pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
-        EarlyBinder(self.0.predicates.clone())
-    }
-
-    pub fn instantiate_identity(
-        self,
-        genv: GlobalEnv,
-        refine_args: &[Expr],
-    ) -> QueryResult<Vec<Clause>> {
-        let mut predicates = vec![];
-        self.instantiate_identity_into(genv, refine_args, &mut predicates)?;
-        Ok(predicates)
-    }
-
-    fn instantiate_identity_into(
-        self,
-        genv: GlobalEnv,
-        refine_args: &[Expr],
-        predicates: &mut Vec<Clause>,
-    ) -> QueryResult<()> {
-        if let Some(def_id) = self.0.parent {
-            genv.predicates_of(def_id)?
-                .instantiate_identity_into(genv, refine_args, predicates)?;
-        }
-        predicates.extend(
-            self.0
-                .predicates
-                .iter()
-                .cloned()
-                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
-        );
-        Ok(())
     }
 }
 
@@ -2008,13 +2072,7 @@ impl AdtDef {
     }
 
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
-        let sorts = self
-            .sort_def()
-            .filter_generic_args(args)
-            .map(|arg| arg.expect_base().sort())
-            .collect();
-
-        Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
+        self.sort_def().sort(args)
     }
 
     pub fn is_box(&self) -> bool {
@@ -2221,7 +2279,7 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (ParamConst, Sort)
+    (Var, Sort)
 );
 
 #[macro_export]

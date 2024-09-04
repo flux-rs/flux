@@ -1,15 +1,17 @@
+//! This crate contains common type definitions that are used by other crates.
+
 #![feature(
     associated_type_defaults,
     box_patterns,
+    closure_track_caller,
     if_let_guard,
     let_chains,
     min_specialization,
     never_type,
+    precise_capturing,
     rustc_private,
     unwrap_infallible
 )]
-
-//! This crate contains common type definitions that are used by other crates.
 
 extern crate rustc_abi;
 extern crate rustc_ast;
@@ -400,4 +402,82 @@ pub struct ResolverOutput {
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,
+}
+
+/// Id for a local item that may represent an external spec. This enum serves as a type-level
+/// reminder to handle local items cautiously as they can refer to extern specs. The enum is generic
+/// on the local `Id` because sometimes we use it with an [`OwnerId`].
+#[derive(Clone, Copy, Debug)]
+pub enum MaybeExternId<Id = LocalDefId> {
+    /// An id for a local spec.
+    Local(Id),
+    /// An id for an external spec.
+    Extern(Id, DefId),
+}
+
+impl<Id> MaybeExternId<Id> {
+    pub fn map<R>(self, f: impl FnOnce(Id) -> R) -> MaybeExternId<R> {
+        match self {
+            MaybeExternId::Local(local_id) => MaybeExternId::Local(f(local_id)),
+            MaybeExternId::Extern(local_id, def_id) => MaybeExternId::Extern(f(local_id), def_id),
+        }
+    }
+
+    pub fn local_id(self) -> Id {
+        match self {
+            MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
+        }
+    }
+
+    /// Returns `true` if the maybe extern id is [`Local`].
+    ///
+    /// [`Local`]: MaybeExternId::Local
+    #[must_use]
+    pub fn is_local(self) -> bool {
+        matches!(self, Self::Local(..))
+    }
+
+    /// Returns `true` if the maybe extern id is [`Extern`].
+    ///
+    /// [`Extern`]: MaybeExternId::Extern
+    #[must_use]
+    pub fn is_extern(&self) -> bool {
+        matches!(self, Self::Extern(..))
+    }
+
+    pub fn as_local(self) -> Option<Id> {
+        if let MaybeExternId::Local(local_id) = self {
+            Some(local_id)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_extern(self) -> Option<DefId> {
+        if let MaybeExternId::Extern(_, def_id) = self {
+            Some(def_id)
+        } else {
+            None
+        }
+    }
+}
+
+impl<Id: Into<DefId>> MaybeExternId<Id> {
+    /// Returns the [`DefId`] of the extern item if [`Extern`] or convert the local id into a
+    /// [`DefId`] if [`Local`].
+    ///
+    /// [`Local`]: MaybeExternId::Local
+    /// [`Extern`]: MaybeExternId::Extern
+    pub fn resolved_id(self) -> DefId {
+        match self {
+            MaybeExternId::Local(local_id) => local_id.into(),
+            MaybeExternId::Extern(_, def_id) => def_id,
+        }
+    }
+}
+
+impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
+    fn into_query_param(self) -> DefId {
+        self.resolved_id()
+    }
 }

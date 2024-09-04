@@ -71,7 +71,7 @@ impl FluxCallbacks {
             let arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
                 if check_crate(genv).is_ok() {
-                    save_metadata(&genv);
+                    save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -84,6 +84,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
 
         flux_fhir_analysis::check_crate_wf(genv)?;
+
         let mut ck = CrateChecker::new(genv);
 
         let crate_items = genv.tcx().hir_crate_items(());
@@ -113,7 +114,7 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
     }
 }
 
-fn save_metadata(genv: &GlobalEnv) {
+fn save_metadata(genv: GlobalEnv) {
     let tcx = genv.tcx();
     if tcx
         .sess
@@ -150,7 +151,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let mut this = std::panic::AssertUnwindSafe(self);
         let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
-        flux_common::bug::catch_bugs(&msg, move || this.check_def(def_id)).and_then(|err| err)
+        flux_common::bug::catch_bugs(&msg, move || this.check_def(def_id))?
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -163,17 +164,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                // Skip trait methods without body
-                if self
-                    .genv
-                    .tcx()
-                    .hir_node_by_def_id(def_id)
-                    .body_id()
-                    .is_some()
-                {
-                    refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)?;
-                }
-                Ok(())
+                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;

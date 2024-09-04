@@ -177,19 +177,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
-        let extern_id = if attrs.extern_spec()
+        if attrs.extern_spec()
             && let Some(extern_id) =
                 self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
             self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
+        }
 
         self.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_refinements, extern_id });
+            .insert(owner_id, surface::Impl { generics, assoc_refinements });
 
         Ok(())
     }
@@ -211,30 +208,29 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let mut opaque = attrs.opaque();
-
         let refined_by = attrs.refined_by();
-
         let generics = attrs.generics();
 
+        let is_extern_spec = attrs.extern_spec();
+        if is_extern_spec {
+            // If there's only one field it corresponds to the special field to extract the struct
+            // def_id. This means the user didn't specify any fields and thus we consider the struct
+            // as opaque.
+            opaque = data.fields().len() == 1;
+            let extern_id =
+                self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
+        }
+
+        // For extern specs, we skip the last field containing the information to extract the def_id
         let fields = data
             .fields()
             .iter()
+            .take(data.fields().len() - (is_extern_spec as usize))
             .map(|field| self.parse_field_spec(field, opaque))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
-
-        let extern_id = if attrs.extern_spec() {
-            // extern_spec dummy structs are always opaque because they contain
-            // one field: the external struct they are meant to represent.
-            opaque = true;
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
 
         self.specs.structs.insert(
             owner_id,
@@ -245,7 +241,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 opaque,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-                extern_id,
             },
         );
 
@@ -285,30 +280,24 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
-
         let refined_by = attrs.refined_by();
 
-        let enum_variants = if attrs.extern_spec() {
-            enum_def.variants.split_last().unwrap().1
-        } else {
-            enum_def.variants
-        };
+        let is_extern_spec = attrs.extern_spec();
+        if is_extern_spec {
+            let extern_id =
+                self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
+        }
 
-        let variants = enum_variants
+        // For extern specs, we skip the last variant containing the information to extract the def_id
+        let variants = enum_def
+            .variants
             .iter()
+            .take(enum_def.variants.len() - (is_extern_spec as usize))
             .map(|variant| self.parse_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
-
-        let extern_id = if attrs.extern_spec() {
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-            Some(extern_id)
-        } else {
-            None
-        };
 
         self.specs.enums.insert(
             owner_id,
@@ -318,7 +307,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 variants,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-                extern_id,
             },
         );
         Ok(())
@@ -367,7 +355,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
-        let extern_id = if attrs.extern_spec() {
+        if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
                     span: self.tcx.def_span(owner_id),
@@ -376,13 +364,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
             self.specs.insert_extern_id(owner_id.def_id, extern_def_id);
             // We should never check an extern spec (it will infinitely recurse)
-            Some(extern_def_id)
-        } else {
-            None
-        };
+        }
         self.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, qual_names, extern_id });
+            .insert(owner_id, surface::FnSpec { fn_sig, qual_names });
         Ok(())
     }
 
@@ -550,7 +535,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         data: &VariantData,
     ) -> Result<DefId> {
-        if let Some(extern_field) = data.fields().first() {
+        if let Some(extern_field) = data.fields().last() {
             let ty = self.tcx.type_of(extern_field.def_id);
             if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
                 return Ok(adt_def.did());
@@ -565,8 +550,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         enum_def: &EnumDef,
     ) -> Result<DefId> {
         if let Some(fake) = enum_def.variants.last() {
-            let zog = self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data)?;
-            return Ok(zog);
+            return self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data);
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
@@ -639,40 +623,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, trait_ref.def_id, args);
 
         // 5. Resolve the trait_ref to an impl_id
-        let (impl_id, _) =
-            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
-        Some(impl_id)
-    }
-
-    /// Given as input a fake_method_def_id `fake` where
-    ///     `fn fake() where Ty : Trait, {}`
-    /// we want to
-    /// 1. extract the [`TraitRef`] for `<Ty as Trait>` and then
-    /// 2. query [`resolve_trait_ref_impl_id`] to get the impl_id for the above trait-implementation.
-    ///    TODO: sadly the [`resolve_trait_ref_impl_id`] fails for this? see `extern_spec_impl01.rs`
-    ///
-    /// [`TraitRef`]: rustc_middle::ty::TraitRef
-    #[allow(dead_code)]
-    fn extract_extern_def_id_from_extern_spec_impl_new(
-        &mut self,
-        _def_id: LocalDefId,
-        items: &[ImplItemRef],
-    ) -> Option<DefId> {
-        // 1. Find the fake_method's def_id
-        let fake_method_def_id = self.fake_method_of(items)?;
-
-        // 2. Get the fake_method's trait_ref
-        let trait_ref = {
-            self.tcx
-                .predicates_of(fake_method_def_id)
-                .predicates
-                .iter()
-                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| self.is_good_trait_predicate(p))?
-                .trait_ref
-        };
-
-        // 3. Resolve the trait_ref to an impl_id
         let (impl_id, _) =
             resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
         Some(impl_id)

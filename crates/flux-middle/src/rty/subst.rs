@@ -12,11 +12,29 @@ use super::{
 };
 use crate::rty::*;
 
+/// See `flux_refineck::type_env::TypeEnv::assign`
 pub fn match_regions(a: &Ty, b: &rustc::ty::Ty) -> Ty {
-    let a = a.replace_regions_with_unique_vars();
+    let a = replace_regions_with_unique_vars(a);
     let mut subst = RegionSubst::default();
     subst.infer_from_ty(&a, b);
     subst.apply(&a)
+}
+
+/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+/// to have a unique identifier for each position such that we can infer a region substitution.
+fn replace_regions_with_unique_vars(ty: &Ty) -> Ty {
+    struct Replacer {
+        next_rvid: u32,
+    }
+    impl TypeFolder for Replacer {
+        fn fold_region(&mut self, _: &Region) -> Region {
+            let rvid = self.next_rvid;
+            self.next_rvid += 1;
+            Region::ReVar(RegionVid::from_u32(rvid))
+        }
+    }
+
+    ty.fold_with(&mut Replacer { next_rvid: 0 })
 }
 
 #[derive(Default, Debug)]
@@ -68,23 +86,60 @@ impl RegionSubst {
     fn infer_from_bty(&mut self, a: &BaseTy, ty: &rustc::ty::Ty) {
         use rustc::ty;
         match (a, ty.kind()) {
-            (BaseTy::Ref(r1, ty1, _), ty::TyKind::Ref(r2, ty2, _)) => {
-                self.infer_from_region(*r1, *r2);
-                self.infer_from_ty(ty1, ty2);
+            (BaseTy::Ref(re_a, ty_a, _), ty::TyKind::Ref(re_b, ty_b, _)) => {
+                self.infer_from_region(*re_a, *re_b);
+                self.infer_from_ty(ty_a, ty_b);
             }
             (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
-                debug_assert_eq!(args_a.len(), args_b.len());
-                for (arg_a, arg_b) in iter::zip(args_a, args_b) {
-                    self.infer_from_generic_arg(arg_a, arg_b);
+                self.infer_from_generic_args(args_a, args_b);
+            }
+            (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) => {
+                debug_assert_eq!(preds_a.len(), preds_b.len());
+                self.infer_from_region(*re_a, *re_b);
+                for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
+                    self.infer_from_existential_pred(pred_a, pred_b);
                 }
             }
-            (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) => {
-                debug_assert_eq!(fields1.len(), fields2.len());
-                for (ty1, ty2) in iter::zip(fields1, fields2) {
-                    self.infer_from_ty(ty1, ty2);
+            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
+                debug_assert_eq!(fields_a.len(), fields_b.len());
+                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
+                    self.infer_from_ty(ty_a, ty_b);
                 }
             }
             _ => {}
+        }
+    }
+
+    fn infer_from_existential_pred(
+        &mut self,
+        a: &PolyExistentialPredicate,
+        b: &rustc::ty::PolyExistentialPredicate,
+    ) {
+        use rustc::ty;
+        match (a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
+            (
+                ExistentialPredicate::Trait(trait_ref_a),
+                ty::ExistentialPredicate::Trait(trait_ref_b),
+            ) => {
+                debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
+                self.infer_from_generic_args(&trait_ref_a.args, &trait_ref_b.args);
+            }
+            (
+                ExistentialPredicate::Projection(proj_a),
+                ty::ExistentialPredicate::Projection(proj_b),
+            ) => {
+                debug_assert_eq!(proj_a.def_id, proj_b.def_id);
+                self.infer_from_generic_args(&proj_a.args, &proj_b.args);
+                self.infer_from_ty(&proj_a.term, &proj_b.term);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_generic_args(&mut self, a: &GenericArgs, b: &rustc::ty::GenericArgs) {
+        debug_assert_eq!(a.len(), b.len());
+        for (arg_a, arg_b) in iter::zip(a, b) {
+            self.infer_from_generic_arg(arg_a, arg_b);
         }
     }
 
@@ -264,42 +319,6 @@ pub trait GenericsSubstDelegate {
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
-}
-
-/// The identity substitution used when checking the body of a (polymorphic) function. For example,
-/// consider the function `fn foo<T>(){ .. }`
-///
-/// Outside of `foo`, `T` is bound (represented by the presence of `EarlyBinder`). Inside of the body
-/// of `foo`, we treat `T` as a placeholder.
-pub(crate) struct IdentitySubstDelegate;
-
-impl GenericsSubstDelegate for IdentitySubstDelegate {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
-        Ok(Sort::Param(param_ty))
-    }
-
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
-        Ty::param(param_ty)
-    }
-
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
-        Binder::with_sort(
-            SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
-            Sort::Param(param_ty),
-        )
-    }
-
-    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
-        ReEarlyParam(ebr)
-    }
-
-    fn const_for_param(&mut self, param: &Const) -> Const {
-        param.clone()
-    }
-
-    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
-        Expr::var(Var::ConstGeneric(param_const), None)
-    }
 }
 
 /// A substitution with an explicit list of generic arguments.

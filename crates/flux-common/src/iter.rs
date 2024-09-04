@@ -86,7 +86,7 @@ where
             match x {
                 Ok(x) => f(acc, x),
                 Err(e) => {
-                    self.collector.collect_err(e);
+                    self.collector.collect(e);
                     try { acc }
                 }
             }

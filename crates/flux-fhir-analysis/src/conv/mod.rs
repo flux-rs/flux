@@ -17,17 +17,19 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
+    query_bug,
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self},
+    rustc, MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashSet;
 use rustc_hir::{
     self as hir,
     def::DefKind,
@@ -89,8 +91,8 @@ struct ParamEntry {
 #[derive(Debug)]
 struct LookupResult<'a> {
     kind: LookupResultKind<'a>,
-    /// The span of the variable that originated the lookup. Used to report bugs.
-    span: Span,
+    /// The span of the variable that originated the lookup.
+    var_span: Span,
 }
 
 #[derive(Debug)]
@@ -100,13 +102,13 @@ enum LookupResultKind<'a> {
         entry: &'a ParamEntry,
         kind: LayerKind,
         /// The index of the parameter in the layer.
-        idx: u32,
+        index: u32,
     },
     EarlyParam {
         name: Symbol,
         sort: rty::Sort,
         /// The index of the parameter.
-        idx: u32,
+        index: u32,
     },
 }
 
@@ -118,7 +120,7 @@ pub(crate) fn conv_adt_sort_def(
     let params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
+        .map(|def_id| def_id_to_param_ty(genv, *def_id))
         .collect();
     let fields = refined_by
         .fields
@@ -133,14 +135,15 @@ pub(crate) fn conv_adt_sort_def(
 
 pub(crate) fn expand_type_alias(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
+    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
 
-    let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), alias.params)?);
+    let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
+    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
 
@@ -197,21 +200,21 @@ pub(crate) fn conv_opaque_ty(
 
 pub(crate) fn conv_generics(
     genv: GlobalEnv,
-    rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
-    extern_id: Option<DefId>,
-    is_trait: Option<LocalDefId>,
+    def_id: MaybeExternId,
+    is_trait: bool,
 ) -> QueryResult<rty::Generics> {
-    let opt_self = is_trait.map(|def_id| {
+    let opt_self = is_trait.then(|| {
         let kind = generics
             .self_kind
             .as_ref()
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
-        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
+        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
+    let rust_generics = genv.tcx().generics_of(def_id.local_id());
     let mut params = opt_self
         .into_iter()
-        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+        .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
             let param = generics
                 .params
@@ -228,9 +231,9 @@ pub(crate) fn conv_generics(
         .collect_vec();
 
     // HACK(nilehmann) add host param for effect to std/core external specs
-    if let Some(extern_id) = extern_id {
+    if let Some(extern_id) = def_id.as_extern() {
         if let Some((pos, param)) = genv
-            .lower_generics_of(extern_id)?
+            .lower_generics_of(extern_id)
             .params
             .iter()
             .find_position(|p| p.is_host_effect())
@@ -249,9 +252,9 @@ pub(crate) fn conv_generics(
 
     Ok(rty::Generics {
         own_params: List::from_vec(params),
-        parent: rust_generics.parent(),
-        parent_count: rust_generics.parent_count(),
-        has_self: rust_generics.orig.has_self,
+        parent: rust_generics.parent,
+        parent_count: rust_generics.parent_count,
+        has_self: rust_generics.has_self,
     })
 }
 
@@ -265,7 +268,7 @@ pub(crate) fn conv_refinement_generics(
         .map(|param| {
             let sort = resolve_param_sort(genv, param, wfckresults)?;
             let mode = rty::InferMode::from_param_kind(param.kind);
-            Ok(rty::RefineParam { sort, mode })
+            Ok(rty::RefineParam { sort, name: param.name, mode })
         })
         .try_collect()
 }
@@ -285,14 +288,14 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
 
 pub(crate) fn conv_invariants(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
     wfckresults: &WfckResults,
 ) -> QueryResult<Vec<rty::Invariant>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
 }
 
@@ -328,15 +331,17 @@ pub(crate) fn conv_qualifier(
 
 pub(crate) fn conv_fn_decl(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     decl: &fhir::FnDecl,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
-    let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
+    let late_bound_regions =
+        refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id.local_id())?);
 
-    let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults)?;
+    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
+    let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
     let mut requires = vec![];
@@ -389,7 +394,15 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults, next_type_index: 0, next_region_index: 0, next_const_index: 0 }
+        Self {
+            genv,
+            wfckresults,
+            // We start from 1 to skip the trait object dummy self type.
+            // See [`rty::Ty::trait_object_dummy_self`]
+            next_type_index: 1,
+            next_region_index: 0,
+            next_const_index: 0,
+        }
     }
 
     fn conv_generic_bounds(
@@ -442,38 +455,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(clauses)
     }
 
-    fn conv_poly_trait_ref_dyn(
-        &mut self,
-        env: &mut Env,
-        poly_trait_ref: &fhir::PolyTraitRef,
-    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
-        let trait_segment = poly_trait_ref.trait_ref.last_segment();
-
-        if !poly_trait_ref.bound_generic_params.is_empty() {
-            bug!(
-                "unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}",
-                poly_trait_ref.bound_generic_params
-            );
-        }
-
-        let def_id = poly_trait_ref.trait_def_id();
-        let dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
-        let mut into = vec![dummy_self];
-        self.conv_generic_args_into(env, def_id, trait_segment, &mut into)?;
-
-        // Remove dummy `Self`
-        into.remove(0);
-
-        let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
-        let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
-        Ok(rty::Binder::new(exi_pred, List::empty()))
-    }
-
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
     fn conv_poly_trait_ref(
         &mut self,
         env: &mut Env,
-        bounded_ty_span: Span,
+        span: Span,
         bounded_ty: &rty::Ty,
         poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
@@ -483,53 +469,73 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         let self_param = generics.param_at(0, self.genv)?;
-        let mut args =
-            vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
+        let mut args = vec![self.ty_to_generic_arg(self_param.kind, span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
-        let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
-        let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         let vars = poly_trait_ref
             .bound_generic_params
             .iter()
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
-        clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+        let poly_trait_ref = rty::Binder::new(
+            rty::TraitRef { def_id: trait_id, args: args.into() },
+            List::from_vec(vars),
+        );
 
-        for binding in trait_segment.bindings {
-            self.conv_type_binding(env, &trait_ref, binding, clauses)?;
+        clauses.push(
+            poly_trait_ref
+                .clone()
+                .map(|trait_ref| {
+                    rty::ClauseKind::Trait(rty::TraitPredicate { trait_ref: trait_ref.clone() })
+                })
+                .into(),
+        );
+
+        for cstr in trait_segment.constraints {
+            self.conv_assoc_item_constraint(env, &poly_trait_ref, cstr, clauses)?;
         }
 
         Ok(())
     }
 
-    fn conv_type_binding(
+    fn conv_assoc_item_constraint(
         &mut self,
         env: &mut Env,
-        trait_ref: &rty::TraitRef,
-        binding: &fhir::TypeBinding,
+        poly_trait_ref: &rty::PolyTraitRef,
+        constraint: &fhir::AssocItemConstraint,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let tcx = self.genv.tcx();
-        let rustc_trait_ref = trait_ref.to_rustc(tcx);
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
-            binding.ident,
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
+            constraint.ident,
         )?;
-        let assoc_item = self
-            .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
-            .unwrap();
+        let assoc_item_id = self
+            .trait_defines_associated_item_named(
+                candidate.def_id(),
+                AssocKind::Type,
+                constraint.ident,
+            )
+            .unwrap()
+            .def_id;
 
-        // TODO: when we support generic associated types, we need to also attach the associated generics here
-        let args = trait_ref.args.clone();
-        let refine_args = List::empty();
-        let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
-        let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-            projection_ty: alias_ty,
-            term: self.conv_ty(env, &binding.term)?,
-        });
-        clauses.push(rty::Clause::new(List::empty(), kind));
+        let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
+        let term = self.conv_ty(env, term)?;
+
+        let clause = poly_trait_ref
+            .clone()
+            .map(|trait_ref| {
+                // TODO: when we support generic associated types, we need to also attach the associated generics here
+                let args = trait_ref.args;
+                let refine_args = List::empty();
+                let projection_ty = rty::AliasTy { def_id: assoc_item_id, args, refine_args };
+
+                rty::ClauseKind::Projection(rty::ProjectionPredicate { projection_ty, term })
+            })
+            .into();
+
+        clauses.push(clause);
         Ok(())
     }
 
@@ -568,10 +574,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[])?;
         env.push_layer(layer);
 
+        let fhir::AssocItemConstraintKind::Equality { term } =
+            &path.last_segment().constraints[0].kind;
+
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: self.conv_ty(env, path.last_segment().args[0].expect_type())?,
-            output: self.conv_ty(env, &path.last_segment().bindings[0].term)?,
+            output: self.conv_ty(env, term)?,
             kind,
         };
         // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
@@ -615,9 +624,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(output, vars))
     }
 
-    pub(crate) fn conv_enum_def_variants(
+    pub(crate) fn conv_enum_variants(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
@@ -634,7 +643,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn conv_enum_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         variant: &fhir::VariantDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
@@ -643,17 +652,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, variant.params)?);
 
-        let adt_def = genv.adt_def(adt_def_id)?;
         let fields = variant
             .fields
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
 
+        let adt_def = genv.adt_def(adt_def_id)?;
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
             fields,
             idxs,
         );
@@ -661,9 +670,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)?))
     }
 
-    pub(crate) fn conv_struct_def_variant(
+    pub(crate) fn conv_struct_variant(
         genv: GlobalEnv,
-        adt_def_id: LocalDefId,
+        adt_def_id: MaybeExternId,
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<Vec<rty::PolyVariant>>> {
@@ -681,7 +690,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id.to_def_id(),
+                adt_def_id.resolved_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -694,7 +703,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
                 fields,
                 idx,
             );
@@ -740,7 +749,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         alias: &fhir::AliasReft,
     ) -> QueryResult<rty::AliasReft> {
         let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
-            bug!("expected trait")
+            span_bug!(alias.path.span, "expected trait")
         };
         let trait_segment = alias.path.last_segment();
 
@@ -816,14 +825,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
                 self.conv_opaque_ty(env, *item_id, lifetimes, reft_args)
             }
-            fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
-                let exi_preds: List<_> = poly_traits
-                    .iter()
-                    .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
-                    .try_collect()?;
-                let region = self.conv_lifetime(env, *lft);
+            fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    Ok(rty::Ty::dynamic(exi_preds, region))
+                    self.conv_trait_object(env, trait_bounds, *lft)
                 } else {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
@@ -832,6 +836,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    /// Code adapted from <https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099>
     fn conv_opaque_ty(
         &mut self,
         env: &mut Env,
@@ -840,21 +845,130 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         reft_args: &[fhir::RefineArg],
     ) -> QueryResult<rty::Ty> {
         let def_id = item_id.owner_id.to_def_id();
-        let args = lifetimes
-            .iter()
-            .map(|arg| {
-                let fhir::GenericArg::Lifetime(lft) = arg else {
-                    bug!("only lifetimes supported for opaque types")
+        let generics = self.genv.generics_of(def_id)?;
+        let args = rty::GenericArgs::for_item(self.genv, def_id, |param, _| {
+            if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())
+            {
+                // Resolve our own lifetime parameters.
+                let rty::GenericParamDefKind::Lifetime { .. } = param.kind else {
+                    span_bug!(
+                        self.genv.tcx().def_span(param.def_id),
+                        "only expected lifetime for opaque's own generics, got {:?}",
+                        param.kind
+                    );
+                };
+                let fhir::GenericArg::Lifetime(lft) = &lifetimes[i] else {
+                    bug!(
+                        "expected lifetime argument for param {param:?}, found {:?}",
+                        &lifetimes[i]
+                    )
                 };
                 rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
-            })
-            .collect();
+            } else {
+                rty::GenericArg::from_param_def(param)
+            }
+        })?;
         let reft_args = reft_args
             .iter()
             .map(|arg| self.conv_refine_arg(env, arg))
             .try_collect()?;
         let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
         Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+    }
+
+    fn conv_trait_object(
+        &mut self,
+        env: &mut Env,
+        trait_bounds: &[fhir::PolyTraitRef],
+        lifetime: fhir::Lifetime,
+    ) -> QueryResult<rty::Ty> {
+        // We convert all the trait bounds into existential predicates. Some combinations won't yield
+        // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
+        // errors here, but that's fine because we should catch them when we check structural
+        // compatibility with the unrefined rust type. We must be careful with producing predicates
+        // in the same order that rustc does.
+
+        let mut bounds = vec![];
+        let dummy_self = rty::Ty::trait_object_dummy_self();
+        for trait_bound in trait_bounds.iter().rev() {
+            self.conv_poly_trait_ref(env, trait_bound.span, &dummy_self, trait_bound, &mut bounds)?;
+        }
+
+        // Separate trait bounds and projections bounds
+        let mut trait_bounds = vec![];
+        let mut projection_bounds = vec![];
+        for pred in bounds {
+            let bound_pred = pred.kind();
+            let vars = bound_pred.vars().clone();
+            match bound_pred.skip_binder() {
+                rty::ClauseKind::Trait(trait_pred) => {
+                    trait_bounds.push(rty::Binder::new(trait_pred.trait_ref, vars));
+                }
+                rty::ClauseKind::Projection(proj) => {
+                    projection_bounds.push(rty::Binder::new(proj, vars));
+                }
+                rty::ClauseKind::TypeOutlives(_) => {}
+                rty::ClauseKind::FnTrait(..)
+                | rty::ClauseKind::ConstArgHasType(..)
+                | rty::ClauseKind::CoroutineOblig(..) => {
+                    bug!("did not expect {pred:?} clause in object bounds");
+                }
+            }
+        }
+
+        // Separate between regular from auto traits
+        let (mut auto_traits, regular_traits): (Vec<_>, Vec<_>) = trait_bounds
+            .into_iter()
+            .partition(|trait_ref| self.genv.tcx().trait_is_auto(trait_ref.def_id()));
+
+        // De-duplicate auto traits preserving order
+        {
+            let mut duplicates = FxHashSet::default();
+            auto_traits.retain(|trait_ref| duplicates.insert(trait_ref.def_id()));
+        }
+
+        let regular_trait_predicates = regular_traits.into_iter().map(|poly_trait_ref| {
+            poly_trait_ref.map(|trait_ref| {
+                // Remove dummy self
+                let args = trait_ref.args.iter().skip(1).cloned().collect();
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args,
+                })
+            })
+        });
+
+        let auto_trait_predicates = auto_traits.into_iter().map(|trait_def| {
+            rty::Binder::dummy(rty::ExistentialPredicate::AutoTrait(trait_def.def_id()))
+        });
+
+        let existential_projections = projection_bounds.into_iter().map(|bound| {
+            bound.map(|proj| {
+                // Remove dummy self
+                let args = proj.projection_ty.args.iter().skip(1).cloned().collect();
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: proj.projection_ty.def_id,
+                    args,
+                    term: proj.term.clone(),
+                })
+            })
+        });
+
+        let existential_predicates = {
+            let mut v = regular_trait_predicates
+                .chain(existential_projections)
+                .chain(auto_trait_predicates)
+                .collect_vec();
+            v.sort_by(|a, b| {
+                a.as_ref()
+                    .skip_binder()
+                    .stable_cmp(self.genv.tcx(), b.as_ref().skip_binder())
+            });
+            List::from_vec(v)
+        };
+
+        let region = self.conv_lifetime(env, lifetime);
+        Ok(rty::Ty::dynamic(existential_predicates, region))
     }
 
     fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
@@ -887,8 +1001,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         }
                     }
                     fhir::Res::Def(DefKind::TyParam, def_id) => {
-                        let owner_id = self.genv.hir().ty_param_owner(def_id.expect_local());
-                        let param_ty = self.genv.def_id_to_param_ty(def_id.expect_local());
+                        let owner_id = self.genv.tcx().parent(def_id);
+                        let param_ty = def_id_to_param_ty(self.genv, def_id);
                         let param = self
                             .genv
                             .generics_of(owner_id)?
@@ -967,9 +1081,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
             }
         };
-        let generics = self.generics_of_owner()?;
 
-        let trait_ref = self.refine_trait_ref(&generics, bound)?;
+        let Some(trait_ref) = bound.no_bound_vars() else {
+            // This is a programmer error and we should gracefully report it. It's triggered
+            // by code like this
+            // ```
+            // trait Super<'a> { type Assoc; }
+            // trait Child: for<'a> Super<'a> {}
+            // fn foo<T: Child>(x: T::Assoc) {}
+            // ```
+            Err(self.genv.sess().emit_err(
+                query_bug!("associated path with uninferred generic parameters")
+                    .at(assoc_ident.span),
+            ))?
+        };
+
+        let trait_ref = {
+            let generics = self.generics_of_owner()?;
+            let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
+            Refiner::default(self.genv, &generics).refine_trait_ref(&trait_ref)?
+        };
 
         let assoc_item = self
             .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
@@ -1013,7 +1144,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         all_candidates: impl Fn() -> I,
         assoc_ident: rustc_span::symbol::Ident,
-    ) -> Result<ty::TraitRef<'tcx>, ErrorGuaranteed>
+    ) -> Result<ty::PolyTraitRef<'tcx>, ErrorGuaranteed>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
@@ -1036,19 +1167,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
         }
 
-        let Some(bound) = bound.no_bound_vars() else {
-            bug!("higher-ranked trait bounds not supported yet");
-        };
         Ok(bound)
-    }
-
-    fn refine_trait_ref(
-        &self,
-        item_generics: &rty::Generics,
-        trait_ref: ty::TraitRef<'tcx>,
-    ) -> QueryResult<rty::TraitRef> {
-        let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
-        Refiner::default(self.genv, item_generics).refine_trait_ref(&trait_ref)
     }
 
     fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
@@ -1061,7 +1180,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
-                let index = self.genv.def_id_to_param_index(def_id.expect_local());
+                let index = self.genv.def_id_to_param_index(def_id);
                 let name = lifetime_name(def_id.expect_local());
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
@@ -1086,41 +1205,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match cst.kind {
             fhir::ConstArgKind::Lit(lit) => rty::Const::from_usize(self.genv.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) => {
-                rty::Const { kind: rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id)) }
+                rty::Const {
+                    kind: rty::ConstKind::Param(
+                        self.genv.def_id_to_param_const(def_id.expect_local()),
+                    ),
+                }
             }
             fhir::ConstArgKind::Infer => {
                 rty::Const {
                     kind: rty::ConstKind::Infer(ty::InferConst::Var(self.next_const_vid())),
                 }
-            }
-        }
-    }
-
-    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
-        match &arg.kind {
-            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
-            fhir::RefineArgKind::Abs(params, body) => {
-                let layer = Layer::list(self, 0, params)?;
-
-                env.push_layer(layer);
-                let pred = self.conv_expr(env, body)?;
-                let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-                let output = self
-                    .wfckresults
-                    .node_sorts()
-                    .get(arg.fhir_id)
-                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
-                    .clone();
-                let lam = rty::Lambda::with_vars(pred, inputs, output);
-                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
-            }
-            fhir::RefineArgKind::Record(flds) => {
-                let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
-                let flds = flds
-                    .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                Ok(rty::Expr::adt(*def_id, flds))
             }
         }
     }
@@ -1145,11 +1239,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                rty::BaseTy::Param(self.genv.def_id_to_param_ty(def_id.expect_local()))
+                rty::BaseTy::Param(def_id_to_param_ty(self.genv, *def_id))
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
+                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity());
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, path.last_segment())?;
@@ -1281,26 +1375,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn ty_to_generic_arg(
         &self,
         kind: rty::GenericParamDefKind,
-        ty_span: Span,
+        span: Span,
         ty: &rty::Ty,
     ) -> QueryResult<rty::GenericArg> {
         match kind {
             rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
-            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty_span, ty),
-            _ => bug!("unexpected param kind `{kind:?}`"),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(span, ty),
+            _ => span_bug!(span, "unexpected param kind `{kind:?}`"),
         }
     }
 
     /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
-    fn ty_to_base_generic(&self, ty_span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
+    fn ty_to_base_generic(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
         let ctor = ty
             .shallow_canonicalize()
             .to_subset_ty_ctor()
             .ok_or_else(|| {
                 self.genv
                     .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(ty_span))
+                    .emit_err(errors::InvalidBaseInstance::new(span))
             })?;
         Ok(rty::GenericArg::Base(ctor))
     }
@@ -1370,17 +1464,17 @@ impl Env {
                 let kind = LookupResultKind::LateBound {
                     debruijn,
                     entry,
-                    idx: idx as u32,
+                    index: idx as u32,
                     kind: layer.kind,
                 };
-                return LookupResult { span: var.span, kind };
+                return LookupResult { var_span: var.span, kind };
             }
         }
         if let Some((idx, _, (name, sort))) = self.early_bound.get_full(&id) {
             LookupResult {
-                span: var.span,
+                var_span: var.span,
                 kind: LookupResultKind::EarlyParam {
-                    idx: idx as u32,
+                    index: idx as u32,
                     name: *name,
                     sort: sort.clone(),
                 },
@@ -1404,39 +1498,74 @@ impl ConvCtxt<'_, '_, '_> {
         self.wfckresults.owner
     }
 
+    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
+            fhir::RefineArgKind::Abs(params, body) => {
+                let layer = Layer::list(self, 0, params)?;
+
+                env.push_layer(layer);
+                let pred = self.conv_expr(env, body)?;
+                let inputs = env.pop_layer().into_bound_vars(self.genv)?;
+                let output = self
+                    .wfckresults
+                    .node_sorts()
+                    .get(arg.fhir_id)
+                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
+                    .clone();
+                let lam = rty::Lambda::with_vars(pred, inputs, output);
+                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
+            }
+            fhir::RefineArgKind::Record(flds) => {
+                let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
+                let flds = flds
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .try_collect()?;
+                Ok(rty::Expr::adt(*def_id, flds))
+            }
+        }
+    }
+
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
-        let espan = Some(ESpan::new(expr.span));
+        let espan = ESpan::new(expr.span);
         let expr = match &expr.kind {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::Const(def_id) => rty::ExprKind::ConstDefId(def_id).intern_at(espan),
                     ExprRes::ConstGeneric(def_id) => {
-                        rty::Expr::const_generic(self.genv.def_id_to_param_const(def_id), espan)
+                        rty::ExprKind::Var(rty::Var::ConstGeneric(
+                            self.genv.def_id_to_param_const(def_id.expect_local()),
+                        ))
+                        .intern_at(espan)
                     }
                     ExprRes::NumConst(num) => {
-                        rty::Expr::constant_at(rty::Constant::from(num), espan)
+                        rty::ExprKind::Constant(rty::Constant::from(num)).intern_at(espan)
                     }
                     ExprRes::GlobalFunc(..) => {
                         span_bug!(var.span, "unexpected func in var position")
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
+            fhir::ExprKind::Literal(lit) => {
+                rty::ExprKind::Constant(conv_lit(*lit)).intern_at(espan)
+            }
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::Expr::binary_op(
+                rty::ExprKind::BinaryOp(
                     self.conv_bin_op(*op, expr.fhir_id),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
-                    espan,
                 )
+                .intern_at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?, espan)
+                rty::ExprKind::UnaryOp(conv_un_op(*op), self.conv_expr(env, e)?).intern_at(espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
+                rty::ExprKind::App(self.conv_func(env, func), self.conv_exprs(env, args)?)
+                    .intern_at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
                 let args = args
@@ -1444,17 +1573,17 @@ impl ConvCtxt<'_, '_, '_> {
                     .map(|arg| self.conv_expr(env, arg))
                     .try_collect()?;
                 let alias = self.conv_alias_reft(env, alias)?;
-                rty::Expr::alias(alias, args)
+                rty::ExprKind::Alias(alias, args).intern_at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
-                rty::Expr::ite(
+                rty::ExprKind::IfThenElse(
                     self.conv_expr(env, p)?,
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
-                    espan,
                 )
+                .intern_at(espan)
             }
-            fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld),
+            fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld, espan),
         };
         Ok(self.add_coercions(expr, fhir_id))
     }
@@ -1527,9 +1656,16 @@ impl ConvCtxt<'_, '_, '_> {
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match *coercion {
-                    rty::Coercion::Inject(def_id) => rty::Expr::adt(def_id, List::singleton(expr)),
+                    rty::Coercion::Inject(def_id) => {
+                        rty::ExprKind::Aggregate(
+                            rty::AggregateKind::Adt(def_id),
+                            List::singleton(expr),
+                        )
+                        .intern_at_opt(span)
+                    }
                     rty::Coercion::Project(def_id) => {
-                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 }, span)
+                        rty::ExprKind::FieldProj(expr, rty::FieldProj::Adt { def_id, field: 0 })
+                            .intern_at_opt(span)
                     }
                 };
             }
@@ -1606,26 +1742,40 @@ impl ParamEntry {
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
+        let espan = ESpan::new(self.var_span);
         match &self.kind {
-            LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } => {
+            LookupResultKind::LateBound {
+                debruijn,
+                entry: ParamEntry { name, .. },
+                kind,
+                index,
+            } => {
                 match *kind {
                     LayerKind::List { bound_regions } => {
-                        rty::Expr::bvar(
+                        rty::ExprKind::Var(rty::Var::Bound(
                             *debruijn,
-                            BoundVar::from_u32(bound_regions + *idx),
-                            rty::BoundReftKind::Named(*name),
-                        )
+                            rty::BoundReft {
+                                var: BoundVar::from_u32(bound_regions + *index),
+                                kind: rty::BoundReftKind::Named(*name),
+                            },
+                        ))
+                        .intern_at(espan)
                     }
                     LayerKind::Coalesce(def_id) => {
-                        rty::Expr::field_proj(
-                            rty::Expr::bvar(*debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon),
-                            rty::FieldProj::Adt { def_id, field: *idx },
-                            None,
-                        )
+                        let var = rty::ExprKind::Var(rty::Var::Bound(
+                            *debruijn,
+                            rty::BoundReft { var: BoundVar::ZERO, kind: rty::BoundReftKind::Annon },
+                        ))
+                        .intern_at(espan);
+                        rty::ExprKind::FieldProj(var, rty::FieldProj::Adt { def_id, field: *index })
+                            .intern_at(espan)
                     }
                 }
             }
-            LookupResultKind::EarlyParam { idx, name, .. } => rty::Expr::early_param(*idx, *name),
+            &LookupResultKind::EarlyParam { index, name, .. } => {
+                rty::ExprKind::Var(rty::Var::EarlyParam(rty::EarlyReftParam { index, name }))
+                    .intern_at(espan)
+            }
         }
     }
 
@@ -1644,22 +1794,22 @@ impl LookupResult<'_> {
     }
 
     fn to_path(&self) -> rty::Path {
-        self.to_expr()
-            .to_path()
-            .unwrap_or_else(|| span_bug!(self.span, "expected path, found `{:?}`", self.to_expr()))
+        self.to_expr().to_path().unwrap_or_else(|| {
+            span_bug!(self.var_span, "expected path, found `{:?}`", self.to_expr())
+        })
     }
 
-    fn get_field(&self, fld: Ident) -> rty::Expr {
+    fn get_field(&self, fld: Ident, espan: ESpan) -> rty::Expr {
         if let Some(sort_def) = self.is_adt() {
             let def_id = sort_def.did();
             let i = sort_def
                 .field_index(fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
-            rty::Expr::field_proj(
+            rty::ExprKind::FieldProj(
                 self.to_expr(),
                 rty::FieldProj::Adt { def_id, field: i as u32 },
-                None,
             )
+            .intern_at(espan)
         } else {
             span_bug!(fld.span, "expected adt sort")
         }
@@ -1738,7 +1888,7 @@ fn conv_sort_path(
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return Ok(rty::Sort::Real),
         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) => {
-            return Ok(rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local())))
+            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)))
         }
         fhir::SortRes::SelfParam { .. } => return Ok(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } => {
@@ -1802,6 +1952,18 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
         fhir::UnOp::Not => rty::UnOp::Not,
         fhir::UnOp::Neg => rty::UnOp::Neg,
     }
+}
+
+fn def_id_to_param_ty(genv: GlobalEnv, def_id: DefId) -> rty::ParamTy {
+    let def_kind = genv.tcx().def_kind(def_id);
+    let name = match def_kind {
+        DefKind::Trait | DefKind::TraitAlias => kw::SelfUpper,
+        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam => {
+            genv.tcx().item_name(def_id)
+        }
+        _ => bug!("ty_param_name: {:?} is a {:?} not a type parameter", def_id, def_kind),
+    };
+    rty::ParamTy { index: genv.def_id_to_param_index(def_id), name }
 }
 
 mod errors {

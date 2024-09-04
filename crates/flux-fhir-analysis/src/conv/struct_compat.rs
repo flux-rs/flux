@@ -17,27 +17,27 @@ use flux_middle::{
         refining::Refiner,
     },
     rustc::ty::{self, FieldIdx, VariantIdx},
+    MaybeExternId,
 };
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
 pub(crate) fn type_alias(
     genv: GlobalEnv,
     alias: &fhir::TyAlias,
     ty: &rty::Ty,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::Ty> {
-    let rust_ty = genv.lower_type_of(def_id)?.skip_binder();
+    let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_ty(&rust_ty)?;
-    let mut zipper = Zipper::new(genv, def_id.to_def_id());
+    let mut zipper = Zipper::new(genv, def_id);
 
     if zipper.zip_ty(ty, &expected).is_err() {
         zipper
             .errors
-            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id.to_def_id(), alias));
+            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
     }
 
     zipper.errors.into_result()?;
@@ -49,11 +49,9 @@ pub(crate) fn fn_sig(
     genv: GlobalEnv,
     decl: &fhir::FnDecl,
     fn_sig: &rty::PolyFnSig,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::PolyFnSig> {
-    let def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
-
-    let rust_fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
+    let rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
 
@@ -70,17 +68,15 @@ pub(crate) fn fn_sig(
 pub(crate) fn variants(
     genv: GlobalEnv,
     variants: &[rty::PolyVariant],
-    adt_def_id: LocalDefId,
+    adt_def_id: MaybeExternId,
 ) -> QueryResult<Vec<rty::PolyVariant>> {
-    let adt_def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
-
     let generics = genv.generics_of(adt_def_id)?;
     let refiner = Refiner::default(genv, &generics);
     let mut zipper = Zipper::new(genv, adt_def_id);
     // TODO check same number of variants
     for (i, variant) in variants.iter().enumerate() {
         let variant_idx = VariantIdx::from_usize(i);
-        let expected = refiner.refine_variant_def(adt_def_id, variant_idx)?;
+        let expected = refiner.refine_variant_def(adt_def_id.resolved_id(), variant_idx)?;
         zipper.zip_variant(variant, &expected, variant_idx);
     }
 
@@ -94,7 +90,7 @@ pub(crate) fn variants(
 
 struct Zipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    owner_id: DefId,
+    owner_id: MaybeExternId,
     locs: UnordMap<rty::Loc, rty::Ty>,
     holes: Holes,
     a_index: DebruijnIndex,
@@ -147,7 +143,7 @@ impl Holes {
 }
 
 impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, owner_id: DefId) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, owner_id: MaybeExternId) -> Self {
         Self {
             genv,
             owner_id,
@@ -190,7 +186,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     fn zip_fn_sig(&mut self, decl: &fhir::FnDecl, a: &rty::FnSig, b: &rty::FnSig) {
         if a.inputs().len() != b.inputs().len() {
             self.errors
-                .emit(errors::IncompatiblParamCount::new(self.genv, decl, self.owner_id));
+                .emit(errors::IncompatibleParamCount::new(self.genv, decl, self.owner_id));
             return;
         }
         for (i, (ty_a, ty_b)) in iter::zip(a.inputs(), b.inputs()).enumerate() {
@@ -239,7 +235,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Error> {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Infer(vid), _) => {
+            (rty::TyKind::Infer(vid), _) if a != &rty::Ty::trait_object_dummy_self() => {
                 let b = self.adjust_binders(b);
                 self.holes.types.insert(*vid, b);
                 Ok(())
@@ -418,6 +414,22 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     }
                     Ok(())
                 }
+                (
+                    rty::ExistentialPredicate::Projection(projection_a),
+                    rty::ExistentialPredicate::Projection(projection_b),
+                ) => {
+                    assert_eq_or_incompatible(projection_a.def_id, projection_b.def_id)?;
+                    assert_eq_or_incompatible(projection_a.args.len(), projection_b.args.len())?;
+                    for (arg_a, arg_b) in iter::zip(&projection_a.args, &projection_b.args) {
+                        this.zip_generic_arg(arg_a, arg_b)?;
+                    }
+                    this.zip_ty(&projection_a.term, &projection_b.term)
+                }
+                (
+                    rty::ExistentialPredicate::AutoTrait(def_id_a),
+                    rty::ExistentialPredicate::AutoTrait(def_id_b),
+                ) => assert_eq_or_incompatible(def_id_a, def_id_b),
+                _ => Err(Error::Incompatible),
             }
         })
     }
@@ -469,11 +481,6 @@ fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Error> {
     Ok(())
 }
 
-fn local_id_for_maybe_extern(genv: GlobalEnv, def_id: DefId) -> LocalDefId {
-    genv.get_local_id_for_extern(def_id)
-        .unwrap_or_else(|| def_id.expect_local())
-}
-
 enum Error {
     Incompatible,
 }
@@ -487,11 +494,9 @@ mod errors {
         global_env::GlobalEnv,
         rty,
         rustc::ty::{FieldIdx, VariantIdx},
+        MaybeExternId,
     };
-    use rustc_hir::def_id::DefId;
     use rustc_span::{Span, DUMMY_SP};
-
-    use super::local_id_for_maybe_extern;
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
@@ -508,13 +513,13 @@ mod errors {
     impl IncompatibleRefinement {
         pub(super) fn type_alias(
             genv: GlobalEnv,
-            def_id: DefId,
+            def_id: MaybeExternId,
             type_alias: &fhir::TyAlias,
         ) -> Self {
             let tcx = genv.tcx();
             Self {
                 span: type_alias.ty.span,
-                def_descr: tcx.def_descr(def_id),
+                def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: Some(tcx.def_span(def_id)),
                 expected_ty: format!("{}", tcx.type_of(def_id).skip_binder()),
             }
@@ -522,29 +527,33 @@ mod errors {
 
         pub(super) fn fn_input(
             genv: GlobalEnv,
-            def_id: DefId,
+            fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             pos: usize,
         ) -> Self {
             let expected_decl = genv
                 .tcx()
-                .hir_node_by_def_id(local_id_for_maybe_extern(genv, def_id))
+                .hir_node_by_def_id(fn_id.local_id())
                 .fn_decl()
                 .unwrap();
 
             let expected_ty = expected_decl.inputs[pos];
             Self {
                 span: decl.inputs[pos].span,
-                def_descr: genv.tcx().def_descr(def_id),
+                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span: Some(expected_ty.span),
                 expected_ty: rustc_hir_pretty::ty_to_string(&genv.tcx(), &expected_ty),
             }
         }
 
-        pub(super) fn fn_output(genv: GlobalEnv, def_id: DefId, decl: &fhir::FnDecl) -> Self {
+        pub(super) fn fn_output(
+            genv: GlobalEnv,
+            fn_id: MaybeExternId,
+            decl: &fhir::FnDecl,
+        ) -> Self {
             let expected_decl = genv
                 .tcx()
-                .hir_node_by_def_id(local_id_for_maybe_extern(genv, def_id))
+                .hir_node_by_def_id(fn_id.local_id())
                 .fn_decl()
                 .unwrap();
 
@@ -555,7 +564,7 @@ mod errors {
             let spec_span = decl.output.ret.span;
             Self {
                 span: spec_span,
-                def_descr: genv.tcx().def_descr(def_id),
+                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span: Some(expected_decl.output.span()),
                 expected_ty,
             }
@@ -563,7 +572,7 @@ mod errors {
 
         pub(super) fn ensures(
             genv: GlobalEnv,
-            def_id: DefId,
+            fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             expected: &rty::Ty,
             i: usize,
@@ -574,7 +583,7 @@ mod errors {
             let tcx = genv.tcx();
             Self {
                 span: ty.span,
-                def_descr: tcx.def_descr(def_id),
+                def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: None,
                 expected_ty: format!("{}", expected.to_rustc(tcx)),
             }
@@ -582,16 +591,15 @@ mod errors {
 
         pub(super) fn field(
             genv: GlobalEnv,
-            adt_def_id: DefId,
+            adt_id: MaybeExternId,
             variant_idx: VariantIdx,
             field_idx: FieldIdx,
         ) -> Self {
             let tcx = genv.tcx();
-            let adt_def = tcx.adt_def(adt_def_id);
+            let adt_def = tcx.adt_def(adt_id);
             let field_def = &adt_def.variant(variant_idx).fields[field_idx];
 
-            let local_id = local_id_for_maybe_extern(genv, adt_def_id);
-            let item = genv.map().expect_item(local_id).unwrap();
+            let item = genv.map().expect_item(adt_id.local_id()).unwrap();
             let span = match &item.kind {
                 fhir::ItemKind::Enum(enum_def) => {
                     enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
@@ -617,7 +625,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
-    pub(super) struct IncompatiblParamCount {
+    pub(super) struct IncompatibleParamCount {
         #[primary_span]
         #[label]
         span: Span,
@@ -628,9 +636,9 @@ mod errors {
         def_descr: &'static str,
     }
 
-    impl IncompatiblParamCount {
-        pub(super) fn new(genv: GlobalEnv, decl: &fhir::FnDecl, def_id: DefId) -> Self {
-            let def_descr = genv.tcx().def_descr(def_id);
+    impl IncompatibleParamCount {
+        pub(super) fn new(genv: GlobalEnv, decl: &fhir::FnDecl, def_id: MaybeExternId) -> Self {
+            let def_descr = genv.tcx().def_descr(def_id.resolved_id());
 
             let span = if !decl.inputs.is_empty() {
                 decl.inputs[decl.inputs.len() - 1]
@@ -679,17 +687,15 @@ mod errors {
         pub(super) fn new(
             genv: GlobalEnv,
             found: usize,
-            adt_def_id: DefId,
+            adt_def_id: MaybeExternId,
             variant_idx: VariantIdx,
         ) -> Self {
             let adt_def = genv.tcx().adt_def(adt_def_id);
             let expected_variant = adt_def.variant(variant_idx);
 
-            let local_id = local_id_for_maybe_extern(genv, adt_def_id);
-
             // Get the span of the variant if this is an enum. Structs cannot have produce a field
             // count mismatch.
-            let span = if let Ok(fhir::Node::Item(item)) = genv.map().node(local_id)
+            let span = if let Ok(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
                 && let fhir::ItemKind::Enum(enum_def) = &item.kind
                 && let Some(variant) = enum_def.variants.get(variant_idx.as_usize())
             {

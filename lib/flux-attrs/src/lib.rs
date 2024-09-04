@@ -5,6 +5,18 @@ use proc_macro2::{Ident, TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
 
+pub const FLUX_ATTRS: &[&str] = &[
+    "assoc",
+    "field",
+    "generics",
+    "invariant",
+    "opaque",
+    "refined_by",
+    "sig",
+    "trusted",
+    "variant",
+];
+
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     extern_spec::transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
 }
@@ -52,32 +64,23 @@ pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn refined_by_enum(item_enum: &mut ItemEnum) {
     for variant in &mut item_enum.variants {
-        flux_tool_attrs(&mut variant.attrs, &["variant"]);
+        flux_tool_attrs(&mut variant.attrs);
     }
 }
 
 fn refined_by_struct(item_struct: &mut ItemStruct) {
     for field in &mut item_struct.fields {
-        flux_tool_attrs(&mut field.attrs, &["field"]);
+        flux_tool_attrs(&mut field.attrs);
     }
 }
 
-fn flux_tool_attrs(attrs: &mut Vec<Attribute>, names: &[&str]) {
-    let mut j = 0;
-    for i in 0..attrs.len() {
-        if cfg!(flux_sysroot) {
-            if path_is_one_of(attrs[i].path(), names) {
-                flux_tool_attr(&mut attrs[i]);
-                attrs.swap(i, j);
-                j += 1;
-            }
-        } else if !path_is_one_of(attrs[i].path(), names) {
-            attrs.swap(i, j);
-            j += 1;
+fn flux_tool_attrs(attrs: &mut Vec<Attribute>) {
+    if cfg!(flux_sysroot) {
+        for attr in attrs {
+            transform_flux_attr(attr);
         }
-    }
-    if !cfg!(flux_sysroot) {
-        attrs.truncate(j);
+    } else {
+        attrs.retain(|attr| !is_flux_attr(attr));
     }
 }
 
@@ -85,13 +88,38 @@ fn path_is_one_of(path: &syn::Path, idents: &[&str]) -> bool {
     idents.iter().any(|ident| path.is_ident(ident))
 }
 
-fn flux_tool_attr(attr: &mut Attribute) {
-    let path = match &mut attr.meta {
+fn is_flux_attr(attr: &syn::Attribute) -> bool {
+    let path = attr.path();
+    if path.segments.len() >= 2 {
+        let ident = &path.segments[0].ident;
+        ident == "flux" || ident == "flux_rs"
+    } else {
+        path_is_one_of(path, FLUX_ATTRS)
+    }
+}
+
+fn transform_flux_attr(attr: &mut syn::Attribute) {
+    let path = path_of_attr_mut(attr);
+    if path.leading_colon.is_some() {
+        return;
+    }
+    if path.segments.len() >= 2 {
+        let ident = &mut path.segments[0].ident;
+        if ident == "flux" || ident == "flux_rs" {
+            *ident = Ident::new("flux_tool", ident.span());
+        }
+        return;
+    } else if path_is_one_of(path, FLUX_ATTRS) {
+        *path = parse_quote!(flux_tool::#path);
+    }
+}
+
+fn path_of_attr_mut(attr: &mut Attribute) -> &mut syn::Path {
+    match &mut attr.meta {
         syn::Meta::Path(path) => path,
         syn::Meta::List(metalist) => &mut metalist.path,
         syn::Meta::NameValue(namevalue) => &mut namevalue.path,
-    };
-    *path = parse_quote!(flux_tool::#path);
+    }
 }
 
 pub fn flux(tokens: TokenStream) -> TokenStream {

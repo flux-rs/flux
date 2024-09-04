@@ -29,7 +29,7 @@ struct EncodeContext<'a, 'tcx> {
     symbol_table: FxHashMap<Symbol, usize>, // interpret_allocs: FxIndexSet<interpret::AllocId>,
 }
 
-pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
+pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     let mut encoder = opaque::FileEncoder::new(path).unwrap_or_else(|err| {
         genv.tcx()
             .sess

@@ -24,7 +24,7 @@ pub use rustc_type_ir::InferConst;
 use self::subst::Subst;
 use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
-    pretty::def_id_to_string,
+    pretty::{self, def_id_to_string},
 };
 
 #[derive(Debug, Clone)]
@@ -99,6 +99,14 @@ pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
 }
+
+impl TraitRef {
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
+}
+
+pub type PolyTraitRef = Binder<TraitRef>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ProjectionPredicate {
@@ -186,15 +194,26 @@ pub enum TyKind {
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
+    Projection(ExistentialProjection),
+    AutoTrait(DefId),
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub type PolyExistentialPredicate = Binder<ExistentialPredicate>;
+
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialProjection {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+    pub term: Ty,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -402,6 +421,10 @@ impl EarlyBinder<Ty> {
 }
 
 impl<T> Binder<T> {
+    pub fn dummy(value: T) -> Binder<T> {
+        Binder(value, List::empty())
+    }
+
     pub fn bind_with_vars(value: T, vars: impl Into<List<BoundVariableKind>>) -> Binder<T> {
         Binder(value, vars.into())
     }
@@ -591,12 +614,6 @@ impl AdtDefData {
     }
 }
 
-impl TraitRef {
-    pub fn self_ty(&self) -> &Ty {
-        self.args[0].expect_type()
-    }
-}
-
 impl AliasTy {
     /// This method work only with associated type projections (i.e., no opaque tpes)
     pub fn self_ty(&self) -> &Ty {
@@ -780,6 +797,38 @@ impl_slice_internable!(
     Binder<ExistentialPredicate>,
 );
 
+impl fmt::Debug for ExistentialPredicate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExistentialPredicate::Trait(trait_ref) => write!(f, "{trait_ref:?}"),
+            ExistentialPredicate::Projection(proj) => write!(f, "({proj:?})"),
+            ExistentialPredicate::AutoTrait(def_id) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))
+            }
+        }
+    }
+}
+
+impl fmt::Debug for ExistentialTraitRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(","))?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for ExistentialProjection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(","))?;
+        }
+        write!(f, " = {:?}", &self.term)
+    }
+}
+
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -887,8 +936,8 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
-            TyKind::Dynamic(exi_preds, _r) => {
-                write!(f, "dyn {exi_preds:?}")
+            TyKind::Dynamic(preds, r) => {
+                write!(f, "dyn {:?} + {r:?}", preds.iter().format(", "))
             }
         }
     }

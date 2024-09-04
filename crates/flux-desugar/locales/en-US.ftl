@@ -32,6 +32,9 @@ desugar_unresolved_generic_param =
     cannot resolve generic param
     .note = generic parameters in refined signature must much rust signature
 
+desugar_invalid_variant_ret =
+    invalid variant return type
+
 # Resolve errors
 
 desugar_duplicate_param =

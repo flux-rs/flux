@@ -16,7 +16,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    fhir::{self, FluxLocalDefId},
+    fhir,
     global_env::GlobalEnv,
     intern::List,
     pretty,
@@ -75,14 +75,25 @@ pub enum QueryErr {
         impl_id: DefId,
         name: Symbol,
     },
-    /// Used to report bugs, typically this means executing an arm in a match we though it was unreachable.
-    /// Use this instead of panicking if it is easy to return a [`QueryErr`]. Use [`QueryErr::bug`] to
-    /// construct this variant.
+    /// Used to report bugs, typically this means executing an arm in a match we though it was
+    /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
+    /// [`QueryErr::bug`] or [`query_bug!`] to construct this variant to track source location.
     Bug {
+        def_id: Option<DefId>,
         location: String,
         msg: String,
     },
     Emitted(ErrorGuaranteed),
+}
+
+#[macro_export]
+macro_rules! query_bug {
+    ($fmt:literal $(,$args:expr)* $(,)?) => {
+        $crate::queries::QueryErr::bug(None, format_args!($fmt, $($args),*))
+    };
+    ($def_id:expr, $fmt:literal $(,$args:expr)* $(,)? ) => {{
+        $crate::queries::QueryErr::bug(Some($def_id.into()), format_args!($fmt, $($args),*))
+    }};
 }
 
 impl QueryErr {
@@ -91,8 +102,9 @@ impl QueryErr {
     }
 
     #[track_caller]
-    pub fn bug(msg: impl ToString) -> Self {
+    pub fn bug(def_id: Option<DefId>, msg: impl ToString) -> Self {
         QueryErr::Bug {
+            def_id,
             location: format!("{}", std::panic::Location::caller()),
             msg: msg.to_string(),
         }
@@ -121,7 +133,7 @@ pub struct Providers {
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
     pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
-    pub check_wf: for<'genv> fn(GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
+    pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
     pub variants_of: fn(
@@ -181,7 +193,7 @@ pub struct Queries<'genv, 'tcx> {
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_crate: OnceCell<fhir::Crate<'genv>>,
-    lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
+    lower_generics_of: Cache<DefId, ty::Generics<'tcx>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
@@ -189,7 +201,7 @@ pub struct Queries<'genv, 'tcx> {
     func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
-    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
+    check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
@@ -296,12 +308,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: DefId,
-    ) -> QueryResult<ty::Generics<'tcx>> {
+    ) -> ty::Generics<'tcx> {
         run_with_cache(&self.lower_generics_of, def_id, || {
             let generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
-                .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -390,9 +400,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn check_wf(
         &self,
         genv: GlobalEnv<'genv, '_>,
-        flux_id: FluxLocalDefId,
+        def_id: LocalDefId,
     ) -> QueryResult<Rc<rty::WfckResults>> {
-        run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
+        run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
     }
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
@@ -422,8 +432,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(generics) = genv.cstore().generics_of(def_id) {
                 generics
             } else {
-                let generics = genv.lower_generics_of(def_id)?;
-                refining::refine_generics(&generics)
+                refining::refine_generics(&genv.lower_generics_of(def_id))
             }
         })
     }
@@ -519,7 +528,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
-            } else if let Some(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
+            } else if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
                 lam
             } else {
                 bug!("TODO: implement for external crates")
@@ -537,7 +546,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.sort_of_assoc_reft)(genv, local_id, name)
-            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
+            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft((def_id, name)) {
                 sort
             } else {
                 bug!("TODO: implement for external crates")
@@ -655,6 +664,7 @@ where
 }
 
 impl<'a> Diagnostic<'a> for QueryErr {
+    #[track_caller]
     fn into_diag(
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
@@ -662,49 +672,57 @@ impl<'a> Diagnostic<'a> for QueryErr {
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
 
-        rustc_middle::ty::tls::with(|tcx| {
-            match self {
-                QueryErr::Unsupported { def_id, err } => {
-                    let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
-                    let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
-                    diag.code(E0999);
-                    diag.note(err.descr);
-                    diag
+        rustc_middle::ty::tls::with_opt(
+            #[track_caller]
+            |tcx| {
+                let tcx = tcx.expect("no TyCtxt stored in tls");
+                match self {
+                    QueryErr::Unsupported { def_id, err } => {
+                        let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
+                        let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                        diag.code(E0999);
+                        diag.note(err.descr);
+                        diag
+                    }
+                    QueryErr::Ignored { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidGenericArg { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidAssocReft { impl_id, name } => {
+                        let def_span = tcx.def_span(impl_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                        diag.arg("name", name);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::Bug { def_id, location, msg } => {
+                        let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                        if let Some(def_id) = def_id {
+                            diag.span(tcx.def_span(def_id));
+                        }
+                        diag.arg("location", location);
+                        diag.note(msg);
+                        diag
+                    }
+                    QueryErr::Emitted(_) => {
+                        let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                        diag.downgrade_to_delayed_bug();
+                        diag
+                    }
                 }
-                QueryErr::Ignored { def_id } => {
-                    let def_span = tcx.def_span(def_id);
-                    let mut diag = dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidGenericArg { def_id } => {
-                    let def_span = tcx.def_span(def_id);
-                    let mut diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidAssocReft { impl_id, name } => {
-                    let def_span = tcx.def_span(impl_id);
-                    let mut diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
-                    diag.arg("name", name);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::Bug { location, msg } => {
-                    let mut diag = dcx.struct_err(fluent::middle_query_bug);
-                    diag.arg("location", location);
-                    diag.note(msg);
-                    diag
-                }
-                QueryErr::Emitted(_) => {
-                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
-                    diag.downgrade_to_delayed_bug();
-                    diag
-                }
-            }
-        })
+            },
+        )
     }
 }
 

@@ -8,16 +8,20 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_middle::ty::{ParamConst, TyCtxt, Variance};
+use rustc_middle::{
+    query::IntoQueryParam,
+    ty::{ParamConst, TyCtxt, Variance},
+};
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, VariantIdx},
+    fhir::{self, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{self, lowering, ty},
+    MaybeExternId,
 };
 
 #[derive(Clone, Copy)]
@@ -96,8 +100,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.arena.alloc_slice_fill_iter(it)
     }
 
-    pub fn def_kind(&self, def_id: impl Into<DefId>) -> DefKind {
-        self.tcx().def_kind(def_id.into())
+    pub fn def_kind(&self, def_id: impl IntoQueryParam<DefId>) -> DefKind {
+        self.tcx().def_kind(def_id.into_query_param())
     }
 
     /// Allocates space to store `cap` elements of type `T`.
@@ -130,6 +134,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_func_defns(*self)
     }
 
+    pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
+        self.inner.queries.qualifiers(self)
+    }
+
     /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
     pub fn qualifiers_for(
         self,
@@ -142,9 +150,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|qual| qual.name)
             .collect();
         Ok(self
-            .inner
-            .queries
-            .qualifiers(self)?
+            .qualifiers()?
             .iter()
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
@@ -161,8 +167,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.mir(self, def_id)
     }
 
-    pub fn lower_generics_of(self, def_id: impl Into<DefId>) -> QueryResult<ty::Generics<'tcx>> {
-        self.inner.queries.lower_generics_of(self, def_id.into())
+    pub fn lower_generics_of(self, def_id: DefId) -> ty::Generics<'tcx> {
+        self.inner.queries.lower_generics_of(self, def_id)
     }
 
     pub fn lower_predicates_of(
@@ -183,16 +189,21 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_fn_sig(self, def_id.into())
     }
 
-    pub fn adt_def(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
-        self.inner.queries.adt_def(self, def_id.into())
+    pub fn adt_def(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::AdtDef> {
+        self.inner.queries.adt_def(self, def_id.into_query_param())
     }
 
-    pub fn adt_sort_def_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtSortDef> {
-        self.inner.queries.adt_sort_def_of(self, def_id.into())
+    pub fn adt_sort_def_of(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::AdtSortDef> {
+        self.inner
+            .queries
+            .adt_sort_def_of(self, def_id.into_query_param())
     }
 
-    pub fn check_wf(self, flux_id: impl Into<FluxLocalDefId>) -> QueryResult<Rc<rty::WfckResults>> {
-        self.inner.queries.check_wf(self, flux_id.into())
+    pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
+        self.inner.queries.check_wf(self, def_id)
     }
 
     pub fn impl_trait_ref(
@@ -217,17 +228,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
-    pub fn generics_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
-        self.inner.queries.generics_of(self, def_id.into())
+    pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
+        self.inner
+            .queries
+            .generics_of(self, def_id.into_query_param())
     }
 
     pub fn refinement_generics_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::RefinementGenerics> {
         self.inner
             .queries
-            .refinement_generics_of(self, def_id.into())
+            .refinement_generics_of(self, def_id.into_query_param())
     }
 
     pub fn predicates_of(
@@ -298,32 +311,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> QueryResult<&fhir::GenericParam> {
-        let owner = self.hir().ty_param_owner(def_id);
-        Ok(self.map().get_generics(owner)?.unwrap().get_param(def_id))
-    }
-
     pub fn is_box(&self, res: fhir::Res) -> bool {
         res.is_box(self.tcx())
     }
 
-    pub fn def_id_to_param_ty(&self, def_id: LocalDefId) -> rty::ParamTy {
-        rty::ParamTy {
-            index: self.def_id_to_param_index(def_id),
-            name: self.tcx().hir().ty_param_name(def_id),
-        }
+    pub fn def_id_to_param_index(&self, def_id: DefId) -> u32 {
+        let parent = self.tcx().parent(def_id);
+        let generics = self.tcx().generics_of(parent);
+        generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
     }
 
-    pub fn def_id_to_param_index(&self, def_id: LocalDefId) -> u32 {
-        let item_def_id = self.hir().ty_param_owner(def_id);
-        let generics = self.tcx().generics_of(item_def_id);
-        generics.param_def_id_to_index[&def_id.to_def_id()]
-    }
-
-    pub fn def_id_to_param_const(&self, def_id: DefId) -> ParamConst {
-        let def_id = def_id.expect_local();
+    pub fn def_id_to_param_const(&self, def_id: LocalDefId) -> ParamConst {
         ParamConst {
-            index: self.def_id_to_param_index(def_id),
+            index: self.def_id_to_param_index(def_id.to_def_id()),
             name: self.tcx().hir().ty_param_name(def_id),
         }
     }
@@ -354,18 +354,35 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
+    /// Iterator over all local def ids that are not a extern spec
+    pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
+        // FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
+        // an `#[extern_spec]` annotation and are thus not being excluded here
+        self.tcx()
+            .iter_local_def_id()
+            .filter(move |local_def_id| self.maybe_extern_id(*local_def_id).is_local())
+    }
+
+    pub fn iter_extern_def_id(self) -> impl Iterator<Item = DefId> + use<'tcx, 'genv> {
+        self.tcx()
+            .iter_local_def_id()
+            .filter_map(move |local_def_id| self.maybe_extern_id(local_def_id).as_extern())
+    }
+
     /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
     pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
         let Some(local_id) = def_id.as_local() else { return def_id };
-        self.extern_id_of(local_id).unwrap_or(def_id)
+        self.maybe_extern_id(local_id).resolved_id()
     }
 
-    /// If `local_def_id` is an id for an extern spec return the extern id.
-    pub fn extern_id_of(self, local_def_id: LocalDefId) -> Option<DefId> {
+    pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {
         self.collect_specs()
             .local_id_to_extern_id
-            .get(&local_def_id)
-            .copied()
+            .get(&local_id)
+            .map_or_else(
+                || MaybeExternId::Local(local_id),
+                |def_id| MaybeExternId::Extern(local_id, *def_id),
+            )
     }
 
     /// If `extern_def_id` is an extern spec return the corresponding local id.
@@ -437,6 +454,14 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         } else {
             Ok(Some(self.node(def_id)?.generics()))
         }
+    }
+
+    pub fn get_generic_param(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv fhir::GenericParam<'genv>> {
+        let owner = self.genv.hir().ty_param_owner(def_id);
+        Ok(self.get_generics(owner)?.unwrap().get_param(def_id))
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {

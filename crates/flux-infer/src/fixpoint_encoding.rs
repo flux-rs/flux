@@ -35,6 +35,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
+    use flux_middle::rty::EarlyReftParam;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -57,7 +58,7 @@ pub mod fixpoint {
         pub struct GlobalVar {}
     }
 
-    #[derive(Hash, Debug, Copy, Clone)]
+    #[derive(Hash, Copy, Clone)]
     pub enum Var {
         Underscore,
         Global(GlobalVar),
@@ -73,6 +74,7 @@ pub mod fixpoint {
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         Itf(Symbol),
+        Param(EarlyReftParam),
         ConstGeneric(ParamConst),
     }
 
@@ -104,8 +106,11 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
-                Var::ConstGeneric(param_const) => {
-                    write!(f, "constgen{}{}", param_const.name, param_const.index)
+                Var::ConstGeneric(param) => {
+                    write!(f, "constgen${}${}", param.name, param.index)
+                }
+                Var::Param(param) => {
+                    write!(f, "reftgen${}${}", param.name, param.index)
                 }
             }
         }
@@ -174,7 +179,7 @@ impl SortEncodingCtxt {
                 self.declare_tuple(sort_def.fields());
                 let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sort_def.fields()));
                 let args = sort_def
-                    .sorts(args)
+                    .field_sorts(args)
                     .iter()
                     .map(|s| self.sort_to_fixpoint(s))
                     .collect_vec();
@@ -431,6 +436,10 @@ where
         self.scx.sort_to_fixpoint(sort)
     }
 
+    pub(crate) fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
+        self.ecx.var_to_fixpoint(var)
+    }
+
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
     ///
@@ -677,27 +686,6 @@ impl LocalVarEnv {
         self.layers.pop().unwrap()
     }
 
-    fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::Var {
-        match var {
-            rty::Var::Free(name) => {
-                self.get_fvar(*name)
-                    .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
-                    .into()
-            }
-            rty::Var::Bound(debruijn, breft) => {
-                self.get_late_bvar(*debruijn, breft.var)
-                    .unwrap_or_else(|| {
-                        span_bug!(dbg_span, "no entry found for late bound var: `{breft:?}`")
-                    })
-                    .into()
-            }
-            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
-                span_bug!(dbg_span, "unexpected var: `{var:?}`")
-            }
-            rty::Var::ConstGeneric(param_const) => fixpoint::Var::ConstGeneric(*param_const),
-        }
-    }
-
     fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::LocalVar> {
         self.fvars.get(&name).copied()
     }
@@ -721,7 +709,6 @@ impl FixpointKVar {
     }
 }
 
-#[derive(Default)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
@@ -857,14 +844,40 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
             global_var_gen: IndexGen::new(),
             const_map: Default::default(),
             errors: Errors::new(genv.sess()),
-            def_span: dbg_span,
+            def_span,
+        }
+    }
+
+    fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
+        match var {
+            rty::Var::Free(name) => {
+                self.local_var_env
+                    .get_fvar(*name)
+                    .unwrap_or_else(|| {
+                        span_bug!(self.def_span, "no entry found for name: `{name:?}`")
+                    })
+                    .into()
+            }
+            rty::Var::Bound(debruijn, breft) => {
+                self.local_var_env
+                    .get_late_bvar(*debruijn, breft.var)
+                    .unwrap_or_else(|| {
+                        span_bug!(self.def_span, "no entry found for late bound var: `{breft:?}`")
+                    })
+                    .into()
+            }
+            rty::Var::ConstGeneric(param) => fixpoint::Var::ConstGeneric(*param),
+            rty::Var::EarlyParam(param) => fixpoint::Var::Param(*param),
+            rty::Var::EVar(_) => {
+                span_bug!(self.def_span, "unexpected evar: `{var:?}`")
+            }
         }
     }
 
@@ -874,41 +887,31 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => {
-                fixpoint::Expr::Var(self.local_var_env.get_var(var, self.def_span))
-            }
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => {
-                let (arity, field) = match *proj {
-                    rty::FieldProj::Tuple { arity, field } => (arity, field),
-                    rty::FieldProj::Adt { def_id, field } => {
-                        let arity = self.genv.adt_sort_def_of(def_id)?.fields();
-                        (arity, field)
-                    }
-                };
-                scx.declare_tuple(arity);
-                let proj = fixpoint::Var::TupleProj { arity, field };
-                fixpoint::Expr::App(proj, vec![self.expr_to_fixpoint(e, scx)?])
+                let proj = fixpoint::Expr::Var(self.proj_to_fixpoint(*proj, scx)?);
+                fixpoint::Expr::App(Box::new(proj), vec![self.expr_to_fixpoint(e, scx)?])
             }
             rty::ExprKind::Aggregate(_, flds) => {
                 scx.declare_tuple(flds.len());
-                let ctor = fixpoint::Var::TupleCtor { arity: flds.len() };
+                let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
                 let args = flds
                     .iter()
                     .map(|e| self.expr_to_fixpoint(e, scx))
                     .try_collect()?;
-                fixpoint::Expr::App(ctor, args)
+                fixpoint::Expr::App(Box::new(ctor), args)
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.register_rust_const(*did);
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
-                let func = self.func_to_fixpoint(func, scx);
+                let func = self.func_to_fixpoint(func, scx)?;
                 let args = self.exprs_to_fixpoint(args, scx)?;
-                fixpoint::Expr::App(func, args)
+                fixpoint::Expr::App(Box::new(func), args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
@@ -922,13 +925,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .genv
                     .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)?
                     .unwrap();
-                let sort = sort.instantiate_identity(&[]);
-                let func = self.register_const_for_alias_reft(alias_pred, sort, scx);
+                let sort = sort.instantiate_identity();
+                let func = fixpoint::Expr::Var(
+                    self.register_const_for_alias_reft(alias_pred, sort, scx)
+                        .into(),
+                );
                 let args = args
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, scx))
                     .try_collect()?;
-                fixpoint::Expr::App(func.into(), args)
+                fixpoint::Expr::App(Box::new(func), args)
             }
             rty::ExprKind::Abs(lam) => {
                 let var = self.register_const_for_lambda(lam, scx);
@@ -955,6 +961,18 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .into_iter()
             .map(|e| self.expr_to_fixpoint(e, scx))
             .try_collect()
+    }
+
+    fn proj_to_fixpoint(
+        &mut self,
+        proj: rty::FieldProj,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Var> {
+        let arity = proj.arity(self.genv)?;
+        let field = proj.field_idx();
+
+        scx.declare_tuple(arity);
+        Ok(fixpoint::Var::TupleProj { arity, field })
     }
 
     fn un_op_to_fixpoint(
@@ -1076,15 +1094,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let def_id = sort_def.did();
-                let sorts = sort_def.sorts(args);
+                let sorts = sort_def.field_sorts(args);
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?
             }
             _ => {
-                let rel = fixpoint::Var::UIFRel(rel);
+                let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));
                 fixpoint::Expr::App(
-                    rel,
+                    Box::new(rel),
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
                 )
             }
@@ -1116,12 +1134,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         ))
     }
 
-    fn func_to_fixpoint(&mut self, func: &rty::Expr, scx: &mut SortEncodingCtxt) -> fixpoint::Var {
+    fn func_to_fixpoint(
+        &mut self,
+        func: &rty::Expr,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Expr> {
         match func.kind() {
-            rty::ExprKind::Var(var) => self.local_var_env.get_var(var, self.def_span),
-            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
+            rty::ExprKind::Var(var) => Ok(fixpoint::Expr::Var(self.var_to_fixpoint(var))),
+            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => {
+                Ok(fixpoint::Expr::Var(fixpoint::Var::Itf(*sym)))
+            }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
-                self.register_uif(*sym, scx).into()
+                Ok(fixpoint::Expr::Var(self.register_uif(*sym, scx).into()))
+            }
+            rty::ExprKind::FieldProj(e, proj) => {
+                let proj = fixpoint::Expr::Var(self.proj_to_fixpoint(*proj, scx)?);
+                Ok(fixpoint::Expr::App(Box::new(proj), vec![self.func_to_fixpoint(e, scx)?]))
             }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
                 span_bug!(self.def_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
@@ -1140,7 +1168,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
-            rty::ExprKind::Var(var) => Ok(self.local_var_env.get_var(var, self.def_span)),
+            rty::ExprKind::Var(var) => Ok(self.var_to_fixpoint(var)),
             _ => {
                 let fresh = self.local_var_env.fresh_name();
                 let pred = fixpoint::Expr::eq(
