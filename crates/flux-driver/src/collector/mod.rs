@@ -1,5 +1,8 @@
+mod extern_specs;
+
 use std::collections::HashMap;
 
+use extern_specs::ExternSpecCollector;
 use flux_common::{
     iter::IterExt,
     result::{ErrorCollector, ResultExt},
@@ -53,17 +56,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for SpecCollector<'_, 'tcx> {
 
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
         let _ = self.collect_item(item);
-        hir::intravisit::walk_item(self, item);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) {
         let _ = self.collect_trait_item(trait_item);
-        hir::intravisit::walk_trait_item(self, trait_item);
     }
 
     fn visit_impl_item(&mut self, impl_item: &'tcx rustc_hir::ImplItem<'tcx>) {
         let _ = self.collect_impl_item(impl_item);
-        hir::intravisit::walk_impl_item(self, impl_item);
     }
 }
 
@@ -101,15 +101,24 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         match &item.kind {
-            ItemKind::Fn(..) => self.collect_fn_spec(owner_id, attrs),
-            ItemKind::Struct(variant, ..) => self.collect_structc_def(owner_id, attrs, variant),
-            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def),
-            ItemKind::Mod(..) => self.collect_mod(attrs),
-            ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs),
-            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_),
-            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds),
-            _ => Ok(()),
+            ItemKind::Fn(..) => {
+                self.collect_fn_spec(owner_id, attrs)?;
+            }
+            ItemKind::Struct(variant, ..) => self.collect_struct_def(owner_id, attrs, variant)?,
+            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def)?,
+            ItemKind::Mod(..) => self.collect_mod(attrs)?,
+            ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
+            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_)?,
+            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds)?,
+            ItemKind::Const(.., body_id) => {
+                if attrs.extern_spec() {
+                    return ExternSpecCollector::collect(self, *body_id);
+                }
+            }
+            _ => {}
         }
+        hir::intravisit::walk_item(self, item);
+        Ok(())
     }
 
     fn collect_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) -> Result {
@@ -122,6 +131,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
         }
+        hir::intravisit::walk_trait_item(self, trait_item);
         Ok(())
     }
 
@@ -135,6 +145,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
         }
+        hir::intravisit::walk_impl_item(self, impl_item);
         Ok(())
     }
 
@@ -193,7 +204,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
-    fn collect_structc_def(
+    fn collect_struct_def(
         &mut self,
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
@@ -318,7 +329,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(variant)
     }
 
-    fn collect_fn_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+    fn collect_fn_spec(
+        &mut self,
+        owner_id: OwnerId,
+        mut attrs: FluxAttrs,
+    ) -> Result<&mut surface::FnSpec> {
         let fn_sig = attrs.fn_sig();
 
         if let Some(fn_sig) = &fn_sig
@@ -334,20 +349,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         };
 
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
-        if attrs.extern_spec() {
-            if fn_sig.is_none() {
-                return Err(self.errors.emit(errors::MissingFnSigForExternSpec {
-                    span: self.tcx.def_span(owner_id),
-                }));
-            }
-            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_def_id);
-            // We should never check an extern spec (it will infinitely recurse)
-        }
-        self.specs
+        Ok(self
+            .specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, qual_names });
-        Ok(())
+            .entry(owner_id)
+            .or_insert(surface::FnSpec { fn_sig, qual_names }))
     }
 
     fn parse_flux_attrs(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -544,7 +550,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
-            if let Ok(mut attrs) = self.parse_flux_attrs(item.id.owner_id.def_id) {
+            if let Ok(attrs) = self.parse_flux_attrs(item.id.owner_id.def_id) {
                 if let AssocItemKind::Fn { .. } = item.kind
                     && attrs.fake_impl()
                 {
@@ -757,11 +763,11 @@ impl FluxAttrs {
         read_attr!(self, Ignore)
     }
 
-    fn fake_impl(&mut self) -> bool {
+    fn fake_impl(&self) -> bool {
         read_flag!(self, FakeImpl)
     }
 
-    fn opaque(&mut self) -> bool {
+    fn opaque(&self) -> bool {
         read_flag!(self, Opaque)
     }
 
@@ -813,7 +819,7 @@ impl FluxAttrs {
         read_attrs!(self, Invariant)
     }
 
-    fn extern_spec(&mut self) -> bool {
+    fn extern_spec(&self) -> bool {
         read_flag!(self, ExternSpec)
     }
 }

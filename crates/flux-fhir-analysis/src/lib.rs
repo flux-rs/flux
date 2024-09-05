@@ -436,7 +436,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
-        if genv.ignored(def_id) {
+        if genv.ignored(def_id) || genv.is_dummy(def_id) {
             continue;
         }
         let def_kind = genv.def_kind(def_id);

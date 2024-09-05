@@ -37,8 +37,10 @@ fn extern_fn_to_tokens(
 ) -> syn::Result<TokenStream> {
     extern_fn.prepare(None, None, true);
     Ok(quote! {
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
+
             #extern_fn
         };
     })
@@ -91,11 +93,11 @@ fn extern_enum_to_tokens(
     item_enum.variants.push(dummy_variant);
 
     Ok(quote_spanned! {span=>
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
             #[allow(unused, dead_code)]
-            #[flux_tool::extern_spec]
             #item_enum
         };
     })
@@ -128,32 +130,20 @@ fn extern_struct_to_tokens(
     for field in &mut item_struct.fields {
         flux_tool_attrs(&mut field.attrs);
     }
+    item_struct.ident = format_ident!("__FluxExternSpecStruct{}", struct_ident);
 
-    item_struct.ident = format_ident!("__FluxExternStruct{}", struct_ident);
-
-    let args = generic_params_to_args(&item_struct.generics.params);
-    match &mut item_struct.fields {
-        syn::Fields::Named(fields) => {
-            let name = format_ident!("__FluxExternField");
-            let field = parse_quote!(#name : #struct_ident <#args>);
-            fields.named.push(field);
-        }
-        syn::Fields::Unnamed(fields) => {
-            let field = parse_quote!(#struct_ident < #args > );
-            fields.unnamed.push(field);
-        }
-        syn::Fields::Unit => {
-            let field = parse_quote!((#struct_ident < #args >));
-            item_struct.fields = syn::Fields::Unnamed(field);
-        }
-    }
+    let extract_struct = format_ident!("__FluxExternSpecExtract{}", struct_ident);
+    let generics = &item_struct.generics;
+    let args = generic_params_to_args(&generics.params);
 
     Ok(quote_spanned! {item_struct_span =>
         #[allow(unused, dead_code)]
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
-            #[flux_tool::extern_spec]
+            struct #extract_struct #generics (#struct_ident < #args >);
+
             #item_struct
         };
     })
@@ -206,10 +196,10 @@ fn extern_trait_to_tokens(
     let super_trait = quote!(#trait_ident < # args >);
 
     Ok(quote_spanned! {item_trait_span =>
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
-            #[flux_tool::extern_spec]
             #[allow(unused, dead_code)]
             #(#attrs)*
             trait #dummy_ident #generics: #super_trait {}
@@ -229,13 +219,13 @@ fn extern_impl_to_tokens(
 
     Ok(quote! {
         #[allow(unused, dead_code, unused_variables)]
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
             #[flux_tool::ignore]
             struct #dummy_impl_struct #generics ( #fields );
 
-            #[flux_tool::extern_spec]
             #extern_item_impl
         };
     })
@@ -369,7 +359,6 @@ impl ExternFn {
 impl ToTokens for ExternFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         debug_assert!(self.block.is_some());
-        tokens.extend(quote!(#[flux_tool::extern_spec]));
         tokens.append_all(&self.attrs);
         self.sig.to_tokens(tokens);
         self.block.to_tokens(tokens);

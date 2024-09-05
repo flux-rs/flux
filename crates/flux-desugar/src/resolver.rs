@@ -362,6 +362,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
+        if self.specs.is_dummy(item.owner_id.def_id) {
+            return;
+        }
         self.push_rib(TypeNS, RibKind::Normal);
         self.push_rib(ValueNS, RibKind::Normal);
         match item.kind {
