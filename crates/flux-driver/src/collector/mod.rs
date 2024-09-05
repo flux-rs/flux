@@ -11,7 +11,6 @@ use flux_config::{self as config, CrateConfig};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{Ignored, Trusted},
-    rustc::lowering::resolve_trait_ref_impl_id,
     Specs,
 };
 use flux_syntax::{surface, ParseResult, ParseSess};
@@ -24,11 +23,10 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     self as hir,
     def::DefKind,
-    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
-    AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
-    VariantData,
+    def_id::{LocalDefId, CRATE_DEF_ID},
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
-use rustc_middle::ty::{TraitPredicate, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -104,12 +102,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Fn(..) => {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
-            ItemKind::Struct(variant, ..) => self.collect_struct_def(owner_id, attrs, variant)?,
-            ItemKind::Enum(enum_def, ..) => self.collect_enum_def(owner_id, attrs, enum_def)?,
+            ItemKind::Struct(variant, ..) => {
+                self.collect_struct_def(owner_id, attrs, variant)?;
+            }
+            ItemKind::Enum(enum_def, ..) => {
+                self.collect_enum_def(owner_id, attrs, enum_def)?;
+            }
             ItemKind::Mod(..) => self.collect_mod(attrs)?,
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
-            ItemKind::Impl(impl_) => self.collect_impl(owner_id, attrs, impl_)?,
-            ItemKind::Trait(_, _, _, bounds, _) => self.collect_trait(owner_id, attrs, bounds)?,
+            ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
+            ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., body_id) => {
                 if attrs.extern_spec() {
                     return ExternSpecCollector::collect(self, *body_id);
@@ -154,12 +156,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
-    fn collect_trait(
-        &mut self,
-        owner_id: OwnerId,
-        mut attrs: FluxAttrs,
-        bounds: &GenericBounds,
-    ) -> Result {
+    fn collect_trait(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
 
@@ -167,30 +164,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .traits
             .insert(owner_id, surface::Trait { generics, assoc_refinements });
 
-        if attrs.extern_spec() {
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-        };
-
         Ok(())
     }
 
-    fn collect_impl(
-        &mut self,
-        owner_id: OwnerId,
-        mut attrs: FluxAttrs,
-        impl_: &rustc_hir::Impl,
-    ) -> Result {
+    fn collect_impl(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
-
-        if attrs.extern_spec()
-            && let Some(extern_id) =
-                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
-        {
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
 
         self.specs
             .impls
@@ -209,45 +188,32 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         data: &VariantData,
-    ) -> Result {
-        let mut opaque = attrs.opaque();
+    ) -> Result<&mut surface::StructDef> {
+        let opaque = attrs.opaque();
         let refined_by = attrs.refined_by();
         let generics = attrs.generics();
 
-        let is_extern_spec = attrs.extern_spec();
-        if is_extern_spec {
-            // If there's only one field it corresponds to the special field to extract the struct
-            // def_id. This means the user didn't specify any fields and thus we consider the struct
-            // as opaque.
-            opaque = data.fields().len() == 1;
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
-
-        // For extern specs, we skip the last field containing the information to extract the def_id
         let fields = data
             .fields()
             .iter()
-            .take(data.fields().len() - (is_extern_spec as usize))
+            .take(data.fields().len())
             .map(|field| self.parse_field_spec(field, opaque))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
 
-        self.specs.structs.insert(
-            owner_id,
-            surface::StructDef {
+        Ok(self
+            .specs
+            .structs
+            .entry(owner_id)
+            .or_insert(surface::StructDef {
                 generics,
                 refined_by,
                 fields,
                 opaque,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-            },
-        );
-
-        Ok(())
+            }))
     }
 
     fn parse_field_spec(
@@ -276,38 +242,30 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         enum_def: &EnumDef,
-    ) -> Result {
+    ) -> Result<&mut surface::EnumDef> {
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
 
-        let is_extern_spec = attrs.extern_spec();
-        if is_extern_spec {
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
-            self.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
-
-        // For extern specs, we skip the last variant containing the information to extract the def_id
         let variants = enum_def
             .variants
             .iter()
-            .take(enum_def.variants.len() - (is_extern_spec as usize))
+            .take(enum_def.variants.len())
             .map(|variant| self.collect_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
 
-        self.specs.enums.insert(
-            owner_id,
-            surface::EnumDef {
+        Ok(self
+            .specs
+            .enums
+            .entry(owner_id)
+            .or_insert(surface::EnumDef {
                 generics,
                 refined_by,
                 variants,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
-            },
-        );
-        Ok(())
+            }))
     }
 
     fn collect_variant(
@@ -467,174 +425,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
-            ("fake_impl", AttrArgs::Empty) => FluxAttrKind::FakeImpl,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             _ => return invalid_attr_err(self),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
-    }
-
-    // In Prusti they suggested looking into doing this instead of using a Visitor...
-    // it seems more brittle but I guess conversely their version is a little permissive.
-    fn extract_extern_def_id_from_extern_spec_fn(&mut self, def_id: LocalDefId) -> Result<DefId> {
-        use rustc_hir::{def, ExprKind, Node};
-        // Regular functions
-        if let Node::Item(i) = self.tcx.hir_node_by_def_id(def_id)
-            && let ItemKind::Fn(_, _, body_id) = &i.kind
-            && let Node::Expr(e) = self.tcx.hir_node(body_id.hir_id)
-            && let ExprKind::Block(b, _) = e.kind
-            && let Some(e) = b.expr
-            && let ExprKind::Call(callee, _) = &e.kind
-            && let ExprKind::Path(qself) = &callee.kind
-        {
-            let typeck_result = self.tcx.typeck(def_id);
-            if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
-                return Ok(def_id);
-            }
-        }
-        // impl functions
-        if let Node::ImplItem(i) = self.tcx.hir_node_by_def_id(def_id)
-            && let ImplItemKind::Fn(_, body_id) = &i.kind
-            && let Node::Expr(e) = self.tcx.hir_node(body_id.hir_id)
-            && let ExprKind::Block(b, _) = e.kind
-            && let Some(e) = b.expr
-            && let ExprKind::Call(callee, _) = &e.kind
-            && let ExprKind::Path(qself) = &callee.kind
-        {
-            let typeck_result = self.tcx.typeck(def_id);
-
-            if let rustc_middle::ty::FnDef(fn_def, args) =
-                typeck_result.node_type(callee.hir_id).kind()
-                && let Some((callee_id, _)) =
-                    flux_middle::rustc::lowering::resolve_call_from(self.tcx, def_id, *fn_def, args)
-            {
-                return Ok(callee_id);
-            }
-            if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
-                return Ok(def_id);
-            }
-        }
-        Err(self
-            .errors
-            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
-    }
-
-    fn extract_extern_def_id_from_extern_spec_struct(
-        &mut self,
-        def_id: LocalDefId,
-        data: &VariantData,
-    ) -> Result<DefId> {
-        if let Some(extern_field) = data.fields().last() {
-            let ty = self.tcx.type_of(extern_field.def_id);
-            if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
-                return Ok(adt_def.did());
-            }
-        }
-        Err(self
-            .errors
-            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
-    }
-
-    fn extract_extern_def_id_from_extern_spec_enum(
-        &mut self,
-        def_id: LocalDefId,
-        enum_def: &EnumDef,
-    ) -> Result<DefId> {
-        if let Some(fake) = enum_def.variants.last() {
-            return self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data);
-        }
-        Err(self
-            .errors
-            .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
-    }
-
-    fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
-        for item in items {
-            if let Ok(attrs) = self.parse_flux_attrs(item.id.owner_id.def_id) {
-                if let AssocItemKind::Fn { .. } = item.kind
-                    && attrs.fake_impl()
-                {
-                    return Some(item.id.owner_id.def_id);
-                }
-            }
-        }
-        None
-    }
-
-    fn is_good_trait_predicate(&self, trait_predicate: &TraitPredicate) -> bool {
-        let def_id = trait_predicate.trait_ref.def_id;
-        // !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
-
-        self.tcx.require_lang_item(rustc_hir::LangItem::Sized, None) != def_id
-    }
-
-    /// Given as input a fake_method_def_id `fake` where
-    ///     `fn fake<A: Trait<..>>(x: Ty) {}`
-    /// we want to
-    /// 1. build the [`TraitRef`] for `<Ty as Trait<...>>` and then
-    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
-    ///
-    /// [`TraitRef`]: rustc_middle::ty::TraitRef
-    fn extract_extern_def_id_from_extern_spec_impl(
-        &mut self,
-        _def_id: LocalDefId,
-        items: &[ImplItemRef],
-    ) -> Option<DefId> {
-        // 1. Find the fake_method's def_id
-        let fake_method_def_id = self.fake_method_of(items)?;
-
-        // 2. Get the fake_method's input type
-        let ty = self
-            .tcx
-            .fn_sig(fake_method_def_id)
-            .instantiate_identity()
-            .skip_binder()
-            .inputs()
-            .first()
-            .unwrap();
-        let arg = rustc_middle::ty::GenericArg::from(*ty);
-
-        // 3. Get the fake_method's trait_ref
-        let trait_ref = {
-            // let _generics = self.tcx.generics_of(fake_method_def_id);
-            self.tcx
-                .predicates_of(fake_method_def_id)
-                .predicates
-                .iter()
-                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| self.is_good_trait_predicate(p))
-                .unwrap()
-                .trait_ref
-        };
-
-        // 4. Splice in the type from step 2 to create query trait_ref
-        let mut args = vec![arg];
-        for arg in trait_ref.args.as_slice().iter().skip(1) {
-            args.push(*arg);
-        }
-        let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, trait_ref.def_id, args);
-
-        // 5. Resolve the trait_ref to an impl_id
-        let (impl_id, _) =
-            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
-        Some(impl_id)
-    }
-
-    fn extract_extern_def_id_from_extern_spec_trait(
-        &mut self,
-        def_id: LocalDefId,
-        bounds: &GenericBounds,
-    ) -> Result<DefId> {
-        if let Some(bound) = bounds.first()
-            && let Some(trait_ref) = bound.trait_ref()
-            && let Some(trait_id) = trait_ref.trait_def_id()
-        {
-            Ok(trait_id)
-        } else {
-            Err(self
-                .errors
-                .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
-        }
     }
 
     fn parse<T>(
@@ -704,7 +498,6 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore(Ignored),
-    FakeImpl,
     ExternSpec,
 }
 
@@ -761,10 +554,6 @@ impl FluxAttrs {
 
     fn ignore(&mut self) -> Option<Ignored> {
         read_attr!(self, Ignore)
-    }
-
-    fn fake_impl(&self) -> bool {
-        read_flag!(self, FakeImpl)
     }
 
     fn opaque(&self) -> bool {
@@ -843,7 +632,6 @@ impl FluxAttrKind {
             FluxAttrKind::Ignore(_) => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
-            FluxAttrKind::FakeImpl => attr_name!(FakeImpl),
         }
     }
 }
@@ -992,13 +780,6 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(driver_malformed_extern_spec, code = E0999)]
     pub(super) struct MalformedExternSpec {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(driver_missing_fn_sig_for_extern_spec, code = E0999)]
-    pub(super) struct MissingFnSigForExternSpec {
         #[primary_span]
         pub span: Span,
     }

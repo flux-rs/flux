@@ -386,8 +386,8 @@ impl Specs {
         self.local_id_to_extern_id.insert(local_id, extern_id);
     }
 
-    pub fn insert_dummy(&mut self, def_id: LocalDefId) {
-        self.dummy_extern.insert(def_id.into());
+    pub fn insert_dummy(&mut self, owner_id: OwnerId) {
+        self.dummy_extern.insert(owner_id.def_id);
     }
 
     pub fn is_dummy(&self, def_id: LocalDefId) -> bool {

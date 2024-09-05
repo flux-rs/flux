@@ -1,3 +1,4 @@
+use flux_middle::rustc::lowering;
 use rustc_hir as hir;
 use rustc_hir::{def_id::DefId, BodyId, OwnerId};
 use rustc_middle::ty::TyCtxt;
@@ -9,8 +10,8 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct ExternSpecCollector<'a, 'sess, 'tcx> {
     inner: &'a mut SpecCollector<'sess, 'tcx>,
+    /// The block corresponding to the `const _: () = { ... }` annotated with `flux::extern_spec`
     block: &'tcx hir::Block<'tcx>,
-    idx: usize,
 }
 
 impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
@@ -21,7 +22,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn new(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result<Self> {
         let body = inner.tcx.hir().body(body_id);
         if let hir::ExprKind::Block(block, _) = body.value.kind {
-            Ok(Self { inner, block, idx: block.stmts.len() })
+            Ok(Self { inner, block })
         } else {
             Err(inner
                 .errors
@@ -30,24 +31,28 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn run(mut self) -> Result {
-        let item = self.pop_item()?;
+        let item = self.item_at(0)?;
 
         let attrs = self.inner.parse_flux_attrs(item.owner_id.def_id)?;
         self.inner.report_dups(&attrs)?;
 
         match &item.kind {
-            hir::ItemKind::Fn(..) => self.collect_extern_spec_fn(item, attrs),
-            hir::ItemKind::Enum(_, _) => todo!(),
-            hir::ItemKind::Struct(variant, _) => {
-                self.collect_extern_spec_struct(item.owner_id, variant, attrs)
+            hir::ItemKind::Fn(..) => self.collect_extern_fn(item, attrs),
+            hir::ItemKind::Enum(enum_def, _) => {
+                self.collect_extern_enum(item.owner_id, enum_def, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, _) => todo!(),
-            hir::ItemKind::Impl(_) => todo!(),
-            _ => todo!(),
+            hir::ItemKind::Struct(variant, _) => {
+                self.collect_extern_struct(item.owner_id, variant, attrs)
+            }
+            hir::ItemKind::Trait(_, _, _, bounds, _) => {
+                self.collect_extern_trait(item.owner_id, bounds, attrs)
+            }
+            hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
+            _ => Err(self.malformed()),
         }
     }
 
-    fn collect_extern_spec_fn(&mut self, item: &hir::Item, attrs: FluxAttrs) -> Result {
+    fn collect_extern_fn(&mut self, item: &hir::Item, attrs: FluxAttrs) -> Result {
         let fn_spec = self.inner.collect_fn_spec(item.owner_id, attrs)?;
 
         if fn_spec.fn_sig.is_none() {
@@ -62,33 +67,118 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_extern_spec_struct(
+    fn collect_extern_struct(
         &mut self,
         struct_id: OwnerId,
         variant: &hir::VariantData,
         attrs: FluxAttrs,
     ) -> Result {
-        self.inner.collect_struct_def(struct_id, attrs, variant)?;
+        let dummy_struct = self.item_at(1)?;
+        self.inner.specs.insert_dummy(dummy_struct.owner_id);
 
-        let item = self.pop_item()?;
-        self.inner.specs.insert_dummy(item.owner_id.def_id);
-        let extern_id = self.extract_extern_id_from_struct(item).unwrap();
+        let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
         self.inner
             .specs
             .insert_extern_id(struct_id.def_id, extern_id);
 
-        // If there are no fields, we consider the struct opaque
-        let struct_def = self.inner.specs.structs.get_mut(&struct_id).unwrap();
+        let struct_def = self.inner.collect_struct_def(struct_id, attrs, variant)?;
+
+        // We consider extern specs on a unit struct as opaque
         struct_def.opaque = variant.fields().len() == 0;
 
         Ok(())
     }
 
-    fn collect_extern_spec_impl(&mut self, impl_: &hir::Impl) -> Result {
+    fn collect_extern_enum(
+        &mut self,
+        enum_id: OwnerId,
+        enum_def: &hir::EnumDef,
+        attrs: FluxAttrs,
+    ) -> Result {
+        let dummy_struct = self.item_at(1)?;
+        self.inner.specs.insert_dummy(dummy_struct.owner_id);
+
+        let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
+        self.inner.specs.insert_extern_id(enum_id.def_id, extern_id);
+
+        self.inner.collect_enum_def(enum_id, attrs, enum_def)?;
+
         Ok(())
     }
 
-    fn extract_extern_id_from_struct(&mut self, item: &hir::Item) -> Result<DefId> {
+    fn collect_extern_impl(
+        &mut self,
+        impl_id: OwnerId,
+        impl_: &hir::Impl,
+        attrs: FluxAttrs,
+    ) -> Result {
+        self.inner.collect_impl(impl_id, attrs)?;
+
+        let dummy_struct = self.item_at(1)?;
+        self.inner.specs.insert_dummy(dummy_struct.owner_id);
+
+        let mut extern_impl_id = None;
+        for item in impl_.items {
+            let new_impl_id = self.collect_extern_spec_impl_item(item)?;
+            if *extern_impl_id.get_or_insert(new_impl_id) != new_impl_id {
+                todo!()
+            }
+        }
+
+        if let Some(extern_impl_id) = extern_impl_id {
+            self.inner
+                .specs
+                .insert_extern_id(impl_id.def_id, extern_impl_id);
+        }
+
+        Ok(())
+    }
+
+    fn collect_extern_spec_impl_item(&mut self, item: &hir::ImplItemRef) -> Result<DefId> {
+        let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
+        self.inner.report_dups(&attrs)?;
+
+        match item.kind {
+            hir::AssocItemKind::Fn { .. } => self.collect_extern_impl_fn(item, attrs),
+            rustc_hir::AssocItemKind::Const | rustc_hir::AssocItemKind::Type => todo!(),
+        }
+    }
+
+    fn collect_extern_impl_fn(
+        &mut self,
+        item: &hir::ImplItemRef,
+        attrs: FluxAttrs,
+    ) -> Result<DefId> {
+        let fn_spec = self.inner.collect_fn_spec(item.id.owner_id, attrs)?;
+        if fn_spec.fn_sig.is_none() {
+            return Err(self.missing_fn_sig(item.id.owner_id));
+        }
+
+        let extern_id = self.extract_extern_id_from_impl_fn(item)?;
+        self.inner
+            .specs
+            .insert_extern_id(item.id.owner_id.def_id, extern_id);
+
+        self.tcx().impl_of_method(extern_id).ok_or_else(|| todo!())
+    }
+
+    fn collect_extern_trait(
+        &mut self,
+        trait_id: OwnerId,
+        bounds: &hir::GenericBounds,
+        attrs: FluxAttrs,
+    ) -> Result {
+        self.inner.collect_trait(trait_id, attrs)?;
+
+        let extern_id = self.extract_extern_id_from_trait(bounds)?;
+        self.inner
+            .specs
+            .insert_extern_id(trait_id.def_id, extern_id);
+
+        Ok(())
+    }
+
+    fn extract_extern_id_from_struct(&self, item: &hir::Item) -> Result<DefId> {
         if let hir::ItemKind::Struct(data, ..) = item.kind
             && let Some(extern_field) = data.fields().last()
             && let ty = self.tcx().type_of(extern_field.def_id)
@@ -100,15 +190,13 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn extract_extern_id_from_fn(&mut self, item: &hir::Item) -> Result<DefId> {
-        // Regular functions
-        if let hir::ItemKind::Fn(_, _, body_id) = &item.kind
-            && let hir::Node::Expr(e) = self.tcx().hir_node(body_id.hir_id)
-            && let hir::ExprKind::Block(b, _) = e.kind
+    fn extract_extern_id_from_fn(&self, item: &hir::Item) -> Result<DefId> {
+        let typeck_result = self.tcx().typeck(item.owner_id);
+        if let hir::ItemKind::Fn(_, _, body_id) = item.kind
+            && let hir::ExprKind::Block(b, _) = self.tcx().hir().body(body_id).value.kind
             && let Some(e) = b.expr
-            && let hir::ExprKind::Call(callee, _) = &e.kind
+            && let hir::ExprKind::Call(callee, _) = e.kind
             && let hir::ExprKind::Path(qself) = &callee.kind
-            && let typeck_result = self.tcx().typeck(item.owner_id)
             && let hir::def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
         {
             Ok(def_id)
@@ -117,44 +205,57 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    //     // impl functions
-    //     if let hir::Node::ImplItem(i) = self.tcx.hir_node_by_def_id(def_id)
-    //         && let hir::ImplItemKind::Fn(_, body_id) = &i.kind
-    //         && let hir::Node::Expr(e) = self.tcx.hir_node(body_id.hir_id)
-    //         && let hir::ExprKind::Block(b, _) = e.kind
-    //         && let Some(e) = b.expr
-    //         && let hir::ExprKind::Call(callee, _) = &e.kind
-    //         && let hir::ExprKind::Path(qself) = &callee.kind
-    //     {
-    //         let typeck_result = self.tcx.typeck(def_id);
+    fn extract_extern_id_from_impl_fn(&self, item: &hir::ImplItemRef) -> Result<DefId> {
+        let typeck = self.tcx().typeck(item.id.owner_id);
+        if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir().impl_item(item.id).kind
+            && let hir::ExprKind::Block(b, _) = self.tcx().hir().body(body_id).value.kind
+            && let Some(e) = b.expr
+            && let hir::ExprKind::Call(callee, _) = e.kind
+            && let rustc_middle::ty::FnDef(callee_id, args) = typeck.node_type(callee.hir_id).kind()
+        {
+            let caller_id = item.id.owner_id.to_def_id();
+            if self.tcx().trait_of_item(*callee_id).is_some() {
+                self.resolve_trait_method(caller_id, *callee_id, args)
+            } else {
+                Ok(*callee_id)
+            }
+        } else {
+            Err(self.malformed())
+        }
+    }
 
-    //         if let rustc_middle::ty::FnDef(fn_def, args) =
-    //             typeck_result.node_type(callee.hir_id).kind()
-    //             && let Some((callee_id, _)) =
-    //                 flux_middle::rustc::lowering::resolve_call_from(self.tcx, def_id, *fn_def, args)
-    //         {
-    //             return Ok(callee_id);
-    //         }
-    //         if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
-    //             return Ok(def_id);
-    //         }
-    //     }
-    //     Err(self
-    //         .errors
-    //         .emit(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
-    // }
+    fn extract_extern_id_from_trait(&self, bounds: &hir::GenericBounds) -> Result<DefId> {
+        if let Some(bound) = bounds.first()
+            && let Some(trait_ref) = bound.trait_ref()
+            && let Some(trait_id) = trait_ref.trait_def_id()
+        {
+            Ok(trait_id)
+        } else {
+            Err(self.malformed())
+        }
+    }
+
+    fn resolve_trait_method(
+        &self,
+        caller_id: DefId,
+        callee_id: DefId,
+        args: rustc_middle::ty::GenericArgsRef<'tcx>,
+    ) -> Result<DefId> {
+        lowering::resolve_call_from(self.tcx(), caller_id, callee_id, args)
+            .map(|(resolved_id, _)| resolved_id)
+            .ok_or_else(|| todo!())
+    }
 
     fn tcx(&self) -> TyCtxt<'tcx> {
         self.inner.tcx
     }
 
-    fn pop_item(&mut self) -> Result<&'tcx hir::Item<'tcx>> {
-        let st = self
-            .block
-            .stmts
-            .get(self.idx - 1)
+    #[track_caller]
+    fn item_at(&self, i: usize) -> Result<&'tcx hir::Item<'tcx>> {
+        let stmts = self.block.stmts;
+        let st = stmts
+            .get(stmts.len() - i - 1)
             .ok_or_else(|| self.malformed())?;
-        self.idx -= 1;
         if let hir::StmtKind::Item(item_id) = st.kind {
             Ok(self.tcx().hir().item(item_id))
         } else {
@@ -162,13 +263,15 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn malformed(&mut self) -> ErrorGuaranteed {
+    #[track_caller]
+    fn malformed(&self) -> ErrorGuaranteed {
         self.inner
             .errors
             .emit(errors::MalformedExternSpec::new(self.block.span))
     }
 
-    fn missing_fn_sig(&mut self, fn_id: OwnerId) -> ErrorGuaranteed {
+    #[track_caller]
+    fn missing_fn_sig(&self, fn_id: OwnerId) -> ErrorGuaranteed {
         self.inner
             .errors
             .emit(errors::MissingFnSigForExternSpec::new(self.tcx().def_span(fn_id.def_id)))
