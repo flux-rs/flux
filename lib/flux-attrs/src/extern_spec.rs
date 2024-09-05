@@ -182,9 +182,21 @@ fn extern_impl_to_tokens(
 ) -> syn::Result<TokenStream> {
     extern_item_impl.prepare();
 
-    let dummy_impl_struct = &extern_item_impl.dummy_ident;
-    let generics = &extern_item_impl.generics;
+    let dummy_ident = &extern_item_impl.dummy_ident;
     let fields = generic_params_to_fields(&extern_item_impl.generics.params);
+
+    let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
+
+    let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
+        let self_ty = &extern_item_impl.self_ty;
+        Some(quote!(
+            impl #impl_generics #dummy_ident #ty_generics #where_clause {
+                fn __flux_extern_extract_impl_id() where #self_ty: #trait_ {}
+            }
+        ))
+    } else {
+        None
+    };
 
     Ok(quote! {
         #[allow(unused, dead_code, unused_variables)]
@@ -192,7 +204,9 @@ fn extern_impl_to_tokens(
         const _: () = {
             #mod_use
 
-            struct #dummy_impl_struct #generics ( #fields );
+            struct #dummy_ident #impl_generics ( #fields ) #where_clause;
+
+            #dummy_impl
 
             #extern_item_impl
         };

@@ -778,13 +778,6 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_malformed_extern_spec, code = E0999)]
-    pub(super) struct MalformedExternSpec {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
     #[diag(driver_attr_on_opaque, code = E0999)]
     pub(super) struct AttrOnOpaque {
         #[primary_span]

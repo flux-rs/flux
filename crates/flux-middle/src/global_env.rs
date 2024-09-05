@@ -408,7 +408,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn is_dummy(self, def_id: LocalDefId) -> bool {
-        self.collect_specs().is_dummy(def_id)
+        self.traverse_parents(def_id, |did| self.collect_specs().is_dummy(did).then_some(()))
+            .is_some()
     }
 
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].

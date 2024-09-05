@@ -111,10 +111,18 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result {
         self.inner.collect_impl(impl_id, attrs)?;
 
-        let dummy_struct = self.item_at(1)?;
-        self.inner.specs.insert_dummy(dummy_struct.owner_id);
-
         let mut extern_impl_id = None;
+
+        let dummy_item = self.item_at(1)?;
+        self.inner.specs.insert_dummy(dummy_item.owner_id);
+        if let hir::ItemKind::Impl(dummy_impl) = dummy_item.kind {
+            let dummy_struct = self.item_at(2)?;
+            self.inner.specs.insert_dummy(dummy_struct.owner_id);
+
+            extern_impl_id =
+                Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
+        }
+
         for item in impl_.items {
             let new_impl_id = self.collect_extern_spec_impl_item(item)?;
             if *extern_impl_id.get_or_insert(new_impl_id) != new_impl_id {
@@ -232,6 +240,23 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
+    fn extract_extern_id_from_impl(&self, impl_id: OwnerId, impl_: &hir::Impl) -> Result<DefId> {
+        if let Some(item) = impl_.items.get(0)
+            && let hir::AssocItemKind::Fn { .. } = item.kind
+            && let Some((clause, _)) = self
+                .tcx()
+                .predicates_of(item.id.owner_id.def_id)
+                .predicates
+                .get(0)
+            && let Some(poly_trait_pred) = clause.as_trait_clause()
+            && let Some(trait_pred) = poly_trait_pred.no_bound_vars()
+        {
+            self.resolve_trait_impl(impl_id.to_def_id(), trait_pred.trait_ref)
+        } else {
+            Err(self.malformed())
+        }
+    }
+
     fn resolve_trait_method(
         &self,
         caller_id: DefId,
@@ -240,6 +265,16 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result<DefId> {
         lowering::resolve_call_from(self.tcx(), caller_id, callee_id, args)
             .map(|(resolved_id, _)| resolved_id)
+            .ok_or_else(|| todo!())
+    }
+
+    fn resolve_trait_impl(
+        &self,
+        def_id: DefId,
+        trait_ref: rustc_middle::ty::TraitRef<'tcx>,
+    ) -> Result<DefId> {
+        lowering::resolve_trait_ref_impl_id(self.tcx(), def_id, trait_ref)
+            .map(|(impl_id, _)| impl_id)
             .ok_or_else(|| todo!())
     }
 

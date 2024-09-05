@@ -14,7 +14,7 @@ use rustc_middle::{
         TyCtxt, ValTree,
     },
 };
-use rustc_span::{def_id::LocalDefId, Span, Symbol};
+use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -86,18 +86,16 @@ fn trait_ref_impl_id<'tcx>(
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-    let ImplSource::UserDefined(impl_data) = impl_source else {
-        return None;
-    };
+    let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
 }
 
 pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
+    def_id: DefId,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let param_env = tcx.param_env(def_id.to_def_id());
+    let param_env = tcx.param_env(def_id);
     let infcx = tcx.infer_ctxt().build();
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
