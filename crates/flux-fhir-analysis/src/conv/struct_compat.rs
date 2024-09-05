@@ -285,7 +285,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Error> {
-        let res = match (a, b) {
+        match (a, b) {
             (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) => {
                 assert_eq_or_incompatible(ity_a, ity_b)
             }
@@ -343,8 +343,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 bug!("unexpected type `{a:?}`");
             }
             _ => Err(Error::Incompatible),
-        };
-        res
+        }
     }
 
     fn zip_generic_arg(&mut self, a: &rty::GenericArg, b: &rty::GenericArg) -> Result<(), Error> {
