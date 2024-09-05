@@ -94,6 +94,9 @@ fn extern_struct_to_tokens(
         flux_tool_attrs(&mut field.attrs);
     }
     if let syn::Fields::Unit = &item_struct.fields {
+        if !has_opaque_attr(&item_struct.attrs) {
+            item_struct.attrs.push(parse_quote!(#[flux_tool::opaque]));
+        }
         item_struct.fields = syn::Fields::Unnamed(parse_quote! { (#ident < #args >) });
     }
 
@@ -111,6 +114,26 @@ fn extern_struct_to_tokens(
             #item_struct
         };
     })
+}
+
+fn has_opaque_attr(attrs: &[syn::Attribute]) -> bool {
+    attrs
+        .iter()
+        .any(|attr| path_matches(attr.path(), &["flux_tool", "opaque"]))
+}
+
+fn path_matches(path: &syn::Path, x: &[&str]) -> bool {
+    let mut i = 0;
+    for segment in &path.segments {
+        if i == x.len() {
+            return false;
+        }
+        if segment.ident != x[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 fn extern_trait_to_tokens(

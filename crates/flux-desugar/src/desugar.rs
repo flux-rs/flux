@@ -352,10 +352,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             else {
                 bug!("expected struct")
             };
-            debug_assert_eq!(
-                struct_def.fields.len(),
-                variant_data.fields().len() - (self.owner.is_extern() as usize)
-            );
+            debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
             let fields = try_alloc_slice!(
                 self.genv,
                 iter::zip(&struct_def.fields, variant_data.fields()),

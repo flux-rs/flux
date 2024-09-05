@@ -81,10 +81,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             .specs
             .insert_extern_id(struct_id.def_id, extern_id);
 
-        let struct_def = self.inner.collect_struct_def(struct_id, attrs, variant)?;
-
-        // We consider extern specs on a unit struct as opaque
-        struct_def.opaque = variant.fields().len() == 0;
+        self.inner.collect_struct_def(struct_id, attrs, variant)?;
 
         Ok(())
     }
@@ -250,12 +247,15 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.tcx
     }
 
+    /// Returns the item inside the const block at position `i` starting from the end.
     #[track_caller]
     fn item_at(&self, i: usize) -> Result<&'tcx hir::Item<'tcx>> {
         let stmts = self.block.stmts;
-        let st = stmts
-            .get(stmts.len() - i - 1)
+        let index = stmts
+            .len()
+            .checked_sub(i + 1)
             .ok_or_else(|| self.malformed())?;
+        let st = stmts.get(index).ok_or_else(|| self.malformed())?;
         if let hir::StmtKind::Item(item_id) = st.kind {
             Ok(self.tcx().hir().item(item_id))
         } else {
