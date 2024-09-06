@@ -116,17 +116,6 @@ fn resolve_call_query<'tcx>(
     Some((assoc_item.def_id, impl_args))
 }
 
-pub fn resolve_call_from<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    caller_id: DefId,
-    callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef<'tcx>,
-) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let param_env = tcx.param_env(caller_id);
-    let infcx = tcx.infer_ctxt().build();
-    resolve_call_query(tcx, &mut SelectionContext::new(&infcx), param_env, callee_id, args)
-}
-
 impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,

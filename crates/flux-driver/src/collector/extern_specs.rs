@@ -128,14 +128,16 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
 
         for item in impl_.items {
-            let extern_item = self.collect_extern_spec_impl_item(impl_of_trait, item)?;
+            let extern_item = if let hir::AssocItemKind::Fn { .. } = item.kind {
+                let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
+                self.inner.report_dups(&attrs)?;
+                self.collect_extern_impl_fn(impl_of_trait, item, attrs)?
+            } else {
+                continue;
+            };
 
             if *extern_impl_id.get_or_insert(extern_item.impl_id) != extern_item.impl_id {
-                // if of_trait {
-                //     return Err(self.item_not_in_trait_impl(item.id.owner_id, extern_id));
-                // } else {
-                //     return Err(self.mismatched_impl_block());
-                // }
+                return Err(self.invalid_impl_block());
             }
         }
 
@@ -143,27 +145,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             self.inner
                 .specs
                 .insert_extern_id(impl_id.def_id, extern_impl_id);
-        } else {
-            todo!()
         }
 
         Ok(())
-    }
-
-    fn collect_extern_spec_impl_item(
-        &mut self,
-        impl_of_trait: Option<DefId>,
-        item: &hir::ImplItemRef,
-    ) -> Result<ExternImplItem> {
-        let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
-        self.inner.report_dups(&attrs)?;
-
-        match item.kind {
-            hir::AssocItemKind::Fn { .. } => {
-                self.collect_extern_impl_fn(impl_of_trait, item, attrs)
-            }
-            rustc_hir::AssocItemKind::Const | rustc_hir::AssocItemKind::Type => todo!(),
-        }
     }
 
     fn collect_extern_impl_fn(
@@ -246,6 +230,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 }
             } else {
                 if let Some(extern_impl_id) = self.tcx().impl_of_method(*callee_id) {
+                    debug_assert!(self.tcx().trait_id_of_impl(extern_impl_id).is_none());
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: *callee_id })
                 } else {
                     Err(self.invalid_item_in_inherent_impl(item.id.owner_id, *callee_id))
@@ -284,17 +269,6 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn resolve_trait_method(
-        &self,
-        caller_id: DefId,
-        callee_id: DefId,
-        args: rustc_middle::ty::GenericArgsRef<'tcx>,
-    ) -> Result<DefId> {
-        lowering::resolve_call_from(self.tcx(), caller_id, callee_id, args)
-            .map(|(resolved_id, _)| resolved_id)
-            .ok_or_else(|| todo!())
-    }
-
     fn resolve_trait_impl(
         &self,
         def_id: DefId,
@@ -302,7 +276,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result<DefId> {
         lowering::resolve_trait_ref_impl_id(self.tcx(), def_id, trait_ref)
             .map(|(impl_id, _)| impl_id)
-            .ok_or_else(|| todo!())
+            .ok_or_else(|| self.cannot_resolve_trait_impl())
     }
 
     fn tcx(&self) -> TyCtxt<'tcx> {
@@ -367,17 +341,24 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     #[track_caller]
-    fn mismatched_impl_block(&self) -> ErrorGuaranteed {
+    fn invalid_impl_block(&self) -> ErrorGuaranteed {
         self.inner
             .errors
-            .emit(errors::InvalidInherentImpl { span: self.block.span })
+            .emit(errors::InvalidImplBlock { span: self.block.span })
+    }
+
+    #[track_caller]
+    fn cannot_resolve_trait_impl(&self) -> ErrorGuaranteed {
+        self.inner
+            .errors
+            .emit(errors::CannotResolveTraitImpl { span: self.block.span })
     }
 }
 
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
+    use rustc_span::Span;
 
     #[derive(Diagnostic)]
     #[diag(driver_malformed_extern_spec, code = E0999)]
@@ -393,9 +374,18 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_inherent_impl, code = E0999)]
-    pub(super) struct InvalidInherentImpl {
+    #[diag(driver_cannot_resolve_trait_impl, code = E0999)]
+    #[note]
+    pub(super) struct CannotResolveTraitImpl {
         #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_invalid_impl_block, code = E0999)]
+    pub(super) struct InvalidImplBlock {
+        #[primary_span]
+        #[label]
         pub span: Span,
     }
 

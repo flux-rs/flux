@@ -34,8 +34,13 @@ driver_mismatched_spec_name =
 driver_malformed_extern_spec =
     malformed extern_spec, this should never happen if you are using the extern_spec macro. Did you accidentally use the internal flux::extern_spec attribute?
 
-driver_invalid_inherent_impl =
-    all items in an extern spec must belong to the same impl block
+driver_cannot_resolve_trait_impl =
+    cannot resolve trait implementation
+    .note = this is probably a bug in Flux
+
+driver_invalid_impl_block =
+    invalid impl extern spec
+    .label = items in this extern spec are not defined in the same extern impl block
 
 driver_item_not_in_trait_impl =
     invalid extern spec for trait impl
