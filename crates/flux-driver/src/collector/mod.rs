@@ -83,8 +83,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_crate(&mut self) -> Result {
-        let mut attrs = self.parse_flux_attrs(CRATE_DEF_ID)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.specs.extend_items(attrs.items());
         self.specs.crate_config = attrs.crate_config();
@@ -94,8 +93,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_item(&mut self, item: &'tcx Item<'tcx>) -> Result {
         let owner_id = item.owner_id;
 
-        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         match &item.kind {
@@ -126,8 +124,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_trait_item(&mut self, trait_item: &'tcx rustc_hir::TraitItem<'tcx>) -> Result {
         let owner_id = trait_item.owner_id;
 
-        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
@@ -140,8 +137,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_impl_item(&mut self, impl_item: &'tcx rustc_hir::ImplItem<'tcx>) -> Result {
         let owner_id = impl_item.owner_id;
 
-        let mut attrs = self.parse_flux_attrs(owner_id.def_id)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
@@ -221,8 +217,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         field: &rustc_hir::FieldDef,
         opaque: bool,
     ) -> Result<Option<surface::Ty>> {
-        let mut attrs = self.parse_flux_attrs(field.def_id)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(field.def_id)?;
         let field_attr = attrs.field();
 
         // We warn if a struct marked as opaque has a refined type annotation. We allow unrefined
@@ -273,8 +268,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         hir_variant: &rustc_hir::Variant,
         has_refined_by: bool,
     ) -> Result<Option<surface::VariantDef>> {
-        let mut attrs = self.parse_flux_attrs(hir_variant.def_id)?;
-        self.report_dups(&attrs)?;
+        let mut attrs = self.parse_attrs_and_report_dups(hir_variant.def_id)?;
 
         let variant = attrs.variant();
 
@@ -312,6 +306,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .fn_sigs
             .entry(owner_id)
             .or_insert(surface::FnSpec { fn_sig, qual_names }))
+    }
+
+    fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
+        let attrs = self.parse_flux_attrs(def_id)?;
+        self.report_dups(&attrs)?;
+        Ok(attrs)
     }
 
     fn parse_flux_attrs(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
