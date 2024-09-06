@@ -4,7 +4,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["flux_common",["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs","result.rs"]]],\
 ["flux_config",["",[],["lib.rs"]]],\
 ["flux_desugar",["",[["resolver",[],["refinement_resolver.rs"]]],["desugar.rs","errors.rs","lib.rs","resolver.rs"]]],\
-["flux_driver",["",[],["callbacks.rs","collector.rs","lib.rs"]]],\
+["flux_driver",["",[["collector",[],["extern_specs.rs","mod.rs"]]],["callbacks.rs","lib.rs"]]],\
 ["flux_errors",["",[],["lib.rs"]]],\
 ["flux_fhir_analysis",["",[["conv",[],["mod.rs","struct_compat.rs"]],["wf",[],["errors.rs","mod.rs","param_usage.rs","sortck.rs"]]],["compare_impl_item.rs","lib.rs"]]],\
 ["flux_fixpoint",["",[],["big_int.rs","constraint.rs","lib.rs"]]],\

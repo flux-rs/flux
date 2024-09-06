@@ -1063,19 +1063,6 @@
 <a href="#1063" id="1063">1063</a>
 <a href="#1064" id="1064">1064</a>
 <a href="#1065" id="1065">1065</a>
-<a href="#1066" id="1066">1066</a>
-<a href="#1067" id="1067">1067</a>
-<a href="#1068" id="1068">1068</a>
-<a href="#1069" id="1069">1069</a>
-<a href="#1070" id="1070">1070</a>
-<a href="#1071" id="1071">1071</a>
-<a href="#1072" id="1072">1072</a>
-<a href="#1073" id="1073">1073</a>
-<a href="#1074" id="1074">1074</a>
-<a href="#1075" id="1075">1075</a>
-<a href="#1076" id="1076">1076</a>
-<a href="#1077" id="1077">1077</a>
-<a href="#1078" id="1078">1078</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1092,7 +1079,7 @@
         TyCtxt, ValTree,
     },
 };
-<span class="kw">use </span>rustc_span::{def_id::LocalDefId, Span, Symbol};
+<span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
@@ -1164,18 +1151,16 @@
     <span class="kw">let </span>obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     <span class="kw">let </span>impl_source = selcx.select(<span class="kw-2">&amp;</span>obligation).ok()<span class="question-mark">??</span>;
     <span class="kw">let </span>impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-    <span class="kw">let </span>ImplSource::UserDefined(impl_data) = impl_source <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">None</span>;
-    };
+    <span class="kw">let </span>ImplSource::UserDefined(impl_data) = impl_source <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
     <span class="prelude-val">Some</span>((impl_data.impl_def_id, impl_data.args))
 }
 
 <span class="kw">pub fn </span>resolve_trait_ref_impl_id&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    def_id: LocalDefId,
+    def_id: DefId,
     trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
-    <span class="kw">let </span>param_env = tcx.param_env(def_id.to_def_id());
+    <span class="kw">let </span>param_env = tcx.param_env(def_id);
     <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
     trait_ref_impl_id(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, trait_ref)
 }
@@ -1194,17 +1179,6 @@
     <span class="kw">let </span>assoc_id = tcx.impl_item_implementor_ids(impl_def_id).get(<span class="kw-2">&amp;</span>callee_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>assoc_item = tcx.associated_item(assoc_id);
     <span class="prelude-val">Some</span>((assoc_item.def_id, impl_args))
-}
-
-<span class="kw">pub fn </span>resolve_call_from&lt;<span class="lifetime">'tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    caller_id: LocalDefId,
-    callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
-    <span class="kw">let </span>param_env = tcx.param_env(caller_id.to_def_id());
-    <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
-    resolve_call_query(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, callee_id, args)
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; LoweringCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {

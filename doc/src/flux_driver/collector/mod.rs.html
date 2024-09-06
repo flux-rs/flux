@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector.rs`."><title>collector.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -841,228 +841,11 @@
 <a href="#841" id="841">841</a>
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
-<a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a>
-<a href="#894" id="894">894</a>
-<a href="#895" id="895">895</a>
-<a href="#896" id="896">896</a>
-<a href="#897" id="897">897</a>
-<a href="#898" id="898">898</a>
-<a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
-<a href="#901" id="901">901</a>
-<a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
-<a href="#909" id="909">909</a>
-<a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a>
-<a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a>
-<a href="#933" id="933">933</a>
-<a href="#934" id="934">934</a>
-<a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a>
-<a href="#938" id="938">938</a>
-<a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
-<a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
-<a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a>
-<a href="#1004" id="1004">1004</a>
-<a href="#1005" id="1005">1005</a>
-<a href="#1006" id="1006">1006</a>
-<a href="#1007" id="1007">1007</a>
-<a href="#1008" id="1008">1008</a>
-<a href="#1009" id="1009">1009</a>
-<a href="#1010" id="1010">1010</a>
-<a href="#1011" id="1011">1011</a>
-<a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
-<a href="#1016" id="1016">1016</a>
-<a href="#1017" id="1017">1017</a>
-<a href="#1018" id="1018">1018</a>
-<a href="#1019" id="1019">1019</a>
-<a href="#1020" id="1020">1020</a>
-<a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a>
-<a href="#1041" id="1041">1041</a>
-<a href="#1042" id="1042">1042</a>
-<a href="#1043" id="1043">1043</a>
-<a href="#1044" id="1044">1044</a>
-<a href="#1045" id="1045">1045</a>
-<a href="#1046" id="1046">1046</a>
-<a href="#1047" id="1047">1047</a>
-<a href="#1048" id="1048">1048</a>
-<a href="#1049" id="1049">1049</a>
-<a href="#1050" id="1050">1050</a>
-<a href="#1051" id="1051">1051</a>
-<a href="#1052" id="1052">1052</a>
-<a href="#1053" id="1053">1053</a>
-<a href="#1054" id="1054">1054</a>
-<a href="#1055" id="1055">1055</a>
-<a href="#1056" id="1056">1056</a>
-<a href="#1057" id="1057">1057</a>
-<a href="#1058" id="1058">1058</a>
-<a href="#1059" id="1059">1059</a>
-<a href="#1060" id="1060">1060</a>
-<a href="#1061" id="1061">1061</a>
-<a href="#1062" id="1062">1062</a>
-<a href="#1063" id="1063">1063</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+</pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
+<span class="kw">use </span>std::collections::HashMap;
+
+<span class="kw">use </span>extern_specs::ExternSpecCollector;
 <span class="kw">use </span>flux_common::{
     iter::IterExt,
     result::{ErrorCollector, ResultExt},
@@ -1071,7 +854,6 @@
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
     fhir::{Ignored, Trusted},
-    rustc::lowering::resolve_trait_ref_impl_id,
     Specs,
 };
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
@@ -1084,11 +866,10 @@
 <span class="kw">use </span>rustc_hir::{
     <span class="self">self </span><span class="kw">as </span>hir,
     def::DefKind,
-    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
-    AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
-    VariantData,
+    def_id::{LocalDefId, CRATE_DEF_ID},
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
-<span class="kw">use </span>rustc_middle::ty::{TraitPredicate, TyCtxt};
+<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Span, Symbol, SyntaxContext};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
@@ -1116,17 +897,14 @@
 
     <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>Item&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">let _ </span>= <span class="self">self</span>.collect_item(item);
-        hir::intravisit::walk_item(<span class="self">self</span>, item);
     }
 
     <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">let _ </span>= <span class="self">self</span>.collect_trait_item(trait_item);
-        hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
     }
 
     <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">let _ </span>= <span class="self">self</span>.collect_impl_item(impl_item);
-        hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
     }
 }
 
@@ -1164,15 +942,28 @@
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-            ItemKind::Fn(..) =&gt; <span class="self">self</span>.collect_fn_spec(owner_id, attrs),
-            ItemKind::Struct(variant, ..) =&gt; <span class="self">self</span>.collect_structc_def(owner_id, attrs, variant),
-            ItemKind::Enum(enum_def, ..) =&gt; <span class="self">self</span>.collect_enum_def(owner_id, attrs, enum_def),
-            ItemKind::Mod(..) =&gt; <span class="self">self</span>.collect_mod(attrs),
-            ItemKind::TyAlias(..) =&gt; <span class="self">self</span>.collect_type_alias(owner_id, attrs),
-            ItemKind::Impl(impl_) =&gt; <span class="self">self</span>.collect_impl(owner_id, attrs, impl_),
-            ItemKind::Trait(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, bounds, <span class="kw">_</span>) =&gt; <span class="self">self</span>.collect_trait(owner_id, attrs, bounds),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
+            ItemKind::Fn(..) =&gt; {
+                <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
+            }
+            ItemKind::Struct(variant, ..) =&gt; {
+                <span class="self">self</span>.collect_struct_def(owner_id, attrs, variant)<span class="question-mark">?</span>;
+            }
+            ItemKind::Enum(enum_def, ..) =&gt; {
+                <span class="self">self</span>.collect_enum_def(owner_id, attrs, enum_def)<span class="question-mark">?</span>;
+            }
+            ItemKind::Mod(..) =&gt; <span class="self">self</span>.collect_mod(attrs)<span class="question-mark">?</span>,
+            ItemKind::TyAlias(..) =&gt; <span class="self">self</span>.collect_type_alias(owner_id, attrs)<span class="question-mark">?</span>,
+            ItemKind::Impl(..) =&gt; <span class="self">self</span>.collect_impl(owner_id, attrs)<span class="question-mark">?</span>,
+            ItemKind::Trait(..) =&gt; <span class="self">self</span>.collect_trait(owner_id, attrs)<span class="question-mark">?</span>,
+            ItemKind::Const(.., body_id) =&gt; {
+                <span class="kw">if </span>attrs.extern_spec() {
+                    <span class="kw">return </span>ExternSpecCollector::collect(<span class="self">self</span>, <span class="kw-2">*</span>body_id);
+                }
+            }
+            <span class="kw">_ </span>=&gt; {}
         }
+        hir::intravisit::walk_item(<span class="self">self</span>, item);
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>collect_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
@@ -1185,6 +976,7 @@
         <span class="kw">if let </span>rustc_hir::TraitItemKind::Fn(<span class="kw">_</span>, <span class="kw">_</span>) = trait_item.kind {
             <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
         }
+        hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1198,6 +990,7 @@
         <span class="kw">if let </span>ImplItemKind::Fn(..) = <span class="kw-2">&amp;</span>impl_item.kind {
             <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
         }
+        hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1206,12 +999,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_trait(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        owner_id: OwnerId,
-        <span class="kw-2">mut </span>attrs: FluxAttrs,
-        bounds: <span class="kw-2">&amp;</span>GenericBounds,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.trait_assoc_refts();
 
@@ -1219,30 +1007,12 @@
             .traits
             .insert(owner_id, surface::Trait { generics, assoc_refinements });
 
-        <span class="kw">if </span>attrs.extern_spec() {
-            <span class="kw">let </span>extern_id =
-                <span class="self">self</span>.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-        };
-
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_impl(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        owner_id: OwnerId,
-        <span class="kw-2">mut </span>attrs: FluxAttrs,
-        impl_: <span class="kw-2">&amp;</span>rustc_hir::Impl,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.impl_assoc_refts();
-
-        <span class="kw">if </span>attrs.extern_spec()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(extern_id) =
-                <span class="self">self</span>.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
-        {
-            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
 
         <span class="self">self</span>.specs
             .impls
@@ -1256,50 +1026,37 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_structc_def(
+    <span class="kw">fn </span>collect_struct_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         owner_id: OwnerId,
         <span class="kw-2">mut </span>attrs: FluxAttrs,
         data: <span class="kw-2">&amp;</span>VariantData,
-    ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>opaque = attrs.opaque();
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span>surface::StructDef&gt; {
+        <span class="kw">let </span>opaque = attrs.opaque();
         <span class="kw">let </span>refined_by = attrs.refined_by();
         <span class="kw">let </span>generics = attrs.generics();
 
-        <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
-        <span class="kw">if </span>is_extern_spec {
-            <span class="comment">// If there's only one field it corresponds to the special field to extract the struct
-            // def_id. This means the user didn't specify any fields and thus we consider the struct
-            // as opaque.
-            </span>opaque = data.fields().len() == <span class="number">1</span>;
-            <span class="kw">let </span>extern_id =
-                <span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
-
-        <span class="comment">// For extern specs, we skip the last field containing the information to extract the def_id
-        </span><span class="kw">let </span>fields = data
+        <span class="kw">let </span>fields = data
             .fields()
             .iter()
-            .take(data.fields().len() - (is_extern_spec <span class="kw">as </span>usize))
+            .take(data.fields().len())
             .map(|field| <span class="self">self</span>.parse_field_spec(field, opaque))
             .try_collect_exhaust()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>invariants = attrs.invariants();
 
-        <span class="self">self</span>.specs.structs.insert(
-            owner_id,
-            surface::StructDef {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.specs
+            .structs
+            .entry(owner_id)
+            .or_insert(surface::StructDef {
                 generics,
                 refined_by,
                 fields,
                 opaque,
                 invariants,
                 node_id: <span class="self">self</span>.parse_sess.next_node_id(),
-            },
-        );
-
-        <span class="prelude-val">Ok</span>(())
+            }))
     }
 
     <span class="kw">fn </span>parse_field_spec(
@@ -1328,38 +1085,30 @@
         owner_id: OwnerId,
         <span class="kw-2">mut </span>attrs: FluxAttrs,
         enum_def: <span class="kw-2">&amp;</span>EnumDef,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span>surface::EnumDef&gt; {
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>refined_by = attrs.refined_by();
 
-        <span class="kw">let </span>is_extern_spec = attrs.extern_spec();
-        <span class="kw">if </span>is_extern_spec {
-            <span class="kw">let </span>extern_id =
-                <span class="self">self</span>.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
-        }
-
-        <span class="comment">// For extern specs, we skip the last variant containing the information to extract the def_id
-        </span><span class="kw">let </span>variants = enum_def
+        <span class="kw">let </span>variants = enum_def
             .variants
             .iter()
-            .take(enum_def.variants.len() - (is_extern_spec <span class="kw">as </span>usize))
+            .take(enum_def.variants.len())
             .map(|variant| <span class="self">self</span>.collect_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>invariants = attrs.invariants();
 
-        <span class="self">self</span>.specs.enums.insert(
-            owner_id,
-            surface::EnumDef {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.specs
+            .enums
+            .entry(owner_id)
+            .or_insert(surface::EnumDef {
                 generics,
                 refined_by,
                 variants,
                 invariants,
                 node_id: <span class="self">self</span>.parse_sess.next_node_id(),
-            },
-        );
-        <span class="prelude-val">Ok</span>(())
+            }))
     }
 
     <span class="kw">fn </span>collect_variant(
@@ -1381,7 +1130,11 @@
         <span class="prelude-val">Ok</span>(variant)
     }
 
-    <span class="kw">fn </span>collect_fn_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_fn_spec(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        owner_id: OwnerId,
+        <span class="kw-2">mut </span>attrs: FluxAttrs,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span>surface::FnSpec&gt; {
         <span class="kw">let </span>fn_sig = attrs.fn_sig();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span>fn_sig
@@ -1397,20 +1150,11 @@
         };
 
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
-        <span class="kw">if </span>attrs.extern_spec() {
-            <span class="kw">if </span>fn_sig.is_none() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.errors.emit(errors::MissingFnSigForExternSpec {
-                    span: <span class="self">self</span>.tcx.def_span(owner_id),
-                }));
-            }
-            <span class="kw">let </span>extern_def_id = <span class="self">self</span>.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_def_id);
-            <span class="comment">// We should never check an extern spec (it will infinitely recurse)
-        </span>}
-        <span class="self">self</span>.specs
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, qual_names });
-        <span class="prelude-val">Ok</span>(())
+            .entry(owner_id)
+            .or_insert(surface::FnSpec { fn_sig, qual_names }))
     }
 
     <span class="kw">fn </span>parse_flux_attrs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttrs&gt; {
@@ -1524,174 +1268,10 @@
                 }
             }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
-            (<span class="string">"fake_impl"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::FakeImpl,
             (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
         };
         <span class="prelude-val">Ok</span>(FluxAttr { kind, span: attr_item.span() })
-    }
-
-    <span class="comment">// In Prusti they suggested looking into doing this instead of using a Visitor...
-    // it seems more brittle but I guess conversely their version is a little permissive.
-    </span><span class="kw">fn </span>extract_extern_def_id_from_extern_spec_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">use </span>rustc_hir::{def, ExprKind, Node};
-        <span class="comment">// Regular functions
-        </span><span class="kw">if let </span>Node::Item(i) = <span class="self">self</span>.tcx.hir_node_by_def_id(def_id)
-            &amp;&amp; <span class="kw">let </span>ItemKind::Fn(<span class="kw">_</span>, <span class="kw">_</span>, body_id) = <span class="kw-2">&amp;</span>i.kind
-            &amp;&amp; <span class="kw">let </span>Node::Expr(e) = <span class="self">self</span>.tcx.hir_node(body_id.hir_id)
-            &amp;&amp; <span class="kw">let </span>ExprKind::Block(b, <span class="kw">_</span>) = e.kind
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(e) = b.expr
-            &amp;&amp; <span class="kw">let </span>ExprKind::Call(callee, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>e.kind
-            &amp;&amp; <span class="kw">let </span>ExprKind::Path(qself) = <span class="kw-2">&amp;</span>callee.kind
-        {
-            <span class="kw">let </span>typeck_result = <span class="self">self</span>.tcx.typeck(def_id);
-            <span class="kw">if let </span>def::Res::Def(<span class="kw">_</span>, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(def_id);
-            }
-        }
-        <span class="comment">// impl functions
-        </span><span class="kw">if let </span>Node::ImplItem(i) = <span class="self">self</span>.tcx.hir_node_by_def_id(def_id)
-            &amp;&amp; <span class="kw">let </span>ImplItemKind::Fn(<span class="kw">_</span>, body_id) = <span class="kw-2">&amp;</span>i.kind
-            &amp;&amp; <span class="kw">let </span>Node::Expr(e) = <span class="self">self</span>.tcx.hir_node(body_id.hir_id)
-            &amp;&amp; <span class="kw">let </span>ExprKind::Block(b, <span class="kw">_</span>) = e.kind
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(e) = b.expr
-            &amp;&amp; <span class="kw">let </span>ExprKind::Call(callee, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>e.kind
-            &amp;&amp; <span class="kw">let </span>ExprKind::Path(qself) = <span class="kw-2">&amp;</span>callee.kind
-        {
-            <span class="kw">let </span>typeck_result = <span class="self">self</span>.tcx.typeck(def_id);
-
-            <span class="kw">if let </span>rustc_middle::ty::FnDef(fn_def, args) =
-                typeck_result.node_type(callee.hir_id).kind()
-                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>((callee_id, <span class="kw">_</span>)) =
-                    flux_middle::rustc::lowering::resolve_call_from(<span class="self">self</span>.tcx, def_id, <span class="kw-2">*</span>fn_def, args)
-            {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(callee_id);
-            }
-            <span class="kw">if let </span>def::Res::Def(<span class="kw">_</span>, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(def_id);
-            }
-        }
-        <span class="prelude-val">Err</span>(<span class="self">self
-            </span>.errors
-            .emit(errors::MalformedExternSpec { span: <span class="self">self</span>.tcx.def_span(def_id) }))
-    }
-
-    <span class="kw">fn </span>extract_extern_def_id_from_extern_spec_struct(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
-        data: <span class="kw-2">&amp;</span>VariantData,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_field) = data.fields().last() {
-            <span class="kw">let </span>ty = <span class="self">self</span>.tcx.type_of(extern_field.def_id);
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_def) = ty.skip_binder().ty_adt_def() {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(adt_def.did());
-            }
-        }
-        <span class="prelude-val">Err</span>(<span class="self">self
-            </span>.errors
-            .emit(errors::MalformedExternSpec { span: <span class="self">self</span>.tcx.def_span(def_id) }))
-    }
-
-    <span class="kw">fn </span>extract_extern_def_id_from_extern_spec_enum(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
-        enum_def: <span class="kw-2">&amp;</span>EnumDef,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fake) = enum_def.variants.last() {
-            <span class="kw">return </span><span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(def_id, <span class="kw-2">&amp;</span>fake.data);
-        }
-        <span class="prelude-val">Err</span>(<span class="self">self
-            </span>.errors
-            .emit(errors::MalformedExternSpec { span: <span class="self">self</span>.tcx.def_span(def_id) }))
-    }
-
-    <span class="kw">fn </span>fake_method_of(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: <span class="kw-2">&amp;</span>[ImplItemRef]) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
-        <span class="kw">for </span>item <span class="kw">in </span>items {
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>attrs) = <span class="self">self</span>.parse_flux_attrs(item.id.owner_id.def_id) {
-                <span class="kw">if let </span>AssocItemKind::Fn { .. } = item.kind
-                    &amp;&amp; attrs.fake_impl()
-                {
-                    <span class="kw">return </span><span class="prelude-val">Some</span>(item.id.owner_id.def_id);
-                }
-            }
-        }
-        <span class="prelude-val">None
-    </span>}
-
-    <span class="kw">fn </span>is_good_trait_predicate(<span class="kw-2">&amp;</span><span class="self">self</span>, trait_predicate: <span class="kw-2">&amp;</span>TraitPredicate) -&gt; bool {
-        <span class="kw">let </span>def_id = trait_predicate.trait_ref.def_id;
-        <span class="comment">// !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
-
-        </span><span class="self">self</span>.tcx.require_lang_item(rustc_hir::LangItem::Sized, <span class="prelude-val">None</span>) != def_id
-    }
-
-    <span class="doccomment">/// Given as input a fake_method_def_id `fake` where
-    ///     `fn fake&lt;A: Trait&lt;..&gt;&gt;(x: Ty) {}`
-    /// we want to
-    /// 1. build the [`TraitRef`] for `&lt;Ty as Trait&lt;...&gt;&gt;` and then
-    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
-    ///
-    /// [`TraitRef`]: rustc_middle::ty::TraitRef
-    </span><span class="kw">fn </span>extract_extern_def_id_from_extern_spec_impl(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        _def_id: LocalDefId,
-        items: <span class="kw-2">&amp;</span>[ImplItemRef],
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="comment">// 1. Find the fake_method's def_id
-        </span><span class="kw">let </span>fake_method_def_id = <span class="self">self</span>.fake_method_of(items)<span class="question-mark">?</span>;
-
-        <span class="comment">// 2. Get the fake_method's input type
-        </span><span class="kw">let </span>ty = <span class="self">self
-            </span>.tcx
-            .fn_sig(fake_method_def_id)
-            .instantiate_identity()
-            .skip_binder()
-            .inputs()
-            .first()
-            .unwrap();
-        <span class="kw">let </span>arg = rustc_middle::ty::GenericArg::from(<span class="kw-2">*</span>ty);
-
-        <span class="comment">// 3. Get the fake_method's trait_ref
-        </span><span class="kw">let </span>trait_ref = {
-            <span class="comment">// let _generics = self.tcx.generics_of(fake_method_def_id);
-            </span><span class="self">self</span>.tcx
-                .predicates_of(fake_method_def_id)
-                .predicates
-                .iter()
-                .filter_map(|(c, <span class="kw">_</span>)| c.as_trait_clause()<span class="question-mark">?</span>.no_bound_vars())
-                .find(|p| <span class="self">self</span>.is_good_trait_predicate(p))
-                .unwrap()
-                .trait_ref
-        };
-
-        <span class="comment">// 4. Splice in the type from step 2 to create query trait_ref
-        </span><span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[arg];
-        <span class="kw">for </span>arg <span class="kw">in </span>trait_ref.args.as_slice().iter().skip(<span class="number">1</span>) {
-            args.push(<span class="kw-2">*</span>arg);
-        }
-        <span class="kw">let </span>trait_ref = rustc_middle::ty::TraitRef::new(<span class="self">self</span>.tcx, trait_ref.def_id, args);
-
-        <span class="comment">// 5. Resolve the trait_ref to an impl_id
-        </span><span class="kw">let </span>(impl_id, <span class="kw">_</span>) =
-            resolve_trait_ref_impl_id(<span class="self">self</span>.tcx, fake_method_def_id, trait_ref).unwrap();
-        <span class="prelude-val">Some</span>(impl_id)
-    }
-
-    <span class="kw">fn </span>extract_extern_def_id_from_extern_spec_trait(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
-        bounds: <span class="kw-2">&amp;</span>GenericBounds,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(bound) = bounds.first()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = bound.trait_ref()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(trait_id) = trait_ref.trait_def_id()
-        {
-            <span class="prelude-val">Ok</span>(trait_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self
-                </span>.errors
-                .emit(errors::MalformedExternSpec { span: <span class="self">self</span>.tcx.def_span(def_id) }))
-        }
     }
 
     <span class="kw">fn </span>parse&lt;T&gt;(
@@ -1761,7 +1341,6 @@
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore(Ignored),
-    FakeImpl,
     ExternSpec,
 }
 
@@ -1820,11 +1399,7 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Ignore)
     }
 
-    <span class="kw">fn </span>fake_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">read_flag!</span>(<span class="self">self</span>, FakeImpl)
-    }
-
-    <span class="kw">fn </span>opaque(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+    <span class="kw">fn </span>opaque(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">read_flag!</span>(<span class="self">self</span>, Opaque)
     }
 
@@ -1876,7 +1451,7 @@
         <span class="macro">read_attrs!</span>(<span class="self">self</span>, Invariant)
     }
 
-    <span class="kw">fn </span>extern_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+    <span class="kw">fn </span>extern_spec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">read_flag!</span>(<span class="self">self</span>, ExternSpec)
     }
 }
@@ -1900,7 +1475,6 @@
             FluxAttrKind::Ignore(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Ignore),
             FluxAttrKind::Invariant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Invariant),
             FluxAttrKind::ExternSpec =&gt; <span class="macro">attr_name!</span>(ExternSpec),
-            FluxAttrKind::FakeImpl =&gt; <span class="macro">attr_name!</span>(FakeImpl),
         }
     }
 }
@@ -2044,20 +1618,6 @@
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
         <span class="kw">pub </span>msg: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    }
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(driver_malformed_extern_spec, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MalformedExternSpec {
-        <span class="attr">#[primary_span]
-        </span><span class="kw">pub </span>span: Span,
-    }
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(driver_missing_fn_sig_for_extern_spec, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MissingFnSigForExternSpec {
-        <span class="attr">#[primary_span]
-        </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]

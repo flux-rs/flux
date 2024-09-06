@@ -936,7 +936,7 @@
     <span class="kw">let </span>qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     <span class="kw">for </span>def_id <span class="kw">in </span>genv.tcx().hir_crate_items(()).definitions() {
-        <span class="kw">if </span>genv.ignored(def_id) {
+        <span class="kw">if </span>genv.ignored(def_id) || genv.is_dummy(def_id) {
             <span class="kw">continue</span>;
         }
         <span class="kw">let </span>def_kind = genv.def_kind(def_id);
