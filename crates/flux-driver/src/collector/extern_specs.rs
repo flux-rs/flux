@@ -53,11 +53,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn collect_extern_fn(&mut self, item: &hir::Item, attrs: FluxAttrs) -> Result {
-        let fn_spec = self.inner.collect_fn_spec(item.owner_id, attrs)?;
-
-        if fn_spec.fn_sig.is_none() {
-            return Err(self.missing_fn_sig(item.owner_id));
-        }
+        self.inner.collect_fn_spec(item.owner_id, attrs)?;
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
         self.inner
@@ -111,22 +107,34 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result {
         self.inner.collect_impl(impl_id, attrs)?;
 
-        let mut extern_impl_id = None;
-
         let dummy_item = self.item_at(1)?;
         self.inner.specs.insert_dummy(dummy_item.owner_id);
+
+        let mut extern_impl_id = None;
+        let mut impl_of_trait = None;
+
+        // If this is a trait implementation compute the impl_id from the trait_ref
         if let hir::ItemKind::Impl(dummy_impl) = dummy_item.kind {
             let dummy_struct = self.item_at(2)?;
             self.inner.specs.insert_dummy(dummy_struct.owner_id);
-
             extern_impl_id =
                 Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
+            impl_of_trait = extern_impl_id;
         }
 
         for item in impl_.items {
-            let new_impl_id = self.collect_extern_spec_impl_item(item)?;
-            if *extern_impl_id.get_or_insert(new_impl_id) != new_impl_id {
-                todo!()
+            let extern_id = self.collect_extern_spec_impl_item(impl_of_trait, item)?;
+            let impl_of_method = self
+                .tcx()
+                .impl_of_method(extern_id)
+                .ok_or_else(|| todo!())?;
+
+            if *extern_impl_id.get_or_insert(impl_of_method) != impl_of_method {
+                // if of_trait {
+                //     return Err(self.item_not_in_trait_impl(item.id.owner_id, extern_id));
+                // } else {
+                //     return Err(self.mismatched_impl_block());
+                // }
             }
         }
 
@@ -134,37 +142,43 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             self.inner
                 .specs
                 .insert_extern_id(impl_id.def_id, extern_impl_id);
+        } else {
+            todo!()
         }
 
         Ok(())
     }
 
-    fn collect_extern_spec_impl_item(&mut self, item: &hir::ImplItemRef) -> Result<DefId> {
+    fn collect_extern_spec_impl_item(
+        &mut self,
+        impl_of_trait: Option<DefId>,
+        item: &hir::ImplItemRef,
+    ) -> Result<DefId> {
         let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
         self.inner.report_dups(&attrs)?;
 
         match item.kind {
-            hir::AssocItemKind::Fn { .. } => self.collect_extern_impl_fn(item, attrs),
+            hir::AssocItemKind::Fn { .. } => {
+                self.collect_extern_impl_fn(impl_of_trait, item, attrs)
+            }
             rustc_hir::AssocItemKind::Const | rustc_hir::AssocItemKind::Type => todo!(),
         }
     }
 
     fn collect_extern_impl_fn(
         &mut self,
+        impl_of_trait: Option<DefId>,
         item: &hir::ImplItemRef,
         attrs: FluxAttrs,
     ) -> Result<DefId> {
-        let fn_spec = self.inner.collect_fn_spec(item.id.owner_id, attrs)?;
-        if fn_spec.fn_sig.is_none() {
-            return Err(self.missing_fn_sig(item.id.owner_id));
-        }
+        self.inner.collect_fn_spec(item.id.owner_id, attrs)?;
 
-        let extern_id = self.extract_extern_id_from_impl_fn(item)?;
+        let extern_id = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
         self.inner
             .specs
             .insert_extern_id(item.id.owner_id.def_id, extern_id);
 
-        self.tcx().impl_of_method(extern_id).ok_or_else(|| todo!())
+        Ok(extern_id)
     }
 
     fn collect_extern_trait(
@@ -210,19 +224,31 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn extract_extern_id_from_impl_fn(&self, item: &hir::ImplItemRef) -> Result<DefId> {
+    fn extract_extern_id_from_impl_fn(
+        &self,
+        impl_of_trait: Option<DefId>,
+        item: &hir::ImplItemRef,
+    ) -> Result<DefId> {
         let typeck = self.tcx().typeck(item.id.owner_id);
         if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir().impl_item(item.id).kind
             && let hir::ExprKind::Block(b, _) = self.tcx().hir().body(body_id).value.kind
             && let Some(e) = b.expr
             && let hir::ExprKind::Call(callee, _) = e.kind
-            && let rustc_middle::ty::FnDef(callee_id, args) = typeck.node_type(callee.hir_id).kind()
+            && let rustc_middle::ty::FnDef(callee_id, _) = typeck.node_type(callee.hir_id).kind()
         {
-            let caller_id = item.id.owner_id.to_def_id();
-            if self.tcx().trait_of_item(*callee_id).is_some() {
-                self.resolve_trait_method(caller_id, *callee_id, args)
+            if let Some(impl_of_trait) = impl_of_trait {
+                let map = self.tcx().impl_item_implementor_ids(impl_of_trait);
+                if let Some(resolved_id) = map.get(callee_id) {
+                    Ok(*resolved_id)
+                } else {
+                    todo!()
+                }
             } else {
-                Ok(*callee_id)
+                if self.tcx().trait_of_item(*callee_id).is_none() {
+                    Ok(*callee_id)
+                } else {
+                    todo!()
+                }
             }
         } else {
             Err(self.malformed())
@@ -306,10 +332,19 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     #[track_caller]
-    fn missing_fn_sig(&self, fn_id: OwnerId) -> ErrorGuaranteed {
+    fn item_not_in_trait_impl(&self, method_id: OwnerId, extern_id: DefId) -> ErrorGuaranteed {
+        let span = self.tcx().def_span(method_id);
+        let def_descr = self.tcx().def_descr(extern_id);
         self.inner
             .errors
-            .emit(errors::MissingFnSigForExternSpec::new(self.tcx().def_span(fn_id.def_id)))
+            .emit(errors::ItemNotInTraitImpl { span, def_descr })
+    }
+
+    #[track_caller]
+    fn mismatched_impl_block(&self) -> ErrorGuaranteed {
+        self.inner
+            .errors
+            .emit(errors::InvalidInherentImpl { span: self.block.span })
     }
 }
 
@@ -332,15 +367,17 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_missing_fn_sig_for_extern_spec, code = E0999)]
-    pub(super) struct MissingFnSigForExternSpec {
+    #[diag(driver_invalid_inherent_impl, code = E0999)]
+    pub(super) struct InvalidInherentImpl {
         #[primary_span]
         pub span: Span,
     }
 
-    impl MissingFnSigForExternSpec {
-        pub(super) fn new(span: Span) -> Self {
-            Self { span }
-        }
+    #[derive(Diagnostic)]
+    #[diag(driver_item_not_in_trait_impl, code = E0999)]
+    pub(super) struct ItemNotInTraitImpl {
+        #[primary_span]
+        pub span: Span,
+        pub def_descr: &'static str,
     }
 }

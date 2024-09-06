@@ -1,6 +1,6 @@
 use std::mem;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::{
     braced,
@@ -22,12 +22,15 @@ pub(crate) fn transform_extern_spec(
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let mod_use = mod_path.map(UseWildcard);
+    let span = tokens.span();
     match syn::parse2::<ExternItem>(tokens)? {
         ExternItem::Struct(item_struct) => extern_struct_to_tokens(mod_use, item_struct),
         ExternItem::Enum(item_enum) => extern_enum_to_tokens(mod_use, item_enum),
         ExternItem::Trait(item_trait) => extern_trait_to_tokens(mod_use, item_trait),
         ExternItem::Fn(extern_fn) => extern_fn_to_tokens(mod_use, extern_fn),
-        ExternItem::Impl(extern_item_impl) => extern_impl_to_tokens(mod_use, extern_item_impl),
+        ExternItem::Impl(extern_item_impl) => {
+            extern_impl_to_tokens(span, mod_use, extern_item_impl)
+        }
     }
 }
 
@@ -177,18 +180,21 @@ fn extern_trait_to_tokens(
 }
 
 fn extern_impl_to_tokens(
+    span: Span,
     mod_use: Option<UseWildcard>,
     mut extern_item_impl: ExternItemImpl,
 ) -> syn::Result<TokenStream> {
     extern_item_impl.prepare();
+    let extern_item_impl = extern_item_impl; // no more mutation
 
-    let dummy_ident = &extern_item_impl.dummy_ident;
-    let fields = generic_params_to_fields(&extern_item_impl.generics.params);
-
+    let self_ty = &extern_item_impl.self_ty;
     let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
 
+    let dummy_ident = &extern_item_impl.dummy_ident;
+    let mut fields = generic_params_to_fields(&extern_item_impl.generics.params);
+    fields.push(parse_quote!(#self_ty));
+
     let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
-        let self_ty = &extern_item_impl.self_ty;
         Some(quote!(
             impl #impl_generics #dummy_ident #ty_generics #where_clause {
                 fn __flux_extern_extract_impl_id() where #self_ty: #trait_ {}
@@ -198,7 +204,7 @@ fn extern_impl_to_tokens(
         None
     };
 
-    Ok(quote! {
+    Ok(quote_spanned! {span=>
         #[allow(unused, dead_code, unused_variables)]
         #[flux_tool::extern_spec]
         const _: () = {
@@ -286,6 +292,22 @@ impl ExternFn {
     fn prepare(&mut self, self_ty: Option<&syn::Type>, trait_: Option<&syn::Path>, mangle: bool) {
         flux_tool_attrs(&mut self.attrs);
         if let Some(self_ty) = self_ty {
+            struct ReplaceSelf<'a> {
+                self_ty: &'a syn::Type,
+            }
+
+            impl syn::visit_mut::VisitMut for ReplaceSelf<'_> {
+                fn visit_type_mut(&mut self, ty: &mut syn::Type) {
+                    if let syn::Type::Path(type_path) = ty {
+                        if type_path.path.is_ident("Self") {
+                            *ty = self.self_ty.clone();
+                        }
+                    }
+                }
+            }
+
+            syn::visit_mut::visit_signature_mut(&mut ReplaceSelf { self_ty }, &mut self.sig);
+
             self.change_receiver(self_ty);
         }
         self.fill_body(self_ty, trait_);
