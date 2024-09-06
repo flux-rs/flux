@@ -38,5 +38,7 @@ driver_invalid_inherent_impl =
     all items in an extern spec must belong to the same impl block
 
 driver_item_not_in_trait_impl =
-    {$def_descr} is not an item of the extern trait implementation
+    invalid extern spec for trait impl
+    .label = `{$name}` is not defined in extern trait impl
+    .note = extern trait impl defined here
 

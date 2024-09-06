@@ -241,7 +241,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 if let Some(resolved_id) = map.get(callee_id) {
                     Ok(*resolved_id)
                 } else {
-                    todo!()
+                    Err(self.item_not_in_trait_impl(item.id.owner_id, *callee_id, impl_of_trait))
                 }
             } else {
                 if self.tcx().trait_of_item(*callee_id).is_none() {
@@ -332,12 +332,21 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     #[track_caller]
-    fn item_not_in_trait_impl(&self, method_id: OwnerId, extern_id: DefId) -> ErrorGuaranteed {
-        let span = self.tcx().def_span(method_id);
-        let def_descr = self.tcx().def_descr(extern_id);
-        self.inner
-            .errors
-            .emit(errors::ItemNotInTraitImpl { span, def_descr })
+    fn item_not_in_trait_impl(
+        &self,
+        local_id: OwnerId,
+        extern_id: DefId,
+        extern_impl_id: DefId,
+    ) -> ErrorGuaranteed {
+        let tcx = self.tcx();
+        self.inner.errors.emit(errors::ItemNotInTraitImpl {
+            span: self
+                .tcx()
+                .def_ident_span(local_id)
+                .unwrap_or_else(|| tcx.def_span(local_id)),
+            name: tcx.item_name(extern_id),
+            extern_impl_span: tcx.def_span(extern_impl_id),
+        })
     }
 
     #[track_caller]
@@ -351,7 +360,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::Span;
+    use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
     #[diag(driver_malformed_extern_spec, code = E0999)]
@@ -377,7 +386,10 @@ mod errors {
     #[diag(driver_item_not_in_trait_impl, code = E0999)]
     pub(super) struct ItemNotInTraitImpl {
         #[primary_span]
+        #[label]
         pub span: Span,
-        pub def_descr: &'static str,
+        pub name: Symbol,
+        #[note]
+        pub extern_impl_span: Span,
     }
 }
