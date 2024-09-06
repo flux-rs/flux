@@ -1,6 +1,6 @@
 use std::mem;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::{
     braced,
@@ -22,12 +22,15 @@ pub(crate) fn transform_extern_spec(
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let mod_use = mod_path.map(UseWildcard);
+    let span = tokens.span();
     match syn::parse2::<ExternItem>(tokens)? {
         ExternItem::Struct(item_struct) => extern_struct_to_tokens(mod_use, item_struct),
         ExternItem::Enum(item_enum) => extern_enum_to_tokens(mod_use, item_enum),
         ExternItem::Trait(item_trait) => extern_trait_to_tokens(mod_use, item_trait),
         ExternItem::Fn(extern_fn) => extern_fn_to_tokens(mod_use, extern_fn),
-        ExternItem::Impl(extern_item_impl) => extern_impl_to_tokens(mod_use, extern_item_impl),
+        ExternItem::Impl(extern_item_impl) => {
+            extern_impl_to_tokens(span, mod_use, extern_item_impl)
+        }
     }
 }
 
@@ -37,40 +40,15 @@ fn extern_fn_to_tokens(
 ) -> syn::Result<TokenStream> {
     extern_fn.prepare(None, None, true);
     Ok(quote! {
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
+
             #extern_fn
         };
     })
 }
 
-/// Create a dummy enum with the same variants and an extra `Fake` variant that contains the original type
-/// Also see the note in [lower_adt_def]
-/// Example:
-///
-/// ```ignore
-/// #[extern_spec]
-/// enum Option<T> {
-///     #[flux::variant(Option<T>[false])]
-///     None,
-///     #[flux::variant({T} -> Option<T>[true])]
-///     Some(T),
-/// }
-///
-/// =>
-///
-/// #[flux::extern_spec]
-/// #[allow(unused, dead_code)]
-/// #[flux::refined_by(b:bool)]
-/// pub enum __FluxExternEnumOption<T> {
-///     #[flux::variant(Option<T>[false])]
-///     None,
-///     #[flux::variant({T} -> Option<T>[true])]
-///     Some(T),
-///     // this fellow is here just so we can get a hold of the original `Option` ...
-///     FluxExternEnumFake(Option<T>),
-/// }
-/// ```
 fn extern_enum_to_tokens(
     mod_use: Option<UseWildcard>,
     mut item_enum: syn::ItemEnum,
@@ -85,98 +63,82 @@ fn extern_enum_to_tokens(
         flux_tool_attrs(&mut variant.attrs);
     }
 
-    let dummy_variant_name = format_ident!("__FluxExternVariant");
-    let args = generic_params_to_args(&item_enum.generics.params);
-    let dummy_variant = parse_quote!(#dummy_variant_name ( #ident < #args >));
-    item_enum.variants.push(dummy_variant);
+    let dummy_struct = format_ident!("__FluxExternVariant");
+    let generics = &item_enum.generics;
+    let args = generic_params_to_args(&generics.params);
 
     Ok(quote_spanned! {span=>
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
+            struct #dummy_struct #generics ( #ident < #args > );
+
             #[allow(unused, dead_code)]
-            #[flux_tool::extern_spec]
             #item_enum
         };
     })
 }
 
-/// Create a dummy struct with a single unnamed field that is the external struct.
-///
-/// Example:
-///
-/// ```ignore
-/// #[extern_spec(std::vec)]
-/// #[flux::refined_by(n: int)]
-/// struct Vec<T>;
-///
-/// =>
-///
-/// #[flux::extern_spec]
-/// #[allow(unused, dead_code)]
-/// #[flux::refined_by(n: int)]
-/// struct FluxExternStructVec<T>(std::vec::Vec<T>);
-/// ```
 fn extern_struct_to_tokens(
     mod_use: Option<UseWildcard>,
     mut item_struct: syn::ItemStruct,
 ) -> syn::Result<TokenStream> {
     let item_struct_span = item_struct.span();
-    let struct_ident = item_struct.ident;
+    let ident = item_struct.ident;
 
+    let generics = &item_struct.generics;
+    let args = generic_params_to_args(&generics.params);
+
+    // Prepare struct
+    item_struct.ident = format_ident!("__FluxExternSpecStruct{}", ident);
     flux_tool_attrs(&mut item_struct.attrs);
     for field in &mut item_struct.fields {
         flux_tool_attrs(&mut field.attrs);
     }
-
-    item_struct.ident = format_ident!("__FluxExternStruct{}", struct_ident);
-
-    let args = generic_params_to_args(&item_struct.generics.params);
-    match &mut item_struct.fields {
-        syn::Fields::Named(fields) => {
-            let name = format_ident!("__FluxExternField");
-            let field = parse_quote!(#name : #struct_ident <#args>);
-            fields.named.push(field);
+    if let syn::Fields::Unit = &item_struct.fields {
+        if !has_opaque_attr(&item_struct.attrs) {
+            item_struct.attrs.push(parse_quote!(#[flux_tool::opaque]));
         }
-        syn::Fields::Unnamed(fields) => {
-            let field = parse_quote!(#struct_ident < #args > );
-            fields.unnamed.push(field);
-        }
-        syn::Fields::Unit => {
-            let field = parse_quote!((#struct_ident < #args >));
-            item_struct.fields = syn::Fields::Unnamed(field);
-        }
+        item_struct.fields = syn::Fields::Unnamed(parse_quote! { (#ident < #args >) });
     }
+
+    // Dummy struct used to extract def_id
+    let dummy_struct = format_ident!("__FluxExternSpecExtract{}", ident);
 
     Ok(quote_spanned! {item_struct_span =>
         #[allow(unused, dead_code)]
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
-            #[flux_tool::extern_spec]
+            struct #dummy_struct #generics (#ident < #args >);
+
             #item_struct
         };
     })
 }
 
-/// Create a dummy trait with a single super-trait that is the external trait
-///
-/// Example:
-///
-/// ```ignore
-/// #[extern_spec(std::vec)]
-/// #[flux::generics(Self as base)]
-/// #[flux::assoc(fn f(self: Self) -> bool)]
-/// trait MyTrait {}
-///
-/// =>
-///
-/// #[flux::extern_spec]
-/// #[allow(unused, dead_code)]
-/// #[flux::generics(Self as base)]
-/// #[flux::assoc(fn f(self: Self) -> bool)]
-/// trait __FluxExternTraitMyTrait: MyTrait {}
-/// ```
+fn has_opaque_attr(attrs: &[syn::Attribute]) -> bool {
+    attrs
+        .iter()
+        .any(|attr| path_matches(attr.path(), &["flux_tool", "opaque"]))
+}
+
+fn path_matches(path: &syn::Path, x: &[&str]) -> bool {
+    let mut i = 0;
+    for segment in &path.segments {
+        if i == x.len() {
+            return false;
+        }
+        if segment.ident != x[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 fn extern_trait_to_tokens(
     mod_use: Option<UseWildcard>,
     item_trait: syn::ItemTrait,
@@ -206,11 +168,11 @@ fn extern_trait_to_tokens(
     let super_trait = quote!(#trait_ident < # args >);
 
     Ok(quote_spanned! {item_trait_span =>
+        #[flux_tool::extern_spec]
+        #[allow(unused, dead_code)]
         const _: () = {
             #mod_use
 
-            #[flux_tool::extern_spec]
-            #[allow(unused, dead_code)]
             #(#attrs)*
             trait #dummy_ident #generics: #super_trait {}
         };
@@ -218,24 +180,40 @@ fn extern_trait_to_tokens(
 }
 
 fn extern_impl_to_tokens(
+    span: Span,
     mod_use: Option<UseWildcard>,
     mut extern_item_impl: ExternItemImpl,
 ) -> syn::Result<TokenStream> {
     extern_item_impl.prepare();
+    let extern_item_impl = extern_item_impl; // no more mutation
 
-    let dummy_impl_struct = &extern_item_impl.dummy_ident;
-    let generics = &extern_item_impl.generics;
-    let fields = generic_params_to_fields(&extern_item_impl.generics.params);
+    let self_ty = &extern_item_impl.self_ty;
+    let (impl_generics, ty_generics, where_clause) = &extern_item_impl.generics.split_for_impl();
 
-    Ok(quote! {
+    let dummy_ident = &extern_item_impl.dummy_ident;
+    let mut fields = generic_params_to_fields(&extern_item_impl.generics.params);
+    fields.push(parse_quote!(#self_ty));
+
+    let dummy_impl = if let Some((_, trait_, _)) = &extern_item_impl.trait_ {
+        Some(quote!(
+            impl #impl_generics #dummy_ident #ty_generics #where_clause {
+                fn __flux_extern_extract_impl_id() where #self_ty: #trait_ {}
+            }
+        ))
+    } else {
+        None
+    };
+
+    Ok(quote_spanned! {span=>
         #[allow(unused, dead_code, unused_variables)]
+        #[flux_tool::extern_spec]
         const _: () = {
             #mod_use
 
-            #[flux_tool::ignore]
-            struct #dummy_impl_struct #generics ( #fields );
+            struct #dummy_ident #impl_generics ( #fields ) #where_clause;
 
-            #[flux_tool::extern_spec]
+            #dummy_impl
+
             #extern_item_impl
         };
     })
@@ -306,16 +284,6 @@ impl ToTokens for ExternItemImpl {
             for item in &self.items {
                 item.to_tokens(tokens);
             }
-
-            if let Some((_, trait_, _for_token)) = &self.trait_ {
-                let self_ty = &self.self_ty;
-                quote!(
-                    #[flux_tool::fake_impl]
-                    #[flux_tool::ignore]
-                    fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {}
-                )
-                .to_tokens(tokens);
-            }
         });
     }
 }
@@ -324,6 +292,22 @@ impl ExternFn {
     fn prepare(&mut self, self_ty: Option<&syn::Type>, trait_: Option<&syn::Path>, mangle: bool) {
         flux_tool_attrs(&mut self.attrs);
         if let Some(self_ty) = self_ty {
+            struct ReplaceSelf<'a> {
+                self_ty: &'a syn::Type,
+            }
+
+            impl syn::visit_mut::VisitMut for ReplaceSelf<'_> {
+                fn visit_type_mut(&mut self, ty: &mut syn::Type) {
+                    if let syn::Type::Path(type_path) = ty {
+                        if type_path.path.is_ident("Self") {
+                            *ty = self.self_ty.clone();
+                        }
+                    }
+                }
+            }
+
+            syn::visit_mut::visit_signature_mut(&mut ReplaceSelf { self_ty }, &mut self.sig);
+
             self.change_receiver(self_ty);
         }
         self.fill_body(self_ty, trait_);
@@ -362,14 +346,13 @@ impl ExternFn {
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
         let fn_args = fn_params_to_args(&self.sig.inputs);
-        self.block = Some(quote!( { #fn_path :: <#generic_args> ( #fn_args ) } ));
+        self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
     }
 }
 
 impl ToTokens for ExternFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         debug_assert!(self.block.is_some());
-        tokens.extend(quote!(#[flux_tool::extern_spec]));
         tokens.append_all(&self.attrs);
         self.sig.to_tokens(tokens);
         self.block.to_tokens(tokens);

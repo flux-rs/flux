@@ -158,7 +158,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if !self.matches_check_def(def_id) {
             return Ok(());
         }
-        if self.genv.ignored(def_id) {
+        if self.genv.ignored(def_id) || self.genv.is_dummy(def_id) {
             return Ok(());
         }
 

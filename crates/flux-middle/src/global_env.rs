@@ -356,11 +356,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// Iterator over all local def ids that are not a extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
-        // FIXME(nilehmann) there are some dummy items we create in the extern_spec macro that don't have
-        // an `#[extern_spec]` annotation and are thus not being excluded here
-        self.tcx()
-            .iter_local_def_id()
-            .filter(move |local_def_id| self.maybe_extern_id(*local_def_id).is_local())
+        self.tcx().iter_local_def_id().filter(move |&local_def_id| {
+            self.maybe_extern_id(local_def_id).is_local() && !self.is_dummy(local_def_id)
+        })
     }
 
     pub fn iter_extern_def_id(self) -> impl Iterator<Item = DefId> + use<'tcx, 'genv> {
@@ -399,6 +397,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
             .is_some_and(|trusted| trusted.to_bool())
+    }
+
+    /// Whether the item is a dummy item created by the extern spec macro.
+    pub fn is_dummy(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| {
+            self.collect_specs()
+                .dummy_extern
+                .contains(&did)
+                .then_some(())
+        })
+        .is_some()
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an

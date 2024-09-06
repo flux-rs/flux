@@ -14,7 +14,7 @@ use rustc_middle::{
         TyCtxt, ValTree,
     },
 };
-use rustc_span::{def_id::LocalDefId, Span, Symbol};
+use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -86,18 +86,16 @@ fn trait_ref_impl_id<'tcx>(
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-    let ImplSource::UserDefined(impl_data) = impl_source else {
-        return None;
-    };
+    let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
 }
 
 pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
+    def_id: DefId,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let param_env = tcx.param_env(def_id.to_def_id());
+    let param_env = tcx.param_env(def_id);
     let infcx = tcx.infer_ctxt().build();
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
@@ -116,17 +114,6 @@ fn resolve_call_query<'tcx>(
     let assoc_id = tcx.impl_item_implementor_ids(impl_def_id).get(&callee_id)?;
     let assoc_item = tcx.associated_item(assoc_id);
     Some((assoc_item.def_id, impl_args))
-}
-
-pub fn resolve_call_from<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    caller_id: LocalDefId,
-    callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef<'tcx>,
-) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let param_env = tcx.param_env(caller_id.to_def_id());
-    let infcx = tcx.infer_ctxt().build();
-    resolve_call_query(tcx, &mut SelectionContext::new(&infcx), param_env, callee_id, args)
 }
 
 impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
