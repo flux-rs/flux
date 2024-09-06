@@ -9,7 +9,7 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned,
     token::Brace,
-    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Signature, Token, Type,
+    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
     TypePath,
 };
 
@@ -241,7 +241,16 @@ struct ExternItemImpl {
     self_ty: Box<Type>,
     brace_token: Brace,
     items: Vec<ExternFn>,
-    dummy_ident: syn::Ident,
+    dummy_ident: Ident,
+}
+
+pub struct ExternItemTrait {
+    attrs: Vec<Attribute>,
+    trait_token: Token![trait],
+    ident: Ident,
+    generics: Generics,
+    brace_token: Brace,
+    items: Vec<ExternFn>,
 }
 
 impl ExternItem {
@@ -452,7 +461,26 @@ impl Parse for ExternItemImpl {
     }
 }
 
-fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<syn::Ident> {
+impl Parse for ExternItemTrait {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let trait_token = input.parse()?;
+        let ident: Ident = input.parse()?;
+        let mut generics: syn::Generics = input.parse()?;
+        generics.where_clause = input.parse()?;
+
+        let content;
+        let brace_token = braced!(content in input);
+        let mut items = Vec::new();
+        while !content.is_empty() {
+            items.push(content.parse()?);
+        }
+
+        Ok(ExternItemTrait { attrs, trait_token, ident, generics, brace_token, items })
+    }
+}
+
+fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<Ident> {
     use syn::Type::*;
     match ty {
         Reference(ty_ref) => {
@@ -486,11 +514,11 @@ fn create_dummy_string_from_path(path: &syn::Path) -> syn::Result<String> {
     }
 }
 
-fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Result<syn::Ident> {
+fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Result<Ident> {
     // For paths, we mangle the last identifier
     if let Some(path_segment) = path.segments.last() {
         // Mangle the identifier using the dummy_prefix
-        let ident = syn::Ident::new(
+        let ident = Ident::new(
             &format!("{}{}", dummy_prefix, path_segment.ident),
             path_segment.ident.span(),
         );

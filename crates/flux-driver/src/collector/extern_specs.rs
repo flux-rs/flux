@@ -38,8 +38,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn run(mut self) -> Result {
         let item = self.item_at(0)?;
 
-        let attrs = self.inner.parse_flux_attrs(item.owner_id.def_id)?;
-        self.inner.report_dups(&attrs)?;
+        let attrs = self
+            .inner
+            .parse_attrs_and_report_dups(item.owner_id.def_id)?;
 
         match &item.kind {
             hir::ItemKind::Fn(..) => self.collect_extern_fn(item, attrs),
@@ -115,22 +116,21 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let dummy_item = self.item_at(1)?;
         self.inner.specs.insert_dummy(dummy_item.owner_id);
 
-        let mut extern_impl_id = None;
-        let mut impl_of_trait = None;
-
         // If this is a trait impl compute the impl_id from the trait_ref
+        let mut impl_of_trait = None;
         if let hir::ItemKind::Impl(dummy_impl) = dummy_item.kind {
-            let dummy_struct = self.item_at(2)?;
-            self.inner.specs.insert_dummy(dummy_struct.owner_id);
-            extern_impl_id =
+            impl_of_trait =
                 Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
-            impl_of_trait = extern_impl_id;
+
+            self.inner.specs.insert_dummy(self.item_at(2)?.owner_id);
         }
 
+        let mut extern_impl_id = impl_of_trait;
         for item in impl_.items {
             let extern_item = if let hir::AssocItemKind::Fn { .. } = item.kind {
-                let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
-                self.inner.report_dups(&attrs)?;
+                let attrs = self
+                    .inner
+                    .parse_attrs_and_report_dups(item.id.owner_id.def_id)?;
                 self.collect_extern_impl_fn(impl_of_trait, item, attrs)?
             } else {
                 continue;
@@ -273,10 +273,6 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn tcx(&self) -> TyCtxt<'tcx> {
-        self.inner.tcx
-    }
-
     /// Returns the item inside the const block at position `i` starting from the end.
     #[track_caller]
     fn item_at(&self, i: usize) -> Result<&'tcx hir::Item<'tcx>> {
@@ -346,6 +342,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner
             .errors
             .emit(errors::CannotResolveTraitImpl { span: self.block.span })
+    }
+
+    fn tcx(&self) -> TyCtxt<'tcx> {
+        self.inner.tcx
     }
 }
 
