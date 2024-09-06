@@ -14,6 +14,11 @@ pub(super) struct ExternSpecCollector<'a, 'sess, 'tcx> {
     block: &'tcx hir::Block<'tcx>,
 }
 
+struct ExternImplItem {
+    impl_id: DefId,
+    item_id: DefId,
+}
+
 impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     pub(super) fn collect(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result {
         Self::new(inner, body_id)?.run()
@@ -123,13 +128,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
 
         for item in impl_.items {
-            let extern_id = self.collect_extern_spec_impl_item(impl_of_trait, item)?;
-            let impl_of_method = self
-                .tcx()
-                .impl_of_method(extern_id)
-                .ok_or_else(|| todo!())?;
+            let extern_item = self.collect_extern_spec_impl_item(impl_of_trait, item)?;
 
-            if *extern_impl_id.get_or_insert(impl_of_method) != impl_of_method {
+            if *extern_impl_id.get_or_insert(extern_item.impl_id) != extern_item.impl_id {
                 // if of_trait {
                 //     return Err(self.item_not_in_trait_impl(item.id.owner_id, extern_id));
                 // } else {
@@ -153,7 +154,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         &mut self,
         impl_of_trait: Option<DefId>,
         item: &hir::ImplItemRef,
-    ) -> Result<DefId> {
+    ) -> Result<ExternImplItem> {
         let attrs = self.inner.parse_flux_attrs(item.id.owner_id.def_id)?;
         self.inner.report_dups(&attrs)?;
 
@@ -170,15 +171,15 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         impl_of_trait: Option<DefId>,
         item: &hir::ImplItemRef,
         attrs: FluxAttrs,
-    ) -> Result<DefId> {
+    ) -> Result<ExternImplItem> {
         self.inner.collect_fn_spec(item.id.owner_id, attrs)?;
 
-        let extern_id = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
+        let extern_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
         self.inner
             .specs
-            .insert_extern_id(item.id.owner_id.def_id, extern_id);
+            .insert_extern_id(item.id.owner_id.def_id, extern_item.item_id);
 
-        Ok(extern_id)
+        Ok(extern_item)
     }
 
     fn collect_extern_trait(
@@ -228,7 +229,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         &self,
         impl_of_trait: Option<DefId>,
         item: &hir::ImplItemRef,
-    ) -> Result<DefId> {
+    ) -> Result<ExternImplItem> {
         let typeck = self.tcx().typeck(item.id.owner_id);
         if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir().impl_item(item.id).kind
             && let hir::ExprKind::Block(b, _) = self.tcx().hir().body(body_id).value.kind
@@ -236,18 +237,18 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let hir::ExprKind::Call(callee, _) = e.kind
             && let rustc_middle::ty::FnDef(callee_id, _) = typeck.node_type(callee.hir_id).kind()
         {
-            if let Some(impl_of_trait) = impl_of_trait {
-                let map = self.tcx().impl_item_implementor_ids(impl_of_trait);
-                if let Some(resolved_id) = map.get(callee_id) {
-                    Ok(*resolved_id)
+            if let Some(extern_impl_id) = impl_of_trait {
+                let map = self.tcx().impl_item_implementor_ids(extern_impl_id);
+                if let Some(extern_item_id) = map.get(callee_id) {
+                    Ok(ExternImplItem { impl_id: extern_impl_id, item_id: *extern_item_id })
                 } else {
-                    Err(self.item_not_in_trait_impl(item.id.owner_id, *callee_id, impl_of_trait))
+                    Err(self.item_not_in_trait_impl(item.id.owner_id, *callee_id, extern_impl_id))
                 }
             } else {
-                if self.tcx().trait_of_item(*callee_id).is_none() {
-                    Ok(*callee_id)
+                if let Some(extern_impl_id) = self.tcx().impl_of_method(*callee_id) {
+                    Ok(ExternImplItem { impl_id: extern_impl_id, item_id: *callee_id })
                 } else {
-                    todo!()
+                    Err(self.invalid_item_in_inherent_impl(item.id.owner_id, *callee_id))
                 }
             }
         } else {
@@ -344,8 +345,24 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 .tcx()
                 .def_ident_span(local_id)
                 .unwrap_or_else(|| tcx.def_span(local_id)),
-            name: tcx.item_name(extern_id),
+            name: tcx.def_path_str(extern_id),
             extern_impl_span: tcx.def_span(extern_impl_id),
+        })
+    }
+
+    fn invalid_item_in_inherent_impl(
+        &self,
+        local_id: OwnerId,
+        extern_id: DefId,
+    ) -> ErrorGuaranteed {
+        let tcx = self.tcx();
+        self.inner.errors.emit(errors::InvalidItemInInherentImpl {
+            span: self
+                .tcx()
+                .def_ident_span(local_id)
+                .unwrap_or_else(|| tcx.def_span(local_id)),
+            name: tcx.def_path_str(extern_id),
+            extern_item_span: tcx.def_span(extern_id),
         })
     }
 
@@ -388,8 +405,19 @@ mod errors {
         #[primary_span]
         #[label]
         pub span: Span,
-        pub name: Symbol,
+        pub name: String,
         #[note]
         pub extern_impl_span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_invalid_item_in_inherent_impl, code = E0999)]
+    pub(super) struct InvalidItemInInherentImpl {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub name: String,
+        #[note]
+        pub extern_item_span: Span,
     }
 }

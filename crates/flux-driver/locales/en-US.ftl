@@ -42,3 +42,7 @@ driver_item_not_in_trait_impl =
     .label = `{$name}` is not defined in extern trait impl
     .note = extern trait impl defined here
 
+driver_invalid_item_in_inherent_impl =
+    invalid extern spec for inherent impl
+    .label = `{$name}` is not a member of an inherent impl
+    .note = `{$name}` defined here
