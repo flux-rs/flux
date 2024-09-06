@@ -399,17 +399,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .is_some_and(|trusted| trusted.to_bool())
     }
 
+    /// Whether the item is a dummy item created by the extern spec macro.
+    pub fn is_dummy(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| {
+            self.collect_specs()
+                .dummy_extern
+                .contains(&did)
+                .then_some(())
+        })
+        .is_some()
+    }
+
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
     /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
             .is_some_and(|ignored| ignored.to_bool())
-    }
-
-    pub fn is_dummy(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().is_dummy(did).then_some(()))
-            .is_some()
     }
 
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
