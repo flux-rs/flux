@@ -144,7 +144,7 @@ fhir_analysis_field_count_mismatch =
         [one] field
         *[other] fields
      }, found {$fields}
-    .expected_label = corresponding to the unrefined definition
+    .expected_label = unrefined variant defined here
 
 # Definition cycle
 

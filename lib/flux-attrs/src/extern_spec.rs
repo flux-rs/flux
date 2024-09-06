@@ -13,7 +13,7 @@ use syn::{
     TypePath,
 };
 
-use crate::flux_tool_attrs;
+use crate::{flux_tool_attrs, tokens_or_default};
 
 pub(crate) fn transform_extern_spec(
     attr: TokenStream,
@@ -322,8 +322,8 @@ impl ToTokens for ExternItemTrait {
         self.ident.to_tokens(tokens);
         self.generics.to_tokens(tokens);
         if let Some(supertrait) = &self.supertrait {
-            let args = generic_params_to_args(&self.generics.params);
-            tokens.extend(quote!(: #supertrait < # args > ));
+            let args = GenericArgs(&self.generics);
+            tokens.extend(quote!(: #supertrait #args));
         }
         self.generics.where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
@@ -559,6 +559,29 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
         Ok(ident)
     } else {
         Err(syn::Error::new(path.span(), format!("invalid extern_spec: empty Path {:?}", path)))
+    }
+}
+
+struct GenericArgs<'a>(&'a syn::Generics);
+
+impl ToTokens for GenericArgs<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens_or_default(self.0.lt_token.as_ref(), tokens);
+        for param in self.0.params.pairs() {
+            match param.value() {
+                GenericParam::Lifetime(param) => {
+                    param.lifetime.to_tokens(tokens);
+                }
+                GenericParam::Type(param) => {
+                    param.ident.to_tokens(tokens);
+                }
+                GenericParam::Const(param) => {
+                    param.ident.to_tokens(tokens);
+                }
+            }
+            param.punct().to_tokens(tokens);
+        }
+        tokens_or_default(self.0.gt_token.as_ref(), tokens);
     }
 }
 

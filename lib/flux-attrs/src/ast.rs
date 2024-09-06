@@ -12,7 +12,7 @@ use syn::{
     Attribute, Ident, Result, Token, Visibility,
 };
 
-use crate::flux_tool_attrs;
+use crate::{flux_tool_attrs, tokens_or_default};
 
 pub struct Items(Vec<Item>);
 
@@ -2683,13 +2683,6 @@ impl ToTokens for Block {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.brace_token
             .surround(tokens, |tokens| self.stmts.to_tokens(tokens));
-    }
-}
-
-fn tokens_or_default<T: ToTokens + Default>(x: Option<&T>, tokens: &mut TokenStream) {
-    match x {
-        Some(t) => t.to_tokens(tokens),
-        None => T::default().to_tokens(tokens),
     }
 }
 
