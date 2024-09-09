@@ -15,6 +15,7 @@ pub const FLUX_ATTRS: &[&str] = &[
     "sig",
     "trusted",
     "variant",
+    "should_fail",
 ];
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {

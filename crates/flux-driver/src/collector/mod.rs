@@ -300,6 +300,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             )));
         };
 
+        if attrs.should_fail() {
+            self.specs.should_fail.insert(owner_id.def_id);
+        }
+
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
         Ok(self
             .specs
@@ -426,6 +430,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
+            ("should_fail", AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             _ => return invalid_attr_err(self),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
@@ -498,6 +503,7 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore(Ignored),
+    ShouldFail,
     ExternSpec,
 }
 
@@ -611,6 +617,10 @@ impl FluxAttrs {
     fn extern_spec(&self) -> bool {
         read_flag!(self, ExternSpec)
     }
+
+    fn should_fail(&self) -> bool {
+        read_flag!(self, ShouldFail)
+    }
 }
 
 impl FluxAttrKind {
@@ -631,6 +641,7 @@ impl FluxAttrKind {
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore(_) => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
+            FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
         }
     }

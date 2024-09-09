@@ -418,6 +418,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .is_some_and(|ignored| ignored.to_bool())
     }
 
+    pub fn should_fail(self, def_id: LocalDefId) -> bool {
+        self.collect_specs().should_fail.contains(&def_id)
+    }
+
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,
