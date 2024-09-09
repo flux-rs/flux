@@ -273,6 +273,29 @@
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -386,10 +409,18 @@
         <span class="kw">let </span>errors = fcx.check(cache, cstr, config.scrape_quals).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
-        <span class="kw">if </span>errors.is_empty() {
-            <span class="prelude-val">Ok</span>(())
+        <span class="kw">if </span>genv.should_fail(def_id) {
+            <span class="kw">if </span>errors.is_empty() {
+                report_expected_neg(genv, def_id)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Ok</span>(())
+            }
         } <span class="kw">else </span>{
-            report_errors(genv, errors)
+            <span class="kw">if </span>errors.is_empty() {
+                <span class="prelude-val">Ok</span>(())
+            } <span class="kw">else </span>{
+                report_errors(genv, errors)
+            }
         }
     })
 }
@@ -435,6 +466,13 @@
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(())
     }
+}
+
+<span class="kw">fn </span>report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::ExpectedNeg {
+        span: genv.tcx().def_span(def_id),
+        def_descr: genv.tcx().def_descr(def_id.to_def_id()),
+    }))
 }
 
 <span class="kw">mod </span>errors {
@@ -546,6 +584,14 @@
     </span><span class="kw">pub struct </span>UnknownError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(refineck_expected_neg, code = E0999)]
+    </span><span class="kw">pub struct </span>ExpectedNeg {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="kw">pub </span>def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 }
 </code></pre></div></section></main></body></html>

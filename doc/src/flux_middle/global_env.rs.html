@@ -557,6 +557,10 @@
 <a href="#557" id="557">557</a>
 <a href="#558" id="558">558</a>
 <a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -975,6 +979,10 @@
     </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().ignores.get(<span class="kw-2">&amp;</span>did))
             .is_some_and(|ignored| ignored.to_bool())
+    }
+
+    <span class="kw">pub fn </span>should_fail(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.collect_specs().should_fail.contains(<span class="kw-2">&amp;</span>def_id)
     }
 
     <span class="doccomment">/// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].

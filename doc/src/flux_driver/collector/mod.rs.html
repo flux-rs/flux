@@ -841,6 +841,17 @@
 <a href="#841" id="841">841</a>
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
@@ -1143,6 +1154,10 @@
             )));
         };
 
+        <span class="kw">if </span>attrs.should_fail() {
+            <span class="self">self</span>.specs.should_fail.insert(owner_id.def_id);
+        }
+
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
         <span class="prelude-val">Ok</span>(<span class="self">self
             </span>.specs
@@ -1269,6 +1284,7 @@
             }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
             (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
+            (<span class="string">"should_fail"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ShouldFail,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
         };
         <span class="prelude-val">Ok</span>(FluxAttr { kind, span: attr_item.span() })
@@ -1341,6 +1357,7 @@
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore(Ignored),
+    ShouldFail,
     ExternSpec,
 }
 
@@ -1454,6 +1471,10 @@
     <span class="kw">fn </span>extern_spec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">read_flag!</span>(<span class="self">self</span>, ExternSpec)
     }
+
+    <span class="kw">fn </span>should_fail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">read_flag!</span>(<span class="self">self</span>, ShouldFail)
+    }
 }
 
 <span class="kw">impl </span>FluxAttrKind {
@@ -1474,6 +1495,7 @@
             FluxAttrKind::CrateConfig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(CrateConfig),
             FluxAttrKind::Ignore(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Ignore),
             FluxAttrKind::Invariant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Invariant),
+            FluxAttrKind::ShouldFail =&gt; <span class="macro">attr_name!</span>(ShouldFail),
             FluxAttrKind::ExternSpec =&gt; <span class="macro">attr_name!</span>(ExternSpec),
         }
     }
