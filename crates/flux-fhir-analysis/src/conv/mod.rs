@@ -344,17 +344,7 @@ pub(crate) fn conv_fn_decl(
     let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
-    let mut requires = vec![];
-    for req in decl.requires {
-        requires.push(cx.conv_requires(&mut env, req)?);
-    }
-
-    let mut inputs = vec![];
-    for ty in decl.inputs {
-        inputs.push(cx.conv_ty(&mut env, ty)?);
-    }
-
-    let output = cx.conv_fn_output(&mut env, &decl.output)?;
+    let fn_sig = cx.conv_fn_decl(&mut env, decl)?;
 
     let vars = late_bound_regions
         .iter()
@@ -362,10 +352,10 @@ pub(crate) fn conv_fn_decl(
         .cloned()
         .collect();
 
-    let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = struct_compat::fn_sig(genv, decl, &fn_sig, def_id)?;
+    let poly_fn_sig = rty::PolyFnSig::new(fn_sig, vars);
+    let poly_fn_sig = struct_compat::fn_sig(genv, decl, &poly_fn_sig, def_id)?;
 
-    Ok(rty::EarlyBinder(fn_sig))
+    Ok(rty::EarlyBinder(poly_fn_sig))
 }
 
 pub(crate) fn conv_assoc_reft_def(
@@ -715,6 +705,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    fn conv_fn_decl(&mut self, env: &mut Env, decl: &fhir::FnDecl) -> QueryResult<rty::FnSig> {
+        let mut requires = vec![];
+        for req in decl.requires {
+            requires.push(self.conv_requires(env, req)?);
+        }
+
+        let mut inputs = vec![];
+        for ty in decl.inputs {
+            inputs.push(self.conv_ty(env, ty)?);
+        }
+
+        let output = self.conv_fn_output(env, &decl.output)?;
+
+        Ok(rty::FnSig::new(requires.into(), inputs.into(), output))
+    }
+
     fn conv_requires(
         &mut self,
         env: &mut Env,
@@ -802,6 +808,14 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft);
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
+            }
+            fhir::TyKind::BareFn(bare_fn) => {
+                let mut env = Env::empty();
+                env.push_layer(Layer::list(&self, bare_fn.generic_params.len() as u32, &[])?);
+                let fn_sig = self.conv_fn_decl(&mut env, bare_fn.decl)?;
+                let poly_fn_sig = rty::Binder::new(fn_sig)
+                BaseTy::FnPtr()
+                todo!()
             }
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
@@ -1425,7 +1439,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 }
 
 impl Env {
-    pub(crate) fn new(
+    fn new(
         genv: GlobalEnv,
         early_bound: &[fhir::RefineParam],
         wfckresults: &WfckResults,
@@ -1438,6 +1452,10 @@ impl Env {
             })
             .try_collect()?;
         Ok(Self { layers: vec![], early_bound })
+    }
+
+    fn empty() -> Self {
+        Self { layers: vec![], early_bound: Default::default() }
     }
 
     fn depth(&self) -> usize {

@@ -29,7 +29,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId,
+    ItemId, OwnerId, ParamName,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -83,6 +83,7 @@ pub struct Generics<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct GenericParam<'fhir> {
     pub def_id: LocalDefId,
+    pub name: ParamName,
     pub kind: GenericParamKind<'fhir>,
 }
 
@@ -407,9 +408,7 @@ pub struct VariantRet<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnDecl<'fhir> {
-    /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Requires<'fhir>],
-    /// example: vec![(x: StrRef(l))]
     pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
@@ -473,6 +472,7 @@ pub enum TyKind<'fhir> {
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
     StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
     Ref(Lifetime, MutTy<'fhir>),
+    BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
@@ -480,6 +480,12 @@ pub enum TyKind<'fhir> {
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
+}
+
+pub struct BareFnTy<'fhir> {
+    pub generic_params: &'fhir [GenericParam<'fhir>],
+    pub decl: &'fhir FnDecl<'fhir>,
+    pub param_names: &'fhir [Ident],
 }
 
 #[derive(Clone, Copy)]
@@ -1068,7 +1074,7 @@ impl<'fhir> Generics<'fhir> {
             } else {
                 param.kind
             };
-            GenericParam { def_id: param.def_id, kind }
+            GenericParam { kind, ..*param }
         }));
         Generics { params, ..self }
     }
@@ -1217,6 +1223,9 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Ref(_lft, mut_ty) => {
                 write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
+            TyKind::BareFn(bare_fn_ty) => {
+                write!(f, "{bare_fn_ty:?}")
+            }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
@@ -1234,6 +1243,22 @@ impl fmt::Debug for Ty<'_> {
                 write!(f, "dyn {poly_traits:?}")
             }
         }
+    }
+}
+
+impl fmt::Debug for BareFnTy<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.generic_params.is_empty() {
+            write!(
+                f,
+                "for<{}>",
+                self.generic_params
+                    .iter()
+                    .map(|param| param.name.ident())
+                    .format(",")
+            )?;
+        }
+        write!(f, "{:?}", self.decl)
     }
 }
 

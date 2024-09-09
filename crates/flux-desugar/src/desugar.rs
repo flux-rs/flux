@@ -16,8 +16,7 @@ use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir as hir;
-use rustc_hir::OwnerId;
+use rustc_hir::{self as hir, OwnerId, ParamName};
 use rustc_span::{
     def_id::{DefId, LocalDefId},
     sym,
@@ -256,7 +255,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     }
                     surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
                 };
-                surface_params.insert(def_id, fhir::GenericParam { def_id, kind });
+                surface_params.insert(
+                    def_id,
+                    fhir::GenericParam { def_id, name: ParamName::Plain(param.name), kind },
+                );
             }
         }
 

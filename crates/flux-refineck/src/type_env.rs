@@ -415,9 +415,13 @@ impl BasicBlockEnvShape {
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
             | BaseTy::Never
-            | BaseTy::Closure(_, _)
-            | BaseTy::Dynamic(_, _)
-            | BaseTy::Coroutine(..) => bty.clone(),
+            | BaseTy::Closure(..)
+            | BaseTy::Dynamic(..)
+            | BaseTy::FnPtr(..)
+            | BaseTy::Coroutine(..) => {
+                debug_assert!(!scope.has_free_vars(bty));
+                bty.clone()
+            }
         }
     }
 

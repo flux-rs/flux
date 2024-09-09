@@ -948,14 +948,14 @@ pub struct EarlyBinder<T>(pub T);
 
 pub type PolyFnSig = Binder<FnSig>;
 
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Expr>,
     inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
 
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Ensures>,
@@ -1367,6 +1367,7 @@ pub enum BaseTy {
     Float(FloatTy),
     RawPtr(Ty, Mutability),
     Ref(Region, Ty, Mutability),
+    FnPtr(PolyFnSig),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -1527,6 +1528,7 @@ impl BaseTy {
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
+            | BaseTy::FnPtr(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
@@ -1556,6 +1558,9 @@ impl BaseTy {
             BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
             BaseTy::Ref(re, ty, mutbl) => {
                 ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+            }
+            BaseTy::FnPtr(poly_fn_sig) => {
+                todo!()
             }
             BaseTy::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();

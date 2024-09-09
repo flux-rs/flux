@@ -76,7 +76,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
-        Ok(fhir::GenericParam { def_id: param.def_id, kind })
+        Ok(fhir::GenericParam { def_id: param.def_id, name: param.name, kind })
     }
 
     fn lift_generics_inner(&mut self, generics: &hir::Generics) -> Result<fhir::Generics<'genv>> {
