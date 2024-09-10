@@ -220,7 +220,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 }
 
-#[allow(clippy::needless_lifetimes)]
+#[expect(clippy::needless_lifetimes, reason = "we want to be explicit about lifetimes here")]
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,

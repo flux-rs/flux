@@ -1,8 +1,6 @@
 use std::iter;
 
-#[allow(unused_imports)]
-use flux_common::bug;
-use flux_common::tracked_span_bug;
+use flux_common::{bug, tracked_span_bug};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{

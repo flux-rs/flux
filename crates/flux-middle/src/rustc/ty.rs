@@ -234,6 +234,7 @@ pub enum AliasKind {
 
 impl<'tcx> ToRustc<'tcx> for AliasKind {
     type T = rustc_middle::ty::AliasTyKind;
+
     fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
@@ -271,7 +272,7 @@ impl Const {
 impl<'tcx> ToRustc<'tcx> for Const {
     type T = rustc_ty::Const<'tcx>;
 
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, scalar_int) => {
@@ -338,7 +339,7 @@ pub struct ClosureArgs {
     pub args: GenericArgs,
 }
 
-#[allow(unused)]
+#[expect(unused, reason = "keeping this in case we use it")]
 pub struct ClosureArgsParts<'a, T> {
     parent_args: &'a [T],
     closure_kind_ty: &'a T,

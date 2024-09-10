@@ -2734,7 +2734,7 @@ fn peek_signature(input: ParseStream) -> bool {
 
 struct FlexibleItemType {
     vis: Visibility,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     defaultness: Option<Token![default]>,
     type_token: Token![type],
     ident: Ident,
@@ -2746,12 +2746,12 @@ struct FlexibleItemType {
 }
 
 enum TypeDefaultness {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     Optional,
     Disallowed,
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 enum WhereClauseLocation {
     // type Ty<T> where T: 'static = T;
     BeforeEq,

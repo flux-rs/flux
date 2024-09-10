@@ -235,7 +235,7 @@ impl RefineTree {
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
-    #[allow(clippy::unused_self)]
+    #[expect(clippy::unused_self, reason = "we want to explicit borrow self mutably")]
     // We take a mutable reference to the subtree to prove statically that there's only one writer.
     pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
@@ -260,7 +260,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         self.snapshot().scope().unwrap()
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code, reason = "used for debugging")]
     pub(crate) fn push_trace(&mut self, trace: TypeTrace) {
         self.ptr = self.ptr.push_node(NodeKind::Trace(trace));
     }
