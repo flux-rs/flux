@@ -821,7 +821,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::TyKind::BareFn(bare_fn) => {
                 let mut env = Env::empty();
-                env.push_layer(Layer::list(&self, bare_fn.generic_params.len() as u32, &[])?);
+                env.push_layer(Layer::list(self, bare_fn.generic_params.len() as u32, &[])?);
                 let fn_sig =
                     self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl)?;
                 let vars = bare_fn

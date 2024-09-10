@@ -568,7 +568,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             };
             // Fix up the span in asyncness
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
-                header.asyncness = hir::IsAsync::Async(span)
+                header.asyncness = hir::IsAsync::Async(span);
             }
             (generics, decl)
         } else {

@@ -353,7 +353,7 @@ pub struct TyAlias<'fhir> {
     pub span: Span,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
-    /// [lifted]: lift::lift_type_alias
+    /// [lifted]: lift::LiftCtxt::lift_type_alias
     pub lifted: bool,
 }
 

@@ -368,7 +368,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let generic_params = try_alloc_slice!(self.genv, bare_fn.generic_params, |param| {
             self.lift_generic_param(param)
         })?;
-        let decl = self.lift_fn_decl_inner(span, &bare_fn.decl)?;
+        let decl = self.lift_fn_decl_inner(span, bare_fn.decl)?;
         Ok(fhir::BareFnTy {
             safety: bare_fn.safety,
             abi: bare_fn.abi,

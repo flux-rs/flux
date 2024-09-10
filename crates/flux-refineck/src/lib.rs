@@ -111,6 +111,7 @@ pub fn check_fn(
         let errors = fcx.check(cache, cstr, config.scrape_quals).emit(&genv)?;
 
         tracing::info!("check_fn::fixpoint");
+        #[expect(clippy::collapsible_else_if, reason = "it looks better")]
         if genv.should_fail(def_id) {
             if errors.is_empty() {
                 report_expected_neg(genv, def_id)
