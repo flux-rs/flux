@@ -1456,6 +1456,23 @@
 <a href="#1456" id="1456">1456</a>
 <a href="#1457" id="1457">1457</a>
 <a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1487,7 +1504,7 @@
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId,
+    FnHeader, ItemId, OwnerId, ParamName, Safety,
 };
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -1495,6 +1512,7 @@
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
+<span class="kw">use </span>rustc_target::spec::abi;
 
 <span class="kw">use crate</span>::{global_env::GlobalEnv, pretty, MaybeExternId};
 
@@ -1541,6 +1559,7 @@
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>GenericParam&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>def_id: LocalDefId,
+    <span class="kw">pub </span>name: ParamName,
     <span class="kw">pub </span>kind: GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -1809,7 +1828,7 @@
     <span class="kw">pub </span>span: Span,
     <span class="doccomment">/// Whether this alias was [lifted] from a `hir` alias
     ///
-    /// [lifted]: lift::lift_type_alias
+    /// [lifted]: lift::LiftCtxt::lift_type_alias
     </span><span class="kw">pub </span>lifted: bool,
 }
 
@@ -1865,10 +1884,8 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="doccomment">/// example: vec![(0 &lt;= n), (l: i32)]
-    </span><span class="kw">pub </span>requires: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Requires&lt;<span class="lifetime">'fhir</span>&gt;],
-    <span class="doccomment">/// example: vec![(x: StrRef(l))]
-    </span><span class="kw">pub </span>inputs: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>requires: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Requires&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>inputs: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>output: FnOutput&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>span: Span,
     <span class="doccomment">/// Whether the sig was [lifted] from a hir signature
@@ -1887,6 +1904,7 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>FnSig&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>header: FnHeader,
     <span class="comment">//// List of local qualifiers for this function
     </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ident],
     <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -1931,6 +1949,7 @@
     </span>Constr(Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
     StrgRef(Lifetime, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
     Ref(Lifetime, MutTy&lt;<span class="lifetime">'fhir</span>&gt;),
+    BareFn(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>BareFnTy&lt;<span class="lifetime">'fhir</span>&gt;),
     Tuple(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;]),
     Array(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, ConstArg),
     RawPtr(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, Mutability),
@@ -1940,6 +1959,14 @@
     Infer,
 }
 
+<span class="kw">pub struct </span>BareFnTy&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>safety: Safety,
+    <span class="kw">pub </span>abi: abi::Abi,
+    <span class="kw">pub </span>generic_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericParam&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>param_names: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ident],
+}
+
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>MutTy&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>ty: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -1947,7 +1974,7 @@
 }
 
 <span class="doccomment">/// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
-/// which we then resolve during `annot_check` when zipping against the lifted version.
+/// which we then resolve when we check for structural compatibility against the rust type.
 </span><span class="attr">#[derive(Copy, Clone, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>Lifetime {
     <span class="doccomment">/// A lifetime hole created during desugaring.
@@ -2185,7 +2212,7 @@
     <span class="doccomment">/// A location declared with `x: &amp;strg T` syntax.
     </span>Loc,
     <span class="doccomment">/// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
-    /// to used inside a refinement. For example, consider the following:
+    /// to use inside a refinement. For example, consider the following:
     /// ```ignore
     /// fn(x: {v. i32[v] | v &gt; 0}) -&gt; i32[x]
     /// ```
@@ -2526,7 +2553,7 @@
             } <span class="kw">else </span>{
                 param.kind
             };
-            GenericParam { def_id: param.def_id, kind }
+            GenericParam { kind, ..<span class="kw-2">*</span>param }
         }));
         Generics { params, ..<span class="self">self </span>}
     }
@@ -2588,19 +2615,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FnDecl&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="comment">// if !self.generics.refinement_params.is_empty() {
-        //     write!(
-        //         f,
-        //         "for&lt;{}&gt; ",
-        //         self.generics
-        //             .refinement_params
-        //             .iter()
-        //             .format_with(", ", |param, f| {
-        //                 f(&amp;format_args!("{}: {:?}", param.name, param.sort))
-        //             })
-        //     )?;
-        // }
-        </span><span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
+        <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
             <span class="macro">write!</span>(f, <span class="string">"[{:?}] "</span>, <span class="self">self</span>.requires.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
         }
         <span class="macro">write!</span>(f, <span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="self">self</span>.inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output)
@@ -2675,6 +2690,9 @@
             TyKind::Ref(_lft, mut_ty) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"&amp;{}{:?}"</span>, mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
+            TyKind::BareFn(bare_fn_ty) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"{bare_fn_ty:?}"</span>)
+            }
             TyKind::Tuple(tys) =&gt; <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, tys.iter().format(<span class="string">", "</span>)),
             TyKind::Array(ty, len) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{ty:?}; {len:?}]"</span>),
             TyKind::Never =&gt; <span class="macro">write!</span>(f, <span class="string">"!"</span>),
@@ -2692,6 +2710,22 @@
                 <span class="macro">write!</span>(f, <span class="string">"dyn {poly_traits:?}"</span>)
             }
         }
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BareFnTy&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">if </span>!<span class="self">self</span>.generic_params.is_empty() {
+            <span class="macro">write!</span>(
+                f,
+                <span class="string">"for&lt;{}&gt;"</span>,
+                <span class="self">self</span>.generic_params
+                    .iter()
+                    .map(|param| param.name.ident())
+                    .format(<span class="string">","</span>)
+            )<span class="question-mark">?</span>;
+        }
+        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.decl)
     }
 }
 

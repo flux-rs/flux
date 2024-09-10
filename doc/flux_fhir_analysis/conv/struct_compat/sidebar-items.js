@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["assert_eq_or_incompatible","fn_sig","type_alias","variants"],"mod":["errors"],"struct":["Holes","Zipper"]};
+window.SIDEBAR_ITEMS = {"enum":["FnSigErr"],"fn":["assert_eq_or_incompatible","fn_sig","type_alias","variants"],"mod":["errors"],"struct":["Holes","Mismatch","Zipper"]};

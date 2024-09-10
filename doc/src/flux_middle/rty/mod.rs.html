@@ -2398,6 +2398,52 @@
 <a href="#2398" id="2398">2398</a>
 <a href="#2399" id="2399">2399</a>
 <a href="#2400" id="2400">2400</a>
+<a href="#2401" id="2401">2401</a>
+<a href="#2402" id="2402">2402</a>
+<a href="#2403" id="2403">2403</a>
+<a href="#2404" id="2404">2404</a>
+<a href="#2405" id="2405">2405</a>
+<a href="#2406" id="2406">2406</a>
+<a href="#2407" id="2407">2407</a>
+<a href="#2408" id="2408">2408</a>
+<a href="#2409" id="2409">2409</a>
+<a href="#2410" id="2410">2410</a>
+<a href="#2411" id="2411">2411</a>
+<a href="#2412" id="2412">2412</a>
+<a href="#2413" id="2413">2413</a>
+<a href="#2414" id="2414">2414</a>
+<a href="#2415" id="2415">2415</a>
+<a href="#2416" id="2416">2416</a>
+<a href="#2417" id="2417">2417</a>
+<a href="#2418" id="2418">2418</a>
+<a href="#2419" id="2419">2419</a>
+<a href="#2420" id="2420">2420</a>
+<a href="#2421" id="2421">2421</a>
+<a href="#2422" id="2422">2422</a>
+<a href="#2423" id="2423">2423</a>
+<a href="#2424" id="2424">2424</a>
+<a href="#2425" id="2425">2425</a>
+<a href="#2426" id="2426">2426</a>
+<a href="#2427" id="2427">2427</a>
+<a href="#2428" id="2428">2428</a>
+<a href="#2429" id="2429">2429</a>
+<a href="#2430" id="2430">2430</a>
+<a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2424,7 +2470,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem};
+<span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem, Safety};
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt};
@@ -2434,6 +2480,7 @@
 };
 <span class="kw">use </span>rustc_span::{sym, symbol::kw, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};
+<span class="kw">use </span>rustc_target::spec::abi;
 <span class="kw">pub use </span>rustc_type_ir::{TyVid, INNERMOST};
 <span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
 
@@ -2659,10 +2706,6 @@
     <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
         <span class="self">self</span>.as_ref().skip_binder().def_id
     }
-
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
-        rustc_middle::ty::Binder::bind_with_vars(<span class="self">self</span>.value.to_rustc(tcx), <span class="self">self</span>.vars.to_rustc(tcx))
-    }
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2696,13 +2739,12 @@
     }
 }
 
-<span class="kw">impl </span>PolyExistentialPredicate {
+<span class="kw">impl </span>ExistentialPredicate {
     <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; rustc_middle::ty::PolyExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="macro">assert!</span>(<span class="self">self</span>.vars.is_empty());
-        <span class="kw">let </span>pred = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.value {
+    ) -&gt; rustc_middle::ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
             ExistentialPredicate::Trait(trait_ref) =&gt; {
                 <span class="kw">let </span>trait_ref = rustc_middle::ty::ExistentialTraitRef {
                     def_id: trait_ref.def_id,
@@ -2722,8 +2764,7 @@
             ExistentialPredicate::AutoTrait(def_id) =&gt; {
                 rustc_middle::ty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
             }
-        };
-        rustc_middle::ty::Binder::dummy(pred)
+        }
     }
 }
 
@@ -2791,6 +2832,8 @@
             .collect();
 
         <span class="kw">let </span>fn_sig = FnSig::new(
+            Safety::Safe,
+            abi::Abi::RustCall,
             List::empty(),
             inputs,
             Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
@@ -3341,6 +3384,19 @@
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected single-sorted binder"</span>),
         }
     }
+
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>, R&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T, TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; R,
+    ) -&gt; rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, R&gt;
+    <span class="kw">where
+        </span>R: rustc_middle::ty::TypeVisitable&lt;TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
+    {
+        <span class="kw">let </span>vars = <span class="self">self</span>.vars.to_rustc(tcx);
+        <span class="kw">let </span>value = f(<span class="kw-2">&amp;</span><span class="self">self</span>.value, tcx);
+        rustc_middle::ty::Binder::bind_with_vars(value, vars)
+    }
 }
 
 <span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -3348,14 +3404,16 @@
 
 <span class="kw">pub type </span>PolyFnSig = Binder&lt;FnSig&gt;;
 
-<span class="attr">#[derive(Clone, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnSig {
+    safety: Safety,
+    abi: abi::Abi,
     requires: List&lt;Expr&gt;,
     inputs: List&lt;Ty&gt;,
     output: Binder&lt;FnOutput&gt;,
 }
 
-<span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnOutput {
     <span class="kw">pub </span>ret: Ty,
     <span class="kw">pub </span>ensures: List&lt;Ensures&gt;,
@@ -3767,6 +3825,7 @@
     Float(FloatTy),
     RawPtr(Ty, Mutability),
     Ref(Region, Ty, Mutability),
+    FnPtr(PolyFnSig),
     Tuple(List&lt;Ty&gt;),
     Array(Ty, Const),
     Never,
@@ -3927,6 +3986,7 @@
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
+            | BaseTy::FnPtr(..)
             | BaseTy::Tuple(<span class="kw">_</span>)
             | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
@@ -3957,6 +4017,9 @@
             BaseTy::Ref(re, ty, mutbl) =&gt; {
                 ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
             }
+            BaseTy::FnPtr(poly_fn_sig) =&gt; {
+                ty::Ty::new_fn_ptr(tcx, poly_fn_sig.to_rustc(tcx, FnSig::to_rustc))
+            }
             BaseTy::Tuple(tys) =&gt; {
                 <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, <span class="kw-2">&amp;</span>ts)
@@ -3973,7 +4036,7 @@
             BaseTy::Dynamic(exi_preds, re) =&gt; {
                 <span class="kw">let </span>preds: Vec&lt;<span class="kw">_</span>&gt; = exi_preds
                     .iter()
-                    .map(|pred| pred.to_rustc(tcx))
+                    .map(|pred| pred.to_rustc(tcx, ExistentialPredicate::to_rustc))
                     .collect_vec();
                 <span class="kw">let </span>preds = tcx.mk_poly_existential_predicates(<span class="kw-2">&amp;</span>preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
@@ -4257,7 +4320,10 @@
         <span class="kw">let </span>inputs = List::from_arr([env_ty, resume_ty.clone()]);
         <span class="kw">let </span>output = Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty());
 
-        PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
+        PolyFnSig::new(
+            FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
+            List::from(vars),
+        )
     }
 }
 
@@ -4430,8 +4496,14 @@
 }
 
 <span class="kw">impl </span>FnSig {
-    <span class="kw">pub fn </span>new(requires: List&lt;Expr&gt;, inputs: List&lt;Ty&gt;, output: Binder&lt;FnOutput&gt;) -&gt; <span class="self">Self </span>{
-        FnSig { requires, inputs, output }
+    <span class="kw">pub fn </span>new(
+        safety: Safety,
+        abi: abi::Abi,
+        requires: List&lt;Expr&gt;,
+        inputs: List&lt;Ty&gt;,
+        output: Binder&lt;FnOutput&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        FnSig { safety, abi, requires, inputs, output }
     }
 
     <span class="kw">pub fn </span>requires(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Expr] {
@@ -4445,11 +4517,25 @@
     <span class="kw">pub fn </span>output(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Binder&lt;FnOutput&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.output
     }
+
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::FnSig&lt;<span class="lifetime">'tcx</span>&gt; {
+        tcx.mk_fn_sig(
+            <span class="self">self</span>.inputs().iter().map(|ty| ty.to_rustc(tcx)),
+            <span class="self">self</span>.output().as_ref().skip_binder().to_rustc(tcx),
+            <span class="bool-val">false</span>,
+            <span class="self">self</span>.safety,
+            <span class="self">self</span>.abi,
+        )
+    }
 }
 
 <span class="kw">impl </span>FnOutput {
     <span class="kw">pub fn </span>new(ret: Ty, ensures: <span class="kw">impl </span>Into&lt;List&lt;Ensures&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ ret, ensures: ensures.into() }
+    }
+
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.ret.to_rustc(tcx)
     }
 }
 
@@ -4565,7 +4651,13 @@
             poly_variant.as_ref().map(|variant| {
                 <span class="kw">let </span>ret = variant.ret().shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>output = Binder::new(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-                FnSig::new(List::empty(), variant.fields.clone(), output)
+                FnSig::new(
+                    Safety::Safe,
+                    abi::Abi::Rust,
+                    List::empty(),
+                    variant.fields.clone(),
+                    output,
+                )
             })
         })
     }

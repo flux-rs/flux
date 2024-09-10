@@ -296,6 +296,7 @@
 <a href="#296" id="296">296</a>
 <a href="#297" id="297">297</a>
 <a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -409,7 +410,8 @@
         <span class="kw">let </span>errors = fcx.check(cache, cstr, config.scrape_quals).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
-        <span class="kw">if </span>genv.should_fail(def_id) {
+        <span class="attr">#[expect(clippy::collapsible_else_if, reason = <span class="string">"it looks better"</span>)]
+        </span><span class="kw">if </span>genv.should_fail(def_id) {
             <span class="kw">if </span>errors.is_empty() {
                 report_expected_neg(genv, def_id)
             } <span class="kw">else </span>{

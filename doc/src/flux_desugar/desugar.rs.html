@@ -1554,6 +1554,14 @@
 <a href="#1554" id="1554">1554</a>
 <a href="#1555" id="1555">1555</a>
 <a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1572,8 +1580,7 @@
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
-<span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
-<span class="kw">use </span>rustc_hir::OwnerId;
+<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, OwnerId, ParamName};
 <span class="kw">use </span>rustc_span::{
     def_id::{DefId, LocalDefId},
     sym,
@@ -1812,7 +1819,10 @@
                     }
                     surface::GenericParamKind::Base =&gt; fhir::GenericParamKind::Base,
                 };
-                surface_params.insert(def_id, fhir::GenericParam { def_id, kind });
+                surface_params.insert(
+                    def_id,
+                    fhir::GenericParam { def_id, name: ParamName::Plain(param.name), kind },
+                );
             }
         }
 
@@ -2091,6 +2101,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;, fhir::FnSig&lt;<span class="lifetime">'genv</span>&gt;)&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>header = <span class="self">self</span>.as_lift_cx().lift_fn_header();
         <span class="kw">let </span>(generics, decl) = <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span>fn_spec.fn_sig {
             <span class="self">self</span>.fn_sig_scope = <span class="prelude-val">Some</span>(fn_sig.node_id);
 
@@ -2119,6 +2130,10 @@
                 span: fn_sig.span,
                 lifted: <span class="bool-val">false</span>,
             };
+            <span class="comment">// Fix up the span in asyncness
+            </span><span class="kw">if let </span>surface::Async::Yes { span, .. } = fn_sig.asyncness {
+                header.asyncness = hir::IsAsync::Async(span);
+            }
             (generics, decl)
         } <span class="kw">else </span>{
             (<span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>, <span class="self">self</span>.as_lift_cx().lift_fn_decl()<span class="question-mark">?</span>)
@@ -2131,6 +2146,7 @@
         <span class="prelude-val">Ok</span>((
             generics,
             fhir::FnSig {
+                header,
                 qualifiers: <span class="self">self</span>.genv.alloc_slice(qual_names),
                 decl: <span class="self">self</span>.genv.alloc(decl),
             },

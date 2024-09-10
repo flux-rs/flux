@@ -1714,7 +1714,7 @@
                 .map(|ty| lower_ty(tcx, ty))
                 .try_collect()<span class="question-mark">?</span>,
         );
-        <span class="prelude-val">Ok</span>(FnSig { inputs_and_output })
+        <span class="prelude-val">Ok</span>(FnSig { safety: fn_sig.safety, abi: fn_sig.abi, inputs_and_output })
     })
 }
 

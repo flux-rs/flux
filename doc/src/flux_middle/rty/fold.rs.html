@@ -1409,6 +1409,8 @@
 <a href="#1409" id="1409">1409</a>
 <a href="#1410" id="1410">1410</a>
 <a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -2204,7 +2206,7 @@
         <span class="kw">let </span>requires = <span class="self">self</span>.requires.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="kw">let </span>args = <span class="self">self</span>.inputs.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="kw">let </span>output = <span class="self">self</span>.output.try_fold_with(folder)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(FnSig::new(requires, args, output))
+        <span class="prelude-val">Ok</span>(FnSig::new(<span class="self">self</span>.safety, <span class="self">self</span>.abi, requires, args, output))
     }
 }
 
@@ -2403,6 +2405,7 @@
             BaseTy::Slice(ty) =&gt; ty.visit_with(visitor),
             BaseTy::RawPtr(ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
+            BaseTy::FnPtr(poly_fn_sig) =&gt; poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) =&gt; tys.visit_with(visitor),
             BaseTy::Array(ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::Coroutine(<span class="kw">_</span>, resume_ty, upvars) =&gt; {
@@ -2438,6 +2441,7 @@
             BaseTy::Ref(re, ty, mutbl) =&gt; {
                 BaseTy::Ref(re.try_fold_with(folder)<span class="question-mark">?</span>, ty.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl)
             }
+            BaseTy::FnPtr(decl) =&gt; BaseTy::FnPtr(decl.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Tuple(tys) =&gt; BaseTy::Tuple(tys.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Array(ty, c) =&gt; {
                 BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)

@@ -857,7 +857,7 @@
     },
     <span class="doccomment">/// Used to report bugs, typically this means executing an arm in a match we though it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
-    /// [`QueryErr::bug`] or [`query_bug!`] to construct this variant to track source location.
+    /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
     </span>Bug {
         def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
         location: String,

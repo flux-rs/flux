@@ -519,6 +519,9 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -948,6 +951,9 @@
                     <span class="macro">w!</span>(<span class="string">"{:?} "</span>, re)<span class="question-mark">?</span>;
                 }
                 <span class="macro">w!</span>(<span class="string">"{}{:?}"</span>,  ^mutbl.prefix_str(), ty)
+            }
+            BaseTy::FnPtr(poly_fn_sig) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, poly_fn_sig)
             }
             BaseTy::Tuple(tys) =&gt; {
                 <span class="kw">if let </span>[ty] = <span class="kw-2">&amp;</span>tys[..] {

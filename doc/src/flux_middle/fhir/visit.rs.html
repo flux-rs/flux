@@ -492,6 +492,7 @@
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
 <a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
@@ -857,6 +858,7 @@
             vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
             vis.visit_ty(mty.ty);
         }
+        TyKind::BareFn(bare_fn) =&gt; vis.visit_fn_decl(bare_fn.decl),
         TyKind::Tuple(tys) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_ty, tys);
         }

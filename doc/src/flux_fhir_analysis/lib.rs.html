@@ -498,6 +498,7 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -508,6 +509,7 @@
 <span class="kw">extern crate </span>rustc_hir_pretty;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
+<span class="kw">extern crate </span>rustc_target;
 <span class="kw">extern crate </span>rustc_trait_selection;
 <span class="kw">extern crate </span>rustc_type_ir;
 
@@ -907,7 +909,7 @@
     <span class="kw">let </span>fn_sig = genv.desugar(def_id.local_id())<span class="question-mark">?</span>.fn_sig().unwrap();
     <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
     <span class="kw">let </span>defns = genv.spec_func_defns()<span class="question-mark">?</span>;
-    <span class="kw">let </span>fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+    <span class="kw">let </span>fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
         </span>.map(|fn_sig| fn_sig.normalize(defns));
 
     <span class="kw">if </span>config::dump_rty() {

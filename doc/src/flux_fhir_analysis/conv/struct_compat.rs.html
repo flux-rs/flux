@@ -709,6 +709,36 @@
 <a href="#709" id="709">709</a>
 <a href="#710" id="710">710</a>
 <a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -767,9 +797,9 @@
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
-    zipper.enter_binders(fn_sig, <span class="kw-2">&amp;</span>expected, |zipper, fn_sig, expected| {
-        zipper.zip_fn_sig(decl, fn_sig, expected);
-    });
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = zipper.zip_poly_fn_sig(fn_sig, <span class="kw-2">&amp;</span>expected) {
+        zipper.emit_fn_sig_err(err, decl);
+    }
 
     zipper.errors.into_result()<span class="question-mark">?</span>;
 
@@ -866,6 +896,10 @@
         }
     }
 
+    <span class="kw">fn </span>zip_poly_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyFnSig, b: <span class="kw-2">&amp;</span>rty::PolyFnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
+        <span class="self">self</span>.enter_binders(a, b, |this, a, b| this.zip_fn_sig(a, b))
+    }
+
     <span class="kw">fn </span>zip_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyVariant, b: <span class="kw-2">&amp;</span>rty::PolyVariant, variant_idx: VariantIdx) {
         <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
             <span class="comment">// The args are always `GenericArgs::identity_for_item` inside the `EarlyBinder`
@@ -894,57 +928,34 @@
         });
     }
 
-    <span class="kw">fn </span>zip_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, a: <span class="kw-2">&amp;</span>rty::FnSig, b: <span class="kw-2">&amp;</span>rty::FnSig) {
+    <span class="kw">fn </span>zip_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnSig, b: <span class="kw-2">&amp;</span>rty::FnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
         <span class="kw">if </span>a.inputs().len() != b.inputs().len() {
-            <span class="self">self</span>.errors
-                .emit(errors::IncompatibleParamCount::new(<span class="self">self</span>.genv, decl, <span class="self">self</span>.owner_id));
-            <span class="kw">return</span>;
+            <span class="prelude-val">Err</span>(FnSigErr::ArgCountMismatch)<span class="question-mark">?</span>;
         }
         <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(a.inputs(), b.inputs()).enumerate() {
-            <span class="kw">if </span><span class="self">self</span>.zip_ty(ty_a, ty_b).is_err() {
-                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_input(
-                    <span class="self">self</span>.genv,
-                    <span class="self">self</span>.owner_id,
-                    decl,
-                    i,
-                ));
-            }
+            <span class="self">self</span>.zip_ty(ty_a, ty_b).map_err(|<span class="kw">_</span>| FnSigErr::FnInput(i))<span class="question-mark">?</span>;
         }
         <span class="self">self</span>.enter_binders(a.output(), b.output(), |this, output_a, output_b| {
-            this.zip_output(decl, output_a, output_b);
-        });
+            this.zip_output(output_a, output_b)
+        })
     }
 
-    <span class="kw">fn </span>zip_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, a: <span class="kw-2">&amp;</span>rty::FnOutput, b: <span class="kw-2">&amp;</span>rty::FnOutput) {
-        <span class="kw">if </span><span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret).is_err() {
-            <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_output(
-                <span class="self">self</span>.genv,
-                <span class="self">self</span>.owner_id,
-                decl,
-            ));
-        }
-        <span class="comment">// Skip ensure clauses if there are any errors because we may not have a type for all locations
-        </span><span class="kw">if </span><span class="self">self</span>.errors.has_errors() {
-            <span class="kw">return</span>;
-        }
+    <span class="kw">fn </span>zip_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnOutput, b: <span class="kw-2">&amp;</span>rty::FnOutput) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
+        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret)
+            .map_err(|<span class="kw">_</span>| FnSigErr::FnOutput)<span class="question-mark">?</span>;
+
         <span class="kw">for </span>(i, ensures) <span class="kw">in </span>a.ensures.iter().enumerate() {
             <span class="kw">if let </span>rty::Ensures::Type(path, ty_a) = ensures {
                 <span class="kw">let </span>loc = path.to_loc().unwrap();
                 <span class="kw">let </span>ty_b = <span class="self">self</span>.locs.get(<span class="kw-2">&amp;</span>loc).unwrap().clone();
-                <span class="kw">if </span><span class="self">self</span>.zip_ty(ty_a, <span class="kw-2">&amp;</span>ty_b).is_err() {
-                    <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::ensures(
-                        <span class="self">self</span>.genv,
-                        <span class="self">self</span>.owner_id,
-                        decl,
-                        <span class="kw-2">&amp;</span>ty_b,
-                        i,
-                    ));
-                }
+                <span class="self">self</span>.zip_ty(ty_a, <span class="kw-2">&amp;</span>ty_b)
+                    .map_err(|<span class="kw">_</span>| FnSigErr::Ensures { i, expected: ty_b })<span class="question-mark">?</span>;
             }
         }
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>rty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>rty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="kw">match </span>(a.kind(), b.kind()) {
             (rty::TyKind::Infer(vid), <span class="kw">_</span>) <span class="kw">if </span>a != <span class="kw-2">&amp;</span>rty::Ty::trait_object_dummy_self() =&gt; {
                 <span class="kw">let </span>b = <span class="self">self</span>.adjust_binders(b);
@@ -991,11 +1002,11 @@
             ) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected type {a:?}"</span>);
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
         }
     }
 
-    <span class="kw">fn </span>zip_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::BaseTy, b: <span class="kw-2">&amp;</span>rty::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">fn </span>zip_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::BaseTy, b: <span class="kw-2">&amp;</span>rty::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="kw">match </span>(a, b) {
             (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) =&gt; {
                 assert_eq_or_incompatible(ity_a, ity_b)
@@ -1027,6 +1038,10 @@
                 <span class="self">self</span>.zip_region(re_a, re_b);
                 <span class="self">self</span>.zip_ty(ty_a, ty_b)
             }
+            (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) =&gt; {
+                <span class="self">self</span>.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
+                    .map_err(|<span class="kw">_</span>| Mismatch)
+            }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) =&gt; {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())<span class="question-mark">?</span>;
                 <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
@@ -1053,11 +1068,15 @@
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected type `{a:?}`"</span>);
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
         }
     }
 
-    <span class="kw">fn </span>zip_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::GenericArg, b: <span class="kw-2">&amp;</span>rty::GenericArg) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">fn </span>zip_generic_arg(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        a: <span class="kw-2">&amp;</span>rty::GenericArg,
+        b: <span class="kw-2">&amp;</span>rty::GenericArg,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="kw">match </span>(a, b) {
             (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
             (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) =&gt; {
@@ -1072,11 +1091,11 @@
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) =&gt; {
                 <span class="self">self</span>.zip_const(ct_a, ct_b)
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
         }
     }
 
-    <span class="kw">fn </span>zip_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Const, b: <span class="kw-2">&amp;</span>ty::Const) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">fn </span>zip_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Const, b: <span class="kw-2">&amp;</span>ty::Const) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
             (rty::ConstKind::Infer(ty::InferConst::Var(cid)), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.holes.consts.insert(<span class="kw-2">*</span>cid, b.clone());
@@ -1092,7 +1111,7 @@
             (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) =&gt; {
                 assert_eq_or_incompatible(c1, c2)
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
         }
     }
 
@@ -1107,7 +1126,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         a: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
         b: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
             <span class="kw">match </span>(a, b) {
                 (
@@ -1136,7 +1155,7 @@
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
                     rty::ExistentialPredicate::AutoTrait(def_id_b),
                 ) =&gt; assert_eq_or_incompatible(def_id_a, def_id_b),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
+                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
             }
         })
     }
@@ -1179,17 +1198,58 @@
             t.shift_out_escaping(<span class="self">self</span>.b_index.as_u32() - <span class="self">self</span>.a_index.as_u32())
         }
     }
+
+    <span class="kw">fn </span>emit_fn_sig_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: FnSigErr, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
+        <span class="kw">match </span>err {
+            FnSigErr::ArgCountMismatch =&gt; {
+                <span class="self">self</span>.errors.emit(errors::IncompatibleParamCount::new(
+                    <span class="self">self</span>.genv,
+                    decl,
+                    <span class="self">self</span>.owner_id,
+                ));
+            }
+            FnSigErr::FnInput(i) =&gt; {
+                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_input(
+                    <span class="self">self</span>.genv,
+                    <span class="self">self</span>.owner_id,
+                    decl,
+                    i,
+                ));
+            }
+            FnSigErr::FnOutput =&gt; {
+                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_output(
+                    <span class="self">self</span>.genv,
+                    <span class="self">self</span>.owner_id,
+                    decl,
+                ));
+            }
+            FnSigErr::Ensures { i, expected } =&gt; {
+                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::ensures(
+                    <span class="self">self</span>.genv,
+                    <span class="self">self</span>.owner_id,
+                    decl,
+                    <span class="kw-2">&amp;</span>expected,
+                    i,
+                ));
+            }
+        }
+    }
 }
 
-<span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+<span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
     <span class="kw">if </span>a != b {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(Error::Incompatible);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(Mismatch);
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">enum </span>Error {
-    Incompatible,
+<span class="kw">struct </span>Mismatch;
+
+<span class="kw">enum </span>FnSigErr {
+    ArgCountMismatch,
+    FnInput(usize),
+    FnOutput,
+    Ensures { i: usize, expected: rty::Ty },
 }
 
 <span class="kw">mod </span>errors {
