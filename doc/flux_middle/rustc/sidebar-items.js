@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["lowering","mir","ty"]};
+window.SIDEBAR_ITEMS = {"mod":["lowering","mir","ty"],"trait":["ToRustc"]};

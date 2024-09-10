@@ -1136,6 +1136,9 @@
 <a href="#1136" id="1136">1136</a>
 <a href="#1137" id="1137">1137</a>
 <a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1166,7 +1169,10 @@
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
     },
-    rustc::ty::{Const, ConstKind},
+    rustc::{
+        ty::{Const, ConstKind},
+        ToRustc,
+    },
 };
 
 <span class="doccomment">/// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for

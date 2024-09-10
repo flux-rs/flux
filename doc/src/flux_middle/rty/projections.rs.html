@@ -451,7 +451,7 @@
     intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::lowering::lower_ty,
+    rustc::{lowering::lower_ty, ToRustc},
 };
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {

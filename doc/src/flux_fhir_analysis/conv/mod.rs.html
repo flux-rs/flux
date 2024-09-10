@@ -2147,6 +2147,7 @@
 <a href="#2147" id="2147">2147</a>
 <a href="#2148" id="2148">2148</a>
 <a href="#2149" id="2149">2149</a>
+<a href="#2150" id="2150">2150</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2173,7 +2174,8 @@
         refining::{<span class="self">self</span>, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc, MaybeExternId,
+    rustc::{<span class="self">self</span>, ToRustc},
+    MaybeExternId,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
@@ -2651,7 +2653,7 @@
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
 
         <span class="kw">let </span>candidate = <span class="self">self</span>.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx, rty::TraitRef::to_rustc)),
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
             constraint.ident,
         )<span class="question-mark">?</span>;
         <span class="kw">let </span>assoc_item_id = <span class="self">self

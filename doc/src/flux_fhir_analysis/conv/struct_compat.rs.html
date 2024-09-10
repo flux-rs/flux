@@ -739,6 +739,9 @@
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -1260,7 +1263,10 @@
         fhir,
         global_env::GlobalEnv,
         rty,
-        rustc::ty::{FieldIdx, VariantIdx},
+        rustc::{
+            ty::{FieldIdx, VariantIdx},
+            ToRustc,
+        },
         MaybeExternId,
     };
     <span class="kw">use </span>rustc_span::{Span, DUMMY_SP};

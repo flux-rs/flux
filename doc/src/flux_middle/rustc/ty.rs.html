@@ -967,6 +967,30 @@
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -992,6 +1016,7 @@
 <span class="kw">pub use </span>rustc_type_ir::InferConst;
 
 <span class="kw">use </span><span class="self">self</span>::subst::Subst;
+<span class="kw">use </span><span class="kw">super</span>::ToRustc;
 <span class="kw">use crate</span>::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::{<span class="self">self</span>, def_id_to_string},
@@ -1200,8 +1225,9 @@
     Opaque,
 }
 
-<span class="kw">impl </span>AliasKind {
-    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::AliasTyKind {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AliasKind {
+    <span class="kw">type </span>T = rustc_middle::ty::AliasTyKind;
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, _tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
         <span class="kw">use </span>rustc_middle::ty;
         <span class="kw">match </span><span class="self">self </span>{
             AliasKind::Opaque =&gt; ty::AliasTyKind::Opaque,
@@ -1215,8 +1241,10 @@
     <span class="kw">pub </span>kind: ConstKind,
 }
 
-<span class="kw">impl </span>UnevaluatedConst {
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::UnevaluatedConst&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>UnevaluatedConst {
+    <span class="kw">type </span>T = rustc_middle::ty::UnevaluatedConst&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
         <span class="kw">let </span>args = tcx.mk_args_from_iter(<span class="self">self</span>.args.iter().map(|arg| arg.to_rustc(tcx)));
         rustc_ty::UnevaluatedConst::new(<span class="self">self</span>.def, args)
     }
@@ -1231,8 +1259,12 @@
             ),
         }
     }
+}
 
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Const {
+    <span class="kw">type </span>T = rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             ConstKind::Param(param_const) =&gt; rustc_ty::ConstKind::Param(<span class="kw-2">*</span>param_const),
             ConstKind::Value(ty, scalar_int) =&gt; {
@@ -1326,11 +1358,13 @@
     ReLateParam(LateParamRegion),
 }
 
-<span class="kw">impl </span>Region {
-    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>, tcx: TyCtxt) -&gt; rustc_middle::ty::Region {
-        <span class="kw">match </span><span class="self">self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Region {
+    <span class="kw">type </span>T = rustc_middle::ty::Region&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             Region::ReBound(debruijn, bound_region) =&gt; {
-                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
+                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc(tcx))
             }
             Region::ReEarlyParam(epr) =&gt; rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic =&gt; tcx.lifetimes.re_static,
@@ -1354,8 +1388,10 @@
     <span class="kw">pub </span>kind: BoundRegionKind,
 }
 
-<span class="kw">impl </span>BoundRegion {
-    <span class="kw">fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::BoundRegion {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>BoundRegion {
+    <span class="kw">type </span>T = rustc_middle::ty::BoundRegion;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, _tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
         rustc_middle::ty::BoundRegion { var: <span class="self">self</span>.var, kind: <span class="self">self</span>.kind }
     }
 }
@@ -1448,8 +1484,12 @@
             <span class="macro">bug!</span>(<span class="string">"expected `GenericArg::Const`, found {:?}"</span>, <span class="self">self</span>)
         }
     }
+}
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>GenericArg {
+    <span class="kw">type </span>T = rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
         <span class="kw">use </span>rustc_middle::ty;
         <span class="kw">match </span><span class="self">self </span>{
             GenericArg::Ty(ty) =&gt; ty::GenericArg::from(ty.to_rustc(tcx)),
@@ -1561,8 +1601,12 @@
         <span class="macro">assert!</span>(<span class="self">self</span>.is_struct() || <span class="self">self</span>.is_union());
         <span class="self">self</span>.variant(FIRST_VARIANT)
     }
+}
 
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::AdtDef&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AdtDef {
+    <span class="kw">type </span>T = rustc_middle::ty::AdtDef&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
         tcx.adt_def(<span class="self">self</span>.did())
     }
 }
@@ -1715,8 +1759,12 @@
     <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), TyKind::Adt(adt, ..) <span class="kw">if </span>adt.is_box())
     }
+}
 
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Ty {
+    <span class="kw">type </span>T = rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Bool =&gt; rustc_ty::TyKind::Bool,
             TyKind::Str =&gt; rustc_ty::TyKind::Str,
