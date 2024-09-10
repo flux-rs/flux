@@ -38,7 +38,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar},
+    ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar},
 };
 use rustc_span::{
     symbol::{kw, Ident},
@@ -498,7 +498,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let tcx = self.genv.tcx();
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx, rty::TraitRef::to_rustc)),
             constraint.ident,
         )?;
         let assoc_item_id = self
@@ -813,9 +813,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let mut env = Env::empty();
                 env.push_layer(Layer::list(&self, bare_fn.generic_params.len() as u32, &[])?);
                 let fn_sig = self.conv_fn_decl(&mut env, bare_fn.decl)?;
-                let poly_fn_sig = rty::Binder::new(fn_sig)
-                BaseTy::FnPtr()
-                todo!()
+                let vars = bare_fn
+                    .generic_params
+                    .iter()
+                    .map(|param| self.param_as_bound_var(param))
+                    .try_collect()?;
+                let poly_fn_sig = rty::Binder::new(fn_sig, vars);
+                Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
             }
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
@@ -1281,7 +1285,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
     }
 
-    pub fn conv_generic_args(
+    fn param_as_bound_var(
+        &mut self,
+        param: &fhir::GenericParam,
+    ) -> QueryResult<rty::BoundVariableKind> {
+        let def_id = param.def_id.to_def_id();
+        let name = self.genv.tcx().item_name(def_id);
+        match param.kind {
+            fhir::GenericParamKind::Lifetime => {
+                Ok(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
+            }
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Base => {
+                Err(query_bug!(param.def_id, "unsupported param kind `{:?}`", param.kind))
+            }
+        }
+    }
+
+    fn conv_generic_args(
         &mut self,
         env: &mut Env,
         def_id: DefId,

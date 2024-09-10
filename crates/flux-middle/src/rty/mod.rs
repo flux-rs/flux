@@ -24,7 +24,7 @@ use flux_common::bug;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::{def_id::DefId, LangItem};
+use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt};
@@ -34,6 +34,7 @@ pub use rustc_middle::{
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
+use rustc_target::spec::abi;
 pub use rustc_type_ir::{TyVid, INNERMOST};
 pub use SortInfer::*;
 
@@ -259,10 +260,6 @@ impl PolyTraitRef {
     pub fn def_id(&self) -> DefId {
         self.as_ref().skip_binder().def_id
     }
-
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::PolyTraitRef<'tcx> {
-        rustc_middle::ty::Binder::bind_with_vars(self.value.to_rustc(tcx), self.vars.to_rustc(tcx))
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -296,13 +293,12 @@ impl ExistentialPredicate {
     }
 }
 
-impl PolyExistentialPredicate {
+impl ExistentialPredicate {
     pub fn to_rustc<'tcx>(
         &self,
         tcx: TyCtxt<'tcx>,
-    ) -> rustc_middle::ty::PolyExistentialPredicate<'tcx> {
-        assert!(self.vars.is_empty());
-        let pred = match &self.value {
+    ) -> rustc_middle::ty::ExistentialPredicate<'tcx> {
+        match self {
             ExistentialPredicate::Trait(trait_ref) => {
                 let trait_ref = rustc_middle::ty::ExistentialTraitRef {
                     def_id: trait_ref.def_id,
@@ -322,8 +318,7 @@ impl PolyExistentialPredicate {
             ExistentialPredicate::AutoTrait(def_id) => {
                 rustc_middle::ty::ExistentialPredicate::AutoTrait(*def_id)
             }
-        };
-        rustc_middle::ty::Binder::dummy(pred)
+        }
     }
 }
 
@@ -940,6 +935,19 @@ impl<T> Binder<T> {
             [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
             _ => bug!("expected single-sorted binder"),
         }
+    }
+
+    pub fn to_rustc<'tcx, R>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        f: impl FnOnce(&T, TyCtxt<'tcx>) -> R,
+    ) -> rustc_middle::ty::Binder<'tcx, R>
+    where
+        R: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>,
+    {
+        let vars = self.vars.to_rustc(tcx);
+        let value = f(&self.value, tcx);
+        rustc_middle::ty::Binder::bind_with_vars(value, vars)
     }
 }
 
@@ -1560,7 +1568,7 @@ impl BaseTy {
                 ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
             }
             BaseTy::FnPtr(poly_fn_sig) => {
-                todo!()
+                ty::Ty::new_fn_ptr(tcx, poly_fn_sig.to_rustc(tcx, FnSig::to_rustc))
             }
             BaseTy::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
@@ -1578,7 +1586,7 @@ impl BaseTy {
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
-                    .map(|pred| pred.to_rustc(tcx))
+                    .map(|pred| pred.to_rustc(tcx, ExistentialPredicate::to_rustc))
                     .collect_vec();
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
@@ -2050,11 +2058,25 @@ impl FnSig {
     pub fn output(&self) -> &Binder<FnOutput> {
         &self.output
     }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::FnSig<'tcx> {
+        tcx.mk_fn_sig(
+            self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
+            self.output().as_ref().skip_binder().to_rustc(tcx),
+            false,
+            Safety::Safe,
+            abi::Abi::Rust,
+        )
+    }
 }
 
 impl FnOutput {
     pub fn new(ret: Ty, ensures: impl Into<List<Ensures>>) -> Self {
         Self { ret, ensures: ensures.into() }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        self.ret.to_rustc(tcx)
     }
 }
 

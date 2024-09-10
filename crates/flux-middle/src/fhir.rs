@@ -495,7 +495,7 @@ pub struct MutTy<'fhir> {
 }
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
-/// which we then resolve during `annot_check` when zipping against the lifted version.
+/// which we then resolve when we check for structural compatibility against the rust type.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     /// A lifetime hole created during desugaring.
@@ -733,7 +733,7 @@ pub enum ParamKind {
     /// A location declared with `x: &strg T` syntax.
     Loc,
     /// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
-    /// to used inside a refinement. For example, consider the following:
+    /// to use inside a refinement. For example, consider the following:
     /// ```ignore
     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
     /// ```
@@ -1136,18 +1136,6 @@ impl fmt::Debug for FnSig<'_> {
 
 impl fmt::Debug for FnDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // if !self.generics.refinement_params.is_empty() {
-        //     write!(
-        //         f,
-        //         "for<{}> ",
-        //         self.generics
-        //             .refinement_params
-        //             .iter()
-        //             .format_with(", ", |param, f| {
-        //                 f(&format_args!("{}: {:?}", param.name, param.sort))
-        //             })
-        //     )?;
-        // }
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
