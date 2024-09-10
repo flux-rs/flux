@@ -519,7 +519,10 @@ mod errors {
         fhir,
         global_env::GlobalEnv,
         rty,
-        rustc::ty::{FieldIdx, VariantIdx},
+        rustc::{
+            ty::{FieldIdx, VariantIdx},
+            ToRustc,
+        },
         MaybeExternId,
     };
     use rustc_span::{Span, DUMMY_SP};

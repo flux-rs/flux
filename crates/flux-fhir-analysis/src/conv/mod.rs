@@ -24,7 +24,8 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc, MaybeExternId,
+    rustc::{self, ToRustc},
+    MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -502,7 +503,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let tcx = self.genv.tcx();
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx, rty::TraitRef::to_rustc)),
+            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
             constraint.ident,
         )?;
         let assoc_item_id = self

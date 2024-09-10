@@ -57,7 +57,7 @@ use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{self, mir::Place, ty::VariantDef},
+    rustc::{self, mir::Place, ty::VariantDef, ToRustc},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -248,8 +248,10 @@ pub struct TraitRef {
     pub args: GenericArgs,
 }
 
-impl TraitRef {
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
+impl<'tcx> ToRustc<'tcx> for TraitRef {
+    type T = rustc_middle::ty::TraitRef<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::TraitRef::new(tcx, self.def_id, self.args.to_rustc(tcx))
     }
 }
@@ -293,11 +295,10 @@ impl ExistentialPredicate {
     }
 }
 
-impl ExistentialPredicate {
-    pub fn to_rustc<'tcx>(
-        &self,
-        tcx: TyCtxt<'tcx>,
-    ) -> rustc_middle::ty::ExistentialPredicate<'tcx> {
+impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
+    type T = rustc_middle::ty::ExistentialPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
             ExistentialPredicate::Trait(trait_ref) => {
                 let trait_ref = rustc_middle::ty::ExistentialTraitRef {
@@ -863,11 +864,12 @@ impl List<BoundVariableKind> {
             })
             .collect()
     }
+}
 
-    pub fn to_rustc<'tcx>(
-        &self,
-        tcx: TyCtxt<'tcx>,
-    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+impl<'tcx> ToRustc<'tcx> for List<BoundVariableKind> {
+    type T = &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
@@ -919,6 +921,10 @@ impl<T> Binder<T> {
         self.value
     }
 
+    pub fn skip_binder_ref(&self) -> &T {
+        self.as_ref().skip_binder()
+    }
+
     pub fn rebind<U>(self, value: U) -> Binder<U> {
         Binder { vars: self.vars, value }
     }
@@ -938,17 +944,17 @@ impl<T> Binder<T> {
             _ => bug!("expected single-sorted binder"),
         }
     }
+}
 
-    pub fn to_rustc<'tcx, R>(
-        &self,
-        tcx: TyCtxt<'tcx>,
-        f: impl FnOnce(&T, TyCtxt<'tcx>) -> R,
-    ) -> rustc_middle::ty::Binder<'tcx, R>
-    where
-        R: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>,
-    {
+impl<'tcx, V> ToRustc<'tcx> for Binder<V>
+where
+    V: ToRustc<'tcx, T: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>>,
+{
+    type T = rustc_middle::ty::Binder<'tcx, V::T>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let vars = self.vars.to_rustc(tcx);
-        let value = f(&self.value, tcx);
+        let value = self.value.to_rustc(tcx);
         rustc_middle::ty::Binder::bind_with_vars(value, vars)
     }
 }
@@ -1209,32 +1215,6 @@ impl Ty {
         }
     }
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        match self.kind() {
-            TyKind::Indexed(bty, _) => bty.to_rustc(tcx),
-            TyKind::Exists(ty) => ty.as_ref().skip_binder().to_rustc(tcx),
-            TyKind::Constr(_, ty) => ty.to_rustc(tcx),
-            TyKind::Param(pty) => pty.to_ty(tcx),
-            TyKind::Alias(kind, alias_ty) => {
-                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(), alias_ty.to_rustc(tcx))
-            }
-            TyKind::StrgRef(re, _, ty) => {
-                rustc_middle::ty::Ty::new_ref(
-                    tcx,
-                    re.to_rustc(tcx),
-                    ty.to_rustc(tcx),
-                    Mutability::Mut,
-                )
-            }
-            TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
-            TyKind::Uninit
-            | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => bug!(),
-        }
-    }
-
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         self.as_bty_skipping_existentials()
@@ -1280,9 +1260,39 @@ impl Ty {
     pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
+            TyKind::Exists(ty) => Some(ty.skip_binder_ref().as_bty_skipping_existentials()?),
             TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
             _ => None,
+        }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for Ty {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self.kind() {
+            TyKind::Indexed(bty, _) => bty.to_rustc(tcx),
+            TyKind::Exists(ty) => ty.skip_binder_ref().to_rustc(tcx),
+            TyKind::Constr(_, ty) => ty.to_rustc(tcx),
+            TyKind::Param(pty) => pty.to_ty(tcx),
+            TyKind::Alias(kind, alias_ty) => {
+                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
+            TyKind::StrgRef(re, _, ty) => {
+                rustc_middle::ty::Ty::new_ref(
+                    tcx,
+                    re.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                    Mutability::Mut,
+                )
+            }
+            TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
+            TyKind::Uninit
+            | TyKind::Ptr(_, _)
+            | TyKind::Discr(_, _)
+            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Blocked(_) => bug!(),
         }
     }
 }
@@ -1549,8 +1559,12 @@ impl BaseTy {
             | BaseTy::Never => Sort::unit(),
         }
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+impl<'tcx> ToRustc<'tcx> for BaseTy {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
@@ -1571,9 +1585,7 @@ impl BaseTy {
             BaseTy::Ref(re, ty, mutbl) => {
                 ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
             }
-            BaseTy::FnPtr(poly_fn_sig) => {
-                ty::Ty::new_fn_ptr(tcx, poly_fn_sig.to_rustc(tcx, FnSig::to_rustc))
-            }
+            BaseTy::FnPtr(poly_sig) => ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
             BaseTy::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
@@ -1590,7 +1602,7 @@ impl BaseTy {
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
-                    .map(|pred| pred.to_rustc(tcx, ExistentialPredicate::to_rustc))
+                    .map(|pred| pred.to_rustc(tcx))
                     .collect_vec();
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
@@ -1708,10 +1720,6 @@ impl SubsetTy {
         Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
     }
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        self.bty.to_rustc(tcx)
-    }
-
     fn to_ty(&self) -> Ty {
         let bty = self.bty.clone();
         if self.pred.is_trivially_true() {
@@ -1719,6 +1727,14 @@ impl SubsetTy {
         } else {
             Ty::constr(&self.pred, Ty::indexed(bty, &self.idx))
         }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for SubsetTy {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        self.bty.to_rustc(tcx)
     }
 }
 
@@ -1772,14 +1788,16 @@ impl GenericArg {
             }
         }
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArg<'tcx> {
+impl<'tcx> ToRustc<'tcx> for GenericArg {
+    type T = rustc_middle::ty::GenericArg<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
-            GenericArg::Base(ctor) => {
-                ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
-            }
+            GenericArg::Base(ctor) => ty::GenericArg::from(ctor.skip_binder_ref().to_rustc(tcx)),
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
             GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
         }
@@ -1836,8 +1854,12 @@ impl GenericArgs {
         }
         Ok(())
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
+impl<'tcx> ToRustc<'tcx> for GenericArgs {
+    type T = rustc_middle::ty::GenericArgsRef<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
@@ -2071,8 +2093,12 @@ impl FnSig {
     pub fn output(&self) -> &Binder<FnOutput> {
         &self.output
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::FnSig<'tcx> {
+impl<'tcx> ToRustc<'tcx> for FnSig {
+    type T = rustc_middle::ty::FnSig<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.mk_fn_sig(
             self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
             self.output().as_ref().skip_binder().to_rustc(tcx),
@@ -2087,8 +2113,12 @@ impl FnOutput {
     pub fn new(ret: Ty, ensures: impl Into<List<Ensures>>) -> Self {
         Self { ret, ensures: ensures.into() }
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+impl<'tcx> ToRustc<'tcx> for FnOutput {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         self.ret.to_rustc(tcx)
     }
 }
@@ -2232,8 +2262,12 @@ impl AliasTy {
     pub fn self_ty(&self) -> &Ty {
         self.args[0].expect_type()
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AliasTy<'tcx> {
+impl<'tcx> ToRustc<'tcx> for AliasTy {
+    type T = rustc_middle::ty::AliasTy<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
     }
 }

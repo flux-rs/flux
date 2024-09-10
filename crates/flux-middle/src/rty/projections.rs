@@ -21,7 +21,7 @@ use crate::{
     intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::lowering::lower_ty,
+    rustc::{lowering::lower_ty, ToRustc},
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {

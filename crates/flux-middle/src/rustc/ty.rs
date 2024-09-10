@@ -23,6 +23,7 @@ use rustc_target::spec::abi;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
+use super::ToRustc;
 use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::{self, def_id_to_string},
@@ -231,8 +232,9 @@ pub enum AliasKind {
     Opaque,
 }
 
-impl AliasKind {
-    pub fn to_rustc(self) -> rustc_middle::ty::AliasTyKind {
+impl<'tcx> ToRustc<'tcx> for AliasKind {
+    type T = rustc_middle::ty::AliasTyKind;
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
@@ -246,8 +248,10 @@ pub struct Const {
     pub kind: ConstKind,
 }
 
-impl UnevaluatedConst {
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::UnevaluatedConst<'tcx> {
+impl<'tcx> ToRustc<'tcx> for UnevaluatedConst {
+    type T = rustc_middle::ty::UnevaluatedConst<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let args = tcx.mk_args_from_iter(self.args.iter().map(|arg| arg.to_rustc(tcx)));
         rustc_ty::UnevaluatedConst::new(self.def, args)
     }
@@ -262,8 +266,12 @@ impl Const {
             ),
         }
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
+impl<'tcx> ToRustc<'tcx> for Const {
+    type T = rustc_ty::Const<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, scalar_int) => {
@@ -357,11 +365,13 @@ pub enum Region {
     ReLateParam(LateParamRegion),
 }
 
-impl Region {
-    pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
-        match self {
+impl<'tcx> ToRustc<'tcx> for Region {
+    type T = rustc_middle::ty::Region<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match *self {
             Region::ReBound(debruijn, bound_region) => {
-                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
+                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc(tcx))
             }
             Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
@@ -385,8 +395,10 @@ pub struct BoundRegion {
     pub kind: BoundRegionKind,
 }
 
-impl BoundRegion {
-    fn to_rustc(self) -> rustc_middle::ty::BoundRegion {
+impl<'tcx> ToRustc<'tcx> for BoundRegion {
+    type T = rustc_middle::ty::BoundRegion;
+
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::BoundRegion { var: self.var, kind: self.kind }
     }
 }
@@ -479,8 +491,12 @@ impl GenericArg {
             bug!("expected `GenericArg::Const`, found {:?}", self)
         }
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArg<'tcx> {
+impl<'tcx> ToRustc<'tcx> for GenericArg {
+    type T = rustc_middle::ty::GenericArg<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
@@ -592,8 +608,12 @@ impl AdtDef {
         assert!(self.is_struct() || self.is_union());
         self.variant(FIRST_VARIANT)
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AdtDef<'tcx> {
+impl<'tcx> ToRustc<'tcx> for AdtDef {
+    type T = rustc_middle::ty::AdtDef<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.adt_def(self.did())
     }
 }
@@ -746,8 +766,12 @@ impl Ty {
     pub fn is_box(&self) -> bool {
         matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+impl<'tcx> ToRustc<'tcx> for Ty {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
         let kind = match self.kind() {
             TyKind::Bool => rustc_ty::TyKind::Bool,
             TyKind::Str => rustc_ty::TyKind::Str,
