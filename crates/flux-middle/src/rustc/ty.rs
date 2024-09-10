@@ -6,7 +6,7 @@ use std::fmt;
 
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
@@ -19,6 +19,7 @@ pub use rustc_middle::{
 };
 use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+use rustc_target::spec::abi;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
@@ -115,6 +116,8 @@ pub struct ProjectionPredicate {
 }
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
+    pub safety: Safety,
+    pub abi: abi::Abi,
     pub(crate) inputs_and_output: List<Ty>,
 }
 

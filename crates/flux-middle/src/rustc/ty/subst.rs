@@ -22,7 +22,11 @@ where
 
 impl Subst for FnSig {
     fn subst(&self, args: &[GenericArg]) -> Self {
-        FnSig { inputs_and_output: self.inputs_and_output.subst(args) }
+        FnSig {
+            safety: self.safety,
+            abi: self.abi,
+            inputs_and_output: self.inputs_and_output.subst(args),
+        }
     }
 }
 

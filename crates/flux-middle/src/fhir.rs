@@ -29,7 +29,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId,
+    FnHeader, ItemId, OwnerId, ParamName, Safety,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -37,6 +37,7 @@ pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
+use rustc_target::spec::abi;
 
 use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
@@ -83,6 +84,7 @@ pub struct Generics<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct GenericParam<'fhir> {
     pub def_id: LocalDefId,
+    pub name: ParamName,
     pub kind: GenericParamKind<'fhir>,
 }
 
@@ -351,7 +353,7 @@ pub struct TyAlias<'fhir> {
     pub span: Span,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
-    /// [lifted]: lift::lift_type_alias
+    /// [lifted]: lift::LiftCtxt::lift_type_alias
     pub lifted: bool,
 }
 
@@ -407,9 +409,7 @@ pub struct VariantRet<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnDecl<'fhir> {
-    /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Requires<'fhir>],
-    /// example: vec![(x: StrRef(l))]
     pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
@@ -429,6 +429,7 @@ pub struct Requires<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
+    pub header: FnHeader,
     //// List of local qualifiers for this function
     pub qualifiers: &'fhir [Ident],
     pub decl: &'fhir FnDecl<'fhir>,
@@ -473,6 +474,7 @@ pub enum TyKind<'fhir> {
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
     StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
     Ref(Lifetime, MutTy<'fhir>),
+    BareFn(&'fhir BareFnTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
@@ -482,6 +484,14 @@ pub enum TyKind<'fhir> {
     Infer,
 }
 
+pub struct BareFnTy<'fhir> {
+    pub safety: Safety,
+    pub abi: abi::Abi,
+    pub generic_params: &'fhir [GenericParam<'fhir>],
+    pub decl: &'fhir FnDecl<'fhir>,
+    pub param_names: &'fhir [Ident],
+}
+
 #[derive(Clone, Copy)]
 pub struct MutTy<'fhir> {
     pub ty: &'fhir Ty<'fhir>,
@@ -489,7 +499,7 @@ pub struct MutTy<'fhir> {
 }
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
-/// which we then resolve during `annot_check` when zipping against the lifted version.
+/// which we then resolve when we check for structural compatibility against the rust type.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     /// A lifetime hole created during desugaring.
@@ -727,7 +737,7 @@ pub enum ParamKind {
     /// A location declared with `x: &strg T` syntax.
     Loc,
     /// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
-    /// to used inside a refinement. For example, consider the following:
+    /// to use inside a refinement. For example, consider the following:
     /// ```ignore
     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
     /// ```
@@ -1068,7 +1078,7 @@ impl<'fhir> Generics<'fhir> {
             } else {
                 param.kind
             };
-            GenericParam { def_id: param.def_id, kind }
+            GenericParam { kind, ..*param }
         }));
         Generics { params, ..self }
     }
@@ -1130,18 +1140,6 @@ impl fmt::Debug for FnSig<'_> {
 
 impl fmt::Debug for FnDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // if !self.generics.refinement_params.is_empty() {
-        //     write!(
-        //         f,
-        //         "for<{}> ",
-        //         self.generics
-        //             .refinement_params
-        //             .iter()
-        //             .format_with(", ", |param, f| {
-        //                 f(&format_args!("{}: {:?}", param.name, param.sort))
-        //             })
-        //     )?;
-        // }
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
@@ -1217,6 +1215,9 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Ref(_lft, mut_ty) => {
                 write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
+            TyKind::BareFn(bare_fn_ty) => {
+                write!(f, "{bare_fn_ty:?}")
+            }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
@@ -1234,6 +1235,22 @@ impl fmt::Debug for Ty<'_> {
                 write!(f, "dyn {poly_traits:?}")
             }
         }
+    }
+}
+
+impl fmt::Debug for BareFnTy<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.generic_params.is_empty() {
+            write!(
+                f,
+                "for<{}>",
+                self.generic_params
+                    .iter()
+                    .map(|param| param.name.ident())
+                    .format(",")
+            )?;
+        }
+        write!(f, "{:?}", self.decl)
     }
 }
 

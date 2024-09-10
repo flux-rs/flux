@@ -649,7 +649,7 @@ pub fn lower_fn_sig<'tcx>(
                 .map(|ty| lower_ty(tcx, ty))
                 .try_collect()?,
         );
-        Ok(FnSig { inputs_and_output })
+        Ok(FnSig { safety: fn_sig.safety, abi: fn_sig.abi, inputs_and_output })
     })
 }
 

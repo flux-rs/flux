@@ -8,6 +8,7 @@ extern crate rustc_hir;
 extern crate rustc_hir_pretty;
 extern crate rustc_middle;
 extern crate rustc_span;
+extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
@@ -407,7 +408,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let defns = genv.spec_func_defns()?;
-    let fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, &wfckresults)?
+    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
