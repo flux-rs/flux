@@ -150,6 +150,8 @@ pub struct Providers {
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>,
     pub assoc_refinement_def:
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
+    pub default_assoc_refinement_def:
+        fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
@@ -180,6 +182,7 @@ impl Default for Providers {
             predicates_of: |_, _| empty_query!(),
             assoc_refinements_of: |_, _| empty_query!(),
             assoc_refinement_def: |_, _, _| empty_query!(),
+            default_assoc_refinement_def: |_, _, _| empty_query!(),
             sort_of_assoc_reft: |_, _, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
@@ -208,6 +211,8 @@ pub struct Queries<'genv, 'tcx> {
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     assoc_refinements_of: Cache<DefId, QueryResult<rty::AssocRefinements>>,
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    default_assoc_refinement_def:
+        Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
     sort_of_assoc_reft:
         Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
@@ -241,6 +246,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             predicates_of: Default::default(),
             assoc_refinements_of: Default::default(),
             assoc_refinement_def: Default::default(),
+            default_assoc_refinement_def: Default::default(),
             sort_of_assoc_reft: Default::default(),
             item_bounds: Default::default(),
             type_of: Default::default(),
@@ -529,6 +535,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
             } else if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
+                lam
+            } else {
+                bug!("TODO: implement for external crates")
+            }
+        })
+    }
+
+    pub(crate) fn default_assoc_refinement_def(
+        &self,
+        genv: GlobalEnv,
+        trait_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+        run_with_cache(&self.default_assoc_refinement_def, (trait_id, name), || {
+            let trait_id = lookup_extern(genv, trait_id).unwrap_or(trait_id);
+            if let Some(local_id) = trait_id.as_local() {
+                (self.providers.default_assoc_refinement_def)(genv, local_id, name)
+            } else if let Some(lam) = genv
+                .cstore()
+                .default_assoc_refinements_def((trait_id, name))
+            {
                 lam
             } else {
                 bug!("TODO: implement for external crates")

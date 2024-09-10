@@ -17,6 +17,10 @@ pub trait CrateStore {
         &self,
         key: (DefId, Symbol),
     ) -> OptResult<rty::EarlyBinder<rty::Lambda>>;
+    fn default_assoc_refinements_def(
+        &self,
+        key: (DefId, Symbol),
+    ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>>;
     fn sort_of_assoc_reft(
         &self,
         key: (DefId, Symbol),

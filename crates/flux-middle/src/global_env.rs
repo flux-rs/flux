@@ -257,6 +257,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.assoc_refinements_of(self, def_id.into())
     }
 
+    pub fn default_assoc_refinement_def(
+        self,
+        trait_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+        self.inner
+            .queries
+            .default_assoc_refinement_def(self, trait_id, name)
+    }
+
     pub fn assoc_refinement_def(
         self,
         impl_id: DefId,

@@ -152,7 +152,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         } else {
             self.as_lift_cx().lift_generics()?
         };
-        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements);
+        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements)?;
         let trait_ = fhir::Trait { assoc_refinements };
 
         if config::dump_fhir() {
@@ -163,16 +163,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn desugar_trait_assoc_refts(
-        &self,
+        &mut self,
         assoc_refts: &[surface::TraitAssocReft],
-    ) -> &'genv [fhir::TraitAssocReft<'genv>] {
-        self.genv
-            .alloc_slice_fill_iter(assoc_refts.iter().map(|assoc_reft| {
-                let name = assoc_reft.name.name;
-                let params = self.desugar_refine_params(&assoc_reft.params);
-                let output = self.desugar_base_sort(&assoc_reft.output, None);
-                fhir::TraitAssocReft { name, params, output, span: assoc_reft.span }
-            }))
+    ) -> Result<&'genv [fhir::TraitAssocReft<'genv>]> {
+        try_alloc_slice!(self.genv, assoc_refts, |assoc_reft| {
+            let name = assoc_reft.name.name;
+            let params = self.desugar_refine_params(&assoc_reft.params);
+            let output = self.desugar_base_sort(&assoc_reft.output, None);
+            let body = match &assoc_reft.body {
+                Some(expr) => Some(self.desugar_expr(expr)?),
+                None => None,
+            };
+            Ok(fhir::TraitAssocReft { name, params, output, body, span: assoc_reft.span })
+        })
     }
 
     pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Item<'genv>> {

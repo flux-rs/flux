@@ -55,6 +55,7 @@ pub fn provide(providers: &mut Providers) {
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
     providers.assoc_refinement_def = assoc_refinement_def;
+    providers.default_assoc_refinement_def = default_assoc_refinement_def;
     providers.item_bounds = item_bounds;
 }
 
@@ -191,6 +192,27 @@ fn assoc_refinements_of(
         _ => Err(query_bug!(local_id, "expected trait or impl"))?,
     };
     Ok(rty::AssocRefinements { items: predicates })
+}
+
+fn default_assoc_refinement_def(
+    genv: GlobalEnv,
+    trait_id: LocalDefId,
+    name: Symbol,
+) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+    let assoc_reft = genv
+        .map()
+        .expect_item(trait_id)?
+        .expect_trait()
+        .find_assoc_reft(name);
+
+    let wfckresults = genv.check_wf(trait_id)?;
+    if let Some(assoc_reft) = assoc_reft
+        && let Some(body) = conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?
+    {
+        Ok(Some(rty::EarlyBinder(body)))
+    } else {
+        Err(QueryErr::InvalidAssocReft { impl_id: trait_id.to_def_id(), name })?
+    }
 }
 
 fn assoc_refinement_def(
