@@ -390,7 +390,7 @@
     <span class="kw">pub </span>num_vald: i32,
 }
 
-<span class="attr">#[allow(dead_code)]
+<span class="attr">#[expect(dead_code, reason = <span class="string">"false positive: the field is read in the `Debug` impl"</span>)]
 #[derive(Deserialize, Debug)]
 </span><span class="kw">pub struct </span>CrashInfo(Vec&lt;serde_json::Value&gt;);
 

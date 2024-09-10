@@ -1751,8 +1751,6 @@
 <a href="#1751" id="1751">1751</a>
 <a href="#1752" id="1752">1752</a>
 <a href="#1753" id="1753">1753</a>
-<a href="#1754" id="1754">1754</a>
-<a href="#1755" id="1755">1755</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -1855,8 +1853,7 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>Mode: Sized {
-    <span class="attr">#[allow(dead_code)] </span><span class="comment">// used for debugging
-    </span><span class="kw">const </span>NAME: <span class="kw-2">&amp;</span>str;
+    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span>str;
 
     <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
         ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
@@ -1963,8 +1960,7 @@
     }
 }
 
-<span class="attr">#[allow(clippy::too_many_arguments)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
     <span class="kw">fn </span>run(
         <span class="kw-2">mut </span>infcx: InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: LocalDefId,
@@ -2284,7 +2280,7 @@
         <span class="self">self</span>.check_closure_clauses(infcx, infcx.snapshot(), <span class="kw-2">&amp;</span>obligations)
     }
 
-    <span class="attr">#[allow(clippy::too_many_arguments)]
+    <span class="attr">#[expect(clippy::too_many_arguments)]
     </span><span class="kw">fn </span>check_call(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,

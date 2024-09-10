@@ -102,7 +102,7 @@
 <span class="doccomment">/// # Safety
 ///
 /// See the module level comment.
-</span><span class="attr">#[allow(clippy::needless_lifetimes)] </span><span class="comment">// We want to be very explicit about lifetimes here.
+</span><span class="attr">#[expect(clippy::needless_lifetimes, reason = <span class="string">"we want to be very explicit about lifetimes here"</span>)]
 </span><span class="kw">pub unsafe fn </span>retrieve_mir_body&lt;<span class="lifetime">'tcx</span>&gt;(
     _tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     def_id: LocalDefId,

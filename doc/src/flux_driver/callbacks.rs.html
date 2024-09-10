@@ -473,7 +473,7 @@
     }
 }
 
-<span class="attr">#[allow(clippy::needless_lifetimes)]
+<span class="attr">#[expect(clippy::needless_lifetimes, reason = <span class="string">"we want to be explicit about lifetimes here"</span>)]
 </span><span class="kw">fn </span>mir_borrowck&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     def_id: LocalDefId,

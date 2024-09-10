@@ -879,7 +879,6 @@
 <a href="#879" id="879">879</a>
 <a href="#880" id="880">880</a>
 <a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -1006,8 +1005,7 @@
 }
 
 <span class="kw">trait </span>Mode: Sized {
-    <span class="attr">#[allow(dead_code)] </span><span class="comment">// we use this name some times for debugging
-    </span><span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
     <span class="kw">fn </span>projection(
         analysis: <span class="kw-2">&amp;mut </span>FoldUnfoldAnalysis&lt;<span class="self">Self</span>&gt;,

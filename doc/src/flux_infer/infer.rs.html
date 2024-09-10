@@ -758,7 +758,6 @@
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1132,13 +1131,12 @@
 <span class="doccomment">/// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
-</span><span class="attr">#[allow(dead_code)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
 }
 
-<span class="attr">#[allow(dead_code)]
+<span class="attr">#[expect(dead_code, reason = <span class="string">"we use this for debugging some time"</span>)]
 </span><span class="kw">impl </span>TypeTrace {
     <span class="kw">fn </span>tys(a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Types(a.clone(), b.clone())

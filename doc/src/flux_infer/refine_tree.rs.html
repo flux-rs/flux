@@ -1089,7 +1089,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt; {
-    <span class="attr">#[allow(clippy::unused_self)]
+    <span class="attr">#[expect(clippy::unused_self, reason = <span class="string">"we want to explicit borrow self mutably"</span>)]
     </span><span class="comment">// We take a mutable reference to the subtree to prove statically that there's only one writer.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>clear_children(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(ptr) = snapshot.ptr.upgrade() {
@@ -1114,7 +1114,7 @@
         <span class="self">self</span>.snapshot().scope().unwrap()
     }
 
-    <span class="attr">#[allow(dead_code)]
+    <span class="attr">#[expect(dead_code, reason = <span class="string">"used for debugging"</span>)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_trace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trace: TypeTrace) {
         <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Trace(trace));
     }
