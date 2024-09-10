@@ -537,6 +537,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         fn_spec: &surface::FnSpec,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
+        let mut header = self.as_lift_cx().lift_fn_header();
         let (generics, decl) = if let Some(fn_sig) = &fn_spec.fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
@@ -565,6 +566,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 span: fn_sig.span,
                 lifted: false,
             };
+            // Fix up the span in asyncness
+            if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
+                header.asyncness = hir::IsAsync::Async(span)
+            }
             (generics, decl)
         } else {
             (self.as_lift_cx().lift_generics()?, self.as_lift_cx().lift_fn_decl()?)
@@ -577,6 +582,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok((
             generics,
             fhir::FnSig {
+                header,
                 qualifiers: self.genv.alloc_slice(qual_names),
                 decl: self.genv.alloc(decl),
             },

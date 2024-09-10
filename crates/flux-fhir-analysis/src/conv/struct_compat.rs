@@ -56,9 +56,9 @@ pub(crate) fn fn_sig(
     let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
 
     let mut zipper = Zipper::new(genv, def_id);
-    zipper.enter_binders(fn_sig, &expected, |zipper, fn_sig, expected| {
-        zipper.zip_fn_sig(decl, fn_sig, expected);
-    });
+    if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
+        zipper.emit_fn_sig_err(err, decl);
+    }
 
     zipper.errors.into_result()?;
 
@@ -155,6 +155,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         }
     }
 
+    fn zip_poly_fn_sig(&mut self, a: &rty::PolyFnSig, b: &rty::PolyFnSig) -> Result<(), FnSigErr> {
+        self.enter_binders(a, b, |this, a, b| this.zip_fn_sig(a, b))
+    }
+
     fn zip_variant(&mut self, a: &rty::PolyVariant, b: &rty::PolyVariant, variant_idx: VariantIdx) {
         self.enter_binders(a, b, |this, a, b| {
             // The args are always `GenericArgs::identity_for_item` inside the `EarlyBinder`
@@ -183,57 +187,34 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         });
     }
 
-    fn zip_fn_sig(&mut self, decl: &fhir::FnDecl, a: &rty::FnSig, b: &rty::FnSig) {
+    fn zip_fn_sig(&mut self, a: &rty::FnSig, b: &rty::FnSig) -> Result<(), FnSigErr> {
         if a.inputs().len() != b.inputs().len() {
-            self.errors
-                .emit(errors::IncompatibleParamCount::new(self.genv, decl, self.owner_id));
-            return;
+            Err(FnSigErr::ArgCountMismatch)?;
         }
         for (i, (ty_a, ty_b)) in iter::zip(a.inputs(), b.inputs()).enumerate() {
-            if self.zip_ty(ty_a, ty_b).is_err() {
-                self.errors.emit(errors::IncompatibleRefinement::fn_input(
-                    self.genv,
-                    self.owner_id,
-                    decl,
-                    i,
-                ));
-            }
+            self.zip_ty(ty_a, ty_b).map_err(|_| FnSigErr::FnInput(i))?;
         }
         self.enter_binders(a.output(), b.output(), |this, output_a, output_b| {
-            this.zip_output(decl, output_a, output_b);
-        });
+            this.zip_output(output_a, output_b)
+        })
     }
 
-    fn zip_output(&mut self, decl: &fhir::FnDecl, a: &rty::FnOutput, b: &rty::FnOutput) {
-        if self.zip_ty(&a.ret, &b.ret).is_err() {
-            self.errors.emit(errors::IncompatibleRefinement::fn_output(
-                self.genv,
-                self.owner_id,
-                decl,
-            ));
-        }
-        // Skip ensure clauses if there are any errors because we may not have a type for all locations
-        if self.errors.has_errors() {
-            return;
-        }
+    fn zip_output(&mut self, a: &rty::FnOutput, b: &rty::FnOutput) -> Result<(), FnSigErr> {
+        self.zip_ty(&a.ret, &b.ret)
+            .map_err(|_| FnSigErr::FnOutput)?;
+
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
                 let loc = path.to_loc().unwrap();
                 let ty_b = self.locs.get(&loc).unwrap().clone();
-                if self.zip_ty(ty_a, &ty_b).is_err() {
-                    self.errors.emit(errors::IncompatibleRefinement::ensures(
-                        self.genv,
-                        self.owner_id,
-                        decl,
-                        &ty_b,
-                        i,
-                    ));
-                }
+                self.zip_ty(ty_a, &ty_b)
+                    .map_err(|_| FnSigErr::Ensures { i, expected: ty_b })?;
             }
         }
+        Ok(())
     }
 
-    fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Error> {
+    fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Mismatch> {
         match (a.kind(), b.kind()) {
             (rty::TyKind::Infer(vid), _) if a != &rty::Ty::trait_object_dummy_self() => {
                 let b = self.adjust_binders(b);
@@ -280,11 +261,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             ) => {
                 bug!("unexpected type {a:?}");
             }
-            _ => Err(Error::Incompatible),
+            _ => Err(Mismatch),
         }
     }
 
-    fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Error> {
+    fn zip_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) -> Result<(), Mismatch> {
         match (a, b) {
             (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) => {
                 assert_eq_or_incompatible(ity_a, ity_b)
@@ -316,6 +297,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_region(re_a, re_b);
                 self.zip_ty(ty_a, ty_b)
             }
+            (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
+                self.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
+                    .map_err(|_| Mismatch)
+            }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) => {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())?;
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
@@ -342,11 +327,15 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
             }
-            _ => Err(Error::Incompatible),
+            _ => Err(Mismatch),
         }
     }
 
-    fn zip_generic_arg(&mut self, a: &rty::GenericArg, b: &rty::GenericArg) -> Result<(), Error> {
+    fn zip_generic_arg(
+        &mut self,
+        a: &rty::GenericArg,
+        b: &rty::GenericArg,
+    ) -> Result<(), Mismatch> {
         match (a, b) {
             (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) => self.zip_ty(ty_a, ty_b),
             (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) => {
@@ -361,11 +350,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) => {
                 self.zip_const(ct_a, ct_b)
             }
-            _ => Err(Error::Incompatible),
+            _ => Err(Mismatch),
         }
     }
 
-    fn zip_const(&mut self, a: &rty::Const, b: &ty::Const) -> Result<(), Error> {
+    fn zip_const(&mut self, a: &rty::Const, b: &ty::Const) -> Result<(), Mismatch> {
         match (&a.kind, &b.kind) {
             (rty::ConstKind::Infer(ty::InferConst::Var(cid)), _) => {
                 self.holes.consts.insert(*cid, b.clone());
@@ -381,7 +370,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
                 assert_eq_or_incompatible(c1, c2)
             }
-            _ => Err(Error::Incompatible),
+            _ => Err(Mismatch),
         }
     }
 
@@ -396,7 +385,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         &mut self,
         a: &rty::Binder<rty::ExistentialPredicate>,
         b: &rty::Binder<rty::ExistentialPredicate>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Mismatch> {
         self.enter_binders(a, b, |this, a, b| {
             match (a, b) {
                 (
@@ -425,7 +414,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
                     rty::ExistentialPredicate::AutoTrait(def_id_b),
                 ) => assert_eq_or_incompatible(def_id_a, def_id_b),
-                _ => Err(Error::Incompatible),
+                _ => Err(Mismatch),
             }
         })
     }
@@ -468,17 +457,58 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             t.shift_out_escaping(self.b_index.as_u32() - self.a_index.as_u32())
         }
     }
+
+    fn emit_fn_sig_err(&mut self, err: FnSigErr, decl: &fhir::FnDecl) {
+        match err {
+            FnSigErr::ArgCountMismatch => {
+                self.errors.emit(errors::IncompatibleParamCount::new(
+                    self.genv,
+                    decl,
+                    self.owner_id,
+                ));
+            }
+            FnSigErr::FnInput(i) => {
+                self.errors.emit(errors::IncompatibleRefinement::fn_input(
+                    self.genv,
+                    self.owner_id,
+                    decl,
+                    i,
+                ));
+            }
+            FnSigErr::FnOutput => {
+                self.errors.emit(errors::IncompatibleRefinement::fn_output(
+                    self.genv,
+                    self.owner_id,
+                    decl,
+                ));
+            }
+            FnSigErr::Ensures { i, expected } => {
+                self.errors.emit(errors::IncompatibleRefinement::ensures(
+                    self.genv,
+                    self.owner_id,
+                    decl,
+                    &expected,
+                    i,
+                ));
+            }
+        }
+    }
 }
 
-fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Error> {
+fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Mismatch> {
     if a != b {
-        return Err(Error::Incompatible);
+        return Err(Mismatch);
     }
     Ok(())
 }
 
-enum Error {
-    Incompatible,
+struct Mismatch;
+
+enum FnSigErr {
+    ArgCountMismatch,
+    FnInput(usize),
+    FnOutput,
+    Ensures { i: usize, expected: rty::Ty },
 }
 
 mod errors {

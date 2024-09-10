@@ -793,7 +793,7 @@ impl TypeFoldable for FnSig {
         let requires = self.requires.try_fold_with(folder)?;
         let args = self.inputs.try_fold_with(folder)?;
         let output = self.output.try_fold_with(folder)?;
-        Ok(FnSig::new(requires, args, output))
+        Ok(FnSig::new(self.safety, self.abi, requires, args, output))
     }
 }
 

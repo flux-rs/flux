@@ -34,7 +34,7 @@ use rustc_hir::{
     self as hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    PrimTy,
+    PrimTy, Safety,
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
@@ -44,6 +44,7 @@ use rustc_span::{
     symbol::{kw, Ident},
     ErrorGuaranteed, Span, Symbol, DUMMY_SP,
 };
+use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
@@ -329,12 +330,15 @@ pub(crate) fn conv_qualifier(
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-pub(crate) fn conv_fn_decl(
+pub(crate) fn conv_fn_sig(
     genv: GlobalEnv,
     def_id: MaybeExternId,
-    decl: &fhir::FnDecl,
+    fn_sig: &fhir::FnSig,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+    let decl = &fn_sig.decl;
+    let header = fn_sig.header;
+
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions =
@@ -344,7 +348,7 @@ pub(crate) fn conv_fn_decl(
     let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
-    let fn_sig = cx.conv_fn_decl(&mut env, decl)?;
+    let fn_sig = cx.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
 
     let vars = late_bound_regions
         .iter()
@@ -705,7 +709,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_fn_decl(&mut self, env: &mut Env, decl: &fhir::FnDecl) -> QueryResult<rty::FnSig> {
+    fn conv_fn_decl(
+        &mut self,
+        env: &mut Env,
+        safety: Safety,
+        abi: abi::Abi,
+        decl: &fhir::FnDecl,
+    ) -> QueryResult<rty::FnSig> {
         let mut requires = vec![];
         for req in decl.requires {
             requires.push(self.conv_requires(env, req)?);
@@ -718,7 +728,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let output = self.conv_fn_output(env, &decl.output)?;
 
-        Ok(rty::FnSig::new(requires.into(), inputs.into(), output))
+        Ok(rty::FnSig::new(safety, abi, requires.into(), inputs.into(), output))
     }
 
     fn conv_requires(
@@ -812,7 +822,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::BareFn(bare_fn) => {
                 let mut env = Env::empty();
                 env.push_layer(Layer::list(&self, bare_fn.generic_params.len() as u32, &[])?);
-                let fn_sig = self.conv_fn_decl(&mut env, bare_fn.decl)?;
+                let fn_sig =
+                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl)?;
                 let vars = bare_fn
                     .generic_params
                     .iter()

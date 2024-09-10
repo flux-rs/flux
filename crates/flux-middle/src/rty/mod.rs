@@ -386,6 +386,8 @@ impl FnTraitPredicate {
             .collect();
 
         let fn_sig = FnSig::new(
+            Safety::Safe,
+            abi::Abi::RustCall,
             List::empty(),
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
@@ -958,6 +960,8 @@ pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct FnSig {
+    safety: Safety,
+    abi: abi::Abi,
     requires: List<Expr>,
     inputs: List<Ty>,
     output: Binder<FnOutput>,
@@ -1870,7 +1874,10 @@ impl CoroutineObligPredicate {
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
+        PolyFnSig::new(
+            FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
+            List::from(vars),
+        )
     }
 }
 
@@ -2043,8 +2050,14 @@ impl VariantSig {
 }
 
 impl FnSig {
-    pub fn new(requires: List<Expr>, inputs: List<Ty>, output: Binder<FnOutput>) -> Self {
-        FnSig { requires, inputs, output }
+    pub fn new(
+        safety: Safety,
+        abi: abi::Abi,
+        requires: List<Expr>,
+        inputs: List<Ty>,
+        output: Binder<FnOutput>,
+    ) -> Self {
+        FnSig { safety, abi, requires, inputs, output }
     }
 
     pub fn requires(&self) -> &[Expr] {
@@ -2064,8 +2077,8 @@ impl FnSig {
             self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
             self.output().as_ref().skip_binder().to_rustc(tcx),
             false,
-            Safety::Safe,
-            abi::Abi::Rust,
+            self.safety,
+            self.abi,
         )
     }
 }
@@ -2192,7 +2205,13 @@ impl EarlyBinder<PolyVariant> {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(List::empty(), variant.fields.clone(), output)
+                FnSig::new(
+                    Safety::Safe,
+                    abi::Abi::Rust,
+                    List::empty(),
+                    variant.fields.clone(),
+                    output,
+                )
             })
         })
     }

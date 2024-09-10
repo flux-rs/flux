@@ -280,7 +280,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 .try_collect()?;
             let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
             let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-            Ok(rty::FnSig::new(List::empty(), inputs, output))
+            Ok(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
         })
     }
 
@@ -415,7 +415,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::FnPtr(_) => bug!("TODO: refine_ty: FnSig"),
+            rustc::ty::TyKind::FnPtr(poly_fn_sig) => {
+                rty::BaseTy::FnPtr(self.as_default().refine_poly_fn_sig(poly_fn_sig)?)
+            }
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }

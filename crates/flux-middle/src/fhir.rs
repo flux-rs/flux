@@ -29,7 +29,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId, ParamName,
+    FnHeader, ItemId, OwnerId, ParamName, Safety,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -37,6 +37,7 @@ pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
+use rustc_target::spec::abi;
 
 use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
@@ -428,6 +429,7 @@ pub struct Requires<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
+    pub header: FnHeader,
     //// List of local qualifiers for this function
     pub qualifiers: &'fhir [Ident],
     pub decl: &'fhir FnDecl<'fhir>,
@@ -483,6 +485,8 @@ pub enum TyKind<'fhir> {
 }
 
 pub struct BareFnTy<'fhir> {
+    pub safety: Safety,
+    pub abi: abi::Abi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
     pub param_names: &'fhir [Ident],
