@@ -910,7 +910,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty = env
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
-                let (adt_def, ..) = ty.expect_adt();
+                // HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
+                let (adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
