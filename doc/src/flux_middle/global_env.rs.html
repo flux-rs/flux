@@ -561,6 +561,9 @@
 <a href="#561" id="561">561</a>
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -963,6 +966,8 @@
     }
 
     <span class="doccomment">/// Whether the item is a dummy item created by the extern spec macro.
+    ///
+    /// See [`crate::Specs::dummy_extern`]
     </span><span class="kw">pub fn </span>is_dummy(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| {
             <span class="self">self</span>.collect_specs()
@@ -981,7 +986,8 @@
             .is_some_and(|ignored| ignored.to_bool())
     }
 
-    <span class="kw">pub fn </span>should_fail(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+    <span class="doccomment">/// Whether the function is marked with `#[flux::should_fail]`
+    </span><span class="kw">pub fn </span>should_fail(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.collect_specs().should_fail.contains(<span class="kw-2">&amp;</span>def_id)
     }
 

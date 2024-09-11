@@ -852,6 +852,42 @@
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
 <a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
@@ -872,7 +908,6 @@
 <span class="kw">use </span>rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemKind, NestedMetaItem,
 };
-<span class="kw">use </span>rustc_ast_pretty::pprust::tts_to_string;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::{
     <span class="self">self </span><span class="kw">as </span>hir,
@@ -881,7 +916,7 @@
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_span::{Span, Symbol, SyntaxContext};
+<span class="kw">use </span>rustc_span::{symbol::sym, Span, Symbol, SyntaxContext};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
@@ -1202,13 +1237,12 @@
     }
 
     <span class="kw">fn </span>parse_flux_attr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attr_item: <span class="kw-2">&amp;</span>AttrItem, def_kind: DefKind) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttr&gt; {
-        <span class="kw">let </span>invalid_attr_err = |this: <span class="kw-2">&amp;</span><span class="self">Self</span>| -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttr&gt; {
-            <span class="prelude-val">Err</span>(this
-                .errors
-                .emit(errors::InvalidAttr { span: attr_item.span() }))
+        <span class="kw">let </span>invalid_attr_err = |this: <span class="kw-2">&amp;</span><span class="self">Self</span>| {
+            this.errors
+                .emit(errors::InvalidAttr { span: attr_item.span() })
         };
 
-        <span class="kw">let </span>[<span class="kw">_</span>, segment] = <span class="kw-2">&amp;</span>attr_item.path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>) };
+        <span class="kw">let </span>[<span class="kw">_</span>, segment] = <span class="kw-2">&amp;</span>attr_item.path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)) };
 
         <span class="kw">let </span>kind = <span class="kw">match </span>(segment.ident.as_str(), <span class="kw-2">&amp;</span>attr_item.args) {
             (<span class="string">"alias"</span>, AttrArgs::Delimited(dargs)) =&gt; {
@@ -1233,7 +1267,7 @@
                             FluxAttrKind::ImplAssocReft,
                         )<span class="question-mark">?
                     </span>}
-                    <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
+                    <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)),
                 }
             }
             (<span class="string">"qualifiers"</span>, AttrArgs::Delimited(dargs)) =&gt; {
@@ -1264,28 +1298,24 @@
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?</span>;
                 FluxAttrKind::CrateConfig(crate_cfg)
             }
-            (<span class="string">"ignore"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Ignore(Ignored::Yes),
-            (<span class="string">"ignore"</span>, AttrArgs::Delimited(dargs)) =&gt; {
-                <span class="kw">let </span>val = tts_to_string(<span class="kw-2">&amp;</span>dargs.tokens);
-                <span class="kw">match </span><span class="kw-2">&amp;</span>val[..] {
-                    <span class="string">"yes" </span>=&gt; FluxAttrKind::Ignore(Ignored::Yes),
-                    <span class="string">"no" </span>=&gt; FluxAttrKind::Ignore(Ignored::No),
-                    <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
-                }
+            (<span class="string">"ignore"</span>, <span class="kw">_</span>) =&gt; {
+                FluxAttrKind::Ignore(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
+                        </span>.into(),
+                )
             }
-            (<span class="string">"trusted"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Trusted(Trusted::Yes),
-            (<span class="string">"trusted"</span>, AttrArgs::Delimited(dargs)) =&gt; {
-                <span class="kw">let </span>val = tts_to_string(<span class="kw-2">&amp;</span>dargs.tokens);
-                <span class="kw">match </span><span class="kw-2">&amp;</span>val[..] {
-                    <span class="string">"yes" </span>=&gt; FluxAttrKind::Trusted(Trusted::Yes),
-                    <span class="string">"no" </span>=&gt; FluxAttrKind::Trusted(Trusted::No),
-                    <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
-                }
+            (<span class="string">"trusted"</span>, <span class="kw">_</span>) =&gt; {
+                FluxAttrKind::Trusted(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
+                        </span>.into(),
+                )
             }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
             (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
             (<span class="string">"should_fail"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ShouldFail,
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span>invalid_attr_err(<span class="self">self</span>),
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)),
         };
         <span class="prelude-val">Ok</span>(FluxAttr { kind, span: attr_item.span() })
     }
@@ -1326,6 +1356,48 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(trusted) = attrs.trusted() {
             <span class="self">self</span>.specs.trusted.insert(def_id, trusted);
         }
+    }
+}
+
+<span class="kw">fn </span>parse_yes_no_with_reason(attr_item: <span class="kw-2">&amp;</span>AttrItem) -&gt; std::result::Result&lt;bool, ()&gt; {
+    <span class="kw">match </span>attr_item.meta_kind().ok_or(())<span class="question-mark">? </span>{
+        MetaItemKind::Word =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>),
+        MetaItemKind::List(items) =&gt; {
+            <span class="kw">let </span>(b, items) = parse_opt_yes_no(<span class="kw-2">&amp;</span>items, <span class="bool-val">true</span>);
+            <span class="kw">let </span>(<span class="kw">_</span>, items) = parse_opt_reason(items);
+            <span class="kw">if </span>items.is_empty() {
+                <span class="prelude-val">Ok</span>(b)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Err</span>(())
+            }
+        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(()),
+    }
+}
+
+<span class="kw">fn </span>parse_opt_yes_no(items: <span class="kw-2">&amp;</span>[NestedMetaItem], default: bool) -&gt; (bool, <span class="kw-2">&amp;</span>[NestedMetaItem]) {
+    <span class="kw">let </span>[hd, tl @ ..] = items <span class="kw">else </span>{ <span class="kw">return </span>(default, items) };
+    <span class="kw">if </span>hd.is_word() {
+        <span class="kw">if </span>hd.has_name(sym::yes) {
+            (<span class="bool-val">true</span>, tl)
+        } <span class="kw">else if </span>hd.has_name(sym::no) {
+            (<span class="bool-val">false</span>, tl)
+        } <span class="kw">else </span>{
+            (default, items)
+        }
+    } <span class="kw">else </span>{
+        (default, items)
+    }
+}
+
+<span class="kw">fn </span>parse_opt_reason(items: <span class="kw-2">&amp;</span>[NestedMetaItem]) -&gt; (<span class="prelude-ty">Option</span>&lt;Symbol&gt;, <span class="kw-2">&amp;</span>[NestedMetaItem]) {
+    <span class="kw">let </span>[hd, tl @ ..] = items <span class="kw">else </span>{ <span class="kw">return </span>(<span class="prelude-val">None</span>, items) };
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = hd.value_str()
+        &amp;&amp; hd.has_name(sym::reason)
+    {
+        (<span class="prelude-val">Some</span>(value), tl)
+    } <span class="kw">else </span>{
+        (<span class="prelude-val">None</span>, items)
     }
 }
 
