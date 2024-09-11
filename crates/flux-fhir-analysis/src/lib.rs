@@ -243,10 +243,9 @@ fn assoc_refinement_def(
     if let Some(lam) = impl_assoc_refinement_def(genv, impl_id, name)? {
         return Ok(lam);
     }
-    // TODO: this seems wrong, what if the trait_id is not a local id?
+
     if let Some(trait_id) = trait_id
-        && let Some(trait_id) = trait_id.as_local()
-        && let Some(lam) = default_assoc_refinement_def(genv, trait_id, name)?
+        && let Some(lam) = genv.default_assoc_refinement_def(trait_id, name)?
     {
         return Ok(lam);
     }
