@@ -1562,6 +1562,9 @@
 <a href="#1562" id="1562">1562</a>
 <a href="#1563" id="1563">1563</a>
 <a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1715,7 +1718,7 @@
         </span>} <span class="kw">else </span>{
             <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?
         </span>};
-        <span class="kw">let </span>assoc_refinements = <span class="self">self</span>.desugar_trait_assoc_refts(<span class="kw-2">&amp;</span>trait_.assoc_refinements);
+        <span class="kw">let </span>assoc_refinements = <span class="self">self</span>.desugar_trait_assoc_refts(<span class="kw-2">&amp;</span>trait_.assoc_refinements)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ = fhir::Trait { assoc_refinements };
 
         <span class="kw">if </span>config::dump_fhir() {
@@ -1726,16 +1729,19 @@
     }
 
     <span class="kw">fn </span>desugar_trait_assoc_refts(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         assoc_refts: <span class="kw-2">&amp;</span>[surface::TraitAssocReft],
-    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::TraitAssocReft&lt;<span class="lifetime">'genv</span>&gt;] {
-        <span class="self">self</span>.genv
-            .alloc_slice_fill_iter(assoc_refts.iter().map(|assoc_reft| {
-                <span class="kw">let </span>name = assoc_reft.name.name;
-                <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>assoc_reft.params);
-                <span class="kw">let </span>output = <span class="self">self</span>.desugar_base_sort(<span class="kw-2">&amp;</span>assoc_reft.output, <span class="prelude-val">None</span>);
-                fhir::TraitAssocReft { name, params, output, span: assoc_reft.span }
-            }))
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::TraitAssocReft&lt;<span class="lifetime">'genv</span>&gt;]&gt; {
+        <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, assoc_refts, |assoc_reft| {
+            <span class="kw">let </span>name = assoc_reft.name.name;
+            <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>assoc_reft.params);
+            <span class="kw">let </span>output = <span class="self">self</span>.desugar_base_sort(<span class="kw-2">&amp;</span>assoc_reft.output, <span class="prelude-val">None</span>);
+            <span class="kw">let </span>body = <span class="kw">match </span><span class="kw-2">&amp;</span>assoc_reft.body {
+                <span class="prelude-val">Some</span>(expr) =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.desugar_expr(expr)<span class="question-mark">?</span>),
+                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+            };
+            <span class="prelude-val">Ok</span>(fhir::TraitAssocReft { name, params, output, body, span: assoc_reft.span })
+        })
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_: <span class="kw-2">&amp;</span>surface::Impl) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {

@@ -499,6 +499,48 @@
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
 <a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -557,6 +599,7 @@
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
     providers.assoc_refinement_def = assoc_refinement_def;
+    providers.default_assoc_refinement_def = default_assoc_refinement_def;
     providers.item_bounds = item_bounds;
 }
 
@@ -695,11 +738,31 @@
     <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
 }
 
-<span class="kw">fn </span>assoc_refinement_def(
+<span class="kw">fn </span>default_assoc_refinement_def(
+    genv: GlobalEnv,
+    trait_id: LocalDefId,
+    name: Symbol,
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
+    <span class="kw">let </span>trait_id = genv.maybe_extern_id(trait_id);
+    <span class="kw">let </span>assoc_reft = genv
+        .map()
+        .expect_item(trait_id.local_id())<span class="question-mark">?
+        </span>.expect_trait()
+        .find_assoc_reft(name);
+
+    <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
+        <span class="prelude-val">Ok</span>(conv::conv_default_assoc_reft_def(genv, assoc_reft, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>.map(rty::EarlyBinder))
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })<span class="question-mark">?
+    </span>}
+}
+
+<span class="kw">fn </span>impl_assoc_refinement_def(
     genv: GlobalEnv,
     impl_id: LocalDefId,
     name: Symbol,
-) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
     <span class="kw">let </span>assoc_reft = genv
         .map()
         .expect_item(impl_id)<span class="question-mark">?
@@ -708,10 +771,31 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
         <span class="kw">let </span>wfckresults = genv.check_wf(impl_id)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>))
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>)))
     } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })<span class="question-mark">?
-    </span>}
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+    }
+}
+
+<span class="kw">fn </span>assoc_refinement_def(
+    genv: GlobalEnv,
+    impl_id: LocalDefId,
+    name: Symbol,
+) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
+    <span class="kw">let </span>impl_id = genv.maybe_extern_id(impl_id);
+
+    <span class="comment">// First check if the assoc reft is defined in the impl
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(lam) = impl_assoc_refinement_def(genv, impl_id.local_id(), name)<span class="question-mark">? </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(lam);
+    }
+
+    <span class="comment">// Else check if the assoc reft is defined in the trait
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(trait_id) = genv.tcx().trait_id_of_impl(impl_id.resolved_id())
+        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(lam) = genv.default_assoc_refinement_def(trait_id, name)<span class="question-mark">?
+    </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(lam);
+    }
+    <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name });
 }
 
 <span class="kw">fn </span>sort_of_assoc_reft(

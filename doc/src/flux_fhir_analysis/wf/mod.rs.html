@@ -288,6 +288,20 @@
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -441,6 +455,20 @@
         <span class="self">self</span>.infcx
             .check_expr(<span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>output)
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+    }
+
+    <span class="kw">fn </span>visit_trait_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>fhir::TraitAssocReft) {
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(output) =
+            conv::conv_sort(<span class="self">self</span>.infcx.genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)
+                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)
+        <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>assoc_reft.body {
+            <span class="self">self</span>.infcx
+                .check_expr(body, <span class="kw-2">&amp;</span>output)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+        }
     }
 
     <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef&lt;<span class="lifetime">'genv</span>&gt;) {

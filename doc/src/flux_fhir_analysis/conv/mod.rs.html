@@ -2148,6 +2148,36 @@
 <a href="#2148" id="2148">2148</a>
 <a href="#2149" id="2149">2149</a>
 <a href="#2150" id="2150">2150</a>
+<a href="#2151" id="2151">2151</a>
+<a href="#2152" id="2152">2152</a>
+<a href="#2153" id="2153">2153</a>
+<a href="#2154" id="2154">2154</a>
+<a href="#2155" id="2155">2155</a>
+<a href="#2156" id="2156">2156</a>
+<a href="#2157" id="2157">2157</a>
+<a href="#2158" id="2158">2158</a>
+<a href="#2159" id="2159">2159</a>
+<a href="#2160" id="2160">2160</a>
+<a href="#2161" id="2161">2161</a>
+<a href="#2162" id="2162">2162</a>
+<a href="#2163" id="2163">2163</a>
+<a href="#2164" id="2164">2164</a>
+<a href="#2165" id="2165">2165</a>
+<a href="#2166" id="2166">2166</a>
+<a href="#2167" id="2167">2167</a>
+<a href="#2168" id="2168">2168</a>
+<a href="#2169" id="2169">2169</a>
+<a href="#2170" id="2170">2170</a>
+<a href="#2171" id="2171">2171</a>
+<a href="#2172" id="2172">2172</a>
+<a href="#2173" id="2173">2173</a>
+<a href="#2174" id="2174">2174</a>
+<a href="#2175" id="2175">2175</a>
+<a href="#2176" id="2176">2176</a>
+<a href="#2177" id="2177">2177</a>
+<a href="#2178" id="2178">2178</a>
+<a href="#2179" id="2179">2179</a>
+<a href="#2180" id="2180">2180</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2513,17 +2543,47 @@
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(poly_fn_sig))
 }
 
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_default_assoc_reft_def(
+    genv: GlobalEnv,
+    assoc_reft: <span class="kw-2">&amp;</span>fhir::TraitAssocReft,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults,
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Lambda&gt;&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body {
+        <span class="kw">let </span>res =
+            conv_assoc_reft_body(genv, wfckresults, <span class="kw-2">&amp;</span>assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(res))
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+    }
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_assoc_reft_def(
     genv: GlobalEnv,
     assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::Lambda&gt; {
+    conv_assoc_reft_body(
+        genv,
+        wfckresults,
+        <span class="kw-2">&amp;</span>assoc_reft.params,
+        <span class="kw-2">&amp;</span>assoc_reft.body,
+        <span class="kw-2">&amp;</span>assoc_reft.output,
+    )
+}
+
+<span class="kw">fn </span>conv_assoc_reft_body(
+    genv: GlobalEnv,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults,
+    params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
+    body: <span class="kw-2">&amp;</span>fhir::Expr,
+    output: <span class="kw-2">&amp;</span>fhir::Sort,
+) -&gt; QueryResult&lt;rty::Lambda&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, assoc_reft.params)<span class="question-mark">?</span>);
-    <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>assoc_reft.body)<span class="question-mark">?</span>;
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, params)<span class="question-mark">?</span>);
+    <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
     <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
-    <span class="kw">let </span>output = conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
+    <span class="kw">let </span>output = conv_sort(genv, output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Lambda::with_vars(expr, inputs, output))
 }
 

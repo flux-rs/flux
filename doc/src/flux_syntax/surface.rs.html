@@ -604,6 +604,7 @@
 <a href="#604" id="604">604</a>
 <a href="#605" id="605">605</a>
 <a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -817,6 +818,7 @@
     <span class="kw">pub </span>name: Ident,
     <span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>output: BaseSort,
+    <span class="kw">pub </span>body: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
     <span class="kw">pub </span>span: Span,
 }
 

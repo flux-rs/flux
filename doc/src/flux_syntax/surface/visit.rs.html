@@ -496,6 +496,9 @@
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
 <a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
@@ -715,6 +718,9 @@
     vis.visit_ident(assoc_reft.name);
     <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>assoc_reft.params);
     vis.visit_base_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="kw-2">&amp;</span>assoc_reft.body {
+        vis.visit_expr(expr);
+    }
 }
 
 <span class="kw">pub fn </span>walk_impl&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, impl_: <span class="kw-2">&amp;</span>Impl) {
