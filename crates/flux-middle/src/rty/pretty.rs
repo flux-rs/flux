@@ -428,6 +428,9 @@ impl Pretty for BaseTy {
                 }
                 w!("{}{:?}",  ^mutbl.prefix_str(), ty)
             }
+            BaseTy::FnPtr(poly_fn_sig) => {
+                w!("{:?}", poly_fn_sig)
+            }
             BaseTy::Tuple(tys) => {
                 if let [ty] = &tys[..] {
                     w!("({:?},)", ty)

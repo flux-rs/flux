@@ -44,6 +44,9 @@ refineck_unsupported_call =
     unsupported type in function call
     .function_definition = function defined here
 
+refineck_expected_neg =
+    {$def_descr} marked with `#[should_fail]` didn't produce a refinement type error
+
 # Invariant checking
 
 refineck_invalid_invariant =

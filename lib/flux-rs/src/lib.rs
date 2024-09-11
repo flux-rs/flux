@@ -79,6 +79,11 @@ pub fn ignore(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::ignore(attrs, tokens)
 }
 
+#[proc_macro_attribute]
+pub fn should_fail(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::should_fail(attrs, tokens)
+}
+
 #[cfg(flux_sysroot)]
 mod attr_sysroot {
     use super::*;
@@ -106,7 +111,18 @@ mod attr_sysroot {
     }
 
     flux_tool_attrs!(
-        alias, spec, sig, qualifiers, constant, invariant, opaque, trusted, generics, assoc, ignore
+        alias,
+        spec,
+        sig,
+        qualifiers,
+        constant,
+        invariant,
+        opaque,
+        trusted,
+        generics,
+        assoc,
+        ignore,
+        should_fail
     );
 }
 
@@ -137,6 +153,17 @@ mod attr_dummy {
     }
 
     no_op!(
-        alias, spec, sig, qualifiers, invariant, constant, opaque, trusted, generics, assoc, ignore
+        alias,
+        spec,
+        sig,
+        qualifiers,
+        invariant,
+        constant,
+        opaque,
+        trusted,
+        generics,
+        assoc,
+        ignore,
+        should_fail,
     );
 }

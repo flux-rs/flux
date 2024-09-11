@@ -124,7 +124,6 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
 }
 
 trait Mode: Sized {
-    #[allow(dead_code)] // we use this name some times for debugging
     const NAME: &'static str;
 
     fn projection(

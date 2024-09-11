@@ -106,15 +106,16 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => self.sort_of_bty(bty),
             fhir::TyKind::Exists(_, ty) | fhir::TyKind::Constr(_, ty) => self.sort_of_ty(ty),
-            fhir::TyKind::RawPtr(_, _)
-            | fhir::TyKind::Ref(_, _)
+            fhir::TyKind::RawPtr(..)
+            | fhir::TyKind::Ref(..)
             | fhir::TyKind::Tuple(_)
-            | fhir::TyKind::Array(_, _)
-            | fhir::TyKind::TraitObject(_, _, _)
+            | fhir::TyKind::Array(..)
+            | fhir::TyKind::TraitObject(..)
+            | fhir::TyKind::BareFn(_)
             | fhir::TyKind::Never => Ok(Some(rty::Sort::unit())),
-            fhir::TyKind::Infer
-            | fhir::TyKind::StrgRef(..)
-            | fhir::TyKind::OpaqueDef(_, _, _, _) => Ok(None),
+            fhir::TyKind::Infer | fhir::TyKind::StrgRef(..) | fhir::TyKind::OpaqueDef(..) => {
+                Ok(None)
+            }
         }
     }
 
