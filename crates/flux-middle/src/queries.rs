@@ -558,7 +558,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             {
                 lam
             } else {
-                bug!("TODO: implement for external crates")
+                Err(query_bug!("TODO: implement for external crates"))
             }
         })
     }
