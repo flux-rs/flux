@@ -200,17 +200,19 @@ fn default_assoc_refinement_def(
     trait_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+    let impl_id = trait_id.to_def_id();
+    let trait_id = genv.maybe_extern_id(trait_id);
     let assoc_reft = genv
         .map()
-        .expect_item(trait_id)?
+        .expect_item(trait_id.local_id())?
         .expect_trait()
         .find_assoc_reft(name);
 
-    let wfckresults = genv.check_wf(trait_id)?;
+    let wfckresults = genv.check_wf(trait_id.local_id())?;
     if let Some(assoc_reft) = assoc_reft {
         Ok(conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?.map(rty::EarlyBinder))
     } else {
-        Err(QueryErr::InvalidAssocReft { impl_id: trait_id.to_def_id(), name })?
+        Err(QueryErr::InvalidAssocReft { impl_id, name })?
     }
 }
 
@@ -238,18 +240,22 @@ fn assoc_refinement_def(
     impl_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id());
+    let err = Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name });
 
-    if let Some(lam) = impl_assoc_refinement_def(genv, impl_id, name)? {
+    let impl_id = genv.maybe_extern_id(impl_id);
+
+    // First check if the assoc reft is defined in the impl
+    if let Some(lam) = impl_assoc_refinement_def(genv, impl_id.local_id(), name)? {
         return Ok(lam);
     }
 
-    if let Some(trait_id) = trait_id
+    // Else check if the assoc reft is defined in the trait
+    if let Some(trait_id) = genv.tcx().trait_id_of_impl(impl_id.as_resolved_def_id())
         && let Some(lam) = genv.default_assoc_refinement_def(trait_id, name)?
     {
         return Ok(lam);
     }
-    return Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name });
+    return err;
 }
 
 fn sort_of_assoc_reft(
