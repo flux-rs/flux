@@ -1321,7 +1321,7 @@ impl TyS {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
             (adt_def, args, idx)
         } else {
-            bug!("expected adt")
+            bug!("expected an adt")
         }
     }
 
