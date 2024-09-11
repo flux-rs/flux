@@ -1751,6 +1751,7 @@
 <a href="#1751" id="1751">1751</a>
 <a href="#1752" id="1752">1752</a>
 <a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2663,7 +2664,8 @@
                 <span class="kw">let </span>ty = env
                     .lookup_place(<span class="kw-2">&amp;mut </span>infcx.at(stmt_span), place)
                     .with_span(stmt_span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>(adt_def, ..) = ty.expect_adt();
+                <span class="comment">// HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
+                </span><span class="kw">let </span>(adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
                 <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
