@@ -111,10 +111,19 @@ pub fn check_fn(
         let errors = fcx.check(cache, cstr, config.scrape_quals).emit(&genv)?;
 
         tracing::info!("check_fn::fixpoint");
-        if errors.is_empty() {
-            Ok(())
+        #[expect(clippy::collapsible_else_if, reason = "it looks better")]
+        if genv.should_fail(def_id) {
+            if errors.is_empty() {
+                report_expected_neg(genv, def_id)
+            } else {
+                Ok(())
+            }
         } else {
-            report_errors(genv, errors)
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                report_errors(genv, errors)
+            }
         }
     })
 }
@@ -160,6 +169,13 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
     } else {
         Ok(())
     }
+}
+
+fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+    Err(genv.sess().emit_err(errors::ExpectedNeg {
+        span: genv.tcx().def_span(def_id),
+        def_descr: genv.tcx().def_descr(def_id.to_def_id()),
+    }))
 }
 
 mod errors {
@@ -271,5 +287,13 @@ mod errors {
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_expected_neg, code = E0999)]
+    pub struct ExpectedNeg {
+        #[primary_span]
+        pub span: Span,
+        pub def_descr: &'static str,
     }
 }

@@ -5,8 +5,8 @@ use flux_errors::ErrorGuaranteed;
 use hir::OwnerId;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hir as hir;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{self as hir, def_id::LocalDefId, FnHeader};
+use rustc_span::Span;
 
 use super::{FhirId, FluxOwnerId};
 use crate::{
@@ -76,7 +76,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
-        Ok(fhir::GenericParam { def_id: param.def_id, kind })
+        Ok(fhir::GenericParam { def_id: param.def_id, name: param.name, kind })
     }
 
     fn lift_generics_inner(&mut self, generics: &hir::Generics) -> Result<fhir::Generics<'genv>> {
@@ -166,6 +166,16 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
+    pub fn lift_fn_header(&mut self) -> FnHeader {
+        let def_id = self.owner.def_id;
+        let hir_id = self.genv.tcx().local_def_id_to_hir_id(def_id);
+        self.genv
+            .hir()
+            .fn_sig_by_hir_id(hir_id)
+            .expect("item does not have a `FnDecl`")
+            .header
+    }
+
     pub fn lift_fn_decl(&mut self) -> Result<fhir::FnDecl<'genv>> {
         let def_id = self.owner.def_id;
         let hir_id = self.genv.tcx().local_def_id_to_hir_id(def_id);
@@ -175,15 +185,20 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             .fn_sig_by_hir_id(hir_id)
             .expect("item does not have a `FnDecl`");
 
-        let inputs = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
+        self.lift_fn_decl_inner(fn_sig.span, fn_sig.decl)
+    }
 
-        let output = fhir::FnOutput {
-            params: &[],
-            ensures: &[],
-            ret: self.lift_fn_ret_ty(&fn_sig.decl.output)?,
-        };
+    fn lift_fn_decl_inner(
+        &mut self,
+        span: Span,
+        decl: &hir::FnDecl,
+    ) -> Result<fhir::FnDecl<'genv>> {
+        let inputs = try_alloc_slice!(self.genv, &decl.inputs, |ty| self.lift_ty(ty))?;
 
-        Ok(fhir::FnDecl { requires: &[], inputs, output, span: fn_sig.span, lifted: true })
+        let output =
+            fhir::FnOutput { params: &[], ensures: &[], ret: self.lift_fn_ret_ty(&decl.output)? };
+
+        Ok(fhir::FnDecl { requires: &[], inputs, output, span, lifted: true })
     }
 
     fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty<'genv>> {
@@ -293,6 +308,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             hir::TyKind::Ref(lft, mut_ty) => {
                 fhir::TyKind::Ref(self.lift_lifetime(lft)?, self.lift_mut_ty(mut_ty)?)
             }
+            hir::TyKind::BareFn(bare_fn) => {
+                let bare_fn = self.lift_bare_fn(ty.span, bare_fn)?;
+                fhir::TyKind::BareFn(self.genv.alloc(bare_fn))
+            }
             hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
                 let tys = try_alloc_slice!(self.genv, tys, |ty| self.lift_ty(ty))?;
@@ -339,6 +358,24 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
         };
         Ok(fhir::Ty { kind, span: ty.span })
+    }
+
+    fn lift_bare_fn(
+        &mut self,
+        span: Span,
+        bare_fn: &hir::BareFnTy,
+    ) -> Result<fhir::BareFnTy<'genv>> {
+        let generic_params = try_alloc_slice!(self.genv, bare_fn.generic_params, |param| {
+            self.lift_generic_param(param)
+        })?;
+        let decl = self.lift_fn_decl_inner(span, bare_fn.decl)?;
+        Ok(fhir::BareFnTy {
+            safety: bare_fn.safety,
+            abi: bare_fn.abi,
+            generic_params,
+            decl: self.genv.alloc(decl),
+            param_names: self.genv.alloc_slice(bare_fn.param_names),
+        })
     }
 
     fn lift_lifetime(&self, lft: &hir::Lifetime) -> Result<fhir::Lifetime> {

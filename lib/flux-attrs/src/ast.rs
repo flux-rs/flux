@@ -12,7 +12,7 @@ use syn::{
     Attribute, Ident, Result, Token, Visibility,
 };
 
-use crate::flux_tool_attrs;
+use crate::{flux_tool_attrs, tokens_or_default};
 
 pub struct Items(Vec<Item>);
 
@@ -2686,13 +2686,6 @@ impl ToTokens for Block {
     }
 }
 
-fn tokens_or_default<T: ToTokens + Default>(x: Option<&T>, tokens: &mut TokenStream) {
-    match x {
-        Some(t) => t.to_tokens(tokens),
-        None => T::default().to_tokens(tokens),
-    }
-}
-
 fn outer(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
     fn is_outer(attr: &&Attribute) -> bool {
         match attr.style {
@@ -2741,7 +2734,7 @@ fn peek_signature(input: ParseStream) -> bool {
 
 struct FlexibleItemType {
     vis: Visibility,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     defaultness: Option<Token![default]>,
     type_token: Token![type],
     ident: Ident,
@@ -2753,12 +2746,12 @@ struct FlexibleItemType {
 }
 
 enum TypeDefaultness {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     Optional,
     Disallowed,
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 enum WhereClauseLocation {
     // type Ty<T> where T: 'static = T;
     BeforeEq,

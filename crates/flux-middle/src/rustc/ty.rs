@@ -6,7 +6,7 @@ use std::fmt;
 
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
@@ -19,9 +19,11 @@ pub use rustc_middle::{
 };
 use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+use rustc_target::spec::abi;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
+use super::ToRustc;
 use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::{self, def_id_to_string},
@@ -115,6 +117,8 @@ pub struct ProjectionPredicate {
 }
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
+    pub safety: Safety,
+    pub abi: abi::Abi,
     pub(crate) inputs_and_output: List<Ty>,
 }
 
@@ -228,8 +232,10 @@ pub enum AliasKind {
     Opaque,
 }
 
-impl AliasKind {
-    pub fn to_rustc(self) -> rustc_middle::ty::AliasTyKind {
+impl<'tcx> ToRustc<'tcx> for AliasKind {
+    type T = rustc_middle::ty::AliasTyKind;
+
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
@@ -243,8 +249,10 @@ pub struct Const {
     pub kind: ConstKind,
 }
 
-impl UnevaluatedConst {
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::UnevaluatedConst<'tcx> {
+impl<'tcx> ToRustc<'tcx> for UnevaluatedConst {
+    type T = rustc_middle::ty::UnevaluatedConst<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let args = tcx.mk_args_from_iter(self.args.iter().map(|arg| arg.to_rustc(tcx)));
         rustc_ty::UnevaluatedConst::new(self.def, args)
     }
@@ -259,8 +267,12 @@ impl Const {
             ),
         }
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
+impl<'tcx> ToRustc<'tcx> for Const {
+    type T = rustc_ty::Const<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, scalar_int) => {
@@ -327,7 +339,7 @@ pub struct ClosureArgs {
     pub args: GenericArgs,
 }
 
-#[allow(unused)]
+#[expect(unused, reason = "keeping this in case we use it")]
 pub struct ClosureArgsParts<'a, T> {
     parent_args: &'a [T],
     closure_kind_ty: &'a T,
@@ -354,11 +366,13 @@ pub enum Region {
     ReLateParam(LateParamRegion),
 }
 
-impl Region {
-    pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
-        match self {
+impl<'tcx> ToRustc<'tcx> for Region {
+    type T = rustc_middle::ty::Region<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match *self {
             Region::ReBound(debruijn, bound_region) => {
-                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
+                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc(tcx))
             }
             Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
@@ -382,8 +396,10 @@ pub struct BoundRegion {
     pub kind: BoundRegionKind,
 }
 
-impl BoundRegion {
-    fn to_rustc(self) -> rustc_middle::ty::BoundRegion {
+impl<'tcx> ToRustc<'tcx> for BoundRegion {
+    type T = rustc_middle::ty::BoundRegion;
+
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::BoundRegion { var: self.var, kind: self.kind }
     }
 }
@@ -476,8 +492,12 @@ impl GenericArg {
             bug!("expected `GenericArg::Const`, found {:?}", self)
         }
     }
+}
 
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArg<'tcx> {
+impl<'tcx> ToRustc<'tcx> for GenericArg {
+    type T = rustc_middle::ty::GenericArg<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         use rustc_middle::ty;
         match self {
             GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
@@ -589,8 +609,12 @@ impl AdtDef {
         assert!(self.is_struct() || self.is_union());
         self.variant(FIRST_VARIANT)
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AdtDef<'tcx> {
+impl<'tcx> ToRustc<'tcx> for AdtDef {
+    type T = rustc_middle::ty::AdtDef<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         tcx.adt_def(self.did())
     }
 }
@@ -743,8 +767,12 @@ impl Ty {
     pub fn is_box(&self) -> bool {
         matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
     }
+}
 
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+impl<'tcx> ToRustc<'tcx> for Ty {
+    type T = rustc_middle::ty::Ty<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
         let kind = match self.kind() {
             TyKind::Bool => rustc_ty::TyKind::Bool,
             TyKind::Str => rustc_ty::TyKind::Str,

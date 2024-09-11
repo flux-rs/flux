@@ -121,7 +121,7 @@ pub struct Stats {
     pub num_vald: i32,
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "false positive: the field is read in the `Debug` impl")]
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 

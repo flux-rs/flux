@@ -43,7 +43,7 @@ pub unsafe fn store_mir_body<'tcx>(
 /// # Safety
 ///
 /// See the module level comment.
-#[allow(clippy::needless_lifetimes)] // We want to be very explicit about lifetimes here.
+#[expect(clippy::needless_lifetimes, reason = "we want to be very explicit about lifetimes here")]
 pub unsafe fn retrieve_mir_body<'tcx>(
     _tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,

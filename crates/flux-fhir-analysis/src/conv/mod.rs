@@ -24,7 +24,8 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc, MaybeExternId,
+    rustc::{self, ToRustc},
+    MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -34,16 +35,17 @@ use rustc_hir::{
     self as hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    PrimTy,
+    PrimTy, Safety,
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar},
+    ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar},
 };
 use rustc_span::{
     symbol::{kw, Ident},
     ErrorGuaranteed, Span, Symbol, DUMMY_SP,
 };
+use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
@@ -329,12 +331,15 @@ pub(crate) fn conv_qualifier(
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-pub(crate) fn conv_fn_decl(
+pub(crate) fn conv_fn_sig(
     genv: GlobalEnv,
     def_id: MaybeExternId,
-    decl: &fhir::FnDecl,
+    fn_sig: &fhir::FnSig,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+    let decl = &fn_sig.decl;
+    let header = fn_sig.header;
+
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions =
@@ -344,17 +349,7 @@ pub(crate) fn conv_fn_decl(
     let mut env = Env::new(genv, generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
-    let mut requires = vec![];
-    for req in decl.requires {
-        requires.push(cx.conv_requires(&mut env, req)?);
-    }
-
-    let mut inputs = vec![];
-    for ty in decl.inputs {
-        inputs.push(cx.conv_ty(&mut env, ty)?);
-    }
-
-    let output = cx.conv_fn_output(&mut env, &decl.output)?;
+    let fn_sig = cx.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
 
     let vars = late_bound_regions
         .iter()
@@ -362,10 +357,10 @@ pub(crate) fn conv_fn_decl(
         .cloned()
         .collect();
 
-    let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = struct_compat::fn_sig(genv, decl, &fn_sig, def_id)?;
+    let poly_fn_sig = rty::PolyFnSig::new(fn_sig, vars);
+    let poly_fn_sig = struct_compat::fn_sig(genv, decl, &poly_fn_sig, def_id)?;
 
-    Ok(rty::EarlyBinder(fn_sig))
+    Ok(rty::EarlyBinder(poly_fn_sig))
 }
 
 pub(crate) fn conv_assoc_reft_def(
@@ -715,6 +710,28 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    fn conv_fn_decl(
+        &mut self,
+        env: &mut Env,
+        safety: Safety,
+        abi: abi::Abi,
+        decl: &fhir::FnDecl,
+    ) -> QueryResult<rty::FnSig> {
+        let mut requires = vec![];
+        for req in decl.requires {
+            requires.push(self.conv_requires(env, req)?);
+        }
+
+        let mut inputs = vec![];
+        for ty in decl.inputs {
+            inputs.push(self.conv_ty(env, ty)?);
+        }
+
+        let output = self.conv_fn_output(env, &decl.output)?;
+
+        Ok(rty::FnSig::new(safety, abi, requires.into(), inputs.into(), output))
+    }
+
     fn conv_requires(
         &mut self,
         env: &mut Env,
@@ -802,6 +819,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft);
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
+            }
+            fhir::TyKind::BareFn(bare_fn) => {
+                let mut env = Env::empty();
+                env.push_layer(Layer::list(self, bare_fn.generic_params.len() as u32, &[])?);
+                let fn_sig =
+                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl)?;
+                let vars = bare_fn
+                    .generic_params
+                    .iter()
+                    .map(|param| self.param_as_bound_var(param))
+                    .try_collect()?;
+                let poly_fn_sig = rty::Binder::new(fn_sig, vars);
+                Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
             }
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
@@ -1267,7 +1297,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
     }
 
-    pub fn conv_generic_args(
+    fn param_as_bound_var(
+        &mut self,
+        param: &fhir::GenericParam,
+    ) -> QueryResult<rty::BoundVariableKind> {
+        let def_id = param.def_id.to_def_id();
+        let name = self.genv.tcx().item_name(def_id);
+        match param.kind {
+            fhir::GenericParamKind::Lifetime => {
+                Ok(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
+            }
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Base => {
+                Err(query_bug!(param.def_id, "unsupported param kind `{:?}`", param.kind))
+            }
+        }
+    }
+
+    fn conv_generic_args(
         &mut self,
         env: &mut Env,
         def_id: DefId,
@@ -1425,7 +1473,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 }
 
 impl Env {
-    pub(crate) fn new(
+    fn new(
         genv: GlobalEnv,
         early_bound: &[fhir::RefineParam],
         wfckresults: &WfckResults,
@@ -1438,6 +1486,10 @@ impl Env {
             })
             .try_collect()?;
         Ok(Self { layers: vec![], early_bound })
+    }
+
+    fn empty() -> Self {
+        Self { layers: vec![], early_bound: Default::default() }
     }
 
     fn depth(&self) -> usize {

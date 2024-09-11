@@ -28,7 +28,10 @@ use crate::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
     },
-    rustc::ty::{Const, ConstKind},
+    rustc::{
+        ty::{Const, ConstKind},
+        ToRustc,
+    },
 };
 
 /// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for

@@ -100,7 +100,6 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
-    #[allow(dead_code)] // used for debugging
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -208,7 +207,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -529,7 +527,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, infcx.snapshot(), &obligations)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,

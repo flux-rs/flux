@@ -16,8 +16,7 @@ use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir as hir;
-use rustc_hir::OwnerId;
+use rustc_hir::{self as hir, OwnerId, ParamName};
 use rustc_span::{
     def_id::{DefId, LocalDefId},
     sym,
@@ -256,7 +255,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     }
                     surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
                 };
-                surface_params.insert(def_id, fhir::GenericParam { def_id, kind });
+                surface_params.insert(
+                    def_id,
+                    fhir::GenericParam { def_id, name: ParamName::Plain(param.name), kind },
+                );
             }
         }
 
@@ -352,10 +354,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             else {
                 bug!("expected struct")
             };
-            debug_assert_eq!(
-                struct_def.fields.len(),
-                variant_data.fields().len() - (self.owner.is_extern() as usize)
-            );
+            debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
             let fields = try_alloc_slice!(
                 self.genv,
                 iter::zip(&struct_def.fields, variant_data.fields()),
@@ -538,6 +537,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         fn_spec: &surface::FnSpec,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
+        let mut header = self.as_lift_cx().lift_fn_header();
         let (generics, decl) = if let Some(fn_sig) = &fn_spec.fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
@@ -566,6 +566,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 span: fn_sig.span,
                 lifted: false,
             };
+            // Fix up the span in asyncness
+            if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
+                header.asyncness = hir::IsAsync::Async(span);
+            }
             (generics, decl)
         } else {
             (self.as_lift_cx().lift_generics()?, self.as_lift_cx().lift_fn_decl()?)
@@ -578,6 +582,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok((
             generics,
             fhir::FnSig {
+                header,
                 qualifiers: self.genv.alloc_slice(qual_names),
                 decl: self.genv.alloc(decl),
             },

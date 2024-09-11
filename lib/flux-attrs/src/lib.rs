@@ -15,6 +15,7 @@ pub const FLUX_ATTRS: &[&str] = &[
     "sig",
     "trusted",
     "variant",
+    "should_fail",
 ];
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
@@ -134,5 +135,12 @@ pub fn defs(tokens: TokenStream) -> TokenStream {
                 #tokens
             }]
         }
+    }
+}
+
+pub fn tokens_or_default<T: ToTokens + Default>(x: Option<&T>, tokens: &mut TokenStream) {
+    match x {
+        Some(t) => t.to_tokens(tokens),
+        None => T::default().to_tokens(tokens),
     }
 }

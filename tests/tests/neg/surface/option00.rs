@@ -1,36 +1,12 @@
-// use flux_rs::extern_spec;
+use flux_rs::extern_spec;
 
-// #[extern_spec]
-// #[flux::refined_by(is_some: bool)]
-// enum Option<T> {}
-
-// #[extern_spec]
-// #[flux::refined_by(is_some: bool)]
-// enum Option<T> {
-
-// }
-
-// // Programmer writes
-// #[extern_spec]
-// #[flux::refined_by(b:bool)]
-// pub enum Option<T> {
-//     #[flux::variant(Option<T>[false])]
-//     None,
-//     #[flux::variant({T} -> Option<T>[true])]
-//     Some(T),
-// }
-
-// Compiler generates
-#[flux::extern_spec]
-#[allow(unused, dead_code)]
+#[extern_spec]
 #[flux::refined_by(b:bool)]
-pub enum __FluxExternEnumOption<T> {
+enum Option<T> {
     #[flux::variant(Option<T>[false])]
     None,
     #[flux::variant({T} -> Option<T>[true])]
     Some(T),
-    // #[flux::variant(Option<T>)]
-    FluxExternEnumFake(Option<T>),
 }
 
 #[flux::trusted]
