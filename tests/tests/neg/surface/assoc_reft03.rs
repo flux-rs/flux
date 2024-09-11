@@ -1,4 +1,4 @@
-#[flux::assoc(fn f(x: int) -> int { x + 1 })]
+#[flux::assoc(fn f(x: int) -> int { x > 1 })]
 pub trait MyTrait {}
 
 // -----------------------------------------------------------------------------
