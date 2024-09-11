@@ -77,7 +77,7 @@ pub enum QueryErr {
     },
     /// Used to report bugs, typically this means executing an arm in a match we though it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
-    /// [`QueryErr::bug`] or [`query_bug!`] to construct this variant to track source location.
+    /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
     Bug {
         def_id: Option<DefId>,
         location: String,

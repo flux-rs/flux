@@ -371,13 +371,12 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
-#[allow(dead_code)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "we use this for debugging some time")]
 impl TypeTrace {
     fn tys(a: &Ty, b: &Ty) -> Self {
         Self::Types(a.clone(), b.clone())

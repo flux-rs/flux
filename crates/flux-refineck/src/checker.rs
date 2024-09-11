@@ -100,7 +100,6 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
-    #[allow(dead_code)] // used for debugging
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -208,7 +207,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -529,7 +527,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, infcx.snapshot(), &obligations)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -912,7 +910,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty = env
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
-                let (adt_def, ..) = ty.expect_adt();
+                // HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
+                let (adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {

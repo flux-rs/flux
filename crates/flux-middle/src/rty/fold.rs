@@ -793,7 +793,7 @@ impl TypeFoldable for FnSig {
         let requires = self.requires.try_fold_with(folder)?;
         let args = self.inputs.try_fold_with(folder)?;
         let output = self.output.try_fold_with(folder)?;
-        Ok(FnSig::new(requires, args, output))
+        Ok(FnSig::new(self.safety, self.abi, requires, args, output))
     }
 }
 
@@ -992,6 +992,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
+            BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Coroutine(_, resume_ty, upvars) => {
@@ -1027,6 +1028,7 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Ref(re, ty, mutbl) => {
                 BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
             }
+            BaseTy::FnPtr(decl) => BaseTy::FnPtr(decl.try_fold_with(folder)?),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
