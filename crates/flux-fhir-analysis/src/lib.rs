@@ -206,20 +206,18 @@ fn default_assoc_refinement_def(
         .find_assoc_reft(name);
 
     let wfckresults = genv.check_wf(trait_id)?;
-    if let Some(assoc_reft) = assoc_reft
-        && let Some(body) = conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?
-    {
-        Ok(Some(rty::EarlyBinder(body)))
+    if let Some(assoc_reft) = assoc_reft {
+        Ok(conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?.map(rty::EarlyBinder))
     } else {
         Err(QueryErr::InvalidAssocReft { impl_id: trait_id.to_def_id(), name })?
     }
 }
 
-fn assoc_refinement_def(
+fn impl_assoc_refinement_def(
     genv: GlobalEnv,
     impl_id: LocalDefId,
     name: Symbol,
-) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
     let assoc_reft = genv
         .map()
         .expect_item(impl_id)?
@@ -228,10 +226,30 @@ fn assoc_refinement_def(
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;
-        Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+        Ok(Some(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?)))
     } else {
-        Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })?
+        Ok(None)
     }
+}
+
+fn assoc_refinement_def(
+    genv: GlobalEnv,
+    impl_id: LocalDefId,
+    name: Symbol,
+) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+    let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id());
+
+    if let Some(lam) = impl_assoc_refinement_def(genv, impl_id, name)? {
+        return Ok(lam);
+    }
+    // TODO: this seems wrong, what if the trait_id is not a local id?
+    if let Some(trait_id) = trait_id
+        && let Some(trait_id) = trait_id.as_local()
+        && let Some(lam) = default_assoc_refinement_def(genv, trait_id, name)?
+    {
+        return Ok(lam);
+    }
+    return Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name });
 }
 
 fn sort_of_assoc_reft(
