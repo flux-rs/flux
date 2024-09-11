@@ -211,6 +211,7 @@ pub struct TraitAssocReft {
     pub name: Ident,
     pub params: RefineParams,
     pub output: BaseSort,
+    pub body: Option<Expr>,
     pub span: Span,
 }
 

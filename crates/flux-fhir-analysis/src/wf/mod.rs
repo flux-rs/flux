@@ -153,6 +153,20 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             .collect_err(&mut self.errors);
     }
 
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft) {
+        let Ok(output) =
+            conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
+                .emit(&self.errors)
+        else {
+            return;
+        };
+        if let Some(body) = &assoc_reft.body {
+            self.infcx
+                .check_expr(body, &output)
+                .collect_err(&mut self.errors);
+        }
+    }
+
     fn visit_struct_def(&mut self, struct_def: &fhir::StructDef<'genv>) {
         for invariant in struct_def.invariants {
             self.infcx

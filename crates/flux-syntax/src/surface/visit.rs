@@ -217,6 +217,9 @@ pub fn walk_trait_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &TraitAssocRef
     vis.visit_ident(assoc_reft.name);
     walk_list!(vis, visit_refine_param, &assoc_reft.params);
     vis.visit_base_sort(&assoc_reft.output);
+    if let Some(expr) = &assoc_reft.body {
+        vis.visit_expr(expr);
+    }
 }
 
 pub fn walk_impl<V: Visitor>(vis: &mut V, impl_: &Impl) {

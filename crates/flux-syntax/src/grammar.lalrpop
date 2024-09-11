@@ -189,9 +189,19 @@ pub TraitAssocReft: surface::TraitAssocReft = {
             name,
             params,
             output,
+            body: None,
             span: cx.map_span(lo, hi),
         }
-    }
+    },
+    <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> "{" <body:Expr> "}" <hi:@R> => {
+        surface::TraitAssocReft {
+            name,
+            params,
+            output,
+            body: Some(body),
+            span: cx.map_span(lo, hi),
+        }
+    },
 }
 
 pub ImplAssocReft: surface::ImplAssocReft = {

@@ -56,6 +56,7 @@ pub fn provide(providers: &mut Providers) {
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
     providers.assoc_refinement_def = assoc_refinement_def;
+    providers.default_assoc_refinement_def = default_assoc_refinement_def;
     providers.item_bounds = item_bounds;
 }
 
@@ -194,11 +195,31 @@ fn assoc_refinements_of(
     Ok(rty::AssocRefinements { items: predicates })
 }
 
-fn assoc_refinement_def(
+fn default_assoc_refinement_def(
+    genv: GlobalEnv,
+    trait_id: LocalDefId,
+    name: Symbol,
+) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+    let trait_id = genv.maybe_extern_id(trait_id);
+    let assoc_reft = genv
+        .map()
+        .expect_item(trait_id.local_id())?
+        .expect_trait()
+        .find_assoc_reft(name);
+
+    let wfckresults = genv.check_wf(trait_id.local_id())?;
+    if let Some(assoc_reft) = assoc_reft {
+        Ok(conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?.map(rty::EarlyBinder))
+    } else {
+        Err(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })?
+    }
+}
+
+fn impl_assoc_refinement_def(
     genv: GlobalEnv,
     impl_id: LocalDefId,
     name: Symbol,
-) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
     let assoc_reft = genv
         .map()
         .expect_item(impl_id)?
@@ -207,10 +228,31 @@ fn assoc_refinement_def(
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;
-        Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+        Ok(Some(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?)))
     } else {
-        Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })?
+        Ok(None)
     }
+}
+
+fn assoc_refinement_def(
+    genv: GlobalEnv,
+    impl_id: LocalDefId,
+    name: Symbol,
+) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+    let impl_id = genv.maybe_extern_id(impl_id);
+
+    // First check if the assoc reft is defined in the impl
+    if let Some(lam) = impl_assoc_refinement_def(genv, impl_id.local_id(), name)? {
+        return Ok(lam);
+    }
+
+    // Else check if the assoc reft is defined in the trait
+    if let Some(trait_id) = genv.tcx().trait_id_of_impl(impl_id.resolved_id())
+        && let Some(lam) = genv.default_assoc_refinement_def(trait_id, name)?
+    {
+        return Ok(lam);
+    }
+    return Err(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name });
 }
 
 fn sort_of_assoc_reft(

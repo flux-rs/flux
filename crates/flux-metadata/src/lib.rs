@@ -112,6 +112,8 @@ pub struct Tables<K: Eq + Hash> {
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
     assoc_refinements_def: UnordMap<(K, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    default_assoc_refinements_def:
+        UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
     sort_of_assoc_reft: UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
@@ -231,6 +233,13 @@ impl CrateStore for CStore {
         get!(self, assoc_refinements_def, key)
     }
 
+    fn default_assoc_refinements_def(
+        &self,
+        key: (DefId, Symbol),
+    ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+        get!(self, default_assoc_refinements_def, key)
+    }
+
     fn sort_of_assoc_reft(
         &self,
         key: (DefId, Symbol),
@@ -277,6 +286,10 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 if let Ok(assocs) = &assocs {
                     for assoc in &assocs.items {
                         let key = mk_key(assoc.container_def_id);
+                        tables.default_assoc_refinements_def.insert(
+                            (key, assoc.name),
+                            genv.default_assoc_refinement_def(assoc.container_def_id, assoc.name),
+                        );
                         tables.sort_of_assoc_reft.insert(
                             (key, assoc.name),
                             genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),

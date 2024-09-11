@@ -205,6 +205,14 @@ impl<'fhir> Item<'fhir> {
             bug!("expected impl")
         }
     }
+
+    pub fn expect_trait(&self) -> &Trait<'fhir> {
+        if let ItemKind::Trait(trait_) = &self.kind {
+            trait_
+        } else {
+            bug!("expected trait")
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -318,6 +326,7 @@ pub struct TraitAssocReft<'fhir> {
     pub name: Symbol,
     pub params: &'fhir [RefineParam<'fhir>],
     pub output: Sort<'fhir>,
+    pub body: Option<Expr<'fhir>>,
     pub span: Span,
 }
 
