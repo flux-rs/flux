@@ -259,12 +259,16 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
 
 impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
-        for defn in &specs.func_defs {
-            collect_err!(self, self.desugar_func_defn(defn));
-        }
-
-        for qualifier in &specs.qualifs {
-            collect_err!(self, self.desugar_qualifier(qualifier));
+        for item in specs.flux_items_by_parent.values().flatten() {
+            match item {
+                surface::Item::Qualifier(qual) => {
+                    collect_err!(self, self.desugar_qualifier(qual));
+                }
+                surface::Item::FuncDef(defn) => {
+                    collect_err!(self, self.desugar_func_defn(defn));
+                }
+                surface::Item::SortDecl(_) => {}
+            }
         }
     }
 

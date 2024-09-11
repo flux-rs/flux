@@ -48,7 +48,10 @@ use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface::{self, NodeId};
 use intern::List;
-use rustc_data_structures::unord::{UnordMap, UnordSet};
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
@@ -357,9 +360,7 @@ pub struct Specs {
     pub traits: UnordMap<OwnerId, surface::Trait>,
     pub impls: UnordMap<OwnerId, surface::Impl>,
     pub enums: UnordMap<OwnerId, surface::EnumDef>,
-    pub qualifs: Vec<surface::Qualifier>,
-    pub func_defs: Vec<surface::SpecFunc>,
-    pub sort_decls: Vec<surface::SortDecl>,
+    pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::Item>>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
@@ -379,16 +380,6 @@ pub struct Specs {
 }
 
 impl Specs {
-    pub fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
-        for item in items {
-            match item {
-                surface::Item::Qualifier(qualifier) => self.qualifs.push(qualifier),
-                surface::Item::FuncDef(defn) => self.func_defs.push(defn),
-                surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
-            }
-        }
-    }
-
     pub fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) {
         self.extern_id_to_local_id.insert(extern_id, local_id);
         self.local_id_to_extern_id.insert(local_id, extern_id);

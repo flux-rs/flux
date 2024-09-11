@@ -130,11 +130,8 @@ pub fn flux(tokens: TokenStream) -> TokenStream {
 
 pub fn defs(tokens: TokenStream) -> TokenStream {
     quote! {
-        mod flux_defs {
-            #![flux::defs {
-                #tokens
-            }]
-        }
+        #[flux::defs { #tokens }]
+        const _: () = {};
     }
 }
 

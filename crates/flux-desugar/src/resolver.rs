@@ -85,18 +85,25 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn collect_flux_global_items(&mut self) {
-        for sort_decl in &self.specs.sort_decls {
-            self.sort_decls.insert(
-                sort_decl.name.name,
-                fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-            );
-        }
-
-        for defn in &self.specs.func_defs {
-            let kind =
-                if defn.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
-            self.func_decls.insert(defn.name.name, kind);
+    fn define_flux_global_items(&mut self) {
+        for item in self.specs.flux_items_by_parent.values().flatten() {
+            match item {
+                surface::Item::Qualifier(_) => {}
+                surface::Item::FuncDef(defn) => {
+                    let kind = if defn.body.is_some() {
+                        fhir::SpecFuncKind::Def
+                    } else {
+                        fhir::SpecFuncKind::Uif
+                    };
+                    self.func_decls.insert(defn.name.name, kind);
+                }
+                surface::Item::SortDecl(sort_decl) => {
+                    self.sort_decls.insert(
+                        sort_decl.name.name,
+                        fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+                    );
+                }
+            }
         }
 
         self.func_decls.extend_unord(
@@ -184,6 +191,21 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
                     ns,
                 );
+            }
+        }
+    }
+
+    fn resolve_flux_items(&mut self, parent: OwnerId) {
+        let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        for item in items {
+            match item {
+                surface::Item::Qualifier(qual) => {
+                    collect_err!(self, self.resolve_qualifier(qual));
+                }
+                surface::Item::FuncDef(defn) => {
+                    collect_err!(self, self.resolve_defn(defn));
+                }
+                surface::Item::SortDecl(_) => {}
             }
         }
     }
@@ -327,17 +349,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         self.define_items(module.item_ids);
 
-        // Flux items are always defined at the top-level
+        // Flux items are made globally available as if they were defined at the top of the crate
         if hir_id == CRATE_HIR_ID {
-            self.collect_flux_global_items();
-            for qualifier in &self.specs.qualifs {
-                collect_err!(self, self.resolve_qualifier(qualifier));
-            }
-
-            for defn in &self.specs.func_defs {
-                collect_err!(self, self.resolve_defn(defn));
-            }
+            self.define_flux_global_items();
         }
+
+        // But we resolved names in them as if they were defined in their containing module
+        self.resolve_flux_items(hir_id.expect_owner());
+
         hir::intravisit::walk_mod(self, module, hir_id);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
@@ -355,6 +374,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             }
         });
         self.define_items(item_ids);
+        self.resolve_flux_items(self.genv.hir().get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(self, block);
         self.pop_rib(ValueNS);
