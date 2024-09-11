@@ -72,7 +72,7 @@ pub enum QueryErr {
         def_id: DefId,
     },
     InvalidAssocReft {
-        impl_id: DefId,
+        container_def_id: DefId,
         name: Symbol,
     },
     /// Used to report bugs, typically this means executing an arm in a match we though it was
@@ -725,7 +725,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.code(E0999);
                         diag
                     }
-                    QueryErr::InvalidAssocReft { impl_id, name } => {
+                    QueryErr::InvalidAssocReft { container_def_id: impl_id, name } => {
                         let def_span = tcx.def_span(impl_id);
                         let mut diag =
                             dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
