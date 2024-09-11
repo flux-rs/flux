@@ -41,7 +41,7 @@ use rustc_target::spec::abi;
 
 use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
-/// A boolean used to mark whether a piece of code is ignored.
+/// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Ignored {
     Yes,
@@ -57,7 +57,17 @@ impl Ignored {
     }
 }
 
-/// A boolean used to mark whether to mark wether code should be trusted.
+impl From<bool> for Ignored {
+    fn from(value: bool) -> Self {
+        if value {
+            Ignored::Yes
+        } else {
+            Ignored::No
+        }
+    }
+}
+
+/// A boolean-like enum used to mark whether some code should be trusted.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Trusted {
     Yes,
@@ -69,6 +79,16 @@ impl Trusted {
         match self {
             Trusted::Yes => true,
             Trusted::No => false,
+        }
+    }
+}
+
+impl From<bool> for Trusted {
+    fn from(value: bool) -> Self {
+        if value {
+            Trusted::Yes
+        } else {
+            Trusted::No
         }
     }
 }

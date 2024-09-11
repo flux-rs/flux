@@ -400,6 +400,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.
+    ///
+    /// See [`crate::Specs::dummy_extern`]
     pub fn is_dummy(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| {
             self.collect_specs()
@@ -418,6 +420,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .is_some_and(|ignored| ignored.to_bool())
     }
 
+    /// Whether the function is marked with `#[flux::should_fail]`
     pub fn should_fail(self, def_id: LocalDefId) -> bool {
         self.collect_specs().should_fail.contains(&def_id)
     }
