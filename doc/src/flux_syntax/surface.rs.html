@@ -1063,8 +1063,8 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ExprKind {
-    Path(PathExpr),
-    Dot(PathExpr, Ident),
+    Path(ExprPath),
+    Dot(ExprPath, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box&lt;[Expr; <span class="number">2</span>]&gt;),
     UnaryOp(UnOp, Box&lt;Expr&gt;),
@@ -1074,14 +1074,14 @@
 }
 
 <span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>PathExpr {
-    <span class="kw">pub </span>segments: Vec&lt;PathExprSegment&gt;,
+</span><span class="kw">pub struct </span>ExprPath {
+    <span class="kw">pub </span>segments: Vec&lt;ExprPathSegment&gt;,
     <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>PathExprSegment {
+</span><span class="kw">pub struct </span>ExprPathSegment {
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>node_id: NodeId,
 }

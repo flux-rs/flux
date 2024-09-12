@@ -1150,7 +1150,7 @@
 
     <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>trait_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.traits[<span class="kw-2">&amp;</span>owner_id];
-        RefinementResolver::resolve_trait(<span class="self">self</span>, owner_id, trait_)
+        RefinementResolver::resolve_trait(<span class="self">self</span>, trait_)
     }
 
     <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
@@ -1158,7 +1158,7 @@
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })<span class="question-mark">?</span>;
-        RefinementResolver::resolve_impl(<span class="self">self</span>, owner_id, impl_)
+        RefinementResolver::resolve_impl(<span class="self">self</span>, impl_)
     }
 
     <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
@@ -1166,7 +1166,7 @@
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })<span class="question-mark">?</span>;
-            RefinementResolver::resolve_ty_alias(<span class="self">self</span>, owner_id, ty_alias)<span class="question-mark">?</span>;
+            RefinementResolver::resolve_ty_alias(<span class="self">self</span>, ty_alias)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1176,7 +1176,7 @@
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })<span class="question-mark">?</span>;
-        RefinementResolver::resolve_struct_def(<span class="self">self</span>, owner_id, struct_def)
+        RefinementResolver::resolve_struct_def(<span class="self">self</span>, struct_def)
     }
 
     <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
@@ -1184,7 +1184,7 @@
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })<span class="question-mark">?</span>;
-        RefinementResolver::resolve_enum_def(<span class="self">self</span>, owner_id, enum_def)
+        RefinementResolver::resolve_enum_def(<span class="self">self</span>, enum_def)
     }
 
     <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
@@ -1192,7 +1192,7 @@
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })<span class="question-mark">?</span>;
-            RefinementResolver::resolve_fn_sig(<span class="self">self</span>, owner_id, fn_sig)<span class="question-mark">?</span>;
+            RefinementResolver::resolve_fn_sig(<span class="self">self</span>, fn_sig)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1478,7 +1478,7 @@
     }
 }
 
-<span class="kw">impl </span>Segment <span class="kw">for </span>surface::PathExprSegment {
+<span class="kw">impl </span>Segment <span class="kw">for </span>surface::ExprPathSegment {
     <span class="kw">fn </span>record_segment_res(_resolver: <span class="kw-2">&amp;mut </span>CrateResolver, _segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, _res: fhir::Res) {}
 
     <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident {

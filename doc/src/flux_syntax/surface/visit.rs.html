@@ -503,8 +503,8 @@
 
 <span class="kw">use super</span>::{
     AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
-    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl,
-    ImplAssocReft, Indices, Lit, Path, PathExpr, PathExprSegment, PathSegment, Qualifier,
+    ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
+    GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
     RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
     Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
@@ -658,11 +658,11 @@
         walk_alias_pred(<span class="self">self</span>, alias_pred);
     }
 
-    <span class="kw">fn </span>vist_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>PathExpr) {
+    <span class="kw">fn </span>vist_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>ExprPath) {
         walk_path_expr(<span class="self">self</span>, qpath);
     }
 
-    <span class="kw">fn </span>visit_path_expr_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>PathExprSegment) {
+    <span class="kw">fn </span>visit_path_expr_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
         walk_path_expr_segment(<span class="self">self</span>, segment);
     }
 
@@ -993,11 +993,11 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>PathExpr) {
+<span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>ExprPath) {
     <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
 }
 
-<span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathExprSegment) {
+<span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
     vis.visit_ident(segment.ident);
 }
 </code></pre></div></section></main></body></html>

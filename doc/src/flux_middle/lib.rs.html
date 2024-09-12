@@ -890,17 +890,17 @@
 </span><span class="kw">pub struct </span>ResolverOutput {
     <span class="kw">pub </span>path_res_map: UnordMap&lt;NodeId, fhir::PartialRes&gt;,
     <span class="kw">pub </span>impl_trait_res_map: UnordMap&lt;NodeId, hir::ItemId&gt;,
-    <span class="doccomment">/// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
-    /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,
-    /// this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this
-    /// is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
+    <span class="doccomment">/// Resolution of explicitly and implicitly scoped parameters. The [`fhir::ParamId`] is unique
+    /// per item. The [`NodeId`] used as the key corresponds to the node introducing the parameter.
+    /// When explicit, this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`],
+    /// when implicit, this is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
     </span><span class="kw">pub </span>param_res_map: UnordMap&lt;NodeId, (fhir::ParamId, fhir::ParamKind)&gt;,
-    <span class="doccomment">/// List of implicit params defined in a scope. The [`NodeId`] used as key is the id of the node
-    /// introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
-    /// The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
+    <span class="doccomment">/// List of implicitly scoped params defined in a scope. The [`NodeId`] used as key is the id of
+    /// the node introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or
+    /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     </span><span class="kw">pub </span>implicit_params: UnordMap&lt;NodeId, Vec&lt;(Ident, NodeId)&gt;&gt;,
     <span class="kw">pub </span>sort_path_res_map: UnordMap&lt;NodeId, fhir::SortRes&gt;,
-    <span class="kw">pub </span>path_expr_res_map: UnordMap&lt;NodeId, fhir::ExprRes&gt;,
+    <span class="kw">pub </span>expr_path_res_map: UnordMap&lt;NodeId, fhir::ExprRes&gt;,
 }
 
 <span class="doccomment">/// This enum serves as a type-level reminder that local ids can refer to extern specs. The

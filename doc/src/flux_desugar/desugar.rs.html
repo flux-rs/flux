@@ -2443,10 +2443,10 @@
         <span class="self">self</span>.resolver_output().param_res_map.get(<span class="kw-2">&amp;</span>node_id).copied()
     }
 
-    <span class="kw">fn </span>desugar_var(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>desugar_var(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>res = <span class="kw-2">*</span><span class="self">self
             </span>.resolver_output()
-            .path_expr_res_map
+            .expr_path_res_map
             .get(<span class="kw-2">&amp;</span>path.node_id)
             .unwrap_or_else(|| <span class="macro">span_bug!</span>(path.span, <span class="string">"unresolved expr path"</span>));
 
@@ -2468,7 +2468,7 @@
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>desugar_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;ExprRes&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_expr_res_map[<span class="kw-2">&amp;</span>node_id];
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>node_id];
         <span class="kw">if let </span>ExprRes::Param(fhir::ParamKind::Loc, <span class="kw">_</span>) = res {
             <span class="prelude-val">Ok</span>(res)
         } <span class="kw">else </span>{
@@ -2479,7 +2479,7 @@
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>desugar_func(<span class="kw-2">&amp;</span><span class="self">self</span>, func: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PathExpr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_expr_res_map[<span class="kw-2">&amp;</span>node_id];
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>node_id];
         <span class="kw">if let </span>ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
             <span class="kw">let </span>segments = <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[func]);
             <span class="prelude-val">Ok</span>(fhir::PathExpr { segments, res, fhir_id: <span class="self">self</span>.next_fhir_id(), span: func.span })
@@ -2929,7 +2929,7 @@
                 fhir::ExprKind::UnaryOp(<span class="kw-2">*</span>op, <span class="self">self</span>.genv().alloc(<span class="self">self</span>.desugar_expr(e)<span class="question-mark">?</span>))
             }
             surface::ExprKind::Dot(path, fld) =&gt; {
-                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_expr_res_map[<span class="kw-2">&amp;</span>path.node_id];
+                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>path.node_id];
                 <span class="kw">if let </span>ExprRes::Param(..) = res {
                     <span class="kw">let </span>segments = <span class="self">self
                         </span>.genv()

@@ -1502,6 +1502,13 @@
 <a href="#1502" id="1502">1502</a>
 <a href="#1503" id="1503">1503</a>
 <a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2253,10 +2260,7 @@
     <span class="kw">pub </span>fhir_id: FhirId,
 }
 
-<span class="doccomment">/// How the parameter was declared in the surface syntax. This is used to adjust how errors are
-/// reported and to control the [inference mode].
-///
-/// [inference mode]: InferMode
+<span class="doccomment">/// How a parameter was declared in the surface syntax.
 </span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 </span><span class="kw">pub enum </span>ParamKind {
     <span class="doccomment">/// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
@@ -2436,6 +2440,16 @@
 }
 
 <span class="kw">impl</span>&lt;Id&gt; ExprRes&lt;Id&gt; {
+    <span class="kw">pub fn </span>map_param_id&lt;R&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(Id) -&gt; R) -&gt; ExprRes&lt;R&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            ExprRes::Param(kind, param_id) =&gt; ExprRes::Param(kind, f(param_id)),
+            ExprRes::Const(def_id) =&gt; ExprRes::Const(def_id),
+            ExprRes::NumConst(val) =&gt; ExprRes::NumConst(val),
+            ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
+            ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
+        }
+    }
+
     <span class="kw">pub fn </span>expect_param(<span class="self">self</span>) -&gt; (ParamKind, Id) {
         <span class="kw">if let </span>ExprRes::Param(kind, id) = <span class="self">self </span>{
             (kind, id)

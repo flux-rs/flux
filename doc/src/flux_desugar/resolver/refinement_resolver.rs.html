@@ -978,21 +978,6 @@
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1006,7 +991,7 @@
     walk_list,
 };
 <span class="kw">use </span>rustc_data_structures::{
-    fx::{FxIndexMap, IndexEntry},
+    fx::{FxIndexMap, FxIndexSet, IndexEntry},
     unord::UnordMap,
 };
 <span class="kw">use </span>rustc_hash::FxHashMap;
@@ -1016,10 +1001,9 @@
         DefKind,
         Namespace::{TypeNS, ValueNS},
     },
-    OwnerId,
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_span::{sym, symbol::kw, ErrorGuaranteed, Symbol};
+<span class="kw">use </span>rustc_span::{sym, ErrorGuaranteed, Symbol};
 
 <span class="kw">use super</span>::{CrateResolver, Segment};
 
@@ -1070,7 +1054,7 @@
     <span class="kw">fn </span>on_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _output: <span class="kw-2">&amp;</span>surface::FnOutput) {}
     <span class="kw">fn </span>on_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _loc: Ident, _node_id: NodeId) {}
     <span class="kw">fn </span>on_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _func: Ident, _node_id: NodeId) {}
-    <span class="kw">fn </span>on_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>surface::PathExpr) {}
+    <span class="kw">fn </span>on_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>surface::ExprPath) {}
     <span class="kw">fn </span>on_base_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _sort: <span class="kw-2">&amp;</span>surface::BaseSort) {}
 }
 
@@ -1371,24 +1355,9 @@
     scope: <span class="prelude-ty">Option</span>&lt;NodeId&gt;,
 }
 
-<span class="kw">fn </span>self_res(tcx: TyCtxt, owner: OwnerId) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
-    <span class="kw">let </span>def_id = owner.def_id.to_def_id();
-    <span class="kw">let </span><span class="kw-2">mut </span>opt_def_id = <span class="prelude-val">Some</span>(def_id);
-    <span class="kw">while let </span><span class="prelude-val">Some</span>(def_id) = opt_def_id {
-        <span class="kw">match </span>tcx.def_kind(def_id) {
-            DefKind::Trait =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::SortRes::SelfParam { trait_id: def_id }),
-            DefKind::Impl { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to: def_id }),
-            <span class="kw">_ </span>=&gt; {
-                opt_def_id = tcx.opt_parent(def_id);
-            }
-        }
-    }
-    <span class="prelude-val">None
-</span>}
-
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefinementResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     scopes: Vec&lt;Scope&gt;,
-    sorts_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
+    sort_params: FxIndexSet&lt;Symbol&gt;,
     param_defs: FxIndexMap&lt;NodeId, ParamDef&gt;,
     resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     path_res_map: FxHashMap&lt;NodeId, ExprRes&lt;NodeId&gt;&gt;,
@@ -1400,34 +1369,11 @@
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         sort_params: <span class="kw-2">&amp;</span>[Ident],
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>sort_res = sort_params
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (v.name, fhir::SortRes::SortParam(i)))
-            .collect();
-        <span class="self">Self</span>::new(resolver, sort_res)
+        <span class="self">Self</span>::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>for_rust_item(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner: OwnerId,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>tcx = resolver.genv.tcx();
-        <span class="kw">let </span>generics = tcx.generics_of(owner);
-        <span class="kw">let </span><span class="kw-2">mut </span>sort_res: UnordMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = (<span class="number">0</span>..generics.count())
-            .filter_map(|idx| {
-                <span class="kw">let </span>p = generics.param_at(idx, tcx);
-                <span class="kw">if let </span>rustc_middle::ty::GenericParamDefKind::Type { .. } = p.kind {
-                    <span class="kw">return </span><span class="prelude-val">Some</span>((p.name, fhir::SortRes::TyParam(p.def_id)));
-                }
-                <span class="prelude-val">None
-            </span>})
-            .collect();
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(self_res) = self_res(tcx, owner) {
-            sort_res.insert(kw::SelfUpper, self_res);
-        }
-        <span class="self">Self</span>::new(resolver, sort_res)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>for_rust_item(resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(resolver, Default::default())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_qualifier(
@@ -1446,66 +1392,57 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_fn_sig(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         fn_sig: <span class="kw-2">&amp;</span>surface::FnSig,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_fn_sig(fn_sig))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_fn_sig(fn_sig))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_fn_sig(fn_sig))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_struct_def(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_struct_def(struct_def))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_struct_def(struct_def))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_struct_def(struct_def))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_enum_def(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         enum_def: <span class="kw-2">&amp;</span>surface::EnumDef,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_enum_def(enum_def))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_enum_def(enum_def))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_enum_def(enum_def))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_ty_alias(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         ty_alias: <span class="kw-2">&amp;</span>surface::TyAlias,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_ty_alias(ty_alias))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_ty_alias(ty_alias))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_ty_alias(ty_alias))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_impl(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         impl_: <span class="kw-2">&amp;</span>surface::Impl,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl(impl_))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_impl(impl_))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_impl(impl_))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_trait(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
         trait_: <span class="kw-2">&amp;</span>surface::Trait,
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait(trait_))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::for_rust_item(resolver, owner_id).run(|vis| vis.visit_trait(trait_))
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_trait(trait_))
     }
 
-    <span class="kw">fn </span>new(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        sort_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
-    ) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, sort_params: FxIndexSet&lt;Symbol&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="self">Self </span>{
             resolver,
-            sorts_res: sort_res,
+            sort_params,
             param_defs: Default::default(),
             scopes: Default::default(),
             path_res_map: Default::default(),
@@ -1555,7 +1492,7 @@
         <span class="prelude-val">None
     </span>}
 
-    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::PathExpr) {
+    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
         <span class="kw">if let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..]
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_param(segment.ident)
         {
@@ -1625,70 +1562,103 @@
 
     <span class="kw">fn </span>resolve_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) {
         <span class="kw">let </span>segment = path.segment;
-        <span class="kw">let </span>res = <span class="kw">if </span>segment.name == SORTS.int {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Int)
-        } <span class="kw">else if </span>segment.name == sym::bool {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Bool)
-        } <span class="kw">else if </span>segment.name == SORTS.real {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Real)
-        } <span class="kw">else if </span>segment.name == SORTS.set {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Set)
-        } <span class="kw">else if </span>segment.name == SORTS.map {
-            fhir::SortRes::PrimSort(fhir::PrimSort::Map)
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.sorts_res.get(<span class="kw-2">&amp;</span>segment.name) {
-            <span class="kw-2">*</span>res
-        } <span class="kw">else if </span><span class="self">self</span>.resolver.sort_decls.get(<span class="kw-2">&amp;</span>segment.name).is_some() {
-            fhir::SortRes::User { name: segment.name }
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(hir::def::Res::Def(
-            DefKind::Struct | DefKind::Enum | DefKind::TyAlias,
-            def_id,
-        )) = <span class="self">self</span>.resolver.resolve_ident_with_ribs(segment, TypeNS)
-        {
-            fhir::SortRes::Adt(def_id)
+
+        <span class="kw">let </span>res = <span class="self">self
+            </span>.try_resolve_sort_param(path)
+            .or_else(|| <span class="self">self</span>.try_resolve_sort_with_ribs(path))
+            .or_else(|| <span class="self">self</span>.try_resolve_user_sort(path))
+            .or_else(|| <span class="self">self</span>.try_resolve_prim_sort(path));
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = res {
+            <span class="self">self</span>.resolver
+                .output
+                .sort_path_res_map
+                .insert(path.node_id, res);
         } <span class="kw">else </span>{
             <span class="self">self</span>.errors.emit(errors::UnresolvedSort::new(segment));
-            <span class="kw">return</span>;
-        };
+        }
+    }
+
+    <span class="kw">fn </span>try_resolve_sort_param(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
+        <span class="kw">let </span>segment = path.segment;
+        <span class="self">self</span>.sort_params
+            .get_index_of(<span class="kw-2">&amp;</span>segment.name)
+            .map(fhir::SortRes::SortParam)
+    }
+
+    <span class="kw">fn </span>try_resolve_sort_with_ribs(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
+        <span class="kw">let </span>res = <span class="self">self
+            </span>.resolver
+            .resolve_ident_with_ribs(path.segment, TypeNS)<span class="question-mark">?</span>;
+        <span class="kw">match </span>res {
+            hir::def::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) =&gt; {
+                <span class="prelude-val">Some</span>(fhir::SortRes::Adt(def_id))
+            }
+            hir::def::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
+            hir::def::Res::SelfTyParam { trait_ } =&gt; {
+                <span class="prelude-val">Some</span>(fhir::SortRes::SelfParam { trait_id: trait_ })
+            }
+            hir::def::Res::SelfTyAlias { alias_to, .. } =&gt; {
+                <span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to })
+            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn </span>try_resolve_user_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
+        <span class="kw">let </span>segment = path.segment;
         <span class="self">self</span>.resolver
-            .output
-            .sort_path_res_map
-            .insert(path.node_id, res);
+            .sort_decls
+            .get(<span class="kw-2">&amp;</span>segment.name)
+            .map(|decl| fhir::SortRes::User { name: decl.name })
+    }
+
+    <span class="kw">fn </span>try_resolve_prim_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
+        <span class="kw">let </span>segment = path.segment;
+        <span class="kw">if </span>segment.name == SORTS.int {
+            <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
+        } <span class="kw">else if </span>segment.name == sym::bool {
+            <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Bool))
+        } <span class="kw">else if </span>segment.name == SORTS.real {
+            <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Real))
+        } <span class="kw">else if </span>segment.name == SORTS.set {
+            <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Set))
+        } <span class="kw">else if </span>segment.name == SORTS.map {
+            <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>finish(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>name_gen: IndexGen&lt;fhir::ParamId&gt; = IndexGen::new();
+        <span class="kw">let </span>param_id_gen = IndexGen::new();
         <span class="kw">let </span><span class="kw-2">mut </span>params = FxIndexMap::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>name_for_param =
-            |param_id| <span class="kw-2">*</span>params.entry(param_id).or_insert_with(|| name_gen.fresh());
 
-        <span class="kw">for </span>(node_id, res) <span class="kw">in </span><span class="self">self</span>.path_res_map {
-            <span class="kw">let </span>res = <span class="kw">match </span>res {
-                ExprRes::Param(kind, param_id) =&gt; ExprRes::Param(kind, name_for_param(param_id)),
-                ExprRes::Const(def_id) =&gt; ExprRes::Const(def_id),
-                ExprRes::NumConst(val) =&gt; ExprRes::NumConst(val),
-                ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
-                ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
-            };
-            <span class="self">self</span>.resolver.output.path_expr_res_map.insert(node_id, res);
+        <span class="comment">// Create an `fhir::ParamId` for all parameters used in a path before iterating over
+        // `param_defs` such that we can skip `fhir::ParamKind::Colon` if the param wasn't used
+        </span><span class="kw">for </span>(node_id, res) <span class="kw">in </span><span class="self">self</span>.path_res_map {
+            <span class="kw">let </span>res = res.map_param_id(|param_id| {
+                <span class="kw-2">*</span>params
+                    .entry(param_id)
+                    .or_insert_with(|| param_id_gen.fresh())
+            });
+            <span class="self">self</span>.resolver.output.expr_path_res_map.insert(node_id, res);
         }
 
-        <span class="kw">for </span>(param_id, param_def) <span class="kw">in </span><span class="self">self</span>.param_defs {
+        <span class="comment">// At this point, the `params` map contains all parameters that were used in an expression,
+        // so we can safely skip `ParamKind::Colon` if there's no entry for it.
+        </span><span class="kw">for </span>(param_id, param_def) <span class="kw">in </span><span class="self">self</span>.param_defs {
             <span class="kw">let </span>name = <span class="kw">match </span>param_def.kind {
                 fhir::ParamKind::Colon =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = params.get(<span class="kw-2">&amp;</span>param_id) {
-                        <span class="kw-2">*</span>name
-                    } <span class="kw">else </span>{
-                        <span class="kw">continue</span>;
-                    }
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(name) = params.get(<span class="kw-2">&amp;</span>param_id) <span class="kw">else </span>{ <span class="kw">continue </span>};
+                    <span class="kw-2">*</span>name
                 }
-                fhir::ParamKind::Error =&gt; {
-                    <span class="kw">continue</span>;
-                }
+                fhir::ParamKind::Error =&gt; <span class="kw">continue</span>,
                 <span class="kw">_ </span>=&gt; {
                     params
                         .get(<span class="kw-2">&amp;</span>param_id)
                         .copied()
-                        .unwrap_or_else(|| name_gen.fresh())
+                        .unwrap_or_else(|| param_id_gen.fresh())
                 }
             };
             <span class="kw">let </span>output = <span class="kw-2">&amp;mut </span><span class="self">self</span>.resolver.output;
@@ -1778,7 +1748,7 @@
         <span class="self">self</span>.resolve_ident(loc, node_id);
     }
 
-    <span class="kw">fn </span>on_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::PathExpr) {
+    <span class="kw">fn </span>on_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
         <span class="self">self</span>.resolve_path(path);
     }
 
@@ -1941,7 +1911,7 @@
     }
 
     <span class="kw">impl </span>UnresolvedVar {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>from_path(path: <span class="kw-2">&amp;</span>surface::PathExpr) -&gt; <span class="self">Self </span>{
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>from_path(path: <span class="kw-2">&amp;</span>surface::ExprPath) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 span: path.span,
                 var: <span class="macro">format!</span>(
