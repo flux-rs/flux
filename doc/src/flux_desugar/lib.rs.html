@@ -284,6 +284,10 @@
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
@@ -545,12 +549,16 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateDesugar&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>desugar_flux_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>, specs: <span class="kw-2">&amp;</span>Specs) {
-        <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span>specs.func_defs {
-            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_func_defn(defn));
-        }
-
-        <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span>specs.qualifs {
-            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_qualifier(qualifier));
+        <span class="kw">for </span>item <span class="kw">in </span>specs.flux_items_by_parent.values().flatten() {
+            <span class="kw">match </span>item {
+                surface::Item::Qualifier(qual) =&gt; {
+                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_qualifier(qual));
+                }
+                surface::Item::FuncDef(defn) =&gt; {
+                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_func_defn(defn));
+                }
+                surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
+            }
         }
     }
 

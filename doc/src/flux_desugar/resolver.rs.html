@@ -923,6 +923,26 @@
 <a href="#923" id="923">923</a>
 <a href="#924" id="924">924</a>
 <a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1010,18 +1030,25 @@
         }
     }
 
-    <span class="kw">fn </span>collect_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">for </span>sort_decl <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.sort_decls {
-            <span class="self">self</span>.sort_decls.insert(
-                sort_decl.name.name,
-                fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-            );
-        }
-
-        <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.func_defs {
-            <span class="kw">let </span>kind =
-                <span class="kw">if </span>defn.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
-            <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
+    <span class="kw">fn </span>define_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">for </span>item <span class="kw">in </span><span class="self">self</span>.specs.flux_items_by_parent.values().flatten() {
+            <span class="kw">match </span>item {
+                surface::Item::Qualifier(<span class="kw">_</span>) =&gt; {}
+                surface::Item::FuncDef(defn) =&gt; {
+                    <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() {
+                        fhir::SpecFuncKind::Def
+                    } <span class="kw">else </span>{
+                        fhir::SpecFuncKind::Uif
+                    };
+                    <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
+                }
+                surface::Item::SortDecl(sort_decl) =&gt; {
+                    <span class="self">self</span>.sort_decls.insert(
+                        sort_decl.name.name,
+                        fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+                    );
+                }
+            }
         }
 
         <span class="self">self</span>.func_decls.extend_unord(
@@ -1109,6 +1136,21 @@
                     hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
                     ns,
                 );
+            }
+        }
+    }
+
+    <span class="kw">fn </span>resolve_flux_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>, parent: OwnerId) {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(items) = <span class="self">self</span>.specs.flux_items_by_parent.get(<span class="kw-2">&amp;</span>parent) <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">for </span>item <span class="kw">in </span>items {
+            <span class="kw">match </span>item {
+                surface::Item::Qualifier(qual) =&gt; {
+                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_qualifier(qual));
+                }
+                surface::Item::FuncDef(defn) =&gt; {
+                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_defn(defn));
+                }
+                surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
             }
         }
     }
@@ -1252,17 +1294,14 @@
 
         <span class="self">self</span>.define_items(module.item_ids);
 
-        <span class="comment">// Flux items are always defined at the top-level
+        <span class="comment">// Flux items are made globally available as if they were defined at the top of the crate
         </span><span class="kw">if </span>hir_id == CRATE_HIR_ID {
-            <span class="self">self</span>.collect_flux_global_items();
-            <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.qualifs {
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_qualifier(qualifier));
-            }
-
-            <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.func_defs {
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_defn(defn));
-            }
+            <span class="self">self</span>.define_flux_global_items();
         }
+
+        <span class="comment">// But we resolved names in them as if they were defined in their containing module
+        </span><span class="self">self</span>.resolve_flux_items(hir_id.expect_owner());
+
         hir::intravisit::walk_mod(<span class="self">self</span>, module, hir_id);
         <span class="self">self</span>.pop_rib(ValueNS);
         <span class="self">self</span>.pop_rib(TypeNS);
@@ -1280,6 +1319,7 @@
             </span>}
         });
         <span class="self">self</span>.define_items(item_ids);
+        <span class="self">self</span>.resolve_flux_items(<span class="self">self</span>.genv.hir().get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(<span class="self">self</span>, block);
         <span class="self">self</span>.pop_rib(ValueNS);

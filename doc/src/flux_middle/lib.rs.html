@@ -494,15 +494,6 @@
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 
 </span><span class="attr">#![feature(
@@ -553,7 +544,10 @@
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>intern::List;
-<span class="kw">use </span>rustc_data_structures::unord::{UnordMap, UnordSet};
+<span class="kw">use </span>rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::OwnerId;
 <span class="kw">use </span>rustc_span::{
@@ -862,9 +856,7 @@
     <span class="kw">pub </span>traits: UnordMap&lt;OwnerId, surface::Trait&gt;,
     <span class="kw">pub </span>impls: UnordMap&lt;OwnerId, surface::Impl&gt;,
     <span class="kw">pub </span>enums: UnordMap&lt;OwnerId, surface::EnumDef&gt;,
-    <span class="kw">pub </span>qualifs: Vec&lt;surface::Qualifier&gt;,
-    <span class="kw">pub </span>func_defs: Vec&lt;surface::SpecFunc&gt;,
-    <span class="kw">pub </span>sort_decls: Vec&lt;surface::SortDecl&gt;,
+    <span class="kw">pub </span>flux_items_by_parent: FxIndexMap&lt;OwnerId, Vec&lt;surface::Item&gt;&gt;,
     <span class="kw">pub </span>ty_aliases: UnordMap&lt;OwnerId, <span class="prelude-ty">Option</span>&lt;surface::TyAlias&gt;&gt;,
     <span class="kw">pub </span>ignores: UnordMap&lt;LocalDefId, fhir::Ignored&gt;,
     <span class="kw">pub </span>trusted: UnordMap&lt;LocalDefId, fhir::Trusted&gt;,
@@ -884,16 +876,6 @@
 }
 
 <span class="kw">impl </span>Specs {
-    <span class="kw">pub fn </span>extend_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: <span class="kw">impl </span>IntoIterator&lt;Item = surface::Item&gt;) {
-        <span class="kw">for </span>item <span class="kw">in </span>items {
-            <span class="kw">match </span>item {
-                surface::Item::Qualifier(qualifier) =&gt; <span class="self">self</span>.qualifs.push(qualifier),
-                surface::Item::FuncDef(defn) =&gt; <span class="self">self</span>.func_defs.push(defn),
-                surface::Item::SortDecl(sort_decl) =&gt; <span class="self">self</span>.sort_decls.push(sort_decl),
-            }
-        }
-    }
-
     <span class="kw">pub fn </span>insert_extern_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: LocalDefId, extern_id: DefId) {
         <span class="self">self</span>.extern_id_to_local_id.insert(extern_id, local_id);
         <span class="self">self</span>.local_id_to_extern_id.insert(local_id, extern_id);

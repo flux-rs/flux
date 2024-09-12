@@ -888,6 +888,22 @@
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
@@ -913,7 +929,7 @@
     <span class="self">self </span><span class="kw">as </span>hir,
     def::DefKind,
     def_id::{LocalDefId, CRATE_DEF_ID},
-    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{symbol::sym, Span, Symbol, SyntaxContext};
@@ -974,7 +990,11 @@
     <span class="kw">fn </span>collect_crate(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(CRATE_DEF_ID)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
-        <span class="self">self</span>.specs.extend_items(attrs.items());
+        <span class="self">self</span>.specs
+            .flux_items_by_parent
+            .entry(CRATE_OWNER_ID)
+            .or_default()
+            .extend(attrs.items());
         <span class="self">self</span>.specs.crate_config = attrs.crate_config();
         <span class="prelude-val">Ok</span>(())
     }
@@ -995,11 +1015,19 @@
             ItemKind::Enum(enum_def, ..) =&gt; {
                 <span class="self">self</span>.collect_enum_def(owner_id, attrs, enum_def)<span class="question-mark">?</span>;
             }
-            ItemKind::Mod(..) =&gt; <span class="self">self</span>.collect_mod(attrs)<span class="question-mark">?</span>,
+            ItemKind::Mod(..) =&gt; <span class="self">self</span>.collect_mod(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::TyAlias(..) =&gt; <span class="self">self</span>.collect_type_alias(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::Impl(..) =&gt; <span class="self">self</span>.collect_impl(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::Trait(..) =&gt; <span class="self">self</span>.collect_trait(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::Const(.., body_id) =&gt; {
+                <span class="comment">// The flux-rs macro puts defs as an outter attribute on a `const _: () = { }`. We
+                // consider these defs to be defined in the parent of the const.
+                </span><span class="self">self</span>.specs
+                    .flux_items_by_parent
+                    .entry(<span class="self">self</span>.tcx.hir().get_parent_item(item.hir_id()))
+                    .or_default()
+                    .extend(attrs.items());
+
                 <span class="kw">if </span>attrs.extern_spec() {
                     <span class="kw">return </span>ExternSpecCollector::collect(<span class="self">self</span>, <span class="kw-2">*</span>body_id);
                 }
@@ -1036,8 +1064,12 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.specs.extend_items(attrs.items());
+    <span class="kw">fn </span>collect_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="self">self</span>.specs
+            .flux_items_by_parent
+            .entry(module_id)
+            .or_default()
+            .extend(attrs.items());
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1492,8 +1524,8 @@
         <span class="macro">read_flag!</span>(<span class="self">self</span>, Opaque)
     }
 
-    <span class="kw">fn </span>items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = surface::Item&gt; {
-        <span class="macro">read_attrs!</span>(<span class="self">self</span>, Items).into_iter().flatten()
+    <span class="kw">fn </span>items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;surface::Item&gt; {
+        <span class="macro">read_attrs!</span>(<span class="self">self</span>, Items).into_iter().flatten().collect()
     }
 
     <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::FnSig&gt; {
