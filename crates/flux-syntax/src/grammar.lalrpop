@@ -167,9 +167,9 @@ BaseSort: surface::BaseSort = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
-    <segment:Ident> <args:("<" <Comma<BaseSort>> ">")?> => {
+    <segments:Sep1<"::", Ident>> <args:("<" <Comma<BaseSort>> ">")?> => {
         let path = surface::SortPath {
-            segment,
+            segments,
             args: args.unwrap_or_default(),
             node_id: cx.next_node_id(),
         };

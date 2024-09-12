@@ -248,7 +248,7 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
 }
 
 pub fn walk_sort_path<V: Visitor>(vis: &mut V, path: &SortPath) {
-    vis.visit_ident(path.segment);
+    walk_list!(vis, visit_ident, path.segments.iter().copied());
     walk_list!(vis, visit_base_sort, &path.args);
 }
 

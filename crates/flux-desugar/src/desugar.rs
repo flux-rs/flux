@@ -1482,7 +1482,7 @@ fn desugar_base_sort<'genv>(
 ) -> fhir::Sort<'genv> {
     match bsort {
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
-        surface::BaseSort::Path(surface::SortPath { segment, args, node_id }) => {
+        surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) => {
             let res = resolver_output.sort_path_res_map[node_id];
 
             // In a `RefinedBy` we resolve type parameters to a sort var
@@ -1500,7 +1500,7 @@ fn desugar_base_sort<'genv>(
                     .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
             );
 
-            let path = fhir::SortPath { res, segment: *segment, args };
+            let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
             fhir::Sort::Path(path)
         }
     }

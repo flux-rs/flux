@@ -175,12 +175,11 @@ pub enum BaseSort {
     Path(SortPath),
 }
 
-/// A [`Path`] but for sorts. Currently, we only support paths with one segment, so one can hardly
-/// call this a path, but we may change this later if we improve the resolver.
+/// A [`Path`] but for sorts.
 #[derive(Debug)]
 pub struct SortPath {
-    /// The identifier of the single segment in the path, i.e., `Map` in `Map<int, bool>`.
-    pub segment: Ident,
+    /// The segments in the path
+    pub segments: Vec<Ident>,
     /// The sort arguments, i.e., the list `[int, bool]` in `Map<int, bool>`.
     pub args: Vec<BaseSort>,
     pub node_id: NodeId,

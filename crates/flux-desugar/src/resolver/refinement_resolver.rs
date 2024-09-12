@@ -15,12 +15,9 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::{
-    self as hir,
-    def::{
-        DefKind,
-        Namespace::{TypeNS, ValueNS},
-    },
+use rustc_hir::def::{
+    DefKind,
+    Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, ErrorGuaranteed, Symbol};
@@ -519,7 +516,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
-        if let Some(res) = self.try_resolve_with_ribs(&path.segments) {
+        if let Some(res) = self.try_resolve_expr_with_ribs(&path.segments) {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
@@ -544,7 +541,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(node_id, res);
             return;
         }
-        if let Some(res) = self.try_resolve_with_ribs(&[ident]) {
+        if let Some(res) = self.try_resolve_expr_with_ribs(&[ident]) {
             self.path_res_map.insert(node_id, res);
             return;
         }
@@ -555,7 +552,10 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    fn try_resolve_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_expr_with_ribs<S: Segment>(
+        &mut self,
+        segments: &[S],
+    ) -> Option<ExprRes<NodeId>> {
         let res = self
             .resolver
             .resolve_path_with_ribs(segments, ValueNS)?
@@ -581,8 +581,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
-        let segment = path.segment;
-
         let res = self
             .try_resolve_sort_param(path)
             .or_else(|| self.try_resolve_sort_with_ribs(path))
@@ -595,38 +593,37 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .sort_path_res_map
                 .insert(path.node_id, res);
         } else {
-            self.errors.emit(errors::UnresolvedSort::new(segment));
+            self.errors.emit(errors::UnresolvedSort::new(path));
         }
     }
 
     fn try_resolve_sort_param(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
-        let segment = path.segment;
+        let [segment] = &path.segments[..] else { return None };
         self.sort_params
             .get_index_of(&segment.name)
             .map(fhir::SortRes::SortParam)
     }
 
-    fn try_resolve_sort_with_ribs(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
+    fn try_resolve_sort_with_ribs(&mut self, path: &surface::SortPath) -> Option<fhir::SortRes> {
         let res = self
             .resolver
-            .resolve_ident_with_ribs(path.segment, TypeNS)?;
+            .resolve_path_with_ribs(&path.segments, TypeNS)?
+            .full_res()?;
         match res {
-            hir::def::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) => {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) => {
                 Some(fhir::SortRes::Adt(def_id))
             }
-            hir::def::Res::Def(DefKind::TyParam, def_id) => Some(fhir::SortRes::TyParam(def_id)),
-            hir::def::Res::SelfTyParam { trait_ } => {
+            fhir::Res::Def(DefKind::TyParam, def_id) => Some(fhir::SortRes::TyParam(def_id)),
+            fhir::Res::SelfTyParam { trait_ } => {
                 Some(fhir::SortRes::SelfParam { trait_id: trait_ })
             }
-            hir::def::Res::SelfTyAlias { alias_to, .. } => {
-                Some(fhir::SortRes::SelfAlias { alias_to })
-            }
+            fhir::Res::SelfTyAlias { alias_to, .. } => Some(fhir::SortRes::SelfAlias { alias_to }),
             _ => None,
         }
     }
 
     fn try_resolve_user_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
-        let segment = path.segment;
+        let [segment] = &path.segments[..] else { return None };
         self.resolver
             .sort_decls
             .get(&segment.name)
@@ -634,7 +631,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
-        let segment = path.segment;
+        let [segment] = &path.segments[..] else { return None };
         if segment.name == SORTS.int {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
         } else if segment.name == sym::bool {
@@ -912,12 +909,20 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        sort: Ident,
+        name: String,
     }
 
     impl UnresolvedSort {
-        pub(super) fn new(sort: Ident) -> Self {
-            Self { span: sort.span, sort }
+        pub(super) fn new(path: &surface::SortPath) -> Self {
+            Self {
+                span: path
+                    .segments
+                    .iter()
+                    .map(|ident| ident.span)
+                    .reduce(Span::to)
+                    .unwrap_or_default(),
+                name: format!("{}", path.segments.iter().format("::")),
+            }
         }
     }
 

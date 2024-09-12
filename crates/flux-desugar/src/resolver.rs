@@ -23,7 +23,8 @@ use rustc_hir::{
         Namespace::{self, *},
         PerNS,
     },
-    ParamName, PrimTy, CRATE_HIR_ID,
+    def_id::CRATE_DEF_ID,
+    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -53,11 +54,15 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     specs: &'genv Specs,
     output: ResolverOutput,
     ribs: PerNS<Vec<Rib>>,
-    extern_crates: Rib,
+    /// Rib containing the names of all imported crates plus the special `crate` keyword.
+    crates: Rib,
     prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     err: Option<ErrorGuaranteed>,
+    /// The most recent module we have visited. Used to check for visibility of other items from
+    /// this module.
+    current_module: OwnerId,
 }
 
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
@@ -67,7 +72,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             output: ResolverOutput::default(),
             specs,
             ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![] },
-            extern_crates: extern_crates_rib(genv.tcx()),
+            crates: crates_rib(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Normal),
@@ -76,6 +81,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            current_module: CRATE_OWNER_ID,
         }
     }
 
@@ -259,6 +265,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
+
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
@@ -295,7 +302,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
         if ns == TypeNS {
-            if let Some(res) = self.extern_crates.bindings.get(&ident.name) {
+            if let Some(res) = self.crates.bindings.get(&ident.name) {
                 return Some(*res);
             }
         }
@@ -306,10 +313,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_ident_in_module(&self, module_id: DefId, ident: Ident) -> Option<hir::def::Res> {
+        let curr_mod = self.current_module.def_id;
         module_children(self.genv.tcx(), module_id)
             .iter()
             .find_map(|child| {
-                if child.vis.is_public() && child.ident == ident {
+                if child.vis.is_accessible_from(curr_mod, self.genv.tcx()) && child.ident == ident {
                     Some(map_res(child.res))
                 } else {
                     None
@@ -331,6 +339,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+        let old_mod = self.current_module;
+        self.current_module = hir_id.expect_owner();
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
 
@@ -348,6 +358,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
+        self.current_module = old_mod;
     }
 
     fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
@@ -515,7 +526,7 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }
 
-/// Abstraction over [`surface::PathSegment`] and [`surface::PathExprSegment`]
+/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
 trait Segment {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
@@ -888,7 +899,7 @@ fn builtin_types_rib() -> Rib {
     }
 }
 
-fn extern_crates_rib(tcx: TyCtxt) -> Rib {
+fn crates_rib(tcx: TyCtxt) -> Rib {
     let mut rib = Rib::new(RibKind::Normal);
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
@@ -899,6 +910,8 @@ fn extern_crates_rib(tcx: TyCtxt) -> Rib {
                 .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
         }
     }
+    rib.bindings
+        .insert(kw::Crate, hir::def::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
     rib
 }
 
