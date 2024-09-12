@@ -179,7 +179,7 @@ impl PlacesTree {
                         _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
                     };
                 }
-                PlaceElem::Index(_) => {
+                PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                     is_strg = false;
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Array(array_ty, _), _) => {
@@ -383,7 +383,7 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
         match elem {
             PlaceElem::Deref => self.deref(&ty),
             PlaceElem::Field(f) => self.field(&ty, f),
-            PlaceElem::Index(_) => {
+            PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                 self.index(&ty)?;
                 Ok(ty.clone())
             }
@@ -627,7 +627,7 @@ where
             PlaceElem::Deref => self.deref(ty),
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => self.fold_ty(ty),
-            PlaceElem::Index(_) => {
+            PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                 // When unblocking under an array/slice we stop at the array/slice because the entire
                 // array has to be blocked when taking references to an element
                 (self.new_ty)(self.cursor, ty)
@@ -724,7 +724,7 @@ impl Cursor {
             match *elem {
                 PlaceElem::Field(f) => proj.push(f),
                 PlaceElem::Downcast(_, _) => {}
-                PlaceElem::Deref | PlaceElem::Index(_) => {
+                PlaceElem::Deref | PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                     break;
                 }
             }
