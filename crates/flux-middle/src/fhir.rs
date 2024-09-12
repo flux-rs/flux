@@ -861,7 +861,7 @@ pub enum Sort<'fhir> {
 #[derive(Clone, Copy)]
 pub struct SortPath<'fhir> {
     pub res: SortRes,
-    pub segment: Ident,
+    pub segments: &'fhir [Ident],
     pub args: &'fhir [Sort<'fhir>],
 }
 

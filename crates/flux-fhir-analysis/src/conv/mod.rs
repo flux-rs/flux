@@ -382,13 +382,7 @@ pub(crate) fn conv_assoc_reft_def(
     assoc_reft: &fhir::ImplAssocReft,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Lambda> {
-    conv_assoc_reft_body(
-        genv,
-        wfckresults,
-        &assoc_reft.params,
-        &assoc_reft.body,
-        &assoc_reft.output,
-    )
+    conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &assoc_reft.body, &assoc_reft.output)
 }
 
 fn conv_assoc_reft_body(

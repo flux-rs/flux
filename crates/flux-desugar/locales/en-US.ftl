@@ -55,7 +55,7 @@ desugar_unresolved_var =
     .label = not found in this scope
 
 desugar_unresolved_sort =
-    cannot find sort `{$sort}` in this scope
+    cannot find sort `{$name}` in this scope
     .label = not found in this scope
 
 desugar_invalid_unrefined_param =
