@@ -963,7 +963,7 @@
                 PlaceElem::Deref =&gt; node.deref(),
                 PlaceElem::Field(f) =&gt; node.field(genv, f)<span class="question-mark">?</span>,
                 PlaceElem::Downcast(<span class="kw">_</span>, idx) =&gt; node.downcast(genv, idx)<span class="question-mark">?</span>,
-                PlaceElem::Index(<span class="kw">_</span>) =&gt; <span class="kw">break</span>,
+                PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; <span class="kw">break</span>,
             };
             node = n;
             unfolded |= u;

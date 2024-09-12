@@ -977,6 +977,9 @@
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1050,7 +1053,8 @@
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>is_strg: bool,
-    cursor: Cursor,
+    <span class="kw">pub </span>is_constant_index: bool, <span class="comment">// doesn't feel right...
+    </span>cursor: Cursor,
     bindings: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>PlacesTree,
 }
 
@@ -1117,6 +1121,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>cursor = <span class="self">self</span>.cursor_for(key);
         <span class="kw">let </span><span class="kw-2">mut </span>ty = <span class="self">self</span>.get_loc(<span class="kw-2">&amp;</span>cursor.loc).ty.clone();
         <span class="kw">let </span><span class="kw-2">mut </span>is_strg = <span class="bool-val">true</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>is_constant_index = <span class="bool-val">false</span>;
         <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = cursor.next() {
             ty = mode.unpack(<span class="kw-2">&amp;</span>ty);
             <span class="kw">match </span>elem {
@@ -1158,8 +1163,9 @@
                         <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field access `Field({f:?})` and `{ty:?}`"</span>),
                     };
                 }
-                PlaceElem::Index(<span class="kw">_</span>) =&gt; {
+                PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
                     is_strg = <span class="bool-val">false</span>;
+                    is_constant_index = <span class="macro">matches!</span>(elem, PlaceElem::ConstantIndex { .. });
                     <span class="kw">match </span>ty.kind() {
                         TyKind::Indexed(BaseTy::Array(array_ty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                             ty = array_ty.clone();
@@ -1174,7 +1180,7 @@
             }
         }
         cursor.reset();
-        <span class="prelude-val">Ok</span>(LookupResult { ty, is_strg, cursor, bindings: <span class="self">self </span>})
+        <span class="prelude-val">Ok</span>(LookupResult { ty, is_strg, is_constant_index, cursor, bindings: <span class="self">self </span>})
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_unfolding(
@@ -1362,7 +1368,7 @@
         <span class="kw">match </span>elem {
             PlaceElem::Deref =&gt; <span class="self">self</span>.deref(<span class="kw-2">&amp;</span>ty),
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(<span class="kw-2">&amp;</span>ty, f),
-            PlaceElem::Index(<span class="kw">_</span>) =&gt; {
+            PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
                 <span class="self">self</span>.index(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(ty.clone())
             }
@@ -1606,7 +1612,7 @@
             PlaceElem::Deref =&gt; <span class="self">self</span>.deref(ty),
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(ty, f),
             PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="self">self</span>.fold_ty(ty),
-            PlaceElem::Index(<span class="kw">_</span>) =&gt; {
+            PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
                 <span class="comment">// When unblocking under an array/slice we stop at the array/slice because the entire
                 // array has to be blocked when taking references to an element
                 </span>(<span class="self">self</span>.new_ty)(<span class="self">self</span>.cursor, ty)
@@ -1703,7 +1709,7 @@
             <span class="kw">match </span><span class="kw-2">*</span>elem {
                 PlaceElem::Field(f) =&gt; proj.push(f),
                 PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
-                PlaceElem::Deref | PlaceElem::Index(<span class="kw">_</span>) =&gt; {
+                PlaceElem::Deref | PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
                     <span class="kw">break</span>;
                 }
             }
