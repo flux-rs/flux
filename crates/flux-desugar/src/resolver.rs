@@ -2,7 +2,10 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map::Entry;
 
-use flux_common::bug;
+use flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
@@ -29,12 +32,6 @@ use self::refinement_resolver::RefinementResolver;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-macro_rules! collect_err {
-    ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
-    };
-}
-
 pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
     match try_resolve_crate(genv) {
         Ok(output) => output,
@@ -47,11 +44,8 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let mut resolver = CrateResolver::new(genv, specs);
 
     genv.hir().walk_toplevel_module(&mut resolver);
-    if let Some(err) = resolver.err {
-        return Err(err);
-    }
 
-    Ok(resolver.into_output())
+    resolver.into_output()
 }
 
 pub(crate) struct CrateResolver<'genv, 'tcx> {
@@ -200,22 +194,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         for item in items {
             match item {
                 surface::Item::Qualifier(qual) => {
-                    collect_err!(self, self.resolve_qualifier(qual));
+                    RefinementResolver::resolve_qualifier(self, qual).collect_err(&mut self.err);
                 }
                 surface::Item::FuncDef(defn) => {
-                    collect_err!(self, self.resolve_defn(defn));
+                    RefinementResolver::resolve_defn(self, defn).collect_err(&mut self.err);
                 }
                 surface::Item::SortDecl(_) => {}
             }
         }
-    }
-
-    fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
-        RefinementResolver::resolve_qualifier(self, qualifier)
-    }
-
-    fn resolve_defn(&mut self, defn: &surface::SpecFunc) -> Result {
-        RefinementResolver::resolve_defn(self, defn)
     }
 
     fn resolve_trait(&mut self, owner_id: OwnerId) -> Result {
@@ -331,8 +317,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             })
     }
 
-    pub fn into_output(self) -> ResolverOutput {
-        self.output
+    pub fn into_output(self) -> Result<ResolverOutput> {
+        self.err.into_result()?;
+        Ok(self.output)
     }
 }
 
@@ -358,6 +345,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.resolve_flux_items(hir_id.expect_owner());
 
         hir::intravisit::walk_mod(self, module, hir_id);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
@@ -377,6 +365,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.resolve_flux_items(self.genv.hir().get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(self, block);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
@@ -385,8 +374,10 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         if self.genv.is_dummy(item.owner_id.def_id) {
             return;
         }
+
         self.push_rib(TypeNS, RibKind::Normal);
         self.push_rib(ValueNS, RibKind::Normal);
+
         match item.kind {
             ItemKind::Trait(_, _, generics, ..) => {
                 self.define_generics(generics);
@@ -395,7 +386,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_trait(item.owner_id));
+                self.resolve_trait(item.owner_id).collect_err(&mut self.err);
             }
             ItemKind::Impl(impl_) => {
                 self.define_generics(impl_.generics);
@@ -408,11 +399,12 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_impl(item.owner_id));
+                self.resolve_impl(item.owner_id).collect_err(&mut self.err);
             }
             ItemKind::TyAlias(_, generics) => {
                 self.define_generics(generics);
-                collect_err!(self, self.resolve_type_alias(item.owner_id));
+                self.resolve_type_alias(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Enum(.., generics) => {
                 self.define_generics(generics);
@@ -425,7 +417,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_enum_def(item.owner_id));
+                self.resolve_enum_def(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Struct(.., generics) => {
                 self.define_generics(generics);
@@ -438,15 +431,19 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_struct_def(item.owner_id));
+                self.resolve_struct_def(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Fn(_, generics, _) => {
                 self.define_generics(generics);
-                collect_err!(self, self.resolve_fn_sig(item.owner_id));
+                self.resolve_fn_sig(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             _ => {}
         }
+
         hir::intravisit::walk_item(self, item);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
@@ -455,7 +452,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(impl_item.generics);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
+            self.resolve_fn_sig(impl_item.owner_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -465,7 +463,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(trait_item.generics);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
+            self.resolve_fn_sig(trait_item.owner_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);

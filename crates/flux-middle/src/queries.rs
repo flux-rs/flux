@@ -128,7 +128,7 @@ pub struct Providers {
         GlobalEnv<'genv, '_>,
         LocalDefId,
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
-    pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
+    pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
     pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
@@ -195,7 +195,7 @@ pub struct Queries<'genv, 'tcx> {
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
-    fhir_crate: OnceCell<fhir::Crate<'genv>>,
+    fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
     lower_generics_of: Cache<DefId, ty::Generics<'tcx>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
@@ -305,7 +305,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn fhir_crate(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
-    ) -> &'genv fhir::Crate<'genv> {
+    ) -> &'genv fhir::FluxItems<'genv> {
         self.fhir_crate
             .get_or_init(|| (self.providers.fhir_crate)(genv))
     }

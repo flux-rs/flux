@@ -364,13 +364,13 @@ pub type Arena = bumpalo::Bump;
 /// note: most items in this struct have been moved out into their own query or method in genv.
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
-pub struct Crate<'fhir> {
-    pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
+pub struct FluxItems<'fhir> {
+    pub items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 
-impl<'fhir> Crate<'fhir> {
+impl<'fhir> FluxItems<'fhir> {
     pub fn new() -> Self {
-        Self { flux_items: Default::default() }
+        Self { items: Default::default() }
     }
 }
 

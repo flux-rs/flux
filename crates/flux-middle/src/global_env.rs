@@ -76,7 +76,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.desugar(self, def_id)
     }
 
-    pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
+    pub fn fhir_crate(self) -> &'genv fhir::FluxItems<'genv> {
         self.inner.queries.fhir_crate(self)
     }
 
@@ -462,11 +462,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 #[derive(Clone, Copy)]
 pub struct Map<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    fhir: &'genv fhir::Crate<'genv>,
+    fhir: &'genv fhir::FluxItems<'genv>,
 }
 
 impl<'genv, 'tcx> Map<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::Crate<'genv>) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::FluxItems<'genv>) -> Self {
         Self { genv, fhir }
     }
 
@@ -491,7 +491,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.fhir.flux_items.get(&name).as_ref().copied()
+        self.fhir.items.get(&name).as_ref().copied()
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::RefinedBy<'genv>> {
@@ -505,7 +505,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
-        self.fhir.flux_items.values().filter_map(|item| {
+        self.fhir.items.values().filter_map(|item| {
             if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)
             } else {
@@ -515,7 +515,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn spec_func(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
-        self.fhir.flux_items.get(&name).and_then(|item| {
+        self.fhir.items.get(&name).and_then(|item| {
             if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)
             } else {
@@ -525,7 +525,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
-        self.fhir.flux_items.values().filter_map(|item| {
+        self.fhir.items.values().filter_map(|item| {
             if let fhir::FluxItem::Qualifier(qual) = item {
                 Some(qual)
             } else {

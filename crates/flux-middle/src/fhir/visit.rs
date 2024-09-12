@@ -277,8 +277,8 @@ pub fn walk_trait_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &Trait
     walk_list!(vis, visit_refine_param, assoc_reft.params);
     vis.visit_sort(&assoc_reft.output);
     if let Some(expr) = &assoc_reft.body {
-        vis.visit_expr(expr)
-    };
+        vis.visit_expr(expr);
+    }
 }
 
 pub fn walk_impl_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &ImplAssocReft<'v>) {

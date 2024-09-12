@@ -252,7 +252,7 @@ fn assoc_refinement_def(
     {
         return Ok(lam);
     }
-    return Err(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name });
+    Err(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name })
 }
 
 fn sort_of_assoc_reft(

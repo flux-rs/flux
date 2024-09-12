@@ -370,7 +370,7 @@ pub(crate) fn conv_default_assoc_reft_def(
 ) -> QueryResult<Option<rty::Lambda>> {
     if let Some(body) = assoc_reft.body {
         let res =
-            conv_assoc_reft_body(genv, wfckresults, &assoc_reft.params, &body, &assoc_reft.output)?;
+            conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &body, &assoc_reft.output)?;
         Ok(Some(res))
     } else {
         Ok(None)
