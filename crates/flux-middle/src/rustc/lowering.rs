@@ -629,6 +629,9 @@ pub fn lower_place(place: &rustc_mir::Place) -> Result<Place, UnsupportedReason>
                 projection.push(PlaceElem::Downcast(name, idx));
             }
             rustc_mir::PlaceElem::Index(v) => projection.push(PlaceElem::Index(v)),
+            rustc_mir::ProjectionElem::ConstantIndex { offset, min_length, from_end } => {
+                projection.push(PlaceElem::ConstantIndex { offset, min_length, from_end });
+            }
             _ => {
                 return Err(UnsupportedReason::new(format!("unsupported place `{place:?}`")));
             }

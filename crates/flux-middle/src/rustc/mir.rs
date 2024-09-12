@@ -283,6 +283,16 @@ pub enum PlaceElem {
     Field(FieldIdx),
     Downcast(Option<Symbol>, VariantIdx),
     Index(Local),
+    ConstantIndex {
+        /// index or -index (in Python terms), depending on from_end
+        offset: u64,
+        /// The thing being indexed must be at least this long. For arrays this
+        /// is always the exact length.
+        min_length: u64,
+        /// Counting backwards from end? This is always false when indexing an
+        /// array.
+        from_end: bool,
+    },
 }
 
 pub enum Constant {
@@ -432,7 +442,7 @@ impl PlaceTy {
             PlaceElem::Downcast(_, variant_idx) => {
                 PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
             }
-            PlaceElem::Index(_) => {
+            PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                 if let TyKind::Array(ty, _) | TyKind::Slice(ty) = self.ty.kind() {
                     PlaceTy::from_ty(ty.clone())
                 } else {
@@ -637,6 +647,10 @@ impl fmt::Debug for Place {
                 }
                 PlaceElem::Index(v) => {
                     p = format!("{p}[{v:?}]");
+                    need_parens = false;
+                }
+                PlaceElem::ConstantIndex { offset, min_length, .. } => {
+                    p = format!("{p}[{offset:?} of {min_length:?}]");
                     need_parens = false;
                 }
             }
