@@ -71,6 +71,7 @@ impl LookupKey for Path {
 pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
+    pub is_constant_index: bool, // doesn't feel right...
     cursor: Cursor,
     bindings: &'a mut PlacesTree,
 }
@@ -138,6 +139,7 @@ impl PlacesTree {
         let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
+        let mut is_constant_index = false;
         while let Some(elem) = cursor.next() {
             ty = mode.unpack(&ty);
             match elem {
@@ -181,6 +183,7 @@ impl PlacesTree {
                 }
                 PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
                     is_strg = false;
+                    is_constant_index = matches!(elem, PlaceElem::ConstantIndex { .. });
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Array(array_ty, _), _) => {
                             ty = array_ty.clone();
@@ -195,7 +198,7 @@ impl PlacesTree {
             }
         }
         cursor.reset();
-        Ok(LookupResult { ty, is_strg, cursor, bindings: self })
+        Ok(LookupResult { ty, is_strg, is_constant_index, cursor, bindings: self })
     }
 
     pub(crate) fn lookup_unfolding(
