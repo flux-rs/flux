@@ -82,7 +82,7 @@ impl Env {
                 PlaceElem::Deref => node.deref(),
                 PlaceElem::Field(f) => node.field(genv, f)?,
                 PlaceElem::Downcast(_, idx) => node.downcast(genv, idx)?,
-                PlaceElem::Index(_) => break,
+                PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => break,
             };
             node = n;
             unfolded |= u;
