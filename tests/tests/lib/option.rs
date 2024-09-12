@@ -8,3 +8,12 @@ enum Option<T> {
     #[flux::variant({T} -> Option<T>[true])]
     Some(T),
 }
+
+#[extern_spec]
+impl<T> Option<T> {
+    #[sig(fn(&Option<T>[@b]) -> bool[b])]
+    const fn is_some(&self) -> bool;
+
+    #[sig(fn(&Option<T>[@b]) -> bool[!b])]
+    const fn is_none(&self) -> bool;
+}
