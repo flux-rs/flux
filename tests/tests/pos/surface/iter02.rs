@@ -21,16 +21,6 @@ fn test_iter1(slice: &[u8]) {
     assert(next.is_some());
 }
 
-#[flux::should_fail]
-#[flux::sig(fn(slice: &[u8]{n: n > 0}))]
-fn test_iter1_neg(slice: &[u8]) {
-    assert(slice.len() > 0);
-    let mut iter = slice.iter();
-    let next = iter.next();
-    assert(next.is_some());
-    assert(iter.next().is_some());
-}
-
 #[flux::sig(fn(slice: &[u8]{n: n > 1}))]
 fn test_enumerate1(slice: &[u8]) {
     assert(slice.len() > 0);

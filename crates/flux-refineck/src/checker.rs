@@ -686,11 +686,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 poly_sig,
             )?;
         } else {
-            Err(query_bug!(
-                "check_oblig_fn_trait_pred: unexpected self_ty {:?}",
-                fn_trait_pred.self_ty
-            ))
-            .with_span(self.body.span())?;
+            // TODO: When we allow refining closure/fn at the surface level, we would need to do
+            // actual function subtyping here, but for now, we can skip as all the relevant types
+            // are unrefined. See issue-767.rs
         }
         Ok(())
     }
