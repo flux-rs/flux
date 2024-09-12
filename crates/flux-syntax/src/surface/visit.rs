@@ -2,8 +2,8 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
-    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl,
-    ImplAssocReft, Indices, Lit, Path, PathExpr, PathExprSegment, PathSegment, Qualifier,
+    ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
+    GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
     RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
     Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
@@ -157,11 +157,11 @@ pub trait Visitor: Sized {
         walk_alias_pred(self, alias_pred);
     }
 
-    fn vist_path_expr(&mut self, qpath: &PathExpr) {
+    fn vist_path_expr(&mut self, qpath: &ExprPath) {
         walk_path_expr(self, qpath);
     }
 
-    fn visit_path_expr_segment(&mut self, segment: &PathExprSegment) {
+    fn visit_path_expr_segment(&mut self, segment: &ExprPathSegment) {
         walk_path_expr_segment(self, segment);
     }
 
@@ -217,6 +217,9 @@ pub fn walk_trait_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &TraitAssocRef
     vis.visit_ident(assoc_reft.name);
     walk_list!(vis, visit_refine_param, &assoc_reft.params);
     vis.visit_base_sort(&assoc_reft.output);
+    if let Some(expr) = &assoc_reft.body {
+        vis.visit_expr(expr);
+    }
 }
 
 pub fn walk_impl<V: Visitor>(vis: &mut V, impl_: &Impl) {
@@ -245,7 +248,7 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
 }
 
 pub fn walk_sort_path<V: Visitor>(vis: &mut V, path: &SortPath) {
-    vis.visit_ident(path.segment);
+    walk_list!(vis, visit_ident, path.segments.iter().copied());
     walk_list!(vis, visit_base_sort, &path.args);
 }
 
@@ -489,10 +492,10 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     }
 }
 
-pub fn walk_path_expr<V: Visitor>(vis: &mut V, qpath: &PathExpr) {
+pub fn walk_path_expr<V: Visitor>(vis: &mut V, qpath: &ExprPath) {
     walk_list!(vis, visit_path_expr_segment, &qpath.segments);
 }
 
-pub fn walk_path_expr_segment<V: Visitor>(vis: &mut V, segment: &PathExprSegment) {
+pub fn walk_path_expr_segment<V: Visitor>(vis: &mut V, segment: &ExprPathSegment) {
     vis.visit_ident(segment.ident);
 }

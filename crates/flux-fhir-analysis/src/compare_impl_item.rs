@@ -16,7 +16,11 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
 
     for trait_assoc_reft in &trait_assoc_refts.items {
         let name = trait_assoc_reft.name;
-        if !impl_names.contains(&name) {
+        let has_default = genv
+            .default_assoc_refinement_def(trait_id, name)
+            .emit(&genv)?
+            .is_some();
+        if !impl_names.contains(&name) && !has_default {
             let span = genv.tcx().def_span(impl_id);
             return Err(genv.sess().emit_err(errors::MissingAssocReft::new(
                 span,

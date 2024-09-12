@@ -363,17 +363,41 @@ pub(crate) fn conv_fn_sig(
     Ok(rty::EarlyBinder(poly_fn_sig))
 }
 
+pub(crate) fn conv_default_assoc_reft_def(
+    genv: GlobalEnv,
+    assoc_reft: &fhir::TraitAssocReft,
+    wfckresults: &WfckResults,
+) -> QueryResult<Option<rty::Lambda>> {
+    if let Some(body) = assoc_reft.body {
+        let res =
+            conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &body, &assoc_reft.output)?;
+        Ok(Some(res))
+    } else {
+        Ok(None)
+    }
+}
+
 pub(crate) fn conv_assoc_reft_def(
     genv: GlobalEnv,
     assoc_reft: &fhir::ImplAssocReft,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Lambda> {
+    conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &assoc_reft.body, &assoc_reft.output)
+}
+
+fn conv_assoc_reft_body(
+    genv: GlobalEnv,
+    wfckresults: &WfckResults,
+    params: &[fhir::RefineParam],
+    body: &fhir::Expr,
+    output: &fhir::Sort,
+) -> QueryResult<rty::Lambda> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::list(&cx, 0, assoc_reft.params)?);
-    let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
+    env.push_layer(Layer::list(&cx, 0, params)?);
+    let expr = cx.conv_expr(&mut env, body)?;
     let inputs = env.pop_layer().into_bound_vars(genv)?;
-    let output = conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
+    let output = conv_sort(genv, output, &mut bug_on_infer_sort)?;
     Ok(rty::Lambda::with_vars(expr, inputs, output))
 }
 

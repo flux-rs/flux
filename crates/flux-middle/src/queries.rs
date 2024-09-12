@@ -72,7 +72,7 @@ pub enum QueryErr {
         def_id: DefId,
     },
     InvalidAssocReft {
-        impl_id: DefId,
+        container_def_id: DefId,
         name: Symbol,
     },
     /// Used to report bugs, typically this means executing an arm in a match we though it was
@@ -128,7 +128,7 @@ pub struct Providers {
         GlobalEnv<'genv, '_>,
         LocalDefId,
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
-    pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
+    pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
     pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
@@ -150,6 +150,8 @@ pub struct Providers {
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>,
     pub assoc_refinement_def:
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
+    pub default_assoc_refinement_def:
+        fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
@@ -180,6 +182,7 @@ impl Default for Providers {
             predicates_of: |_, _| empty_query!(),
             assoc_refinements_of: |_, _| empty_query!(),
             assoc_refinement_def: |_, _, _| empty_query!(),
+            default_assoc_refinement_def: |_, _, _| empty_query!(),
             sort_of_assoc_reft: |_, _, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
@@ -192,7 +195,7 @@ pub struct Queries<'genv, 'tcx> {
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
-    fhir_crate: OnceCell<fhir::Crate<'genv>>,
+    fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
     lower_generics_of: Cache<DefId, ty::Generics<'tcx>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
@@ -208,6 +211,8 @@ pub struct Queries<'genv, 'tcx> {
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     assoc_refinements_of: Cache<DefId, QueryResult<rty::AssocRefinements>>,
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    default_assoc_refinement_def:
+        Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
     sort_of_assoc_reft:
         Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
@@ -241,6 +246,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             predicates_of: Default::default(),
             assoc_refinements_of: Default::default(),
             assoc_refinement_def: Default::default(),
+            default_assoc_refinement_def: Default::default(),
             sort_of_assoc_reft: Default::default(),
             item_bounds: Default::default(),
             type_of: Default::default(),
@@ -299,7 +305,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn fhir_crate(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
-    ) -> &'genv fhir::Crate<'genv> {
+    ) -> &'genv fhir::FluxItems<'genv> {
         self.fhir_crate
             .get_or_init(|| (self.providers.fhir_crate)(genv))
     }
@@ -536,6 +542,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    pub(crate) fn default_assoc_refinement_def(
+        &self,
+        genv: GlobalEnv,
+        trait_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+        run_with_cache(&self.default_assoc_refinement_def, (trait_id, name), || {
+            let trait_id = lookup_extern(genv, trait_id).unwrap_or(trait_id);
+            if let Some(local_id) = trait_id.as_local() {
+                (self.providers.default_assoc_refinement_def)(genv, local_id, name)
+            } else if let Some(lam) = genv
+                .cstore()
+                .default_assoc_refinements_def((trait_id, name))
+            {
+                lam
+            } else {
+                Err(query_bug!("TODO: implement for external crates"))
+            }
+        })
+    }
+
     pub(crate) fn sort_of_assoc_reft(
         &self,
         genv: GlobalEnv,
@@ -698,7 +725,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.code(E0999);
                         diag
                     }
-                    QueryErr::InvalidAssocReft { impl_id, name } => {
+                    QueryErr::InvalidAssocReft { container_def_id: impl_id, name } => {
                         let def_span = tcx.def_span(impl_id);
                         let mut diag =
                             dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);

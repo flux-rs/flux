@@ -20,7 +20,7 @@ pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
     FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
@@ -1321,7 +1321,7 @@ impl TyS {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
             (adt_def, args, idx)
         } else {
-            bug!("expected an adt")
+            tracked_span_bug!("expected adt `{self:?}`")
         }
     }
 
@@ -1557,6 +1557,15 @@ impl BaseTy {
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(_, _)
             | BaseTy::Never => Sort::unit(),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
+        if let BaseTy::Adt(adt_def, args) = self {
+            (adt_def, args)
+        } else {
+            tracked_span_bug!("expected adt `{self:?}`")
         }
     }
 }

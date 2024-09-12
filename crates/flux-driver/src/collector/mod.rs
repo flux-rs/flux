@@ -18,16 +18,15 @@ use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemKind, NestedMetaItem,
 };
-use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     self as hir,
     def::DefKind,
     def_id::{LocalDefId, CRATE_DEF_ID},
-    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Span, Symbol, SyntaxContext};
+use rustc_span::{symbol::sym, Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -85,7 +84,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
-        self.specs.extend_items(attrs.items());
+        self.specs
+            .flux_items_by_parent
+            .entry(CRATE_OWNER_ID)
+            .or_default()
+            .extend(attrs.items());
         self.specs.crate_config = attrs.crate_config();
         Ok(())
     }
@@ -106,11 +109,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Enum(enum_def, ..) => {
                 self.collect_enum_def(owner_id, attrs, enum_def)?;
             }
-            ItemKind::Mod(..) => self.collect_mod(attrs)?,
+            ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
             ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., body_id) => {
+                // The flux-rs macro puts defs as an outter attribute on a `const _: () = { }`. We
+                // consider these defs to be defined in the parent of the const.
+                self.specs
+                    .flux_items_by_parent
+                    .entry(self.tcx.hir().get_parent_item(item.hir_id()))
+                    .or_default()
+                    .extend(attrs.items());
+
                 if attrs.extern_spec() {
                     return ExternSpecCollector::collect(self, *body_id);
                 }
@@ -147,8 +158,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
-    fn collect_mod(&mut self, mut attrs: FluxAttrs) -> Result {
-        self.specs.extend_items(attrs.items());
+    fn collect_mod(&mut self, module_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        self.specs
+            .flux_items_by_parent
+            .entry(module_id)
+            .or_default()
+            .extend(attrs.items());
         Ok(())
     }
 
@@ -348,13 +363,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn parse_flux_attr(&mut self, attr_item: &AttrItem, def_kind: DefKind) -> Result<FluxAttr> {
-        let invalid_attr_err = |this: &Self| -> Result<FluxAttr> {
-            Err(this
-                .errors
-                .emit(errors::InvalidAttr { span: attr_item.span() }))
+        let invalid_attr_err = |this: &Self| {
+            this.errors
+                .emit(errors::InvalidAttr { span: attr_item.span() })
         };
 
-        let [_, segment] = &attr_item.path.segments[..] else { return invalid_attr_err(self) };
+        let [_, segment] = &attr_item.path.segments[..] else { return Err(invalid_attr_err(self)) };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", AttrArgs::Delimited(dargs)) => {
@@ -379,7 +393,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                             FluxAttrKind::ImplAssocReft,
                         )?
                     }
-                    _ => return invalid_attr_err(self),
+                    _ => return Err(invalid_attr_err(self)),
                 }
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
@@ -410,28 +424,24 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     .emit(&self.errors)?;
                 FluxAttrKind::CrateConfig(crate_cfg)
             }
-            ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore(Ignored::Yes),
-            ("ignore", AttrArgs::Delimited(dargs)) => {
-                let val = tts_to_string(&dargs.tokens);
-                match &val[..] {
-                    "yes" => FluxAttrKind::Ignore(Ignored::Yes),
-                    "no" => FluxAttrKind::Ignore(Ignored::No),
-                    _ => return invalid_attr_err(self),
-                }
+            ("ignore", _) => {
+                FluxAttrKind::Ignore(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|_| invalid_attr_err(self))?
+                        .into(),
+                )
             }
-            ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted(Trusted::Yes),
-            ("trusted", AttrArgs::Delimited(dargs)) => {
-                let val = tts_to_string(&dargs.tokens);
-                match &val[..] {
-                    "yes" => FluxAttrKind::Trusted(Trusted::Yes),
-                    "no" => FluxAttrKind::Trusted(Trusted::No),
-                    _ => return invalid_attr_err(self),
-                }
+            ("trusted", _) => {
+                FluxAttrKind::Trusted(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|_| invalid_attr_err(self))?
+                        .into(),
+                )
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", AttrArgs::Empty) => FluxAttrKind::ShouldFail,
-            _ => return invalid_attr_err(self),
+            _ => return Err(invalid_attr_err(self)),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
     }
@@ -472,6 +482,48 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(trusted) = attrs.trusted() {
             self.specs.trusted.insert(def_id, trusted);
         }
+    }
+}
+
+fn parse_yes_no_with_reason(attr_item: &AttrItem) -> std::result::Result<bool, ()> {
+    match attr_item.meta_kind().ok_or(())? {
+        MetaItemKind::Word => Ok(true),
+        MetaItemKind::List(items) => {
+            let (b, items) = parse_opt_yes_no(&items, true);
+            let (_, items) = parse_opt_reason(items);
+            if items.is_empty() {
+                Ok(b)
+            } else {
+                Err(())
+            }
+        }
+        _ => Err(()),
+    }
+}
+
+fn parse_opt_yes_no(items: &[NestedMetaItem], default: bool) -> (bool, &[NestedMetaItem]) {
+    let [hd, tl @ ..] = items else { return (default, items) };
+    if hd.is_word() {
+        if hd.has_name(sym::yes) {
+            (true, tl)
+        } else if hd.has_name(sym::no) {
+            (false, tl)
+        } else {
+            (default, items)
+        }
+    } else {
+        (default, items)
+    }
+}
+
+fn parse_opt_reason(items: &[NestedMetaItem]) -> (Option<Symbol>, &[NestedMetaItem]) {
+    let [hd, tl @ ..] = items else { return (None, items) };
+    if let Some(value) = hd.value_str()
+        && hd.has_name(sym::reason)
+    {
+        (Some(value), tl)
+    } else {
+        (None, items)
     }
 }
 
@@ -566,8 +618,8 @@ impl FluxAttrs {
         read_flag!(self, Opaque)
     }
 
-    fn items(&mut self) -> impl Iterator<Item = surface::Item> {
-        read_attrs!(self, Items).into_iter().flatten()
+    fn items(&mut self) -> Vec<surface::Item> {
+        read_attrs!(self, Items).into_iter().flatten().collect()
     }
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {

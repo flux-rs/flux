@@ -2,7 +2,10 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map::Entry;
 
-use flux_common::bug;
+use flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
@@ -20,7 +23,8 @@ use rustc_hir::{
         Namespace::{self, *},
         PerNS,
     },
-    ParamName, PrimTy, CRATE_HIR_ID,
+    def_id::CRATE_DEF_ID,
+    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -28,12 +32,6 @@ use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
 use self::refinement_resolver::RefinementResolver;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
-
-macro_rules! collect_err {
-    ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
-    };
-}
 
 pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
     match try_resolve_crate(genv) {
@@ -47,11 +45,8 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let mut resolver = CrateResolver::new(genv, specs);
 
     genv.hir().walk_toplevel_module(&mut resolver);
-    if let Some(err) = resolver.err {
-        return Err(err);
-    }
 
-    Ok(resolver.into_output())
+    resolver.into_output()
 }
 
 pub(crate) struct CrateResolver<'genv, 'tcx> {
@@ -59,11 +54,16 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     specs: &'genv Specs,
     output: ResolverOutput,
     ribs: PerNS<Vec<Rib>>,
-    extern_crates: Rib,
+    /// A mapping from the names of all imported crates plus the special `crate` keyword to their
+    /// [`DefId`]
+    crates: UnordMap<Symbol, DefId>,
     prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     err: Option<ErrorGuaranteed>,
+    /// The most recent module we have visited. Used to check for visibility of other items from
+    /// this module.
+    current_module: OwnerId,
 }
 
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
@@ -73,7 +73,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             output: ResolverOutput::default(),
             specs,
             ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![] },
-            extern_crates: extern_crates_rib(genv.tcx()),
+            crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Normal),
@@ -82,21 +82,29 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            current_module: CRATE_OWNER_ID,
         }
     }
 
-    fn collect_flux_global_items(&mut self) {
-        for sort_decl in &self.specs.sort_decls {
-            self.sort_decls.insert(
-                sort_decl.name.name,
-                fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-            );
-        }
-
-        for defn in &self.specs.func_defs {
-            let kind =
-                if defn.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
-            self.func_decls.insert(defn.name.name, kind);
+    fn define_flux_global_items(&mut self) {
+        for item in self.specs.flux_items_by_parent.values().flatten() {
+            match item {
+                surface::Item::Qualifier(_) => {}
+                surface::Item::FuncDef(defn) => {
+                    let kind = if defn.body.is_some() {
+                        fhir::SpecFuncKind::Def
+                    } else {
+                        fhir::SpecFuncKind::Uif
+                    };
+                    self.func_decls.insert(defn.name.name, kind);
+                }
+                surface::Item::SortDecl(sort_decl) => {
+                    self.sort_decls.insert(
+                        sort_decl.name.name,
+                        fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+                    );
+                }
+            }
         }
 
         self.func_decls.extend_unord(
@@ -188,17 +196,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
-        RefinementResolver::resolve_qualifier(self, qualifier)
-    }
-
-    fn resolve_defn(&mut self, defn: &surface::SpecFunc) -> Result {
-        RefinementResolver::resolve_defn(self, defn)
+    fn resolve_flux_items(&mut self, parent: OwnerId) {
+        let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
+        for item in items {
+            match item {
+                surface::Item::Qualifier(qual) => {
+                    RefinementResolver::resolve_qualifier(self, qual).collect_err(&mut self.err);
+                }
+                surface::Item::FuncDef(defn) => {
+                    RefinementResolver::resolve_defn(self, defn).collect_err(&mut self.err);
+                }
+                surface::Item::SortDecl(_) => {}
+            }
+        }
     }
 
     fn resolve_trait(&mut self, owner_id: OwnerId) -> Result {
         let trait_ = &self.specs.traits[&owner_id];
-        RefinementResolver::resolve_trait(self, owner_id, trait_)
+        RefinementResolver::resolve_trait(self, trait_)
     }
 
     fn resolve_impl(&mut self, owner_id: OwnerId) -> Result {
@@ -206,7 +221,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
-        RefinementResolver::resolve_impl(self, owner_id, impl_)
+        RefinementResolver::resolve_impl(self, impl_)
     }
 
     fn resolve_type_alias(&mut self, owner_id: OwnerId) -> Result {
@@ -214,7 +229,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })?;
-            RefinementResolver::resolve_ty_alias(self, owner_id, ty_alias)?;
+            RefinementResolver::resolve_ty_alias(self, ty_alias)?;
         }
         Ok(())
     }
@@ -224,7 +239,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })?;
-        RefinementResolver::resolve_struct_def(self, owner_id, struct_def)
+        RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
     fn resolve_enum_def(&mut self, owner_id: OwnerId) -> Result {
@@ -232,7 +247,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
-        RefinementResolver::resolve_enum_def(self, owner_id, enum_def)
+        RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
     fn resolve_fn_sig(&mut self, owner_id: OwnerId) -> Result {
@@ -240,7 +255,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
-            RefinementResolver::resolve_fn_sig(self, owner_id, fn_sig)?;
+            RefinementResolver::resolve_fn_sig(self, fn_sig)?;
         }
         Ok(())
     }
@@ -251,6 +266,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
+
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
@@ -287,8 +303,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
         if ns == TypeNS {
-            if let Some(res) = self.extern_crates.bindings.get(&ident.name) {
-                return Some(*res);
+            if let Some(crate_id) = self.crates.get(&ident.name) {
+                return Some(hir::def::Res::Def(DefKind::Mod, *crate_id));
             }
         }
         if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
@@ -298,10 +314,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_ident_in_module(&self, module_id: DefId, ident: Ident) -> Option<hir::def::Res> {
+        let curr_mod = self.current_module.def_id;
         module_children(self.genv.tcx(), module_id)
             .iter()
             .find_map(|child| {
-                if child.vis.is_public() && child.ident == ident {
+                if child.vis.is_accessible_from(curr_mod, self.genv.tcx()) && child.ident == ident {
                     Some(map_res(child.res))
                 } else {
                     None
@@ -309,8 +326,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             })
     }
 
-    pub fn into_output(self) -> ResolverOutput {
-        self.output
+    pub fn into_output(self) -> Result<ResolverOutput> {
+        self.err.into_result()?;
+        Ok(self.output)
     }
 }
 
@@ -322,25 +340,26 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+        let old_mod = self.current_module;
+        self.current_module = hir_id.expect_owner();
         self.push_rib(TypeNS, RibKind::Module);
         self.push_rib(ValueNS, RibKind::Module);
 
         self.define_items(module.item_ids);
 
-        // Flux items are always defined at the top-level
+        // Flux items are made globally available as if they were defined at the top of the crate
         if hir_id == CRATE_HIR_ID {
-            self.collect_flux_global_items();
-            for qualifier in &self.specs.qualifs {
-                collect_err!(self, self.resolve_qualifier(qualifier));
-            }
-
-            for defn in &self.specs.func_defs {
-                collect_err!(self, self.resolve_defn(defn));
-            }
+            self.define_flux_global_items();
         }
+
+        // But we resolved names in them as if they were defined in their containing module
+        self.resolve_flux_items(hir_id.expect_owner());
+
         hir::intravisit::walk_mod(self, module, hir_id);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
+        self.current_module = old_mod;
     }
 
     fn visit_block(&mut self, block: &'tcx hir::Block<'tcx>) {
@@ -355,8 +374,10 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             }
         });
         self.define_items(item_ids);
+        self.resolve_flux_items(self.genv.hir().get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(self, block);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
@@ -365,8 +386,10 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         if self.genv.is_dummy(item.owner_id.def_id) {
             return;
         }
+
         self.push_rib(TypeNS, RibKind::Normal);
         self.push_rib(ValueNS, RibKind::Normal);
+
         match item.kind {
             ItemKind::Trait(_, _, generics, ..) => {
                 self.define_generics(generics);
@@ -375,7 +398,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_trait(item.owner_id));
+                self.resolve_trait(item.owner_id).collect_err(&mut self.err);
             }
             ItemKind::Impl(impl_) => {
                 self.define_generics(impl_.generics);
@@ -388,11 +411,12 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_impl(item.owner_id));
+                self.resolve_impl(item.owner_id).collect_err(&mut self.err);
             }
             ItemKind::TyAlias(_, generics) => {
                 self.define_generics(generics);
-                collect_err!(self, self.resolve_type_alias(item.owner_id));
+                self.resolve_type_alias(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Enum(.., generics) => {
                 self.define_generics(generics);
@@ -405,7 +429,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_enum_def(item.owner_id));
+                self.resolve_enum_def(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Struct(.., generics) => {
                 self.define_generics(generics);
@@ -418,15 +443,19 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                collect_err!(self, self.resolve_struct_def(item.owner_id));
+                self.resolve_struct_def(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Fn(_, generics, _) => {
                 self.define_generics(generics);
-                collect_err!(self, self.resolve_fn_sig(item.owner_id));
+                self.resolve_fn_sig(item.owner_id)
+                    .collect_err(&mut self.err);
             }
             _ => {}
         }
+
         hir::intravisit::walk_item(self, item);
+
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
@@ -435,7 +464,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(impl_item.generics);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
+            self.resolve_fn_sig(impl_item.owner_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -445,7 +475,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(trait_item.generics);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
+            self.resolve_fn_sig(trait_item.owner_id)
+                .collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
@@ -496,7 +527,7 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }
 
-/// Abstraction over [`surface::PathSegment`] and [`surface::PathExprSegment`]
+/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
 trait Segment {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
@@ -515,7 +546,7 @@ impl Segment for surface::PathSegment {
     }
 }
 
-impl Segment for surface::PathExprSegment {
+impl Segment for surface::ExprPathSegment {
     fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
 
     fn ident(&self) -> Ident {
@@ -869,18 +900,18 @@ fn builtin_types_rib() -> Rib {
     }
 }
 
-fn extern_crates_rib(tcx: TyCtxt) -> Rib {
-    let mut rib = Rib::new(RibKind::Normal);
+fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
+    let mut map = UnordMap::default();
+    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
         if let Some(extern_crate) = tcx.extern_crate(*cnum)
             && extern_crate.is_direct()
         {
-            rib.bindings
-                .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+            map.insert(name, cnum.as_def_id());
         }
     }
-    rib
+    map
 }
 
 mod errors {

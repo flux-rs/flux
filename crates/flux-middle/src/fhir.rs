@@ -41,7 +41,7 @@ use rustc_target::spec::abi;
 
 use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
 
-/// A boolean used to mark whether a piece of code is ignored.
+/// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Ignored {
     Yes,
@@ -57,7 +57,17 @@ impl Ignored {
     }
 }
 
-/// A boolean used to mark whether to mark wether code should be trusted.
+impl From<bool> for Ignored {
+    fn from(value: bool) -> Self {
+        if value {
+            Ignored::Yes
+        } else {
+            Ignored::No
+        }
+    }
+}
+
+/// A boolean-like enum used to mark whether some code should be trusted.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Trusted {
     Yes,
@@ -69,6 +79,16 @@ impl Trusted {
         match self {
             Trusted::Yes => true,
             Trusted::No => false,
+        }
+    }
+}
+
+impl From<bool> for Trusted {
+    fn from(value: bool) -> Self {
+        if value {
+            Trusted::Yes
+        } else {
+            Trusted::No
         }
     }
 }
@@ -185,6 +205,14 @@ impl<'fhir> Item<'fhir> {
             bug!("expected impl")
         }
     }
+
+    pub fn expect_trait(&self) -> &Trait<'fhir> {
+        if let ItemKind::Trait(trait_) = &self.kind {
+            trait_
+        } else {
+            bug!("expected trait")
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -298,6 +326,7 @@ pub struct TraitAssocReft<'fhir> {
     pub name: Symbol,
     pub params: &'fhir [RefineParam<'fhir>],
     pub output: Sort<'fhir>,
+    pub body: Option<Expr<'fhir>>,
     pub span: Span,
 }
 
@@ -335,13 +364,13 @@ pub type Arena = bumpalo::Bump;
 /// note: most items in this struct have been moved out into their own query or method in genv.
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
-pub struct Crate<'fhir> {
-    pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
+pub struct FluxItems<'fhir> {
+    pub items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 
-impl<'fhir> Crate<'fhir> {
+impl<'fhir> FluxItems<'fhir> {
     pub fn new() -> Self {
-        Self { flux_items: Default::default() }
+        Self { items: Default::default() }
     }
 }
 
@@ -720,10 +749,7 @@ pub struct RefineParam<'fhir> {
     pub fhir_id: FhirId,
 }
 
-/// How the parameter was declared in the surface syntax. This is used to adjust how errors are
-/// reported and to control the [inference mode].
-///
-/// [inference mode]: InferMode
+/// How a parameter was declared in the surface syntax.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ParamKind {
     /// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
@@ -835,7 +861,7 @@ pub enum Sort<'fhir> {
 #[derive(Clone, Copy)]
 pub struct SortPath<'fhir> {
     pub res: SortRes,
-    pub segment: Ident,
+    pub segments: &'fhir [Ident],
     pub args: &'fhir [Sort<'fhir>],
 }
 
@@ -903,6 +929,16 @@ pub enum ExprRes<Id = ParamId> {
 }
 
 impl<Id> ExprRes<Id> {
+    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> ExprRes<R> {
+        match self {
+            ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
+            ExprRes::Const(def_id) => ExprRes::Const(def_id),
+            ExprRes::NumConst(val) => ExprRes::NumConst(val),
+            ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
+            ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
+        }
+    }
+
     pub fn expect_param(self) -> (ParamKind, Id) {
         if let ExprRes::Param(kind, id) = self {
             (kind, id)

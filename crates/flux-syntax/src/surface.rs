@@ -175,12 +175,11 @@ pub enum BaseSort {
     Path(SortPath),
 }
 
-/// A [`Path`] but for sorts. Currently, we only support paths with one segment, so one can hardly
-/// call this a path, but we may change this later if we improve the resolver.
+/// A [`Path`] but for sorts.
 #[derive(Debug)]
 pub struct SortPath {
-    /// The identifier of the single segment in the path, i.e., `Map` in `Map<int, bool>`.
-    pub segment: Ident,
+    /// The segments in the path
+    pub segments: Vec<Ident>,
     /// The sort arguments, i.e., the list `[int, bool]` in `Map<int, bool>`.
     pub args: Vec<BaseSort>,
     pub node_id: NodeId,
@@ -211,6 +210,7 @@ pub struct TraitAssocReft {
     pub name: Ident,
     pub params: RefineParams,
     pub output: BaseSort,
+    pub body: Option<Expr>,
     pub span: Span,
 }
 
@@ -455,8 +455,8 @@ pub struct Expr {
 
 #[derive(Debug)]
 pub enum ExprKind {
-    Path(PathExpr),
-    Dot(PathExpr, Ident),
+    Path(ExprPath),
+    Dot(ExprPath, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -465,15 +465,16 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
 }
 
+/// A [`Path`] but for refinement expressions
 #[derive(Debug, Clone)]
-pub struct PathExpr {
-    pub segments: Vec<PathExprSegment>,
+pub struct ExprPath {
+    pub segments: Vec<ExprPathSegment>,
     pub node_id: NodeId,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub struct PathExprSegment {
+pub struct ExprPathSegment {
     pub ident: Ident,
     pub node_id: NodeId,
 }

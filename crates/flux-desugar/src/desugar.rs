@@ -151,7 +151,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         } else {
             self.as_lift_cx().lift_generics()?
         };
-        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements);
+        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements)?;
         let trait_ = fhir::Trait { assoc_refinements };
 
         if config::dump_fhir() {
@@ -162,16 +162,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn desugar_trait_assoc_refts(
-        &self,
+        &mut self,
         assoc_refts: &[surface::TraitAssocReft],
-    ) -> &'genv [fhir::TraitAssocReft<'genv>] {
-        self.genv
-            .alloc_slice_fill_iter(assoc_refts.iter().map(|assoc_reft| {
-                let name = assoc_reft.name.name;
-                let params = self.desugar_refine_params(&assoc_reft.params);
-                let output = self.desugar_base_sort(&assoc_reft.output, None);
-                fhir::TraitAssocReft { name, params, output, span: assoc_reft.span }
-            }))
+    ) -> Result<&'genv [fhir::TraitAssocReft<'genv>]> {
+        try_alloc_slice!(self.genv, assoc_refts, |assoc_reft| {
+            let name = assoc_reft.name.name;
+            let params = self.desugar_refine_params(&assoc_reft.params);
+            let output = self.desugar_base_sort(&assoc_reft.output, None);
+            let body = match &assoc_reft.body {
+                Some(expr) => Some(self.desugar_expr(expr)?),
+                None => None,
+            };
+            Ok(fhir::TraitAssocReft { name, params, output, body, span: assoc_reft.span })
+        })
     }
 
     pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Item<'genv>> {
@@ -873,10 +876,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_var(&self, path: &surface::PathExpr) -> Result<fhir::ExprKind<'genv>> {
+    fn desugar_var(&self, path: &surface::ExprPath) -> Result<fhir::ExprKind<'genv>> {
         let res = *self
             .resolver_output()
-            .path_expr_res_map
+            .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
 
@@ -898,7 +901,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<ExprRes> {
-        let res = self.resolver_output().path_expr_res_map[&node_id];
+        let res = self.resolver_output().expr_path_res_map[&node_id];
         if let ExprRes::Param(fhir::ParamKind::Loc, _) = res {
             Ok(res)
         } else {
@@ -909,7 +912,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::PathExpr<'genv>> {
-        let res = self.resolver_output().path_expr_res_map[&node_id];
+        let res = self.resolver_output().expr_path_res_map[&node_id];
         if let ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
             let segments = self.genv().alloc_slice(&[func]);
             Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: func.span })
@@ -1359,7 +1362,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)?))
             }
             surface::ExprKind::Dot(path, fld) => {
-                let res = self.resolver_output().path_expr_res_map[&path.node_id];
+                let res = self.resolver_output().expr_path_res_map[&path.node_id];
                 if let ExprRes::Param(..) = res {
                     let segments = self
                         .genv()
@@ -1479,7 +1482,7 @@ fn desugar_base_sort<'genv>(
 ) -> fhir::Sort<'genv> {
     match bsort {
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
-        surface::BaseSort::Path(surface::SortPath { segment, args, node_id }) => {
+        surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) => {
             let res = resolver_output.sort_path_res_map[node_id];
 
             // In a `RefinedBy` we resolve type parameters to a sort var
@@ -1497,7 +1500,7 @@ fn desugar_base_sort<'genv>(
                     .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
             );
 
-            let path = fhir::SortPath { res, segment: *segment, args };
+            let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
             fhir::Sort::Path(path)
         }
     }
