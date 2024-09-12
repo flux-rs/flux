@@ -942,12 +942,14 @@
 <a href="#942" id="942">942</a>
 <a href="#943" id="943">943</a>
 <a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
 
-<span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+};
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, Res},
@@ -974,12 +976,6 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="macro">macro_rules!</span> collect_err {
-    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {
-        <span class="macro-nonterminal">$self</span>.err = <span class="macro-nonterminal">$body</span>.err().or(<span class="macro-nonterminal">$self</span>.err)
-    };
-}
-
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_crate(genv: GlobalEnv) -&gt; ResolverOutput {
     <span class="kw">match </span>try_resolve_crate(genv) {
         <span class="prelude-val">Ok</span>(output) =&gt; output,
@@ -992,11 +988,8 @@
     <span class="kw">let </span><span class="kw-2">mut </span>resolver = CrateResolver::new(genv, specs);
 
     genv.hir().walk_toplevel_module(<span class="kw-2">&amp;mut </span>resolver);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = resolver.err {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
-    }
 
-    <span class="prelude-val">Ok</span>(resolver.into_output())
+    resolver.into_output()
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1145,22 +1138,14 @@
         <span class="kw">for </span>item <span class="kw">in </span>items {
             <span class="kw">match </span>item {
                 surface::Item::Qualifier(qual) =&gt; {
-                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_qualifier(qual));
+                    RefinementResolver::resolve_qualifier(<span class="self">self</span>, qual).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
                 }
                 surface::Item::FuncDef(defn) =&gt; {
-                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_defn(defn));
+                    RefinementResolver::resolve_defn(<span class="self">self</span>, defn).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
                 }
                 surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
             }
         }
-    }
-
-    <span class="kw">fn </span>resolve_qualifier(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qualifier: <span class="kw-2">&amp;</span>surface::Qualifier) -&gt; <span class="prelude-ty">Result </span>{
-        RefinementResolver::resolve_qualifier(<span class="self">self</span>, qualifier)
-    }
-
-    <span class="kw">fn </span>resolve_defn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defn: <span class="kw-2">&amp;</span>surface::SpecFunc) -&gt; <span class="prelude-ty">Result </span>{
-        RefinementResolver::resolve_defn(<span class="self">self</span>, defn)
     }
 
     <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
@@ -1276,8 +1261,9 @@
             })
     }
 
-    <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; ResolverOutput {
-        <span class="self">self</span>.output
+    <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;ResolverOutput&gt; {
+        <span class="self">self</span>.err.into_result()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.output)
     }
 }
 
@@ -1303,6 +1289,7 @@
         </span><span class="self">self</span>.resolve_flux_items(hir_id.expect_owner());
 
         hir::intravisit::walk_mod(<span class="self">self</span>, module, hir_id);
+
         <span class="self">self</span>.pop_rib(ValueNS);
         <span class="self">self</span>.pop_rib(TypeNS);
     }
@@ -1322,6 +1309,7 @@
         <span class="self">self</span>.resolve_flux_items(<span class="self">self</span>.genv.hir().get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(<span class="self">self</span>, block);
+
         <span class="self">self</span>.pop_rib(ValueNS);
         <span class="self">self</span>.pop_rib(TypeNS);
     }
@@ -1330,8 +1318,10 @@
         <span class="kw">if </span><span class="self">self</span>.genv.is_dummy(item.owner_id.def_id) {
             <span class="kw">return</span>;
         }
+
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
         <span class="self">self</span>.push_rib(ValueNS, RibKind::Normal);
+
         <span class="kw">match </span>item.kind {
             ItemKind::Trait(<span class="kw">_</span>, <span class="kw">_</span>, generics, ..) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
@@ -1340,7 +1330,7 @@
                     hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
                     TypeNS,
                 );
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_trait(item.owner_id));
+                <span class="self">self</span>.resolve_trait(item.owner_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::Impl(impl_) =&gt; {
                 <span class="self">self</span>.define_generics(impl_.generics);
@@ -1353,11 +1343,12 @@
                     },
                     TypeNS,
                 );
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_impl(item.owner_id));
+                <span class="self">self</span>.resolve_impl(item.owner_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::TyAlias(<span class="kw">_</span>, generics) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_type_alias(item.owner_id));
+                <span class="self">self</span>.resolve_type_alias(item.owner_id)
+                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::Enum(.., generics) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
@@ -1370,7 +1361,8 @@
                     },
                     TypeNS,
                 );
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_enum_def(item.owner_id));
+                <span class="self">self</span>.resolve_enum_def(item.owner_id)
+                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::Struct(.., generics) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
@@ -1383,15 +1375,19 @@
                     },
                     TypeNS,
                 );
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_struct_def(item.owner_id));
+                <span class="self">self</span>.resolve_struct_def(item.owner_id)
+                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::Fn(<span class="kw">_</span>, generics, <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
-                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(item.owner_id));
+                <span class="self">self</span>.resolve_fn_sig(item.owner_id)
+                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             <span class="kw">_ </span>=&gt; {}
         }
+
         hir::intravisit::walk_item(<span class="self">self</span>, item);
+
         <span class="self">self</span>.pop_rib(ValueNS);
         <span class="self">self</span>.pop_rib(TypeNS);
     }
@@ -1400,7 +1396,8 @@
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
         <span class="self">self</span>.define_generics(impl_item.generics);
         <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
-            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id));
+            <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
         }
         hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
         <span class="self">self</span>.pop_rib(TypeNS);
@@ -1410,7 +1407,8 @@
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
         <span class="self">self</span>.define_generics(trait_item.generics);
         <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
-            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id));
+            <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
         }
         hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
         <span class="self">self</span>.pop_rib(TypeNS);

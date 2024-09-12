@@ -2550,7 +2550,7 @@
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Lambda&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body {
         <span class="kw">let </span>res =
-            conv_assoc_reft_body(genv, wfckresults, <span class="kw-2">&amp;</span>assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+            conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(res))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)

@@ -652,7 +652,7 @@
         <span class="self">self</span>.inner.queries.desugar(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
+    <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.inner.queries.fhir_crate(<span class="self">self</span>)
     }
 
@@ -1038,11 +1038,11 @@
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>Map&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
+    fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Map&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, fhir }
     }
 
@@ -1067,7 +1067,7 @@
     }
 
     <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
+        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
     }
 
     <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -1081,7 +1081,7 @@
     }
 
     <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
+        <span class="self">self</span>.fhir.items.values().filter_map(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
                 <span class="prelude-val">Some</span>(defn)
             } <span class="kw">else </span>{
@@ -1091,7 +1091,7 @@
     }
 
     <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).and_then(|item| {
+        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>name).and_then(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
                 <span class="prelude-val">Some</span>(defn)
             } <span class="kw">else </span>{
@@ -1101,7 +1101,7 @@
     }
 
     <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
+        <span class="self">self</span>.fhir.items.values().filter_map(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item {
                 <span class="prelude-val">Some</span>(qual)
             } <span class="kw">else </span>{

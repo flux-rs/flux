@@ -775,8 +775,8 @@
     <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
     vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="kw-2">&amp;</span>assoc_reft.body {
-        vis.visit_expr(expr)
-    };
+        vis.visit_expr(expr);
+    }
 }
 
 <span class="kw">pub fn </span>walk_impl_assoc_reft&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft&lt;<span class="lifetime">'v</span>&gt;) {

@@ -282,12 +282,6 @@
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
@@ -300,7 +294,11 @@
 <span class="kw">extern crate </span>rustc_span;
 
 <span class="kw">use </span>desugar::RustItemCtxt;
-<span class="kw">use </span>flux_common::{bug, span_bug};
+<span class="kw">use </span>flux_common::{
+    bug,
+    result::{ErrorCollector, ResultExt},
+    span_bug,
+};
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
 
@@ -496,7 +494,7 @@
     }
 }
 
-<span class="kw">fn </span>desugar_crate&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
+<span class="kw">fn </span>desugar_crate&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt; {
     <span class="kw">match </span>try_desugar_crate(genv) {
         <span class="prelude-val">Ok</span>(fhir) =&gt; fhir,
         <span class="prelude-val">Err</span>(err) =&gt; {
@@ -509,30 +507,20 @@
     }
 }
 
-<span class="kw">fn </span>try_desugar_crate&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<span class="kw">fn </span>try_desugar_crate&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;&gt; {
     <span class="kw">let </span>specs = genv.collect_specs();
-    <span class="kw">let </span>fhir = fhir::Crate::new();
+    <span class="kw">let </span>fhir = fhir::FluxItems::new();
     <span class="kw">let </span>resolver_output = genv.resolve_crate();
     <span class="kw">let </span><span class="kw-2">mut </span>cx = CrateDesugar::new(genv, fhir, resolver_output);
     cx.desugar_flux_items(specs);
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = cx.err {
-        <span class="prelude-val">Err</span>(err)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(cx.fhir)
-    }
-}
-
-<span class="macro">macro_rules!</span> collect_err {
-    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>try_block = || -&gt; std::result::Result&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; { <span class="macro-nonterminal">$body </span>};
-        <span class="macro-nonterminal">$self</span>.err = try_block().err().or(<span class="macro-nonterminal">$self</span>.err)
-    };
+    cx.err.into_result()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(cx.fhir)
 }
 
 <span class="kw">struct </span>CrateDesugar&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    fhir: fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
+    fhir: fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
     err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
 }
@@ -540,7 +528,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateDesugar&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        fhir: fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
+        fhir: fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;,
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, fhir, resolver_output, err: <span class="prelude-val">None </span>}
@@ -552,10 +540,10 @@
         <span class="kw">for </span>item <span class="kw">in </span>specs.flux_items_by_parent.values().flatten() {
             <span class="kw">match </span>item {
                 surface::Item::Qualifier(qual) =&gt; {
-                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_qualifier(qual));
+                    <span class="self">self</span>.desugar_qualifier(qual).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
                 }
                 surface::Item::FuncDef(defn) =&gt; {
-                    <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_func_defn(defn));
+                    <span class="self">self</span>.desugar_func_defn(defn).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
                 }
                 surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
             }
@@ -565,7 +553,7 @@
     <span class="kw">fn </span>desugar_func_defn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>surface::SpecFunc) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>func = desugar::desugar_spec_func(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, func)<span class="question-mark">?</span>;
         <span class="self">self</span>.fhir
-            .flux_items
+            .items
             .insert(func.name, fhir::FluxItem::Func(func));
         <span class="prelude-val">Ok</span>(())
     }
@@ -573,7 +561,7 @@
     <span class="kw">fn </span>desugar_qualifier(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qualifier: <span class="kw-2">&amp;</span>surface::Qualifier) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>qualifier = desugar::desugar_qualifier(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, qualifier)<span class="question-mark">?</span>;
         <span class="self">self</span>.fhir
-            .flux_items
+            .items
             .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
         <span class="prelude-val">Ok</span>(())
     }

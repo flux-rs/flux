@@ -935,7 +935,7 @@
         GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         LocalDefId,
     ) -&gt; QueryResult&lt;UnordMap&lt;LocalDefId, fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
-    <span class="kw">pub </span>fhir_crate: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
+    <span class="kw">pub </span>fhir_crate: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;,
     <span class="kw">pub </span>qualifiers: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;,
     <span class="kw">pub </span>spec_func_defns: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt;,
     <span class="kw">pub </span>spec_func_decl: <span class="kw">fn</span>(GlobalEnv, Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt;,
@@ -1002,7 +1002,7 @@
     collect_specs: OnceCell&lt;<span class="kw">crate</span>::Specs&gt;,
     resolve_crate: OnceCell&lt;<span class="kw">crate</span>::ResolverOutput&gt;,
     desugar: Cache&lt;LocalDefId, QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
-    fhir_crate: OnceCell&lt;fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;&gt;,
+    fhir_crate: OnceCell&lt;fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;&gt;,
     lower_generics_of: Cache&lt;DefId, ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     lower_predicates_of: Cache&lt;DefId, QueryResult&lt;ty::GenericPredicates&gt;&gt;,
     lower_type_of: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt;&gt;,
@@ -1112,7 +1112,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fhir_crate(
         <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="self">self</span>,
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.fhir_crate
             .get_or_init(|| (<span class="self">self</span>.providers.fhir_crate)(genv))
     }

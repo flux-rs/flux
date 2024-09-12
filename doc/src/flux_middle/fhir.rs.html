@@ -1868,13 +1868,13 @@
 /// note: most items in this struct have been moved out into their own query or method in genv.
 /// We should eventually get rid of this or change its name.
 </span><span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>Crate&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>flux_items: FxHashMap&lt;Symbol, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
+</span><span class="kw">pub struct </span>FluxItems&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>items: FxHashMap&lt;Symbol, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Crate&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; FluxItems&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ flux_items: Default::default() }
+        <span class="self">Self </span>{ items: Default::default() }
     }
 }
 
