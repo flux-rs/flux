@@ -54,8 +54,9 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     specs: &'genv Specs,
     output: ResolverOutput,
     ribs: PerNS<Vec<Rib>>,
-    /// Rib containing the names of all imported crates plus the special `crate` keyword.
-    crates: Rib,
+    /// A mapping from the names of all imported crates plus the special `crate` keyword to their
+    /// [`DefId`]
+    crates: UnordMap<Symbol, DefId>,
     prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
@@ -72,7 +73,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             output: ResolverOutput::default(),
             specs,
             ribs: PerNS { type_ns: vec![], value_ns: vec![], macro_ns: vec![] },
-            crates: crates_rib(genv.tcx()),
+            crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Normal),
@@ -302,8 +303,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
         if ns == TypeNS {
-            if let Some(res) = self.crates.bindings.get(&ident.name) {
-                return Some(*res);
+            if let Some(crate_id) = self.crates.get(&ident.name) {
+                return Some(hir::def::Res::Def(DefKind::Mod, *crate_id));
             }
         }
         if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
@@ -899,20 +900,18 @@ fn builtin_types_rib() -> Rib {
     }
 }
 
-fn crates_rib(tcx: TyCtxt) -> Rib {
-    let mut rib = Rib::new(RibKind::Normal);
+fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
+    let mut map = UnordMap::default();
+    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
         if let Some(extern_crate) = tcx.extern_crate(*cnum)
             && extern_crate.is_direct()
         {
-            rib.bindings
-                .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+            map.insert(name, cnum.as_def_id());
         }
     }
-    rib.bindings
-        .insert(kw::Crate, hir::def::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
-    rib
+    map
 }
 
 mod errors {

@@ -465,6 +465,7 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
 }
 
+/// A [`Path`] but for refinement expressions
 #[derive(Debug, Clone)]
 pub struct ExprPath {
     pub segments: Vec<ExprPathSegment>,
