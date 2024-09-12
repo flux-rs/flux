@@ -749,10 +749,7 @@ pub struct RefineParam<'fhir> {
     pub fhir_id: FhirId,
 }
 
-/// How the parameter was declared in the surface syntax. This is used to adjust how errors are
-/// reported and to control the [inference mode].
-///
-/// [inference mode]: InferMode
+/// How a parameter was declared in the surface syntax.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ParamKind {
     /// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
@@ -932,6 +929,16 @@ pub enum ExprRes<Id = ParamId> {
 }
 
 impl<Id> ExprRes<Id> {
+    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> ExprRes<R> {
+        match self {
+            ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
+            ExprRes::Const(def_id) => ExprRes::Const(def_id),
+            ExprRes::NumConst(val) => ExprRes::NumConst(val),
+            ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
+            ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
+        }
+    }
+
     pub fn expect_param(self) -> (ParamKind, Id) {
         if let ExprRes::Param(kind, id) = self {
             (kind, id)

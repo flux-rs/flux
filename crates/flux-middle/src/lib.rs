@@ -394,17 +394,17 @@ impl Specs {
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::PartialRes>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
-    /// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
-    /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,
-    /// this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this
-    /// is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
+    /// Resolution of explicitly and implicitly scoped parameters. The [`fhir::ParamId`] is unique
+    /// per item. The [`NodeId`] used as the key corresponds to the node introducing the parameter.
+    /// When explicit, this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`],
+    /// when implicit, this is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
     pub param_res_map: UnordMap<NodeId, (fhir::ParamId, fhir::ParamKind)>,
-    /// List of implicit params defined in a scope. The [`NodeId`] used as key is the id of the node
-    /// introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
-    /// The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
+    /// List of implicitly scoped params defined in a scope. The [`NodeId`] used as key is the id of
+    /// the node introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or
+    /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
-    pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,
+    pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
 /// This enum serves as a type-level reminder that local ids can refer to extern specs. The

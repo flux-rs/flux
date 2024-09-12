@@ -876,10 +876,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_var(&self, path: &surface::PathExpr) -> Result<fhir::ExprKind<'genv>> {
+    fn desugar_var(&self, path: &surface::ExprPath) -> Result<fhir::ExprKind<'genv>> {
         let res = *self
             .resolver_output()
-            .path_expr_res_map
+            .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
 
@@ -901,7 +901,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<ExprRes> {
-        let res = self.resolver_output().path_expr_res_map[&node_id];
+        let res = self.resolver_output().expr_path_res_map[&node_id];
         if let ExprRes::Param(fhir::ParamKind::Loc, _) = res {
             Ok(res)
         } else {
@@ -912,7 +912,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::PathExpr<'genv>> {
-        let res = self.resolver_output().path_expr_res_map[&node_id];
+        let res = self.resolver_output().expr_path_res_map[&node_id];
         if let ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
             let segments = self.genv().alloc_slice(&[func]);
             Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: func.span })
@@ -1362,7 +1362,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)?))
             }
             surface::ExprKind::Dot(path, fld) => {
-                let res = self.resolver_output().path_expr_res_map[&path.node_id];
+                let res = self.resolver_output().expr_path_res_map[&path.node_id];
                 if let ExprRes::Param(..) = res {
                     let segments = self
                         .genv()

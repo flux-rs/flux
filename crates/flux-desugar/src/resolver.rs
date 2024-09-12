@@ -206,7 +206,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_trait(&mut self, owner_id: OwnerId) -> Result {
         let trait_ = &self.specs.traits[&owner_id];
-        RefinementResolver::resolve_trait(self, owner_id, trait_)
+        RefinementResolver::resolve_trait(self, trait_)
     }
 
     fn resolve_impl(&mut self, owner_id: OwnerId) -> Result {
@@ -214,7 +214,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
-        RefinementResolver::resolve_impl(self, owner_id, impl_)
+        RefinementResolver::resolve_impl(self, impl_)
     }
 
     fn resolve_type_alias(&mut self, owner_id: OwnerId) -> Result {
@@ -222,7 +222,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })?;
-            RefinementResolver::resolve_ty_alias(self, owner_id, ty_alias)?;
+            RefinementResolver::resolve_ty_alias(self, ty_alias)?;
         }
         Ok(())
     }
@@ -232,7 +232,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })?;
-        RefinementResolver::resolve_struct_def(self, owner_id, struct_def)
+        RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
     fn resolve_enum_def(&mut self, owner_id: OwnerId) -> Result {
@@ -240,7 +240,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
-        RefinementResolver::resolve_enum_def(self, owner_id, enum_def)
+        RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
     fn resolve_fn_sig(&mut self, owner_id: OwnerId) -> Result {
@@ -248,7 +248,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
-            RefinementResolver::resolve_fn_sig(self, owner_id, fn_sig)?;
+            RefinementResolver::resolve_fn_sig(self, fn_sig)?;
         }
         Ok(())
     }
@@ -534,7 +534,7 @@ impl Segment for surface::PathSegment {
     }
 }
 
-impl Segment for surface::PathExprSegment {
+impl Segment for surface::ExprPathSegment {
     fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
 
     fn ident(&self) -> Ident {

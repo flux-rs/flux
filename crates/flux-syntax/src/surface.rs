@@ -456,8 +456,8 @@ pub struct Expr {
 
 #[derive(Debug)]
 pub enum ExprKind {
-    Path(PathExpr),
-    Dot(PathExpr, Ident),
+    Path(ExprPath),
+    Dot(ExprPath, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -467,14 +467,14 @@ pub enum ExprKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct PathExpr {
-    pub segments: Vec<PathExprSegment>,
+pub struct ExprPath {
+    pub segments: Vec<ExprPathSegment>,
     pub node_id: NodeId,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub struct PathExprSegment {
+pub struct ExprPathSegment {
     pub ident: Ident,
     pub node_id: NodeId,
 }
