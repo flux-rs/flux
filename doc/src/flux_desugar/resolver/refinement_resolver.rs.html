@@ -978,6 +978,11 @@
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -995,12 +1000,9 @@
     unord::UnordMap,
 };
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::{
-    <span class="self">self </span><span class="kw">as </span>hir,
-    def::{
-        DefKind,
-        Namespace::{TypeNS, ValueNS},
-    },
+<span class="kw">use </span>rustc_hir::def::{
+    DefKind,
+    Namespace::{TypeNS, ValueNS},
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{sym, ErrorGuaranteed, Symbol};
@@ -1499,7 +1501,7 @@
             <span class="self">self</span>.path_res_map.insert(path.node_id, res);
             <span class="kw">return</span>;
         }
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_with_ribs(<span class="kw-2">&amp;</span>path.segments) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>path.segments) {
             <span class="self">self</span>.path_res_map.insert(path.node_id, res);
             <span class="kw">return</span>;
         }
@@ -1524,7 +1526,7 @@
             <span class="self">self</span>.path_res_map.insert(node_id, res);
             <span class="kw">return</span>;
         }
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_with_ribs(<span class="kw-2">&amp;</span>[ident]) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_expr_with_ribs(<span class="kw-2">&amp;</span>[ident]) {
             <span class="self">self</span>.path_res_map.insert(node_id, res);
             <span class="kw">return</span>;
         }
@@ -1535,7 +1537,10 @@
         <span class="self">self</span>.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    <span class="kw">fn </span>try_resolve_with_ribs&lt;S: Segment&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segments: <span class="kw-2">&amp;</span>[S]) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
+    <span class="kw">fn </span>try_resolve_expr_with_ribs&lt;S: Segment&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        segments: <span class="kw-2">&amp;</span>[S],
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
         <span class="kw">let </span>res = <span class="self">self
             </span>.resolver
             .resolve_path_with_ribs(segments, ValueNS)<span class="question-mark">?
@@ -1561,8 +1566,6 @@
     }
 
     <span class="kw">fn </span>resolve_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) {
-        <span class="kw">let </span>segment = path.segment;
-
         <span class="kw">let </span>res = <span class="self">self
             </span>.try_resolve_sort_param(path)
             .or_else(|| <span class="self">self</span>.try_resolve_sort_with_ribs(path))
@@ -1575,38 +1578,37 @@
                 .sort_path_res_map
                 .insert(path.node_id, res);
         } <span class="kw">else </span>{
-            <span class="self">self</span>.errors.emit(errors::UnresolvedSort::new(segment));
+            <span class="self">self</span>.errors.emit(errors::UnresolvedSort::new(path));
         }
     }
 
     <span class="kw">fn </span>try_resolve_sort_param(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
-        <span class="kw">let </span>segment = path.segment;
+        <span class="kw">let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
         <span class="self">self</span>.sort_params
             .get_index_of(<span class="kw-2">&amp;</span>segment.name)
             .map(fhir::SortRes::SortParam)
     }
 
-    <span class="kw">fn </span>try_resolve_sort_with_ribs(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
+    <span class="kw">fn </span>try_resolve_sort_with_ribs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
         <span class="kw">let </span>res = <span class="self">self
             </span>.resolver
-            .resolve_ident_with_ribs(path.segment, TypeNS)<span class="question-mark">?</span>;
+            .resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS)<span class="question-mark">?
+            </span>.full_res()<span class="question-mark">?</span>;
         <span class="kw">match </span>res {
-            hir::def::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) =&gt; {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) =&gt; {
                 <span class="prelude-val">Some</span>(fhir::SortRes::Adt(def_id))
             }
-            hir::def::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
-            hir::def::Res::SelfTyParam { trait_ } =&gt; {
+            fhir::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
+            fhir::Res::SelfTyParam { trait_ } =&gt; {
                 <span class="prelude-val">Some</span>(fhir::SortRes::SelfParam { trait_id: trait_ })
             }
-            hir::def::Res::SelfTyAlias { alias_to, .. } =&gt; {
-                <span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to })
-            }
+            fhir::Res::SelfTyAlias { alias_to, .. } =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to }),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 
     <span class="kw">fn </span>try_resolve_user_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
-        <span class="kw">let </span>segment = path.segment;
+        <span class="kw">let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
         <span class="self">self</span>.resolver
             .sort_decls
             .get(<span class="kw-2">&amp;</span>segment.name)
@@ -1614,7 +1616,7 @@
     }
 
     <span class="kw">fn </span>try_resolve_prim_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
-        <span class="kw">let </span>segment = path.segment;
+        <span class="kw">let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
         <span class="kw">if </span>segment.name == SORTS.int {
             <span class="prelude-val">Some</span>(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
         } <span class="kw">else if </span>segment.name == sym::bool {
@@ -1892,12 +1894,20 @@
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
-        sort: Ident,
+        name: String,
     }
 
     <span class="kw">impl </span>UnresolvedSort {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: Ident) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span: sort.span, sort }
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{
+                span: path
+                    .segments
+                    .iter()
+                    .map(|ident| ident.span)
+                    .reduce(Span::to)
+                    .unwrap_or_default(),
+                name: <span class="macro">format!</span>(<span class="string">"{}"</span>, path.segments.iter().format(<span class="string">"::"</span>)),
+            }
         }
     }
 

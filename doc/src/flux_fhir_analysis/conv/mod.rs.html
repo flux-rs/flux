@@ -2172,12 +2172,6 @@
 <a href="#2172" id="2172">2172</a>
 <a href="#2173" id="2173">2173</a>
 <a href="#2174" id="2174">2174</a>
-<a href="#2175" id="2175">2175</a>
-<a href="#2176" id="2176">2176</a>
-<a href="#2177" id="2177">2177</a>
-<a href="#2178" id="2178">2178</a>
-<a href="#2179" id="2179">2179</a>
-<a href="#2180" id="2180">2180</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2562,13 +2556,7 @@
     assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::Lambda&gt; {
-    conv_assoc_reft_body(
-        genv,
-        wfckresults,
-        <span class="kw-2">&amp;</span>assoc_reft.params,
-        <span class="kw-2">&amp;</span>assoc_reft.body,
-        <span class="kw-2">&amp;</span>assoc_reft.output,
-    )
+    conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)
 }
 
 <span class="kw">fn </span>conv_assoc_reft_body(

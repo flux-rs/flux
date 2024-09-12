@@ -942,6 +942,18 @@
 <a href="#942" id="942">942</a>
 <a href="#943" id="943">943</a>
 <a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -967,7 +979,8 @@
         Namespace::{<span class="self">self</span>, <span class="kw-2">*</span>},
         PerNS,
     },
-    ParamName, PrimTy, CRATE_HIR_ID,
+    def_id::CRATE_DEF_ID,
+    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 <span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -997,11 +1010,16 @@
     specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs,
     output: ResolverOutput,
     ribs: PerNS&lt;Vec&lt;Rib&gt;&gt;,
-    extern_crates: Rib,
+    <span class="doccomment">/// A mapping from the names of all imported crates plus the special `crate` keyword to their
+    /// [`DefId`]
+    </span>crates: UnordMap&lt;Symbol, DefId&gt;,
     prelude: PerNS&lt;Rib&gt;,
     func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
     sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
     err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
+    <span class="doccomment">/// The most recent module we have visited. Used to check for visibility of other items from
+    /// this module.
+    </span>current_module: OwnerId,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1011,7 +1029,7 @@
             output: ResolverOutput::default(),
             specs,
             ribs: PerNS { type_ns: <span class="macro">vec!</span>[], value_ns: <span class="macro">vec!</span>[], macro_ns: <span class="macro">vec!</span>[] },
-            extern_crates: extern_crates_rib(genv.tcx()),
+            crates: mk_crate_mapping(genv.tcx()),
             prelude: PerNS {
                 type_ns: builtin_types_rib(),
                 value_ns: Rib::new(RibKind::Normal),
@@ -1020,6 +1038,7 @@
             err: <span class="prelude-val">None</span>,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            current_module: CRATE_OWNER_ID,
         }
     }
 
@@ -1203,6 +1222,7 @@
         ns: Namespace,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
+
         <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>segments.iter().enumerate() {
             <span class="kw">let </span>is_last = segment_idx + <span class="number">1 </span>== segments.len();
             <span class="kw">let </span>ns = <span class="kw">if </span>is_last { ns } <span class="kw">else </span>{ TypeNS };
@@ -1239,8 +1259,8 @@
             }
         }
         <span class="kw">if </span>ns == TypeNS {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.extern_crates.bindings.get(<span class="kw-2">&amp;</span>ident.name) {
-                <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">*</span>res);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(crate_id) = <span class="self">self</span>.crates.get(<span class="kw-2">&amp;</span>ident.name) {
+                <span class="kw">return </span><span class="prelude-val">Some</span>(hir::def::Res::Def(DefKind::Mod, <span class="kw-2">*</span>crate_id));
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.prelude[ns].bindings.get(<span class="kw-2">&amp;</span>ident.name) {
@@ -1250,10 +1270,11 @@
     </span>}
 
     <span class="kw">fn </span>resolve_ident_in_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_id: DefId, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
+        <span class="kw">let </span>curr_mod = <span class="self">self</span>.current_module.def_id;
         module_children(<span class="self">self</span>.genv.tcx(), module_id)
             .iter()
             .find_map(|child| {
-                <span class="kw">if </span>child.vis.is_public() &amp;&amp; child.ident == ident {
+                <span class="kw">if </span>child.vis.is_accessible_from(curr_mod, <span class="self">self</span>.genv.tcx()) &amp;&amp; child.ident == ident {
                     <span class="prelude-val">Some</span>(map_res(child.res))
                 } <span class="kw">else </span>{
                     <span class="prelude-val">None
@@ -1275,6 +1296,8 @@
     }
 
     <span class="kw">fn </span>visit_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Mod&lt;<span class="lifetime">'tcx</span>&gt;, _s: Span, hir_id: hir::HirId) {
+        <span class="kw">let </span>old_mod = <span class="self">self</span>.current_module;
+        <span class="self">self</span>.current_module = hir_id.expect_owner();
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Module);
         <span class="self">self</span>.push_rib(ValueNS, RibKind::Module);
 
@@ -1292,6 +1315,7 @@
 
         <span class="self">self</span>.pop_rib(ValueNS);
         <span class="self">self</span>.pop_rib(TypeNS);
+        <span class="self">self</span>.current_module = old_mod;
     }
 
     <span class="kw">fn </span>visit_block(<span class="kw-2">&amp;mut </span><span class="self">self</span>, block: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Block&lt;<span class="lifetime">'tcx</span>&gt;) {
@@ -1459,7 +1483,7 @@
         .any(|attr| attr.path_matches(<span class="kw-2">&amp;</span>[sym::prelude_import]))
 }
 
-<span class="doccomment">/// Abstraction over [`surface::PathSegment`] and [`surface::PathExprSegment`]
+<span class="doccomment">/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
 </span><span class="kw">trait </span>Segment {
     <span class="kw">fn </span>record_segment_res(resolver: <span class="kw-2">&amp;mut </span>CrateResolver, segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, res: fhir::Res);
     <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident;
@@ -1832,18 +1856,18 @@
     }
 }
 
-<span class="kw">fn </span>extern_crates_rib(tcx: TyCtxt) -&gt; Rib {
-    <span class="kw">let </span><span class="kw-2">mut </span>rib = Rib::new(RibKind::Normal);
+<span class="kw">fn </span>mk_crate_mapping(tcx: TyCtxt) -&gt; UnordMap&lt;Symbol, DefId&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>map = UnordMap::default();
+    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
     <span class="kw">for </span>cnum <span class="kw">in </span>tcx.crates(()) {
         <span class="kw">let </span>name = tcx.crate_name(<span class="kw-2">*</span>cnum);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = tcx.extern_crate(<span class="kw-2">*</span>cnum)
             &amp;&amp; extern_crate.is_direct()
         {
-            rib.bindings
-                .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+            map.insert(name, cnum.as_def_id());
         }
     }
-    rib
+    map
 }
 
 <span class="kw">mod </span>errors {

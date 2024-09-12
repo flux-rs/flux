@@ -3049,7 +3049,7 @@
 ) -&gt; fhir::Sort&lt;<span class="lifetime">'genv</span>&gt; {
     <span class="kw">match </span>bsort {
         surface::BaseSort::BitVec(width) =&gt; fhir::Sort::BitVec(<span class="kw-2">*</span>width),
-        surface::BaseSort::Path(surface::SortPath { segment, args, node_id }) =&gt; {
+        surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) =&gt; {
             <span class="kw">let </span>res = resolver_output.sort_path_res_map[node_id];
 
             <span class="comment">// In a `RefinedBy` we resolve type parameters to a sort var
@@ -3067,7 +3067,7 @@
                     .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
             );
 
-            <span class="kw">let </span>path = fhir::SortPath { res, segment: <span class="kw-2">*</span>segment, args };
+            <span class="kw">let </span>path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
             fhir::Sort::Path(path)
         }
     }

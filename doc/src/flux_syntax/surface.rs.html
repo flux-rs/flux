@@ -782,12 +782,11 @@
     Path(SortPath),
 }
 
-<span class="doccomment">/// A [`Path`] but for sorts. Currently, we only support paths with one segment, so one can hardly
-/// call this a path, but we may change this later if we improve the resolver.
+<span class="doccomment">/// A [`Path`] but for sorts.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SortPath {
-    <span class="doccomment">/// The identifier of the single segment in the path, i.e., `Map` in `Map&lt;int, bool&gt;`.
-    </span><span class="kw">pub </span>segment: Ident,
+    <span class="doccomment">/// The segments in the path
+    </span><span class="kw">pub </span>segments: Vec&lt;Ident&gt;,
     <span class="doccomment">/// The sort arguments, i.e., the list `[int, bool]` in `Map&lt;int, bool&gt;`.
     </span><span class="kw">pub </span>args: Vec&lt;BaseSort&gt;,
     <span class="kw">pub </span>node_id: NodeId,
@@ -1073,7 +1072,8 @@
     IfThenElse(Box&lt;[Expr; <span class="number">3</span>]&gt;),
 }
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="doccomment">/// A [`Path`] but for refinement expressions
+</span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>ExprPath {
     <span class="kw">pub </span>segments: Vec&lt;ExprPathSegment&gt;,
     <span class="kw">pub </span>node_id: NodeId,
