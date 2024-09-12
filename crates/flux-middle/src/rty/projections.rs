@@ -421,7 +421,7 @@ impl TVarSubst {
         if let Some(old) = &self.args[idx as usize]
             && old != &arg
         {
-            tracked_span_bug!("ambiguous substitution");
+            tracked_span_bug!("ambiguous substitution: old=`{old:?}`, new: `{arg:?}`");
         }
         self.args[idx as usize].replace(arg);
     }
