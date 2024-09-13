@@ -709,18 +709,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
 }
 
 fn map_res(res: hir::def::Res<!>) -> hir::def::Res {
-    match res {
-        hir::def::Res::Def(k, id) => hir::def::Res::Def(k, id),
-        hir::def::Res::PrimTy(pty) => hir::def::Res::PrimTy(pty),
-        hir::def::Res::SelfTyParam { trait_ } => hir::def::Res::SelfTyParam { trait_ },
-        hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl } => {
-            hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl }
-        }
-        hir::def::Res::SelfCtor(id) => hir::def::Res::SelfCtor(id),
-        hir::def::Res::ToolMod => hir::def::Res::ToolMod,
-        hir::def::Res::NonMacroAttr(nma) => hir::def::Res::NonMacroAttr(nma),
-        hir::def::Res::Err => hir::def::Res::Err,
-    }
+    res.map_id(|x| match x {})
 }
 
 struct NameResCollector<'sess, 'tcx> {

@@ -404,7 +404,7 @@ pub struct ResolverOutput {
     /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
-    pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
+    pub expr_path_res_map: UnordMap<NodeId, fhir::PartialRes<fhir::ExprRes>>,
 }
 
 /// This enum serves as a type-level reminder that local ids can refer to extern specs. The

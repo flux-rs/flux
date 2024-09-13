@@ -696,8 +696,8 @@ pub enum Res {
 
 /// See [`rustc_hir::def::PartialRes`]
 #[derive(Copy, Clone, Debug)]
-pub struct PartialRes {
-    base_res: Res,
+pub struct PartialRes<R = Res> {
+    base_res: R,
     unresolved_segments: usize,
 }
 
