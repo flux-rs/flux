@@ -810,6 +810,7 @@
     rc::Rc,
 };
 
+<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
 <span class="kw">use </span>itertools::Itertools;
@@ -825,7 +826,6 @@
 <span class="kw">use crate</span>::{
     fhir,
     global_env::GlobalEnv,
-    intern::List,
     pretty,
     rty::{
         <span class="self">self</span>,

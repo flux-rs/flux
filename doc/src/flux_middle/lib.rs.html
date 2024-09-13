@@ -493,7 +493,6 @@
 <a href="#493" id="493">493</a>
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 
 </span><span class="attr">#![feature(
@@ -531,7 +530,6 @@
 <span class="kw">pub mod </span>cstore;
 <span class="kw">pub mod </span>fhir;
 <span class="kw">pub mod </span>global_env;
-<span class="kw">pub mod </span>intern;
 <span class="kw">pub mod </span>pretty;
 <span class="kw">pub mod </span>queries;
 <span class="kw">pub mod </span>rty;
@@ -540,10 +538,10 @@
 
 <span class="kw">use </span>std::sync::LazyLock;
 
+<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
-<span class="kw">use </span>intern::List;
 <span class="kw">use </span>rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},

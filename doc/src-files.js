@@ -1,5 +1,6 @@
 var srcIndex = new Map(JSON.parse('[\
 ["cargo_flux",["",[],["cargo-flux.rs"]]],\
+["flux_arc_interner",["",[],["lib.rs"]]],\
 ["flux_bin",["",[],["lib.rs","utils.rs"]]],\
 ["flux_common",["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs","result.rs"]]],\
 ["flux_config",["",[],["lib.rs"]]],\
@@ -11,7 +12,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["flux_infer",["",[],["fixpoint_encoding.rs","infer.rs","lib.rs","refine_tree.rs"]]],\
 ["flux_macros",["",[["diagnostics",[],["diagnostic.rs","diagnostic_builder.rs","error.rs","fluent.rs","mod.rs","subdiagnostic.rs","utils.rs"]]],["lib.rs","primops.rs"]]],\
 ["flux_metadata",["",[],["decoder.rs","encoder.rs","lib.rs"]]],\
-["flux_middle",["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","subst.rs"]],["rustc",[["ty",[],["subst.rs"]]],["lowering.rs","mir.rs","mod.rs","ty.rs"]]],["const_eval.rs","cstore.rs","fhir.rs","global_env.rs","intern.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]]],\
+["flux_middle",["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","subst.rs"]],["rustc",[["ty",[],["subst.rs"]]],["lowering.rs","mir.rs","mod.rs","ty.rs"]]],["const_eval.rs","cstore.rs","fhir.rs","global_env.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]]],\
 ["flux_refineck",["",[["ghost_statements",[],["fold_unfold.rs","points_to.rs"]],["type_env",[],["place_ty.rs"]]],["checker.rs","ghost_statements.rs","invariants.rs","lib.rs","primops.rs","queue.rs","type_env.rs"]]],\
 ["flux_syntax",["",[["surface",[],["visit.rs"]]],["lexer.rs","lib.rs","surface.rs"]]],\
 ["rustc_flux",["",[],["rustc-flux.rs"]]],\

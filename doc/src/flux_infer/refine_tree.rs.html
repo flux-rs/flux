@@ -861,7 +861,6 @@
 <span class="kw">use </span>flux_common::{index::IndexVec, iter::IterExt};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty::{
         evars::EVarSol,
@@ -869,7 +868,8 @@
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, EarlyReftParam, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EarlyReftParam, Expr, GenericArg, GenericArgsExt, Mutability, Name, Sort, Ty,
+        TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -965,7 +965,7 @@
 </span><span class="attr">#[derive(PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Scope {
     bindings: IndexVec&lt;Name, Sort&gt;,
-    params: List&lt;(Var, Sort)&gt;,
+    params: Vec&lt;(Var, Sort)&gt;,
 }
 
 <span class="kw">impl </span>Scope {
@@ -1038,7 +1038,7 @@
 
 <span class="kw">enum </span>NodeKind {
     <span class="doccomment">/// List of const and refinement generics
-    </span>Root(List&lt;(Var, Sort)&gt;),
+    </span>Root(Vec&lt;(Var, Sort)&gt;),
     <span class="doccomment">/// Used for debugging. See [`TypeTrace`]
     </span>Trace(TypeTrace),
     ForAll(Name, Sort),

@@ -1135,6 +1135,7 @@
 <a href="#1135" id="1135">1135</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
+<span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">pub use </span>flux_fixpoint::Constant;
 <span class="kw">use </span>itertools::Itertools;
@@ -1150,14 +1151,13 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
-    Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, FuncSort,
+    GenericArgs, IntTy, Sort, UintTy,
 };
 <span class="kw">use crate</span>::{
     const_eval,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -2015,7 +2015,7 @@
 }
 
 <span class="macro">impl_internable!</span>(ExprKind);
-<span class="macro">impl_slice_internable!</span>(Expr, KVar, u32, FieldIdx);
+<span class="macro">impl_slice_internable!</span>(Expr, KVar);
 
 <span class="kw">mod </span>pretty {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;

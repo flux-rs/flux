@@ -161,11 +161,13 @@
 <a href="#161" id="161">161</a>
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, span_bug};
+<a href="#164" id="164">164</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_common::{bug, span_bug};
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::DefId;
 
-<span class="kw">use crate</span>::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
+<span class="kw">use crate</span>::{fhir, global_env::GlobalEnv, queries::QueryResult, rty};
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>sort_of_alias_reft(<span class="self">self</span>, alias: <span class="kw-2">&amp;</span>fhir::AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::FuncSort&gt;&gt; {

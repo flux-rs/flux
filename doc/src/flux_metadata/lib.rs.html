@@ -413,7 +413,6 @@
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
 <a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -442,7 +441,6 @@
 <span class="kw">use </span>flux_middle::{
     cstore::{CrateStore, OptResult},
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty,
 };
@@ -525,7 +523,7 @@
     generics_of: UnordMap&lt;K, QueryResult&lt;rty::Generics&gt;&gt;,
     refinement_generics_of: UnordMap&lt;K, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
     predicates_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
-    item_bounds: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;&gt;,
+    item_bounds: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt;&gt;,
     assoc_refinements_of: UnordMap&lt;K, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
     assoc_refinements_def: UnordMap&lt;(K, Symbol), QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
     default_assoc_refinements_def:
@@ -630,7 +628,7 @@
         <span class="macro">get!</span>(<span class="self">self</span>, refinement_generics_of, def_id)
     }
 
-    <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
+    <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
         <span class="macro">get!</span>(<span class="self">self</span>, item_bounds, def_id)
     }
 

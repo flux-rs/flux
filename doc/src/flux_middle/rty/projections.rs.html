@@ -428,6 +428,7 @@
 <a href="#428" id="428">428</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
+<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::{infer::InferCtxt, traits::Obligation};
@@ -444,7 +445,6 @@
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
     rustc::{lowering::lower_ty, ToRustc},

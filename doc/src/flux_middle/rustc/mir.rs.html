@@ -780,10 +780,12 @@
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
 
+<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{
     bug,
     index::{Idx, IndexVec},
@@ -813,7 +815,7 @@
 
 <span class="kw">use </span><span class="kw">super</span>::ty::{Const, GenericArg, GenericArgs, Region, Ty, TyKind};
 <span class="kw">use crate</span>::{
-    global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
+    global_env::GlobalEnv, pretty::def_id_to_string, queries::QueryResult,
     rustc::ty::region_to_string,
 };
 

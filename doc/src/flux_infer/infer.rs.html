@@ -746,7 +746,6 @@
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -754,7 +753,8 @@
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyVariant, Sort, Ty, TyKind, Var,
+        GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
+        Var,
     },
     rustc::mir::BasicBlock,
 };

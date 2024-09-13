@@ -1312,7 +1312,6 @@
 <a href="#1312" id="1312">1312</a>
 <a href="#1313" id="1313">1313</a>
 <a href="#1314" id="1314">1314</a>
-<a href="#1315" id="1315">1315</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1332,10 +1331,9 @@
     const_eval,
     fhir::{<span class="self">self</span>, SpecFuncKind},
     global_env::GlobalEnv,
-    intern::List,
     pretty,
     queries::QueryResult,
-    rty::{<span class="self">self</span>, Constant, ESpan, Lambda},
+    rty::{<span class="self">self</span>, BoundVariableKindsExt <span class="kw">as _</span>, Constant, ESpan, Lambda, List},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{

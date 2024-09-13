@@ -979,7 +979,6 @@
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
 <a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -989,11 +988,10 @@
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
-        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
+        Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };

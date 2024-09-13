@@ -576,6 +576,7 @@
 <a href="#576" id="576">576</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
+<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
 <span class="kw">use </span>flux_config::CrateConfig;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -593,7 +594,6 @@
 <span class="kw">use crate</span>::{
     cstore::CrateStoreDyn,
     fhir::{<span class="self">self</span>, VariantIdx},
-    intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{<span class="self">self</span>, lowering, ty},

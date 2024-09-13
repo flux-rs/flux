@@ -1001,11 +1001,13 @@
 
 <span class="kw">use </span>std::fmt;
 
+<span class="kw">pub use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::{def_id::DefId, Safety};
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
-<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_macros::{extension, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::{<span class="self">self </span><span class="kw">as </span>rustc_ty, AdtFlags, ParamConst, TyCtxt};
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
@@ -1021,10 +1023,7 @@
 
 <span class="kw">use </span><span class="self">self</span>::subst::Subst;
 <span class="kw">use </span><span class="kw">super</span>::ToRustc;
-<span class="kw">use crate</span>::{
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    pretty::{<span class="self">self</span>, def_id_to_string},
-};
+<span class="kw">use </span><span class="kw">crate</span>::pretty::{<span class="self">self</span>, def_id_to_string};
 
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Generics&lt;<span class="lifetime">'tcx</span>&gt; {
@@ -1310,8 +1309,9 @@
 
 <span class="kw">pub type </span>GenericArgs = List&lt;GenericArg&gt;;
 
-<span class="kw">impl </span>GenericArgs {
-    <span class="kw">pub fn </span>box_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty) {
+<span class="attr">#[extension(<span class="kw">pub trait </span>GenericArgsExt)]
+</span><span class="kw">impl </span>GenericArgs {
+    <span class="kw">fn </span>box_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty) {
         <span class="kw">if let </span>[GenericArg::Ty(deref), GenericArg::Ty(alloc)] = <span class="kw-2">&amp;</span><span class="self">self</span>[..] {
             (deref, alloc)
         } <span class="kw">else </span>{
@@ -1319,11 +1319,11 @@
         }
     }
 
-    <span class="kw">pub fn </span>as_closure(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClosureArgs {
+    <span class="kw">fn </span>as_closure(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClosureArgs {
         ClosureArgs { args: <span class="self">self</span>.clone() }
     }
 
-    <span class="kw">pub fn </span>as_coroutine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CoroutineArgs {
+    <span class="kw">fn </span>as_coroutine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CoroutineArgs {
         CoroutineArgs { args: <span class="self">self</span>.clone() }
     }
 }

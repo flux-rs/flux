@@ -1066,7 +1066,8 @@
 <a href="#1066" id="1066">1066</a>
 <a href="#1067" id="1067">1067</a>
 <a href="#1068" id="1068">1068</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
+</pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::BodyWithBorrowckFacts;
@@ -1101,7 +1102,6 @@
 };
 <span class="kw">use crate</span>::{
     const_eval::scalar_int_to_mir_constant,
-    intern::List,
     rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
 

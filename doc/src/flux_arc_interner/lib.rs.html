@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/intern.rs`."><title>intern.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-arc-interner/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_arc_interner" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -406,474 +406,17 @@
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
 <a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
-<a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-</pre></div><pre class="rust"><code><span class="comment">// This code was adapted from
-// [Rust Analyzer](https://github.com/rust-analyzer/rust-analyzer/blob/9d33d05d85456c855b88a8bdf4ab44d97e32bd4a/crates/hir_def/src/intern.rs)
-// Rust Analyzer is distributed under the MIT License and the Apache License (Version 2.0), both reproduced below.
-
-// ========================================================
-// LICENSE-MIT
-// ========================================================
-// Permission is hereby granted, free of charge, to any
-// person obtaining a copy of this software and associated
-// documentation files (the "Software"), to deal in the
-// Software without restriction, including without
-// limitation the rights to use, copy, modify, merge,
-// publish, distribute, sublicense, and/or sell copies of
-// the Software, and to permit persons to whom the Software
-// is furnished to do so, subject to the following
-// conditions:
-
-// The above copyright notice and this permission notice
-// shall be included in all copies or substantial portions
-// of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-// ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-// TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-// PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-// SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-// IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE.
-
-// ==========================================================================
-// LICENSE-APACHE
-// ==========================================================================
-//     Apache License
-//                         Version 2.0, January 2004
-//                      http://www.apache.org/licenses/
-
-// TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-// 1. Definitions.
-
-//    "License" shall mean the terms and conditions for use, reproduction,
-//    and distribution as defined by Sections 1 through 9 of this document.
-
-//    "Licensor" shall mean the copyright owner or entity authorized by
-//    the copyright owner that is granting the License.
-
-//    "Legal Entity" shall mean the union of the acting entity and all
-//    other entities that control, are controlled by, or are under common
-//    control with that entity. For the purposes of this definition,
-//    "control" means (i) the power, direct or indirect, to cause the
-//    direction or management of such entity, whether by contract or
-//    otherwise, or (ii) ownership of fifty percent (50%) or more of the
-//    outstanding shares, or (iii) beneficial ownership of such entity.
-
-//    "You" (or "Your") shall mean an individual or Legal Entity
-//    exercising permissions granted by this License.
-
-//    "Source" form shall mean the preferred form for making modifications,
-//    including but not limited to software source code, documentation
-//    source, and configuration files.
-
-//    "Object" form shall mean any form resulting from mechanical
-//    transformation or translation of a Source form, including but
-//    not limited to compiled object code, generated documentation,
-//    and conversions to other media types.
-
-//    "Work" shall mean the work of authorship, whether in Source or
-//    Object form, made available under the License, as indicated by a
-//    copyright notice that is included in or attached to the work
-//    (an example is provided in the Appendix below).
-
-//    "Derivative Works" shall mean any work, whether in Source or Object
-//    form, that is based on (or derived from) the Work and for which the
-//    editorial revisions, annotations, elaborations, or other modifications
-//    represent, as a whole, an original work of authorship. For the purposes
-//    of this License, Derivative Works shall not include works that remain
-//    separable from, or merely link (or bind by name) to the interfaces of,
-//    the Work and Derivative Works thereof.
-
-//    "Contribution" shall mean any work of authorship, including
-//    the original version of the Work and any modifications or additions
-//    to that Work or Derivative Works thereof, that is intentionally
-//    submitted to Licensor for inclusion in the Work by the copyright owner
-//    or by an individual or Legal Entity authorized to submit on behalf of
-//    the copyright owner. For the purposes of this definition, "submitted"
-//    means any form of electronic, verbal, or written communication sent
-//    to the Licensor or its representatives, including but not limited to
-//    communication on electronic mailing lists, source code control systems,
-//    and issue tracking systems that are managed by, or on behalf of, the
-//    Licensor for the purpose of discussing and improving the Work, but
-//    excluding communication that is conspicuously marked or otherwise
-//    designated in writing by the copyright owner as "Not a Contribution."
-
-//    "Contributor" shall mean Licensor and any individual or Legal Entity
-//    on behalf of whom a Contribution has been received by Licensor and
-//    subsequently incorporated within the Work.
-
-// 2. Grant of Copyright License. Subject to the terms and conditions of
-//    this License, each Contributor hereby grants to You a perpetual,
-//    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-//    copyright license to reproduce, prepare Derivative Works of,
-//    publicly display, publicly perform, sublicense, and distribute the
-//    Work and such Derivative Works in Source or Object form.
-
-// 3. Grant of Patent License. Subject to the terms and conditions of
-//    this License, each Contributor hereby grants to You a perpetual,
-//    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-//    (except as stated in this section) patent license to make, have made,
-//    use, offer to sell, sell, import, and otherwise transfer the Work,
-//    where such license applies only to those patent claims licensable
-//    by such Contributor that are necessarily infringed by their
-//    Contribution(s) alone or by combination of their Contribution(s)
-//    with the Work to which such Contribution(s) was submitted. If You
-//    institute patent litigation against any entity (including a
-//    cross-claim or counterclaim in a lawsuit) alleging that the Work
-//    or a Contribution incorporated within the Work constitutes direct
-//    or contributory patent infringement, then any patent licenses
-//    granted to You under this License for that Work shall terminate
-//    as of the date such litigation is filed.
-
-// 4. Redistribution. You may reproduce and distribute copies of the
-//    Work or Derivative Works thereof in any medium, with or without
-//    modifications, and in Source or Object form, provided that You
-//    meet the following conditions:
-
-//    (a) You must give any other recipients of the Work or
-//        Derivative Works a copy of this License; and
-
-//    (b) You must cause any modified files to carry prominent notices
-//        stating that You changed the files; and
-
-//    (c) You must retain, in the Source form of any Derivative Works
-//        that You distribute, all copyright, patent, trademark, and
-//        attribution notices from the Source form of the Work,
-//        excluding those notices that do not pertain to any part of
-//        the Derivative Works; and
-
-//    (d) If the Work includes a "NOTICE" text file as part of its
-//        distribution, then any Derivative Works that You distribute must
-//        include a readable copy of the attribution notices contained
-//        within such NOTICE file, excluding those notices that do not
-//        pertain to any part of the Derivative Works, in at least one
-//        of the following places: within a NOTICE text file distributed
-//        as part of the Derivative Works; within the Source form or
-//        documentation, if provided along with the Derivative Works; or,
-//        within a display generated by the Derivative Works, if and
-//        wherever such third-party notices normally appear. The contents
-//        of the NOTICE file are for informational purposes only and
-//        do not modify the License. You may add Your own attribution
-//        notices within Derivative Works that You distribute, alongside
-//        or as an addendum to the NOTICE text from the Work, provided
-//        that such additional attribution notices cannot be construed
-//        as modifying the License.
-
-//    You may add Your own copyright statement to Your modifications and
-//    may provide additional or different license terms and conditions
-//    for use, reproduction, or distribution of Your modifications, or
-//    for any such Derivative Works as a whole, provided Your use,
-//    reproduction, and distribution of the Work otherwise complies with
-//    the conditions stated in this License.
-
-// 5. Submission of Contributions. Unless You explicitly state otherwise,
-//    any Contribution intentionally submitted for inclusion in the Work
-//    by You to the Licensor shall be under the terms and conditions of
-//    this License, without any additional terms or conditions.
-//    Notwithstanding the above, nothing herein shall supersede or modify
-//    the terms of any separate license agreement you may have executed
-//    with Licensor regarding such Contributions.
-
-// 6. Trademarks. This License does not grant permission to use the trade
-//    names, trademarks, service marks, or product names of the Licensor,
-//    except as required for reasonable and customary use in describing the
-//    origin of the Work and reproducing the content of the NOTICE file.
-
-// 7. Disclaimer of Warranty. Unless required by applicable law or
-//    agreed to in writing, Licensor provides the Work (and each
-//    Contributor provides its Contributions) on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-//    implied, including, without limitation, any warranties or conditions
-//    of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-//    PARTICULAR PURPOSE. You are solely responsible for determining the
-//    appropriateness of using or redistributing the Work and assume any
-//    risks associated with Your exercise of permissions under this License.
-
-// 8. Limitation of Liability. In no event and under no legal theory,
-//    whether in tort (including negligence), contract, or otherwise,
-//    unless required by applicable law (such as deliberate and grossly
-//    negligent acts) or agreed to in writing, shall any Contributor be
-//    liable to You for damages, including any direct, indirect, special,
-//    incidental, or consequential damages of any character arising as a
-//    result of this License or out of the use or inability to use the
-//    Work (including but not limited to damages for loss of goodwill,
-//    work stoppage, computer failure or malfunction, or any and all
-//    other commercial damages or losses), even if such Contributor
-//    has been advised of the possibility of such damages.
-
-// 9. Accepting Warranty or Additional Liability. While redistributing
-//    the Work or Derivative Works thereof, You may choose to offer,
-//    and charge a fee for, acceptance of support, warranty, indemnity,
-//    or other liability obligations and/or rights consistent with this
-//    License. However, in accepting such obligations, You may act only
-//    on Your own behalf and on Your sole responsibility, not on behalf
-//    of any other Contributor, and only if You agree to indemnify,
-//    defend, and hold each Contributor harmless for any liability
-//    incurred by, or claims asserted against, such Contributor by reason
-//    of your accepting any such warranty or additional liability.
-
-// END OF TERMS AND CONDITIONS
-
-// APPENDIX: How to apply the Apache License to your work.
-
-//    To apply the Apache License to your work, attach the following
-//    boilerplate notice, with the fields enclosed by brackets "[]"
-//    replaced with your own identifying information. (Don't include
-//    the brackets!)  The text should be enclosed in the appropriate
-//    comment syntax for the file format. We also recommend that a
-//    file or class name and description of purpose be included on the
-//    same "printed page" as the copyright notice for easier
-//    identification within third-party archives.
-
-// Copyright [yyyy] [name of copyright owner]
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-
-// 	http://www.apache.org/licenses/LICENSE-2.0
-
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-</span><span class="doccomment">//! Global `Arc`-based object interning infrastructure.
+</pre></div><pre class="rust"><code><span class="doccomment">//! Global `Arc`-based object interning infrastructure.
 //!
-//! Eventually this should probably be replaced with salsa-based interning.
+//! This code was adapted from [Rust Analyzer](https://github.com/rust-analyzer/rust-analyzer/blob/9d33d05d85456c855b88a8bdf4ab44d97e32bd4a/crates/hir_def/src/intern.rs)
 
-</span><span class="kw">use </span>std::{
+</span><span class="attr">#![feature(rustc_private)]
+
+</span><span class="kw">extern crate </span>rustc_hash;
+<span class="kw">extern crate </span>rustc_serialize;
+<span class="kw">extern crate </span>rustc_target;
+
+<span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
     hash::{BuildHasherDefault, Hash, Hasher},
     ops::Deref,
@@ -884,6 +427,7 @@
 <span class="kw">use </span>hashbrown::{hash_map::RawEntryMut, HashMap};
 <span class="kw">use </span>rustc_hash::FxHasher;
 <span class="kw">use </span>rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
+<span class="kw">use </span>rustc_target::abi::FieldIdx;
 
 <span class="kw">type </span>InternMap&lt;T&gt; = DashMap&lt;Arc&lt;T&gt;, (), BuildHasherDefault&lt;FxHasher&gt;&gt;;
 <span class="kw">type </span>Guard&lt;T&gt; = dashmap::RwLockWriteGuard&lt;
@@ -1244,9 +788,9 @@
 #[doc(hidden)]
 </span><span class="macro">macro_rules!</span> _impl_internable {
     ( $(<span class="macro-nonterminal">$t</span>:ty),+ $(,)<span class="question-mark">? </span>) =&gt; { $(
-        <span class="kw">impl </span><span class="macro-nonterminal">$crate::intern::Internable </span><span class="kw">for </span><span class="macro-nonterminal">$t </span>{
-            <span class="kw">fn </span>storage() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="macro-nonterminal">$crate::intern::InternStorage</span>&lt;<span class="self">Self</span>&gt; {
-                <span class="kw">static </span>STORAGE: <span class="macro-nonterminal">$crate::intern::InternStorage</span>&lt;<span class="macro-nonterminal">$t</span>&gt; = <span class="macro-nonterminal">$crate::intern::InternStorage::new</span>();
+        <span class="kw">impl </span><span class="macro-nonterminal">$crate::Internable </span><span class="kw">for </span><span class="macro-nonterminal">$t </span>{
+            <span class="kw">fn </span>storage() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="macro-nonterminal">$crate::InternStorage</span>&lt;<span class="self">Self</span>&gt; {
+                <span class="kw">static </span>STORAGE: <span class="macro-nonterminal">$crate::InternStorage</span>&lt;<span class="macro-nonterminal">$t</span>&gt; = <span class="macro-nonterminal">$crate::InternStorage::new</span>();
                 <span class="kw-2">&amp;</span>STORAGE
             }
         }
@@ -1259,13 +803,15 @@
 #[doc(hidden)]
 </span><span class="macro">macro_rules!</span> _impl_slice_internable {
     ( $(<span class="macro-nonterminal">$t</span>:ty),+ $(,)<span class="question-mark">? </span>) =&gt; { $(
-        <span class="kw">impl </span><span class="macro-nonterminal">$crate::intern::SliceInternable </span><span class="kw">for </span><span class="macro-nonterminal">$t </span>{
-            <span class="kw">fn </span>storage() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="macro-nonterminal">$crate::intern::InternStorage</span>&lt;[<span class="self">Self</span>]&gt; {
-                <span class="kw">static </span>STORAGE: <span class="macro-nonterminal">$crate::intern::InternStorage</span>&lt;[<span class="macro-nonterminal">$t</span>]&gt; = <span class="macro-nonterminal">$crate::intern::InternStorage::new</span>();
+        <span class="kw">impl </span><span class="macro-nonterminal">$crate::SliceInternable </span><span class="kw">for </span><span class="macro-nonterminal">$t </span>{
+            <span class="kw">fn </span>storage() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="macro-nonterminal">$crate::InternStorage</span>&lt;[<span class="self">Self</span>]&gt; {
+                <span class="kw">static </span>STORAGE: <span class="macro-nonterminal">$crate::InternStorage</span>&lt;[<span class="macro-nonterminal">$t</span>]&gt; = <span class="macro-nonterminal">$crate::InternStorage::new</span>();
                 <span class="kw-2">&amp;</span>STORAGE
             }
         }
     )+ };
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_impl_slice_internable <span class="kw">as </span>impl_slice_internable;
+
+<span class="macro">impl_slice_internable!</span>(FieldIdx);
 </code></pre></div></section></main></body></html>

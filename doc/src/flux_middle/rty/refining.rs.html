@@ -503,10 +503,12 @@
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
 <a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
-</span><span class="kw">use </span>flux_common::bug;
+</span><span class="kw">use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_middle::ty::{ClosureKind, ParamTy};
@@ -515,9 +517,9 @@
 <span class="kw">use </span><span class="kw">super</span>::fold::TypeFoldable;
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
-    rty, rustc,
+    rty,
+    rustc::{<span class="self">self</span>, ty::GenericArgsExt <span class="kw">as _</span>},
 };
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generics(generics: <span class="kw-2">&amp;</span>rustc::ty::Generics) -&gt; QueryResult&lt;rty::Generics&gt; {
@@ -755,7 +757,7 @@
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>value = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
+            rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
             fields,
             rty::Expr::unit_adt(adt_def_id),
         );

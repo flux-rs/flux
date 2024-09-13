@@ -1736,8 +1736,8 @@
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgsExt <span class="kw">as _</span>, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         <span class="self">self</span>,
@@ -1746,7 +1746,7 @@
             Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
             Terminator, TerminatorKind, START_BLOCK,
         },
-        ty,
+        ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>},
     },
 };
 <span class="kw">use </span>itertools::Itertools;
