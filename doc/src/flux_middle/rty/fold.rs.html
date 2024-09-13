@@ -1411,6 +1411,20 @@
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
 <a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1431,7 +1445,7 @@
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialProjection,
     ExistentialTraitRef, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg,
     Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SortArg, SubsetTy,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, ReErased, Region, Sort, SortArg, SubsetTy,
     TraitPredicate, TraitRef, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
@@ -1657,7 +1671,7 @@
         callsite_def_id: DefId,
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)<span class="question-mark">?</span>;
-        <span class="self">self</span>.try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
+        <span class="self">self</span>.erase_regions().try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
     }
 
     <span class="doccomment">/// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
@@ -1799,6 +1813,20 @@
             }
         }
         <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Shifter { amount, current_index: INNERMOST })
+    }
+
+    <span class="kw">fn </span>erase_regions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="kw">struct </span>RegionEraser;
+        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>RegionEraser {
+            <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Region) -&gt; Region {
+                <span class="kw">match </span><span class="kw-2">*</span>r {
+                    ReBound(..) =&gt; <span class="kw-2">*</span>r,
+                    <span class="kw">_ </span>=&gt; ReErased,
+                }
+            }
+        }
+
+        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>RegionEraser)
     }
 }
 

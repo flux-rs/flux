@@ -744,20 +744,6 @@
 <a href="#744" id="744">744</a>
 <a href="#745" id="745">745</a>
 <a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -777,8 +763,7 @@
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
-<span class="kw">use </span>rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-<span class="kw">use </span>rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
+<span class="kw">use </span>rustc_middle::ty::{TyCtxt, Variance};
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{
@@ -928,19 +913,6 @@
         args.iter()
             .map(|a| a.replace_holes(|binders, kind| <span class="self">self</span>.fresh_infer_var_for_hole(binders, kind)))
             .collect_vec()
-    }
-
-    <span class="kw">fn </span>next_region_var(<span class="kw-2">&amp;</span><span class="self">self</span>, origin: RegionVariableOrigin) -&gt; rty::Region {
-        rty::ReVar(<span class="self">self</span>.region_infcx.next_region_var(origin).as_var())
-    }
-
-    <span class="kw">pub fn </span>next_bound_region_var(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        span: Span,
-        kind: BoundRegionKind,
-        conversion_time: BoundRegionConversionTime,
-    ) -&gt; rty::Region {
-        <span class="self">self</span>.next_region_var(RegionVariableOrigin::BoundRegion(span, kind, conversion_time))
     }
 
     <span class="kw">pub fn </span>fresh_infer_var(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {

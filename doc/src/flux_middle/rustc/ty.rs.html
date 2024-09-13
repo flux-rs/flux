@@ -992,6 +992,9 @@
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1358,6 +1361,7 @@
     ReStatic,
     ReVar(RegionVid),
     ReLateParam(LateParamRegion),
+    ReErased,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Region {
@@ -1374,6 +1378,7 @@
             Region::ReLateParam(LateParamRegion { scope, bound_region }) =&gt; {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
+            Region::ReErased =&gt; tcx.lifetimes.re_erased,
         }
     }
 }
@@ -1984,6 +1989,7 @@
         Region::ReStatic =&gt; <span class="string">"'static"</span>.to_string(),
         Region::ReVar(rvid) =&gt; <span class="macro">format!</span>(<span class="string">"{rvid:?}"</span>),
         Region::ReLateParam(..) =&gt; <span class="string">"'&lt;free&gt;"</span>.to_string(),
+        Region::ReErased =&gt; <span class="string">"'_"</span>.to_string(),
     }
 }
 </code></pre></div></section></main></body></html>

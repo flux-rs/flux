@@ -140,6 +140,7 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     Binder, Const, ConstKind, ExistentialPredicate, ExistentialProjection, ExistentialTraitRef,
     FnSig, GenericArg, Region, Ty, TyKind,
@@ -268,6 +269,7 @@
             Region::ReLateParam(..)
             | Region::ReBound(<span class="kw">_</span>, <span class="kw">_</span>)
             | Region::ReStatic
+            | Region::ReErased
             | Region::ReVar(<span class="kw">_</span>) =&gt; <span class="kw-2">*</span><span class="self">self</span>,
         }
     }

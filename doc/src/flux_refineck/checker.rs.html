@@ -1720,36 +1720,6 @@
 <a href="#1720" id="1720">1720</a>
 <a href="#1721" id="1721">1721</a>
 <a href="#1722" id="1722">1722</a>
-<a href="#1723" id="1723">1723</a>
-<a href="#1724" id="1724">1724</a>
-<a href="#1725" id="1725">1725</a>
-<a href="#1726" id="1726">1726</a>
-<a href="#1727" id="1727">1727</a>
-<a href="#1728" id="1728">1728</a>
-<a href="#1729" id="1729">1729</a>
-<a href="#1730" id="1730">1730</a>
-<a href="#1731" id="1731">1731</a>
-<a href="#1732" id="1732">1732</a>
-<a href="#1733" id="1733">1733</a>
-<a href="#1734" id="1734">1734</a>
-<a href="#1735" id="1735">1735</a>
-<a href="#1736" id="1736">1736</a>
-<a href="#1737" id="1737">1737</a>
-<a href="#1738" id="1738">1738</a>
-<a href="#1739" id="1739">1739</a>
-<a href="#1740" id="1740">1740</a>
-<a href="#1741" id="1741">1741</a>
-<a href="#1742" id="1742">1742</a>
-<a href="#1743" id="1743">1743</a>
-<a href="#1744" id="1744">1744</a>
-<a href="#1745" id="1745">1745</a>
-<a href="#1746" id="1746">1746</a>
-<a href="#1747" id="1747">1747</a>
-<a href="#1748" id="1748">1748</a>
-<a href="#1749" id="1749">1749</a>
-<a href="#1750" id="1750">1750</a>
-<a href="#1751" id="1751">1751</a>
-<a href="#1752" id="1752">1752</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -1787,7 +1757,6 @@
     LangItem,
 };
 <span class="kw">use </span>rustc_index::bit_set::BitSet;
-<span class="kw">use </span>rustc_infer::infer::{BoundRegionConversionTime, NllRegionVariableOrigin};
 <span class="kw">use </span>rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>},
@@ -1972,19 +1941,10 @@
         <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>generics = genv.generics_of(def_id).with_span(span)<span class="question-mark">?</span>;
 
-        <span class="comment">// The regions we assign here are not relevant because we would map them to local regions
-        // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
-        </span><span class="kw">let </span>fn_sig = poly_sig.replace_bound_vars(
-            |<span class="kw">_</span>| {
-                rty::ReVar(
-                    infcx
-                        .region_infcx
-                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-                        .as_var(),
-                )
-            },
-            |sort, <span class="kw">_</span>| infcx.define_vars(sort),
-        );
+        <span class="kw">let </span>fn_sig = poly_sig
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig, inherited.config.check_overflow);
 
@@ -2309,10 +2269,7 @@
         <span class="comment">// Instantiate function signature and normalize it
         </span><span class="kw">let </span>fn_sig = fn_sig
             .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)<span class="question-mark">?</span>;
 
@@ -2392,11 +2349,6 @@
         snapshot: <span class="kw-2">&amp;</span>Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="comment">// See comment for [`Checker::check_oblig_fn_trait_pred`]
-        </span><span class="kw">let </span>poly_sig = EarlyBinder(gen_pred.to_poly_fn_sig())
-            .instantiate_identity()
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-            .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
         <span class="kw">let </span>def_id = gen_pred.def_id;
         <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
         <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
@@ -2404,7 +2356,7 @@
             infcx.change_item(def_id.expect_local(), <span class="kw-2">&amp;</span>body.infcx, snapshot),
             gen_pred.def_id.expect_local(),
             <span class="self">self</span>.inherited.reborrow(),
-            poly_sig,
+            gen_pred.to_poly_fn_sig(),
         )
     }
 
@@ -2414,28 +2366,16 @@
         snapshot: <span class="kw-2">&amp;</span>Snapshot,
         fn_trait_pred: FnTraitPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Closure(def_id, tys)) =
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Closure(closure_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
-            <span class="comment">// The closure signature may contain region variables generated in the `InferCtxt` of the
-            // current function so we normalize it before passing it to `Checker::run`. After
-            // normalization, the signature could still contain region variables wich haven't been
-            // declared in the closure's `InferCtxt`, but this is fine because we would map them to
-            // local regions when assigning to locals. See [`TypeEnv::assign`]
-            //
-            // After writing this, I realize it may be better to erase regions before normalization.
-            // We should revisit this at some point.
-            </span><span class="kw">let </span>poly_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>def_id, tys.clone()))
-                .instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
-            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
-            <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(closure_id);
+            <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(closure_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
             Checker::run(
-                infcx.change_item(def_id.expect_local(), <span class="kw-2">&amp;</span>body.infcx, snapshot),
-                def_id.expect_local(),
+                infcx.change_item(closure_id.expect_local(), <span class="kw-2">&amp;</span>body.infcx, snapshot),
+                closure_id.expect_local(),
                 <span class="self">self</span>.inherited.reborrow(),
-                poly_sig,
+                fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>closure_id, tys.clone()),
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
             <span class="comment">// TODO: When we allow refining closure/fn at the surface level, we would need to do
