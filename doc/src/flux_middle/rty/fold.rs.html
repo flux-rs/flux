@@ -2664,47 +2664,47 @@
 <span class="kw">impl </span>TypeSuperFoldable <span class="kw">for </span>Expr {
     <span class="kw">fn </span>try_super_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>span = <span class="self">self</span>.span();
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="self">self</span>.kind() {
-            ExprKind::Var(var) =&gt; ExprKind::Var(<span class="kw-2">*</span>var),
-            ExprKind::Local(local) =&gt; ExprKind::Local(<span class="kw-2">*</span>local),
-            ExprKind::Constant(c) =&gt; ExprKind::Constant(<span class="kw-2">*</span>c),
-            ExprKind::ConstDefId(did) =&gt; ExprKind::ConstDefId(<span class="kw-2">*</span>did),
+        <span class="kw">let </span>expr = <span class="kw">match </span><span class="self">self</span>.kind() {
+            ExprKind::Var(var) =&gt; Expr::var(<span class="kw-2">*</span>var),
+            ExprKind::Local(local) =&gt; Expr::local(<span class="kw-2">*</span>local),
+            ExprKind::Constant(c) =&gt; Expr::constant(<span class="kw-2">*</span>c),
+            ExprKind::ConstDefId(did) =&gt; Expr::const_def_id(<span class="kw-2">*</span>did),
             ExprKind::BinaryOp(op, e1, e2) =&gt; {
-                ExprKind::BinaryOp(
+                Expr::binary_op(
                     op.try_fold_with(folder)<span class="question-mark">?</span>,
                     e1.try_fold_with(folder)<span class="question-mark">?</span>,
                     e2.try_fold_with(folder)<span class="question-mark">?</span>,
                 )
             }
-            ExprKind::UnaryOp(op, e) =&gt; ExprKind::UnaryOp(<span class="kw-2">*</span>op, e.try_fold_with(folder)<span class="question-mark">?</span>),
-            ExprKind::FieldProj(e, proj) =&gt; ExprKind::FieldProj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>proj),
+            ExprKind::UnaryOp(op, e) =&gt; Expr::unary_op(<span class="kw-2">*</span>op, e.try_fold_with(folder)<span class="question-mark">?</span>),
+            ExprKind::FieldProj(e, proj) =&gt; Expr::field_proj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>proj),
             ExprKind::Aggregate(kind, flds) =&gt; {
                 <span class="kw">let </span>flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()<span class="question-mark">?</span>;
-                ExprKind::Aggregate(<span class="kw-2">*</span>kind, flds)
+                Expr::aggregate(<span class="kw-2">*</span>kind, flds)
             }
-            ExprKind::PathProj(e, field) =&gt; ExprKind::PathProj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>field),
+            ExprKind::PathProj(e, field) =&gt; Expr::path_proj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>field),
             ExprKind::App(func, arg) =&gt; {
-                ExprKind::App(func.try_fold_with(folder)<span class="question-mark">?</span>, arg.try_fold_with(folder)<span class="question-mark">?</span>)
+                Expr::app(func.try_fold_with(folder)<span class="question-mark">?</span>, arg.try_fold_with(folder)<span class="question-mark">?</span>)
             }
             ExprKind::IfThenElse(p, e1, e2) =&gt; {
-                ExprKind::IfThenElse(
+                Expr::ite(
                     p.try_fold_with(folder)<span class="question-mark">?</span>,
                     e1.try_fold_with(folder)<span class="question-mark">?</span>,
                     e2.try_fold_with(folder)<span class="question-mark">?</span>,
                 )
             }
-            ExprKind::Hole(kind) =&gt; ExprKind::Hole(kind.try_fold_with(folder)<span class="question-mark">?</span>),
-            ExprKind::KVar(kvar) =&gt; ExprKind::KVar(kvar.try_fold_with(folder)<span class="question-mark">?</span>),
-            ExprKind::Abs(lam) =&gt; ExprKind::Abs(lam.try_fold_with(folder)<span class="question-mark">?</span>),
-            ExprKind::GlobalFunc(func, kind) =&gt; ExprKind::GlobalFunc(<span class="kw-2">*</span>func, <span class="kw-2">*</span>kind),
+            ExprKind::Hole(kind) =&gt; Expr::hole(kind.try_fold_with(folder)<span class="question-mark">?</span>),
+            ExprKind::KVar(kvar) =&gt; Expr::kvar(kvar.try_fold_with(folder)<span class="question-mark">?</span>),
+            ExprKind::Abs(lam) =&gt; Expr::abs(lam.try_fold_with(folder)<span class="question-mark">?</span>),
+            ExprKind::GlobalFunc(func, kind) =&gt; Expr::global_func(<span class="kw-2">*</span>func, <span class="kw-2">*</span>kind),
             ExprKind::Alias(alias, args) =&gt; {
                 <span class="kw">let </span>alias = alias.try_fold_with(folder)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = args.try_fold_with(folder)<span class="question-mark">?</span>;
-                ExprKind::Alias(alias, args)
+                Expr::alias(alias, args)
             }
-            ExprKind::ForAll(expr) =&gt; ExprKind::ForAll(expr.try_fold_with(folder)<span class="question-mark">?</span>),
+            ExprKind::ForAll(expr) =&gt; Expr::forall(expr.try_fold_with(folder)<span class="question-mark">?</span>),
         };
-        <span class="prelude-val">Ok</span>(kind.intern_at_opt(span))
+        <span class="prelude-val">Ok</span>(expr.at_opt(span))
     }
 }
 

@@ -758,7 +758,7 @@
     }
 }
 
-<span class="kw">impl </span>Pretty <span class="kw">for </span>TyS {
+<span class="kw">impl </span>Pretty <span class="kw">for </span>Ty {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self</span>.kind() {
@@ -1034,7 +1034,7 @@
 <span class="macro">impl_debug_with_default_cx!</span>(
     Ensures,
     Sort,
-    TyS =&gt; <span class="string">"ty"</span>,
+    Ty =&gt; <span class="string">"ty"</span>,
     BaseTy,
     FnSig,
     GenericArg =&gt; <span class="string">"generic_arg"</span>,

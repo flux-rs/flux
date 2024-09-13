@@ -2472,21 +2472,6 @@
 <a href="#2472" id="2472">2472</a>
 <a href="#2473" id="2473">2473</a>
 <a href="#2474" id="2474">2474</a>
-<a href="#2475" id="2475">2475</a>
-<a href="#2476" id="2476">2476</a>
-<a href="#2477" id="2477">2477</a>
-<a href="#2478" id="2478">2478</a>
-<a href="#2479" id="2479">2479</a>
-<a href="#2480" id="2480">2480</a>
-<a href="#2481" id="2481">2481</a>
-<a href="#2482" id="2482">2482</a>
-<a href="#2483" id="2483">2483</a>
-<a href="#2484" id="2484">2484</a>
-<a href="#2485" id="2485">2485</a>
-<a href="#2486" id="2486">2486</a>
-<a href="#2487" id="2487">2487</a>
-<a href="#2488" id="2488">2488</a>
-<a href="#2489" id="2489">2489</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3519,9 +3504,14 @@
     }
 }
 
-<span class="kw">pub type </span>Ty = Interned&lt;TyS&gt;;
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>Ty(Interned&lt;TyKind&gt;);
 
 <span class="kw">impl </span>Ty {
+    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TyKind {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+
     <span class="doccomment">/// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
     /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
     /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
@@ -3754,6 +3744,33 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_discr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>Place) {
+        <span class="kw">if let </span>TyKind::Discr(adt_def, place) = <span class="self">self</span>.kind() {
+            (adt_def, place)
+        } <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">"expected discr"</span>)
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>[GenericArg], <span class="kw-2">&amp;</span>Expr) {
+        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = <span class="self">self</span>.kind() {
+            (adt_def, args, idx)
+        } <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">"expected adt `{self:?}`"</span>)
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
+        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
+            tys
+        } <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
+        }
+    }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Ty {
@@ -3782,53 +3799,6 @@
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
-        }
-    }
-}
-
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub struct </span>TyS {
-    kind: TyKind,
-}
-
-<span class="kw">impl </span>TyS {
-    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TyKind {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.kind
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_discr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>Place) {
-        <span class="kw">if let </span>TyKind::Discr(adt_def, place) = <span class="self">self</span>.kind() {
-            (adt_def, place)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected discr"</span>)
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>[GenericArg], <span class="kw-2">&amp;</span>Expr) {
-        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = <span class="self">self</span>.kind() {
-            (adt_def, args, idx)
-        } <span class="kw">else </span>{
-            <span class="macro">tracked_span_bug!</span>(<span class="string">"expected adt `{self:?}`"</span>)
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
-        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
-            tys
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BaseTy {
-        <span class="kw">match </span><span class="self">self</span>.kind() {
-            TyKind::Indexed(base_ty, <span class="kw">_</span>) =&gt; base_ty.clone(),
-            TyKind::Exists(bty) =&gt; bty.clone().skip_binder().expect_base(),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected indexed type"</span>),
         }
     }
 }
@@ -4747,7 +4717,7 @@
 
 <span class="kw">impl </span>TyKind {
     <span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Ty {
-        Interned::new(TyS { kind: <span class="self">self </span>})
+        Ty(Interned::new(<span class="self">self</span>))
     }
 }
 
@@ -4840,7 +4810,7 @@
     }
 }
 
-<span class="macro">impl_internable!</span>(AdtDefData, AdtSortDefData, TyS);
+<span class="macro">impl_internable!</span>(AdtDefData, AdtSortDefData, TyKind);
 <span class="macro">impl_slice_internable!</span>(
     Ty,
     GenericArg,

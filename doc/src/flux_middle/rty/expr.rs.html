@@ -1133,12 +1133,6 @@
 <a href="#1133" id="1133">1133</a>
 <a href="#1134" id="1134">1134</a>
 <a href="#1135" id="1135">1135</a>
-<a href="#1136" id="1136">1136</a>
-<a href="#1137" id="1137">1137</a>
-<a href="#1138" id="1138">1138</a>
-<a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a>
-<a href="#1141" id="1141">1141</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1227,11 +1221,9 @@
     }
 }
 
-<span class="kw">pub type </span>Expr = Interned&lt;ExprS&gt;;
-
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub struct </span>ExprS {
-    kind: ExprKind,
+</span><span class="kw">pub struct </span>Expr {
+    kind: Interned&lt;ExprKind&gt;,
     espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;,
 }
 
@@ -1439,33 +1431,34 @@
 }
 
 <span class="kw">impl </span>ExprKind {
-    <span class="kw">pub fn </span>intern_at_opt(<span class="self">self</span>, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        Interned::new(ExprS { kind: <span class="self">self</span>, espan })
-    }
+    <span class="comment">// pub fn intern_at_opt(self, espan: Option&lt;ESpan&gt;) -&gt; Expr {
+    //     Expr { kind: Interned::new(self), espan }
+    // }
 
-    <span class="kw">pub fn </span>intern_at(<span class="self">self</span>, espan: ESpan) -&gt; Expr {
-        <span class="self">self</span>.intern_at_opt(<span class="prelude-val">Some</span>(espan))
-    }
-
-    <span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Expr {
-        Interned::new(ExprS { kind: <span class="self">self</span>, espan: <span class="prelude-val">None </span>})
+    </span><span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Expr {
+        Expr { kind: Interned::new(<span class="self">self</span>), espan: <span class="prelude-val">None </span>}
     }
 }
 
 <span class="kw">impl </span>Expr {
-    <span class="kw">pub fn </span>at_base(<span class="self">self</span>, base: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        <span class="kw">let </span>kind = <span class="self">self</span>.kind();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(base) = base
-        {
-            kind.clone().intern_at(espan.with_base(base))
+    <span class="kw">pub fn </span>at_opt(<span class="self">self</span>, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
+        Expr { kind: <span class="self">self</span>.kind, espan }
+    }
+
+    <span class="kw">pub fn </span>at(<span class="self">self</span>, espan: ESpan) -&gt; Expr {
+        <span class="self">self</span>.at_opt(<span class="prelude-val">Some</span>(espan))
+    }
+
+    <span class="kw">pub fn </span>at_base(<span class="self">self</span>, base: ESpan) -&gt; Expr {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan {
+            <span class="self">self</span>.at(espan.with_base(base))
         } <span class="kw">else </span>{
             <span class="self">self
         </span>}
     }
 
     <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ESpan&gt; {
-        <span class="self">self</span>.espan.as_ref().copied()
+        <span class="self">self</span>.espan
     }
 
     <span class="kw">pub fn </span>tt() -&gt; Expr {
@@ -1650,8 +1643,8 @@
         Expr::adt(def_id, List::empty())
     }
 
-    <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: <span class="kw">impl </span>Into&lt;List&lt;Expr&gt;&gt;) -&gt; Expr {
-        ExprKind::App(func.into(), args.into()).intern()
+    <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::App(func.into(), args).intern()
     }
 
     <span class="kw">pub fn </span>global_func(func: Symbol, kind: SpecFuncKind) -&gt; Expr {
@@ -1717,7 +1710,7 @@
     <span class="doccomment">/// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
+        !<span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     <span class="doccomment">/// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -1729,7 +1722,7 @@
 
     <span class="doccomment">/// Whether the expression is *literally* the constant true.
     </span><span class="kw">fn </span>is_true(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>)))
+        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>)))
     }
 
     <span class="kw">pub fn </span>from_const(tcx: TyCtxt, c: <span class="kw-2">&amp;</span>Const) -&gt; Expr {
@@ -1747,7 +1740,7 @@
     }
 
     <span class="kw">pub fn </span>is_binary_op(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::BinaryOp(..))
+        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::BinaryOp(..))
     }
 
     <span class="kw">fn </span>const_op(op: <span class="kw-2">&amp;</span>BinOp, c1: <span class="kw-2">&amp;</span>Constant, c2: <span class="kw-2">&amp;</span>Constant) -&gt; <span class="prelude-ty">Option</span>&lt;Constant&gt; {
@@ -1783,25 +1776,21 @@
                         <span class="kw">let </span>e2_span = e2.span();
                         <span class="kw">match </span>(op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)), <span class="kw">_</span>) =&gt; {
-                                ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)).intern_at_opt(e1_span)
+                                Expr::constant(Constant::Bool(<span class="bool-val">false</span>)).at_opt(e1_span)
                             }
                             (BinOp::And, <span class="kw">_</span>, ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>))) =&gt; {
-                                ExprKind::Constant(Constant::Bool(<span class="bool-val">false</span>)).intern_at_opt(e2_span)
+                                Expr::constant(Constant::Bool(<span class="bool-val">false</span>)).at_opt(e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>)), <span class="kw">_</span>) =&gt; e2,
                             (BinOp::And, <span class="kw">_</span>, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>))) =&gt; e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) =&gt; {
                                 <span class="kw">let </span>e2_span = e2.span();
                                 <span class="kw">match </span>Expr::const_op(op, c1, c2) {
-                                    <span class="prelude-val">Some</span>(c) =&gt; {
-                                        ExprKind::Constant(c).intern_at_opt(span.or(e2_span))
-                                    }
-                                    <span class="prelude-val">None </span>=&gt; {
-                                        ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span)
-                                    }
+                                    <span class="prelude-val">Some</span>(c) =&gt; Expr::constant(c).at_opt(span.or(e2_span)),
+                                    <span class="prelude-val">None </span>=&gt; Expr::binary_op(op.clone(), e1, e2).at_opt(span),
                                 }
                             }
-                            <span class="kw">_ </span>=&gt; ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span),
+                            <span class="kw">_ </span>=&gt; Expr::binary_op(op.clone(), e1, e2).at_opt(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) =&gt; {
@@ -1812,10 +1801,9 @@
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) =&gt; e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) =&gt; {
-                                ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
-                                    .intern_at_opt(span)
+                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone()).at_opt(span)
                             }
-                            <span class="kw">_ </span>=&gt; ExprKind::UnaryOp(UnOp::Not, e).intern_at_opt(span),
+                            <span class="kw">_ </span>=&gt; Expr::unary_op(UnOp::Not, e).at_opt(span),
                         }
                     }
                     <span class="kw">_ </span>=&gt; expr.super_fold_with(<span class="self">self</span>),
@@ -1856,7 +1844,7 @@
     <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; Lambda {
         <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
-            .collect_vec();
+            .collect();
         <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args);
         Lambda::with_sorts(body, inputs, output)
     }
@@ -2026,7 +2014,7 @@
     }
 }
 
-<span class="macro">impl_internable!</span>(ExprS);
+<span class="macro">impl_internable!</span>(ExprKind);
 <span class="macro">impl_slice_internable!</span>(Expr, KVar, u32, FieldIdx);
 
 <span class="kw">mod </span>pretty {

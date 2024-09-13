@@ -296,7 +296,7 @@
                 <span class="kw">let </span>res = lam.apply(args);
                 <span class="self">Self</span>::at_base(res, espan)
             }
-            <span class="kw">_ </span>=&gt; ExprKind::App(func.clone(), args.into()).intern_at_opt(espan),
+            <span class="kw">_ </span>=&gt; Expr::app(func.clone(), args.into()).at_opt(espan),
         }
     }
 }
@@ -325,7 +325,7 @@
 
 <span class="kw">impl </span>TypeFolder <span class="kw">for </span>BaseSpanner {
     <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-        expr.super_fold_with(<span class="self">self</span>).at_base(<span class="prelude-val">Some</span>(<span class="self">self</span>.espan))
+        expr.super_fold_with(<span class="self">self</span>).at_base(<span class="self">self</span>.espan)
     }
 }
 </code></pre></div></section></main></body></html>

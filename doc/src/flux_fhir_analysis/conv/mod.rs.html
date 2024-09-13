@@ -2158,20 +2158,6 @@
 <a href="#2158" id="2158">2158</a>
 <a href="#2159" id="2159">2159</a>
 <a href="#2160" id="2160">2160</a>
-<a href="#2161" id="2161">2161</a>
-<a href="#2162" id="2162">2162</a>
-<a href="#2163" id="2163">2163</a>
-<a href="#2164" id="2164">2164</a>
-<a href="#2165" id="2165">2165</a>
-<a href="#2166" id="2166">2166</a>
-<a href="#2167" id="2167">2167</a>
-<a href="#2168" id="2168">2168</a>
-<a href="#2169" id="2169">2169</a>
-<a href="#2170" id="2170">2170</a>
-<a href="#2171" id="2171">2171</a>
-<a href="#2172" id="2172">2172</a>
-<a href="#2173" id="2173">2173</a>
-<a href="#2174" id="2174">2174</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3784,38 +3770,35 @@
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>var.res {
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) =&gt; rty::ExprKind::ConstDefId(def_id).intern_at(espan),
+                    ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id).at(espan),
                     ExprRes::ConstGeneric(def_id) =&gt; {
-                        rty::ExprKind::Var(rty::Var::ConstGeneric(
+                        rty::Expr::const_generic(
                             <span class="self">self</span>.genv.def_id_to_param_const(def_id.expect_local()),
-                        ))
-                        .intern_at(espan)
+                        )
+                        .at(espan)
                     }
                     ExprRes::NumConst(num) =&gt; {
-                        rty::ExprKind::Constant(rty::Constant::from(num)).intern_at(espan)
+                        rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
                     ExprRes::GlobalFunc(..) =&gt; {
                         <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected func in var position"</span>)
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) =&gt; {
-                rty::ExprKind::Constant(conv_lit(<span class="kw-2">*</span>lit)).intern_at(espan)
-            }
+            fhir::ExprKind::Literal(lit) =&gt; rty::Expr::constant(conv_lit(<span class="kw-2">*</span>lit)).at(espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; {
-                rty::ExprKind::BinaryOp(
+                rty::Expr::binary_op(
                     <span class="self">self</span>.conv_bin_op(<span class="kw-2">*</span>op, expr.fhir_id),
                     <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,
                 )
-                .intern_at(espan)
+                .at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) =&gt; {
-                rty::ExprKind::UnaryOp(conv_un_op(<span class="kw-2">*</span>op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>).intern_at(espan)
+                rty::Expr::unary_op(conv_un_op(<span class="kw-2">*</span>op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>).at(espan)
             }
             fhir::ExprKind::App(func, args) =&gt; {
-                rty::ExprKind::App(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>)
-                    .intern_at(espan)
+                rty::Expr::app(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>).at(espan)
             }
             fhir::ExprKind::Alias(alias, args) =&gt; {
                 <span class="kw">let </span>args = args
@@ -3823,15 +3806,15 @@
                     .map(|arg| <span class="self">self</span>.conv_expr(env, arg))
                     .try_collect()<span class="question-mark">?</span>;
                 <span class="kw">let </span>alias = <span class="self">self</span>.conv_alias_reft(env, alias)<span class="question-mark">?</span>;
-                rty::ExprKind::Alias(alias, args).intern_at(espan)
+                rty::Expr::alias(alias, args).at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
-                rty::ExprKind::IfThenElse(
+                rty::Expr::ite(
                     <span class="self">self</span>.conv_expr(env, p)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,
                 )
-                .intern_at(espan)
+                .at(espan)
             }
             fhir::ExprKind::Dot(var, fld) =&gt; env.lookup(var).get_field(<span class="kw-2">*</span>fld, espan),
         };
@@ -3907,15 +3890,12 @@
             <span class="kw">for </span>coercion <span class="kw">in </span>coercions {
                 expr = <span class="kw">match </span><span class="kw-2">*</span>coercion {
                     rty::Coercion::Inject(def_id) =&gt; {
-                        rty::ExprKind::Aggregate(
-                            rty::AggregateKind::Adt(def_id),
-                            List::singleton(expr),
-                        )
-                        .intern_at_opt(span)
+                        rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
+                            .at_opt(span)
                     }
                     rty::Coercion::Project(def_id) =&gt; {
-                        rty::ExprKind::FieldProj(expr, rty::FieldProj::Adt { def_id, field: <span class="number">0 </span>})
-                            .intern_at_opt(span)
+                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: <span class="number">0 </span>})
+                            .at_opt(span)
                     }
                 };
             }
@@ -4002,29 +3982,24 @@
             } =&gt; {
                 <span class="kw">match </span><span class="kw-2">*</span>kind {
                     LayerKind::List { bound_regions } =&gt; {
-                        rty::ExprKind::Var(rty::Var::Bound(
+                        rty::Expr::bvar(
                             <span class="kw-2">*</span>debruijn,
-                            rty::BoundReft {
-                                var: BoundVar::from_u32(bound_regions + <span class="kw-2">*</span>index),
-                                kind: rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
-                            },
-                        ))
-                        .intern_at(espan)
+                            BoundVar::from_u32(bound_regions + <span class="kw-2">*</span>index),
+                            rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
+                        )
+                        .at(espan)
                     }
                     LayerKind::Coalesce(def_id) =&gt; {
-                        <span class="kw">let </span>var = rty::ExprKind::Var(rty::Var::Bound(
-                            <span class="kw-2">*</span>debruijn,
-                            rty::BoundReft { var: BoundVar::ZERO, kind: rty::BoundReftKind::Annon },
-                        ))
-                        .intern_at(espan);
-                        rty::ExprKind::FieldProj(var, rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>index })
-                            .intern_at(espan)
+                        <span class="kw">let </span>var =
+                            rty::Expr::bvar(<span class="kw-2">*</span>debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon)
+                                .at(espan);
+                        rty::Expr::field_proj(var, rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>index })
+                            .at(espan)
                     }
                 }
             }
             <span class="kw-2">&amp;</span>LookupResultKind::EarlyParam { index, name, .. } =&gt; {
-                rty::ExprKind::Var(rty::Var::EarlyParam(rty::EarlyReftParam { index, name }))
-                    .intern_at(espan)
+                rty::Expr::early_param(index, name).at(espan)
             }
         }
     }
@@ -4055,11 +4030,8 @@
             <span class="kw">let </span>i = sort_def
                 .field_index(fld.name)
                 .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">"field `{fld:?}` not found in {def_id:?}"</span>));
-            rty::ExprKind::FieldProj(
-                <span class="self">self</span>.to_expr(),
-                rty::FieldProj::Adt { def_id, field: i <span class="kw">as </span>u32 },
-            )
-            .intern_at(espan)
+            rty::Expr::field_proj(<span class="self">self</span>.to_expr(), rty::FieldProj::Adt { def_id, field: i <span class="kw">as </span>u32 })
+                .at(espan)
         } <span class="kw">else </span>{
             <span class="macro">span_bug!</span>(fld.span, <span class="string">"expected adt sort"</span>)
         }
