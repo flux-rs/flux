@@ -35,7 +35,6 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_index::bit_set::BitSet;
-use rustc_infer::infer::{BoundRegionConversionTime, NllRegionVariableOrigin};
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
@@ -222,17 +221,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // The regions we assign here are not relevant because we would map them to local regions
         // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| {
-                rty::ReVar(
-                    infcx
-                        .region_infcx
-                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-                        .as_var(),
-                )
-            },
-            |sort, _| infcx.define_vars(sort),
-        );
+        let fn_sig =
+            poly_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
 
@@ -557,10 +547,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
