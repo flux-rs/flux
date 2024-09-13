@@ -20,13 +20,15 @@ pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
     FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
+pub use flux_arc_interner::List;
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_bug};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
@@ -54,7 +56,6 @@ pub use crate::{
 use crate::{
     fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
     rustc::{self, mir::Place, ty::VariantDef, ToRustc},
@@ -222,6 +223,8 @@ pub struct GenericPredicates {
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
+
+pub type Clauses = List<Clause>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ClauseKind {
@@ -851,8 +854,9 @@ impl BoundVariableKind {
     }
 }
 
+#[extension(pub trait BoundVariableKindsExt)]
 impl List<BoundVariableKind> {
-    pub fn to_sort_list(&self) -> List<Sort> {
+    fn to_sort_list(&self) -> List<Sort> {
         self.iter()
             .map(|kind| {
                 match kind {
@@ -1782,38 +1786,11 @@ impl GenericArg {
             }
         }
     }
-}
-
-impl<'tcx> ToRustc<'tcx> for GenericArg {
-    type T = rustc_middle::ty::GenericArg<'tcx>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        use rustc_middle::ty;
-        match self {
-            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
-            GenericArg::Base(ctor) => ty::GenericArg::from(ctor.skip_binder_ref().to_rustc(tcx)),
-            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
-            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
-        }
-    }
-}
-
-pub type GenericArgs = List<GenericArg>;
-
-impl GenericArgs {
-    #[track_caller]
-    pub fn box_args(&self) -> (&Ty, &Ty) {
-        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
-            (deref, alloc)
-        } else {
-            bug!("invalid generic arguments for box");
-        }
-    }
 
     /// Creates a `GenericArgs` from the definition of generic parameters, by calling a closure to
     /// obtain arg. The closures get to observe the `GenericArgs` as they're being built, which can
     /// be used to correctly replace defaults of generic parameters.
-    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<Self>
+    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<GenericArgs>
     where
         F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
     {
@@ -1824,7 +1801,10 @@ impl GenericArgs {
         Ok(List::from_vec(args))
     }
 
-    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+    pub fn identity_for_item(
+        genv: GlobalEnv,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<GenericArgs> {
         Self::for_item(genv, def_id.into(), |param, _| GenericArg::from_param_def(param))
     }
 
@@ -1847,6 +1827,34 @@ impl GenericArgs {
             args.push(kind);
         }
         Ok(())
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for GenericArg {
+    type T = rustc_middle::ty::GenericArg<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        use rustc_middle::ty;
+        match self {
+            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
+            GenericArg::Base(ctor) => ty::GenericArg::from(ctor.skip_binder_ref().to_rustc(tcx)),
+            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
+            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
+        }
+    }
+}
+
+pub type GenericArgs = List<GenericArg>;
+
+#[extension(pub trait GenericArgsExt)]
+impl GenericArgs {
+    #[track_caller]
+    fn box_args(&self) -> (&Ty, &Ty) {
+        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+            (deref, alloc)
+        } else {
+            bug!("invalid generic arguments for box");
+        }
     }
 }
 
@@ -2353,7 +2361,6 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (Var, Sort)
 );
 
 #[macro_export]

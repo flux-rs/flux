@@ -1,8 +1,9 @@
+use flux_arc_interner::List;
 use flux_common::{bug, span_bug};
 use rustc_hir::{def::DefKind, PrimTy};
 use rustc_span::def_id::DefId;
 
-use crate::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
+use crate::{fhir, global_env::GlobalEnv, queries::QueryResult, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_alias_reft(self, alias: &fhir::AliasReft) -> QueryResult<Option<rty::FuncSort>> {

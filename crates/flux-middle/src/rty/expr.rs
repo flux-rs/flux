@@ -1,5 +1,6 @@
 use std::{fmt, sync::OnceLock};
 
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
 pub use flux_fixpoint::Constant;
 use itertools::Itertools;
@@ -15,14 +16,13 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
-    Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, FuncSort,
+    GenericArgs, IntTy, Sort, UintTy,
 };
 use crate::{
     const_eval,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -880,7 +880,7 @@ impl From<Local> for Loc {
 }
 
 impl_internable!(ExprKind);
-impl_slice_internable!(Expr, KVar, u32, FieldIdx);
+impl_slice_internable!(Expr, KVar);
 
 mod pretty {
     use super::*;

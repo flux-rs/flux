@@ -17,10 +17,9 @@ use flux_middle::{
     const_eval,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
-    intern::List,
     pretty,
     queries::QueryResult,
-    rty::{self, Constant, ESpan, Lambda},
+    rty::{self, BoundVariableKindsExt as _, Constant, ESpan, Lambda, List},
 };
 use itertools::Itertools;
 use rustc_data_structures::{

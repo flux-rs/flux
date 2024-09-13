@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+use flux_arc_interner::List;
 use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
@@ -18,7 +19,6 @@ use rustc_span::{Span, Symbol};
 use crate::{
     fhir,
     global_env::GlobalEnv,
-    intern::List,
     pretty,
     rty::{
         self,

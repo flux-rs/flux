@@ -26,7 +26,6 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     cstore::{CrateStore, OptResult},
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty,
 };
@@ -109,7 +108,7 @@ pub struct Tables<K: Eq + Hash> {
     generics_of: UnordMap<K, QueryResult<rty::Generics>>,
     refinement_generics_of: UnordMap<K, QueryResult<rty::RefinementGenerics>>,
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
+    item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
     assoc_refinements_def: UnordMap<(K, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinements_def:
@@ -214,7 +213,7 @@ impl CrateStore for CStore {
         get!(self, refinement_generics_of, def_id)
     }
 
-    fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<List<rty::Clause>>> {
+    fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::Clauses>> {
         get!(self, item_bounds, def_id)
     }
 

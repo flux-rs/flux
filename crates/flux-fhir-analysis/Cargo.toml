@@ -11,6 +11,7 @@ flux-config.workspace = true
 flux-errors.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
+
 itertools.workspace = true
 
 [package.metadata.rust-analyzer]

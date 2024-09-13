@@ -14,8 +14,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -24,7 +24,7 @@ use flux_middle::{
             Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
             Terminator, TerminatorKind, START_BLOCK,
         },
-        ty,
+        ty::{self, GenericArgsExt as _},
     },
 };
 use itertools::Itertools;

@@ -413,6 +413,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-arc-interner"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "hashbrown 0.14.5",
+]
+
+[[package]]
 name = "flux-attrs"
 version = "0.1.0"
 dependencies = [
@@ -560,6 +568,7 @@ dependencies = [
  "bumpalo",
  "dashmap",
  "ena",
+ "flux-arc-interner",
  "flux-common",
  "flux-config",
  "flux-errors",

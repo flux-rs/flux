@@ -3,7 +3,6 @@ use std::{collections::hash_map::Entry, fmt, iter};
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     pretty::def_id_to_string,
     queries::QueryResult,
     rty,
@@ -13,7 +12,7 @@ use flux_middle::{
             Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
             TerminatorKind, VariantIdx, FIRST_VARIANT,
         },
-        ty::{AdtDef, GenericArgs, Ty, TyKind},
+        ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
     },
 };
 use itertools::{repeat_n, Itertools};

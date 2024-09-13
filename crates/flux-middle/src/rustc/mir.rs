@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use flux_arc_interner::List;
 use flux_common::{
     bug,
     index::{Idx, IndexVec},
@@ -31,7 +32,7 @@ pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty, TyKind};
 use crate::{
-    global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
+    global_env::GlobalEnv, pretty::def_id_to_string, queries::QueryResult,
     rustc::ty::region_to_string,
 };
 

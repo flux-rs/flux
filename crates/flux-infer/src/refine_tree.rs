@@ -7,7 +7,6 @@ use std::{
 use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty::{
         evars::EVarSol,
@@ -15,7 +14,8 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, EarlyReftParam, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EarlyReftParam, Expr, GenericArg, GenericArgsExt, Mutability, Name, Sort, Ty,
+        TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -111,7 +111,7 @@ impl Snapshot {
 #[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
-    params: List<(Var, Sort)>,
+    params: Vec<(Var, Sort)>,
 }
 
 impl Scope {
@@ -184,7 +184,7 @@ impl WeakNodePtr {
 
 enum NodeKind {
     /// List of const and refinement generics
-    Root(List<(Var, Sort)>),
+    Root(Vec<(Var, Sort)>),
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
     ForAll(Name, Sort),

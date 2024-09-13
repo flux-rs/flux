@@ -3,6 +3,7 @@
 
 use std::ops::ControlFlow;
 
+use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
@@ -23,9 +24,8 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    intern::{Internable, List},
     queries::QueryResult,
-    rty::{expr::HoleKind, Var, VariantSig},
+    rty::{expr::HoleKind, BoundVariableKindsExt, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
