@@ -18,7 +18,7 @@ use super::{
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialProjection,
     ExistentialTraitRef, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg,
     Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SortArg, SubsetTy,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, ReErased, Region, Sort, SortArg, SubsetTy,
     TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
@@ -244,7 +244,7 @@ pub trait TypeFoldable: TypeVisitable {
         callsite_def_id: DefId,
     ) -> QueryResult<Self> {
         let mut normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)?;
-        self.try_fold_with(&mut normalizer)
+        self.erase_regions().try_fold_with(&mut normalizer)
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
@@ -386,6 +386,20 @@ pub trait TypeFoldable: TypeVisitable {
             }
         }
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
+    }
+
+    fn erase_regions(&self) -> Self {
+        struct RegionEraser;
+        impl TypeFolder for RegionEraser {
+            fn fold_region(&mut self, r: &Region) -> Region {
+                match *r {
+                    ReBound(..) => *r,
+                    _ => ReErased,
+                }
+            }
+        }
+
+        self.fold_with(&mut RegionEraser)
     }
 }
 

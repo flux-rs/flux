@@ -275,11 +275,6 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-#[derive(Debug)]
-pub struct GenericPredicates<'fhir> {
-    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct WhereBoundPredicate<'fhir> {
     pub span: Span,

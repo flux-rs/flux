@@ -35,7 +35,6 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_index::bit_set::BitSet;
-use rustc_infer::infer::{BoundRegionConversionTime, NllRegionVariableOrigin};
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
@@ -220,19 +219,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let body = genv.mir(def_id).with_span(span)?;
         let generics = genv.generics_of(def_id).with_span(span)?;
 
-        // The regions we assign here are not relevant because we would map them to local regions
-        // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| {
-                rty::ReVar(
-                    infcx
-                        .region_infcx
-                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-                        .as_var(),
-                )
-            },
-            |sort, _| infcx.define_vars(sort),
-        );
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?;
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
 
@@ -557,10 +547,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
@@ -640,11 +627,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        // See comment for [`Checker::check_oblig_fn_trait_pred`]
-        let poly_sig = EarlyBinder(gen_pred.to_poly_fn_sig())
-            .instantiate_identity()
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-            .with_span(self.body.span())?;
         let def_id = gen_pred.def_id;
         let span = self.genv.tcx().def_span(def_id);
         let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
@@ -652,7 +634,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
             gen_pred.def_id.expect_local(),
             self.inherited.reborrow(),
-            poly_sig,
+            gen_pred.to_poly_fn_sig(),
         )
     }
 
@@ -662,28 +644,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         fn_trait_pred: FnTraitPredicate,
     ) -> Result {
-        if let Some(BaseTy::Closure(def_id, tys)) =
+        if let Some(BaseTy::Closure(closure_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
-            // The closure signature may contain region variables generated in the `InferCtxt` of the
-            // current function so we normalize it before passing it to `Checker::run`. After
-            // normalization, the signature could still contain region variables wich haven't been
-            // declared in the closure's `InferCtxt`, but this is fine because we would map them to
-            // local regions when assigning to locals. See [`TypeEnv::assign`]
-            //
-            // After writing this, I realize it may be better to erase regions before normalization.
-            // We should revisit this at some point.
-            let poly_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()))
-                .instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                .with_span(self.body.span())?;
-            let span = self.genv.tcx().def_span(def_id);
-            let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
+            let span = self.genv.tcx().def_span(closure_id);
+            let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
             Checker::run(
-                infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
-                def_id.expect_local(),
+                infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
+                closure_id.expect_local(),
                 self.inherited.reborrow(),
-                poly_sig,
+                fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
             )?;
         } else {
             // TODO: When we allow refining closure/fn at the surface level, we would need to do

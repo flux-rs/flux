@@ -364,6 +364,7 @@ pub enum Region {
     ReStatic,
     ReVar(RegionVid),
     ReLateParam(LateParamRegion),
+    ReErased,
 }
 
 impl<'tcx> ToRustc<'tcx> for Region {
@@ -380,6 +381,7 @@ impl<'tcx> ToRustc<'tcx> for Region {
             Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
+            Region::ReErased => tcx.lifetimes.re_erased,
         }
     }
 }
@@ -990,5 +992,6 @@ pub(crate) fn region_to_string(region: Region) -> String {
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(rvid) => format!("{rvid:?}"),
         Region::ReLateParam(..) => "'<free>".to_string(),
+        Region::ReErased => "'_".to_string(),
     }
 }

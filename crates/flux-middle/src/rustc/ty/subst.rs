@@ -126,6 +126,7 @@ impl Subst for Region {
             Region::ReLateParam(..)
             | Region::ReBound(_, _)
             | Region::ReStatic
+            | Region::ReErased
             | Region::ReVar(_) => *self,
         }
     }
