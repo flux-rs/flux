@@ -1280,7 +1280,7 @@
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>), BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
             (BaseTy::Dynamic(preds_a, <span class="kw">_</span>), BaseTy::Dynamic(preds_b, <span class="kw">_</span>)) =&gt; {
-                <span class="macro">assert_eq!</span>(preds_a, preds_b);
+                <span class="macro">assert_eq!</span>(preds_a.erase_regions(), preds_b.erase_regions());
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) <span class="kw">if </span>did1 == did2 =&gt; {
