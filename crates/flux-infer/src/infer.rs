@@ -621,10 +621,7 @@ impl Sub {
             _ => {
                 infcx.unify_exprs(e1, e2);
                 let span = e2.span();
-                infcx.check_pred(
-                    ExprKind::BinaryOp(rty::BinOp::Eq, e1.into(), e2.into()).intern_at_opt(span),
-                    self.tag(),
-                );
+                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, e1, e2).at_opt(span), self.tag());
             }
         }
     }
