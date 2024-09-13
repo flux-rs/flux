@@ -86,11 +86,9 @@ impl AliasReft {
     }
 }
 
-pub type Expr = Interned<ExprS>;
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct ExprS {
-    kind: ExprKind,
+pub struct Expr {
+    kind: Interned<ExprKind>,
     espan: Option<ESpan>,
 }
 
@@ -298,33 +296,34 @@ newtype_index! {
 }
 
 impl ExprKind {
-    pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
-        Interned::new(ExprS { kind: self, espan })
-    }
-
-    pub fn intern_at(self, espan: ESpan) -> Expr {
-        self.intern_at_opt(Some(espan))
-    }
+    // pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
+    //     Expr { kind: Interned::new(self), espan }
+    // }
 
     fn intern(self) -> Expr {
-        Interned::new(ExprS { kind: self, espan: None })
+        Expr { kind: Interned::new(self), espan: None }
     }
 }
 
 impl Expr {
-    pub fn at_base(self, base: Option<ESpan>) -> Expr {
-        let kind = self.kind();
-        if let Some(espan) = self.espan
-            && let Some(base) = base
-        {
-            kind.clone().intern_at(espan.with_base(base))
+    pub fn at_opt(self, espan: Option<ESpan>) -> Expr {
+        Expr { kind: self.kind, espan }
+    }
+
+    pub fn at(self, espan: ESpan) -> Expr {
+        self.at_opt(Some(espan))
+    }
+
+    pub fn at_base(self, base: ESpan) -> Expr {
+        if let Some(espan) = self.espan {
+            self.at(espan.with_base(base))
         } else {
             self
         }
     }
 
     pub fn span(&self) -> Option<ESpan> {
-        self.espan.as_ref().copied()
+        self.espan
     }
 
     pub fn tt() -> Expr {
@@ -509,8 +508,8 @@ impl Expr {
         Expr::adt(def_id, List::empty())
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern()
+    pub fn app(func: impl Into<Expr>, args: List<Expr>) -> Expr {
+        ExprKind::App(func.into(), args).intern()
     }
 
     pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
@@ -576,7 +575,7 @@ impl Expr {
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
+        !matches!(self.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -588,7 +587,7 @@ impl Expr {
 
     /// Whether the expression is *literally* the constant true.
     fn is_true(&self) -> bool {
-        matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+        matches!(self.kind(), ExprKind::Constant(Constant::Bool(true)))
     }
 
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
@@ -606,7 +605,7 @@ impl Expr {
     }
 
     pub fn is_binary_op(&self) -> bool {
-        matches!(self.kind, ExprKind::BinaryOp(..))
+        matches!(self.kind(), ExprKind::BinaryOp(..))
     }
 
     fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
@@ -642,25 +641,21 @@ impl Expr {
                         let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e1_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e1_span)
                             }
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e2_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => {
-                                        ExprKind::Constant(c).intern_at_opt(span.or(e2_span))
-                                    }
-                                    None => {
-                                        ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span)
-                                    }
+                                    Some(c) => Expr::constant(c).at_opt(span.or(e2_span)),
+                                    None => Expr::binary_op(op.clone(), e1, e2).at_opt(span),
                                 }
                             }
-                            _ => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span),
+                            _ => Expr::binary_op(op.clone(), e1, e2).at_opt(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -671,10 +666,9 @@ impl Expr {
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                                ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
-                                    .intern_at_opt(span)
+                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone()).at_opt(span)
                             }
-                            _ => ExprKind::UnaryOp(UnOp::Not, e).intern_at_opt(span),
+                            _ => Expr::unary_op(UnOp::Not, e).at_opt(span),
                         }
                     }
                     _ => expr.super_fold_with(self),
@@ -715,7 +709,7 @@ impl Expr {
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
-            .collect_vec();
+            .collect();
         let body = Expr::app(self, args);
         Lambda::with_sorts(body, inputs, output)
     }
@@ -885,7 +879,7 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS);
+impl_internable!(ExprKind);
 impl_slice_internable!(Expr, KVar, u32, FieldIdx);
 
 mod pretty {

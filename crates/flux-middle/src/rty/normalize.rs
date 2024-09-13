@@ -131,7 +131,7 @@ impl<'a> Normalizer<'a> {
                 let res = lam.apply(args);
                 Self::at_base(res, espan)
             }
-            _ => ExprKind::App(func.clone(), args.into()).intern_at_opt(espan),
+            _ => Expr::app(func.clone(), args).at_opt(espan),
         }
     }
 }
@@ -160,6 +160,6 @@ impl BaseSpanner {
 
 impl TypeFolder for BaseSpanner {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        expr.super_fold_with(self).at_base(Some(self.espan))
+        expr.super_fold_with(self).at_base(self.espan)
     }
 }

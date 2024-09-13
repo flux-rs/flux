@@ -1610,38 +1610,35 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) => rty::ExprKind::ConstDefId(def_id).intern_at(espan),
+                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
                     ExprRes::ConstGeneric(def_id) => {
-                        rty::ExprKind::Var(rty::Var::ConstGeneric(
+                        rty::Expr::const_generic(
                             self.genv.def_id_to_param_const(def_id.expect_local()),
-                        ))
-                        .intern_at(espan)
+                        )
+                        .at(espan)
                     }
                     ExprRes::NumConst(num) => {
-                        rty::ExprKind::Constant(rty::Constant::from(num)).intern_at(espan)
+                        rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
                     ExprRes::GlobalFunc(..) => {
                         span_bug!(var.span, "unexpected func in var position")
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) => {
-                rty::ExprKind::Constant(conv_lit(*lit)).intern_at(espan)
-            }
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::ExprKind::BinaryOp(
+                rty::Expr::binary_op(
                     self.conv_bin_op(*op, expr.fhir_id),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                 )
-                .intern_at(espan)
+                .at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::ExprKind::UnaryOp(conv_un_op(*op), self.conv_expr(env, e)?).intern_at(espan)
+                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?).at(espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::ExprKind::App(self.conv_func(env, func), self.conv_exprs(env, args)?)
-                    .intern_at(espan)
+                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?).at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
                 let args = args
@@ -1649,15 +1646,15 @@ impl ConvCtxt<'_, '_, '_> {
                     .map(|arg| self.conv_expr(env, arg))
                     .try_collect()?;
                 let alias = self.conv_alias_reft(env, alias)?;
-                rty::ExprKind::Alias(alias, args).intern_at(espan)
+                rty::Expr::alias(alias, args).at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
-                rty::ExprKind::IfThenElse(
+                rty::Expr::ite(
                     self.conv_expr(env, p)?,
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                 )
-                .intern_at(espan)
+                .at(espan)
             }
             fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld, espan),
         };
@@ -1828,29 +1825,24 @@ impl LookupResult<'_> {
             } => {
                 match *kind {
                     LayerKind::List { bound_regions } => {
-                        rty::ExprKind::Var(rty::Var::Bound(
+                        rty::Expr::bvar(
                             *debruijn,
-                            rty::BoundReft {
-                                var: BoundVar::from_u32(bound_regions + *index),
-                                kind: rty::BoundReftKind::Named(*name),
-                            },
-                        ))
-                        .intern_at(espan)
+                            BoundVar::from_u32(bound_regions + *index),
+                            rty::BoundReftKind::Named(*name),
+                        )
+                        .at(espan)
                     }
                     LayerKind::Coalesce(def_id) => {
-                        let var = rty::ExprKind::Var(rty::Var::Bound(
-                            *debruijn,
-                            rty::BoundReft { var: BoundVar::ZERO, kind: rty::BoundReftKind::Annon },
-                        ))
-                        .intern_at(espan);
-                        rty::ExprKind::FieldProj(var, rty::FieldProj::Adt { def_id, field: *index })
-                            .intern_at(espan)
+                        let var =
+                            rty::Expr::bvar(*debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon)
+                                .at(espan);
+                        rty::Expr::field_proj(var, rty::FieldProj::Adt { def_id, field: *index })
+                            .at(espan)
                     }
                 }
             }
             &LookupResultKind::EarlyParam { index, name, .. } => {
-                rty::ExprKind::Var(rty::Var::EarlyParam(rty::EarlyReftParam { index, name }))
-                    .intern_at(espan)
+                rty::Expr::early_param(index, name).at(espan)
             }
         }
     }
@@ -1881,11 +1873,8 @@ impl LookupResult<'_> {
             let i = sort_def
                 .field_index(fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
-            rty::ExprKind::FieldProj(
-                self.to_expr(),
-                rty::FieldProj::Adt { def_id, field: i as u32 },
-            )
-            .intern_at(espan)
+            rty::Expr::field_proj(self.to_expr(), rty::FieldProj::Adt { def_id, field: i as u32 })
+                .at(espan)
         } else {
             span_bug!(fld.span, "expected adt sort")
         }

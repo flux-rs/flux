@@ -1237,47 +1237,47 @@ impl TypeFoldable for Expr {
 impl TypeSuperFoldable for Expr {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let span = self.span();
-        let kind = match self.kind() {
-            ExprKind::Var(var) => ExprKind::Var(*var),
-            ExprKind::Local(local) => ExprKind::Local(*local),
-            ExprKind::Constant(c) => ExprKind::Constant(*c),
-            ExprKind::ConstDefId(did) => ExprKind::ConstDefId(*did),
+        let expr = match self.kind() {
+            ExprKind::Var(var) => Expr::var(*var),
+            ExprKind::Local(local) => Expr::local(*local),
+            ExprKind::Constant(c) => Expr::constant(*c),
+            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
             ExprKind::BinaryOp(op, e1, e2) => {
-                ExprKind::BinaryOp(
+                Expr::binary_op(
                     op.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
                     e2.try_fold_with(folder)?,
                 )
             }
-            ExprKind::UnaryOp(op, e) => ExprKind::UnaryOp(*op, e.try_fold_with(folder)?),
-            ExprKind::FieldProj(e, proj) => ExprKind::FieldProj(e.try_fold_with(folder)?, *proj),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?),
+            ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj),
             ExprKind::Aggregate(kind, flds) => {
                 let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                ExprKind::Aggregate(*kind, flds)
+                Expr::aggregate(*kind, flds)
             }
-            ExprKind::PathProj(e, field) => ExprKind::PathProj(e.try_fold_with(folder)?, *field),
+            ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
-                ExprKind::App(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
+                Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
-                ExprKind::IfThenElse(
+                Expr::ite(
                     p.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
                     e2.try_fold_with(folder)?,
                 )
             }
-            ExprKind::Hole(kind) => ExprKind::Hole(kind.try_fold_with(folder)?),
-            ExprKind::KVar(kvar) => ExprKind::KVar(kvar.try_fold_with(folder)?),
-            ExprKind::Abs(lam) => ExprKind::Abs(lam.try_fold_with(folder)?),
-            ExprKind::GlobalFunc(func, kind) => ExprKind::GlobalFunc(*func, *kind),
+            ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
+            ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
+            ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
+            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
             ExprKind::Alias(alias, args) => {
                 let alias = alias.try_fold_with(folder)?;
                 let args = args.try_fold_with(folder)?;
-                ExprKind::Alias(alias, args)
+                Expr::alias(alias, args)
             }
-            ExprKind::ForAll(expr) => ExprKind::ForAll(expr.try_fold_with(folder)?),
+            ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
         };
-        Ok(kind.intern_at_opt(span))
+        Ok(expr.at_opt(span))
     }
 }
 
