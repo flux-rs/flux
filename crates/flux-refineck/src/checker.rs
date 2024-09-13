@@ -12,13 +12,9 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self,
-        fold::TypeFoldable,
-        refining::Refiner,
-        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Ensures, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig,
-        PtrKind, Ref,
-        Region::{ReErased, ReStatic},
+        self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
+        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
+        GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{

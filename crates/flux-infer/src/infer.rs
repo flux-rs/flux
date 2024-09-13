@@ -17,8 +17,7 @@ use flux_middle::{
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-use rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
+use rustc_middle::ty::{TyCtxt, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -168,19 +167,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         args.iter()
             .map(|a| a.replace_holes(|binders, kind| self.fresh_infer_var_for_hole(binders, kind)))
             .collect_vec()
-    }
-
-    fn next_region_var(&self, origin: RegionVariableOrigin) -> rty::Region {
-        rty::ReVar(self.region_infcx.next_region_var(origin).as_var())
-    }
-
-    pub fn next_bound_region_var(
-        &self,
-        span: Span,
-        kind: BoundRegionKind,
-        conversion_time: BoundRegionConversionTime,
-    ) -> rty::Region {
-        self.next_region_var(RegionVariableOrigin::BoundRegion(span, kind, conversion_time))
     }
 
     pub fn fresh_infer_var(&self, sort: &Sort, mode: InferMode) -> Expr {
