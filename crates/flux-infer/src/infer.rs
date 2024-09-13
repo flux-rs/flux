@@ -534,7 +534,7 @@ impl Sub {
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
-                assert_eq!(preds_a, preds_b);
+                assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
             }
             (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) if did1 == did2 => {
