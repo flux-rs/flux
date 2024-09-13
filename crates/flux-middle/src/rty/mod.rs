@@ -1030,9 +1030,14 @@ impl TyCtor {
     }
 }
 
-pub type Ty = Interned<TyS>;
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct Ty(Interned<TyKind>);
 
 impl Ty {
+    pub fn kind(&self) -> &TyKind {
+        &self.0
+    }
+
     /// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
     /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
     /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
@@ -1265,6 +1270,33 @@ impl Ty {
             _ => None,
         }
     }
+
+    #[track_caller]
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
+        } else {
+            tracked_span_bug!("expected discr")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
+        } else {
+            tracked_span_bug!("expected adt `{self:?}`")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            tracked_span_bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
 }
 
 impl<'tcx> ToRustc<'tcx> for Ty {
@@ -1293,53 +1325,6 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
             | TyKind::Blocked(_) => bug!(),
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct TyS {
-    kind: TyKind,
-}
-
-impl TyS {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
-    }
-
-    #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
-        } else {
-            bug!("expected discr")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
-            (adt_def, args, idx)
-        } else {
-            tracked_span_bug!("expected adt `{self:?}`")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
-        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
-            tys
-        } else {
-            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_base(&self) -> BaseTy {
-        match self.kind() {
-            TyKind::Indexed(base_ty, _) => base_ty.clone(),
-            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
-            _ => bug!("expected indexed type"),
         }
     }
 }
@@ -2258,7 +2243,7 @@ impl EarlyBinder<PolyVariant> {
 
 impl TyKind {
     fn intern(self) -> Ty {
-        Interned::new(TyS { kind: self })
+        Ty(Interned::new(self))
     }
 }
 
@@ -2351,7 +2336,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, AdtSortDefData, TyS);
+impl_internable!(AdtDefData, AdtSortDefData, TyKind);
 impl_slice_internable!(
     Ty,
     GenericArg,

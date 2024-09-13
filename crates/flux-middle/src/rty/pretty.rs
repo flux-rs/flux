@@ -234,7 +234,7 @@ impl Pretty for SubsetTy {
     }
 }
 
-impl Pretty for TyS {
+impl Pretty for Ty {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self.kind() {
@@ -510,7 +510,7 @@ impl Pretty for DebruijnIndex {
 impl_debug_with_default_cx!(
     Ensures,
     Sort,
-    TyS => "ty",
+    Ty => "ty",
     BaseTy,
     FnSig,
     GenericArg => "generic_arg",

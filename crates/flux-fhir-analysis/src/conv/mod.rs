@@ -1730,15 +1730,12 @@ impl ConvCtxt<'_, '_, '_> {
             for coercion in coercions {
                 expr = match *coercion {
                     rty::Coercion::Inject(def_id) => {
-                        rty::ExprKind::Aggregate(
-                            rty::AggregateKind::Adt(def_id),
-                            List::singleton(expr),
-                        )
-                        .intern_at_opt(span)
+                        rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
+                            .at_opt(span)
                     }
                     rty::Coercion::Project(def_id) => {
-                        rty::ExprKind::FieldProj(expr, rty::FieldProj::Adt { def_id, field: 0 })
-                            .intern_at_opt(span)
+                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })
+                            .at_opt(span)
                     }
                 };
             }
