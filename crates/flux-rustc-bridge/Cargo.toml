@@ -1,0 +1,18 @@
+[package]
+edition.workspace = true
+name = "flux-rustc-bridge"
+version = "0.1.0"
+
+[dependencies]
+flux-arc-interner.workspace = true
+flux-common.workspace = true
+flux-errors.workspace = true
+flux-macros.workspace = true
+
+itertools.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.rust-analyzer]
+rustc_private = true

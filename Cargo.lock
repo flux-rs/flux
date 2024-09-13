@@ -603,6 +603,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-rustc-bridge"
+version = "0.1.0"
+dependencies = [
+ "flux-arc-interner",
+ "flux-common",
+ "flux-errors",
+ "flux-macros",
+ "itertools 0.13.0",
+]
+
+[[package]]
 name = "flux-syntax"
 version = "0.1.0"
 dependencies = [
