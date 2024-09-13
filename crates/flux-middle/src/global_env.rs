@@ -1,5 +1,6 @@
 use std::{alloc, ptr, rc::Rc, slice};
 
+use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config::CrateConfig;
 use flux_errors::FluxSession;
@@ -17,7 +18,6 @@ pub use rustc_span::{symbol::Ident, Symbol};
 use crate::{
     cstore::CrateStoreDyn,
     fhir::{self, VariantIdx},
-    intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{self, lowering, ty},

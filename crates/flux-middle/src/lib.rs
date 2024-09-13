@@ -35,7 +35,6 @@ pub mod const_eval;
 pub mod cstore;
 pub mod fhir;
 pub mod global_env;
-pub mod intern;
 pub mod pretty;
 pub mod queries;
 pub mod rty;
@@ -44,10 +43,10 @@ mod sort_of;
 
 use std::sync::LazyLock;
 
+use flux_arc_interner::List;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface::{self, NodeId};
-use intern::List;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},

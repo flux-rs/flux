@@ -1,5 +1,6 @@
 use std::iter;
 
+use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
@@ -16,7 +17,6 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
     rustc::{lowering::lower_ty, ToRustc},

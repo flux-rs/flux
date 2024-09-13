@@ -15,14 +15,13 @@ use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     query_bug,
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        AdtSortDef, ESpan, WfckResults, INNERMOST,
+        AdtSortDef, ESpan, List, WfckResults, INNERMOST,
     },
     rustc::{self, ToRustc},
     MaybeExternId,
@@ -183,7 +182,7 @@ pub(crate) fn conv_opaque_ty(
     def_id: LocalDefId,
     opaque_ty: &fhir::OpaqueTy,
     wfckresults: &WfckResults,
-) -> QueryResult<List<rty::Clause>> {
+) -> QueryResult<rty::Clauses> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx().local_parent(def_id);
     let refparams = &genv.map().get_generics(parent)?.unwrap().refinement_params;
@@ -191,7 +190,7 @@ pub(crate) fn conv_opaque_ty(
 
     let env = &mut Env::new(genv, refparams, &parent_wfckresults)?;
 
-    let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
+    let args = rty::GenericArg::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
     // FIXME(nilehmann) use a good span here
     Ok(cx
@@ -681,7 +680,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
+            rty::GenericArg::identity_for_item(genv, adt_def_id.resolved_id())?,
             fields,
             idxs,
         );
@@ -722,7 +721,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, adt_def_id.resolved_id())?,
+                rty::GenericArg::identity_for_item(genv, adt_def_id.resolved_id())?,
                 fields,
                 idx,
             );
@@ -900,7 +899,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<rty::Ty> {
         let def_id = item_id.owner_id.to_def_id();
         let generics = self.genv.generics_of(def_id)?;
-        let args = rty::GenericArgs::for_item(self.genv, def_id, |param, _| {
+        let args = rty::GenericArg::for_item(self.genv, def_id, |param, _| {
             if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())
             {
                 // Resolve our own lifetime parameters.

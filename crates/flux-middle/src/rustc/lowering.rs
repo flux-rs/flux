@@ -1,3 +1,4 @@
+use flux_arc_interner::List;
 use flux_common::result::ResultExt;
 use flux_errors::FluxSession;
 use itertools::Itertools;
@@ -33,7 +34,6 @@ use super::{
 };
 use crate::{
     const_eval::scalar_int_to_mir_constant,
-    intern::List,
     rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
 

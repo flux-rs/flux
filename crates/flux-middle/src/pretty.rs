@@ -1,5 +1,6 @@
 use std::{cell::RefCell, fmt};
 
+use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_hash::FxHashMap;
@@ -9,8 +10,6 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
-
-use crate::intern::{Internable, Interned};
 
 #[macro_export]
 macro_rules! _define_scoped {

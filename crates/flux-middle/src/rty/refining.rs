@@ -1,6 +1,7 @@
 //! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
+use flux_arc_interner::List;
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -10,9 +11,9 @@ use rustc_target::abi::VariantIdx;
 use super::fold::TypeFoldable;
 use crate::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
-    rty, rustc,
+    rty,
+    rustc::{self, ty::GenericArgsExt as _},
 };
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty::Generics> {
@@ -250,7 +251,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             .try_collect()?;
         let value = rty::VariantSig::new(
             adt_def,
-            rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
+            rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
             fields,
             rty::Expr::unit_adt(adt_def_id),
         );

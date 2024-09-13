@@ -3,7 +3,6 @@ use std::{cell::RefCell, fmt, iter};
 use flux_common::bug;
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -11,7 +10,8 @@ use flux_middle::{
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyVariant, Sort, Ty, TyKind, Var,
+        GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
+        Var,
     },
     rustc::mir::BasicBlock,
 };

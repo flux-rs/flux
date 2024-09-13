@@ -7,11 +7,10 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
-        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
+        Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };

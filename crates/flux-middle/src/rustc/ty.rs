@@ -4,11 +4,13 @@ mod subst;
 
 use std::fmt;
 
+pub use flux_arc_interner::List;
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{extension, TyDecodable, TyEncodable};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
@@ -24,10 +26,7 @@ pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use super::ToRustc;
-use crate::{
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    pretty::{self, def_id_to_string},
-};
+use crate::pretty::{self, def_id_to_string};
 
 #[derive(Debug, Clone)]
 pub struct Generics<'tcx> {
@@ -313,8 +312,9 @@ pub enum GenericArg {
 
 pub type GenericArgs = List<GenericArg>;
 
+#[extension(pub trait GenericArgsExt)]
 impl GenericArgs {
-    pub fn box_args(&self) -> (&Ty, &Ty) {
+    fn box_args(&self) -> (&Ty, &Ty) {
         if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
             (deref, alloc)
         } else {
@@ -322,11 +322,11 @@ impl GenericArgs {
         }
     }
 
-    pub fn as_closure(&self) -> ClosureArgs {
+    fn as_closure(&self) -> ClosureArgs {
         ClosureArgs { args: self.clone() }
     }
 
-    pub fn as_coroutine(&self) -> CoroutineArgs {
+    fn as_coroutine(&self) -> CoroutineArgs {
         CoroutineArgs { args: self.clone() }
     }
 }

@@ -10,14 +10,14 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, BoundVariableKindsExt as _, Expr, ExprKind, FnSig,
+        GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
+        Ty, TyKind, INNERMOST,
     },
     rustc::{
         self,

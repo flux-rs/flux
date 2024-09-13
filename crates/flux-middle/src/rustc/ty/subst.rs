@@ -1,11 +1,10 @@
+use flux_arc_interner::{Internable, List};
+
 use super::{
     Binder, Const, ConstKind, ExistentialPredicate, ExistentialProjection, ExistentialTraitRef,
     FnSig, GenericArg, Region, Ty, TyKind,
 };
-use crate::{
-    intern::{Internable, List},
-    rustc::ty::TraitRef,
-};
+use crate::rustc::ty::TraitRef;
 
 pub(super) trait Subst {
     fn subst(&self, args: &[GenericArg]) -> Self;
