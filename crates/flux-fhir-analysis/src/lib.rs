@@ -29,8 +29,8 @@ use flux_middle::{
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
-    rustc::lowering,
 };
+use flux_rustc_bridge::lowering;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;

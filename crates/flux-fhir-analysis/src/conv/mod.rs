@@ -23,9 +23,9 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, List, WfckResults, INNERMOST,
     },
-    rustc::{self, ToRustc},
     MaybeExternId,
 };
+use flux_rustc_bridge::ToRustc;
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
@@ -1243,7 +1243,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let kind = rty::BoundRegionKind::BrNamed(def_id, name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
-                rty::ReBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
+                rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
                 let name = lifetime_name(id.expect_local());

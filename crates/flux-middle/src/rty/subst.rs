@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::{bug, tracked_span_bug};
+use flux_rustc_bridge::ty;
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
@@ -13,7 +14,7 @@ use super::{
 use crate::rty::*;
 
 /// See `flux_refineck::type_env::TypeEnv::assign`
-pub fn match_regions(a: &Ty, b: &rustc::ty::Ty) -> Ty {
+pub fn match_regions(a: &Ty, b: &ty::Ty) -> Ty {
     let a = replace_regions_with_unique_vars(a);
     let mut subst = RegionSubst::default();
     subst.infer_from_ty(&a, b);
@@ -59,8 +60,7 @@ impl RegionSubst {
         t.fold_with(&mut Folder(self))
     }
 
-    fn infer_from_ty(&mut self, a: &Ty, b: &rustc::ty::Ty) {
-        use rustc::ty;
+    fn infer_from_ty(&mut self, a: &Ty, b: &ty::Ty) {
         match (a.kind(), b.kind()) {
             (TyKind::Exists(ty_a), _) => {
                 self.infer_from_ty(ty_a.as_ref().skip_binder(), b);
@@ -83,8 +83,7 @@ impl RegionSubst {
         }
     }
 
-    fn infer_from_bty(&mut self, a: &BaseTy, ty: &rustc::ty::Ty) {
-        use rustc::ty;
+    fn infer_from_bty(&mut self, a: &BaseTy, ty: &ty::Ty) {
         match (a, ty.kind()) {
             (BaseTy::Ref(re_a, ty_a, _), ty::TyKind::Ref(re_b, ty_b, _)) => {
                 self.infer_from_region(*re_a, *re_b);
@@ -113,9 +112,8 @@ impl RegionSubst {
     fn infer_from_existential_pred(
         &mut self,
         a: &PolyExistentialPredicate,
-        b: &rustc::ty::PolyExistentialPredicate,
+        b: &ty::PolyExistentialPredicate,
     ) {
-        use rustc::ty;
         match (a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
             (
                 ExistentialPredicate::Trait(trait_ref_a),
@@ -136,15 +134,14 @@ impl RegionSubst {
         }
     }
 
-    fn infer_from_generic_args(&mut self, a: &GenericArgs, b: &rustc::ty::GenericArgs) {
+    fn infer_from_generic_args(&mut self, a: &GenericArgs, b: &ty::GenericArgs) {
         debug_assert_eq!(a.len(), b.len());
         for (arg_a, arg_b) in iter::zip(a, b) {
             self.infer_from_generic_arg(arg_a, arg_b);
         }
     }
 
-    fn infer_from_generic_arg(&mut self, a: &GenericArg, b: &rustc::ty::GenericArg) {
-        use rustc::ty;
+    fn infer_from_generic_arg(&mut self, a: &GenericArg, b: &ty::GenericArg) {
         match (a, b) {
             (GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) => {
                 self.infer_from_bty(ctor_a.as_bty_skipping_binder(), ty_b);

@@ -37,6 +37,14 @@ pub trait ToRustc<'tcx> {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T;
 }
 
+impl<'tcx> ToRustc<'tcx> for rustc_middle::ty::Ty<'tcx> {
+    type T = Self;
+
+    fn to_rustc(&self, _tcx: TyCtxt<'tcx>) -> Self {
+        *self
+    }
+}
+
 pub fn def_id_to_string(def_id: DefId) -> String {
     rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(def_id))
 }

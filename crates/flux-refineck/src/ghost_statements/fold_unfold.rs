@@ -2,18 +2,15 @@ use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::GlobalEnv,
-    pretty::def_id_to_string,
-    queries::QueryResult,
-    rty,
-    rustc::{
-        mir::{
-            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic,
-            Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
-            TerminatorKind, VariantIdx, FIRST_VARIANT,
-        },
-        ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
+    global_env::GlobalEnv, pretty::def_id_to_string, queries::QueryResult, rty, PlaceExt as _,
+};
+use flux_rustc_bridge::{
+    mir::{
+        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
+        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
+        FIRST_VARIANT,
     },
+    ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
 };
 use itertools::{repeat_n, Itertools};
 use rustc_data_structures::unord::UnordMap;

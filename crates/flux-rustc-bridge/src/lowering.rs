@@ -63,7 +63,7 @@ impl UnsupportedReason {
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct UnsupportedErr {
     pub descr: String,
-    pub(crate) span: Option<Span>,
+    pub span: Option<Span>,
 }
 
 impl UnsupportedErr {
@@ -620,16 +620,14 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
 }
 
 pub fn lower_place<'tcx>(
-    tcx: TyCtxt<'tcx>,
+    _tcx: TyCtxt<'tcx>,
     place: &rustc_mir::Place<'tcx>,
 ) -> Result<Place, UnsupportedReason> {
     let mut projection = vec![];
     for elem in place.projection {
         match elem {
             rustc_mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-            rustc_mir::PlaceElem::Field(field, ty) => {
-                projection.push(PlaceElem::Field(field, lower_ty(tcx, ty)?))
-            }
+            rustc_mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
             rustc_mir::PlaceElem::Downcast(name, idx) => {
                 projection.push(PlaceElem::Downcast(name, idx));
             }
@@ -669,7 +667,7 @@ fn lower_binder<S, T>(
     Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
 }
 
-pub(crate) fn lower_bound_vars(
+pub fn lower_bound_vars(
     bound_vars: &[rustc_ty::BoundVariableKind],
 ) -> Result<List<BoundVariableKind>, UnsupportedReason> {
     let mut vars = vec![];
@@ -709,10 +707,7 @@ fn lower_const<'tcx>(
     Ok(Const { kind })
 }
 
-pub(crate) fn lower_ty<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    ty: rustc_ty::Ty<'tcx>,
-) -> Result<Ty, UnsupportedReason> {
+pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, UnsupportedReason> {
     match ty.kind() {
         rustc_ty::Ref(region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_region(region)?, lower_ty(tcx, *ty)?, *mutability))
@@ -891,7 +886,7 @@ fn lower_bound_region(
     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
-pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Generics {
+pub fn lower_generics(generics: &rustc_ty::Generics) -> Generics {
     let params = List::from_vec(
         generics
             .own_params
@@ -915,7 +910,7 @@ fn lower_generic_param_def(generic: &rustc_ty::GenericParamDef) -> GenericParamD
     GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind }
 }
 
-pub(crate) fn lower_generic_predicates<'tcx>(
+pub fn lower_generic_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
     generics: rustc_ty::GenericPredicates<'tcx>,
 ) -> Result<GenericPredicates, UnsupportedErr> {
@@ -929,7 +924,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     Ok(GenericPredicates { parent: generics.parent, predicates })
 }
 
-pub(crate) fn lower_clauses<'tcx>(
+pub fn lower_clauses<'tcx>(
     tcx: TyCtxt<'tcx>,
     bounds: &[rustc_ty::Clause<'tcx>],
 ) -> Result<List<Clause>, UnsupportedErr> {
@@ -983,7 +978,7 @@ fn lower_clause<'tcx>(
     Ok(Clause::new(kind))
 }
 
-pub(crate) fn lower_trait_ref<'tcx>(
+pub fn lower_trait_ref<'tcx>(
     tcx: TyCtxt<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Result<TraitRef, UnsupportedReason> {

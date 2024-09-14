@@ -482,6 +482,7 @@ dependencies = [
  "flux-metadata",
  "flux-middle",
  "flux-refineck",
+ "flux-rustc-bridge",
  "flux-syntax",
  "itertools 0.13.0",
  "toml",
@@ -507,6 +508,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-rustc-bridge",
  "itertools 0.13.0",
 ]
 
@@ -574,6 +576,7 @@ dependencies = [
  "flux-errors",
  "flux-fixpoint",
  "flux-macros",
+ "flux-rustc-bridge",
  "flux-syntax",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -591,6 +594,7 @@ dependencies = [
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-rustc-bridge",
  "itertools 0.13.0",
  "tracing",
 ]

@@ -3,10 +3,7 @@
 use std::fmt;
 
 use flux_arc_interner::List;
-use flux_common::{
-    bug,
-    index::{Idx, IndexVec},
-};
+use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 use rustc_ast::Mutability;
 pub use rustc_borrowck::borrow_set::BorrowData;
@@ -30,7 +27,7 @@ pub use rustc_middle::{
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
-use super::ty::{Const, GenericArg, GenericArgs, Region, Ty, TyKind};
+use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{def_id_to_string, ty::region_to_string};
 
 pub struct Body<'tcx> {
@@ -268,17 +265,18 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug)]
-pub struct PlaceTy {
-    pub ty: Ty,
-    /// Downcast to a particular variant of an enum or a generator, if included.
-    pub variant_index: Option<VariantIdx>,
+impl Place {
+    pub const RETURN: &'static Place = &Place { local: RETURN_PLACE, projection: vec![] };
+
+    pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
+        Place { local, projection }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PlaceElem {
     Deref,
-    Field(FieldIdx, Ty),
+    Field(FieldIdx),
     Downcast(Option<Symbol>, VariantIdx),
     Index(Local),
     ConstantIndex {
@@ -395,60 +393,6 @@ impl<'tcx> Body<'tcx> {
 
     pub fn local_kind(&self, local: Local) -> LocalKind {
         self.body_with_facts.body.local_kind(local)
-    }
-}
-
-impl Place {
-    pub const RETURN: &'static Place = &Place { local: RETURN_PLACE, projection: vec![] };
-
-    pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
-        Place { local, projection }
-    }
-
-    pub fn ty(&self, local_decls: &LocalDecls) -> PlaceTy {
-        self.projection
-            .iter()
-            .fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
-                place_ty.projection_ty(elem)
-            })
-    }
-
-    pub fn behind_raw_ptr(&self, local_decls: &LocalDecls) -> bool {
-        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
-        for elem in &self.projection {
-            if let (PlaceElem::Deref, TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
-                return true;
-            }
-            place_ty = place_ty.projection_ty(elem);
-        }
-        false
-    }
-}
-
-impl PlaceTy {
-    fn from_ty(ty: Ty) -> PlaceTy {
-        PlaceTy { ty, variant_index: None }
-    }
-
-    fn projection_ty(&self, elem: &PlaceElem) -> PlaceTy {
-        if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
-            bug!("cannot use non field projection on downcasted place");
-        }
-        let place_ty = match elem {
-            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref()),
-            PlaceElem::Field(_, ty) => PlaceTy::from_ty(ty.clone()),
-            PlaceElem::Downcast(_, variant_idx) => {
-                PlaceTy { ty: self.ty.clone(), variant_index: Some(*variant_idx) }
-            }
-            PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
-                if let TyKind::Array(ty, _) | TyKind::Slice(ty) = self.ty.kind() {
-                    PlaceTy::from_ty(ty.clone())
-                } else {
-                    bug!("index of no-array non-slice {self:?}")
-                }
-            }
-        };
-        place_ty
     }
 }
 
@@ -604,7 +548,7 @@ impl fmt::Debug for Place {
         let mut need_parens = false;
         for elem in &self.projection {
             match elem {
-                PlaceElem::Field(f, _) => {
+                PlaceElem::Field(f) => {
                     if need_parens {
                         p = format!("({p}).{}", u32::from(*f));
                         need_parens = false;

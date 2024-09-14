@@ -12,14 +12,13 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_errors::Errors;
-use flux_fixpoint::FixpointResult;
+use flux_fixpoint::{big_int::BigInt, FixpointResult};
 use flux_middle::{
-    const_eval,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     pretty,
     queries::QueryResult,
-    rty::{self, BoundVariableKindsExt as _, Constant, ESpan, Lambda, List},
+    rty::{self, BoundVariableKindsExt as _, ESpan, Lambda, List},
 };
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -34,6 +33,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
+    use flux_fixpoint::big_int::BigInt;
     use flux_middle::rty::EarlyReftParam;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
@@ -135,6 +135,9 @@ pub mod fixpoint {
         type KVar = KVid;
         type Var = Var;
         type Tag = super::TagIdx;
+        type IntLit = BigInt;
+        type RealLit = i128;
+        type StrLit = Symbol;
     }
     pub use fixpoint_generated::*;
 }
@@ -313,10 +316,10 @@ where
     fn assume_const_val(
         cstr: fixpoint::Constraint,
         var: fixpoint::GlobalVar,
-        const_val: Constant,
+        const_val: rty::Constant,
     ) -> fixpoint::Constraint {
         let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
-        let e2 = fixpoint::Expr::Constant(const_val);
+        let e2 = fixpoint::Expr::Constant(const_to_fixpoint(const_val));
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
         fixpoint::Constraint::ForAll(
             fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
@@ -567,7 +570,7 @@ where
                 sort: fixpoint::Sort::Int,
                 pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
-                    fixpoint::Expr::ZERO,
+                    fixpoint::Expr::int(BigInt::ZERO),
                 )),
             });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
@@ -587,6 +590,15 @@ where
 
     fn def_span(&self) -> Span {
         self.genv.tcx().def_span(self.def_id)
+    }
+}
+
+fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
+    match cst {
+        rty::Constant::Int(i) => fixpoint::Constant::Int(i),
+        rty::Constant::Real(r) => fixpoint::Constant::Real(r),
+        rty::Constant::Bool(b) => fixpoint::Constant::Bool(b),
+        rty::Constant::Str(s) => fixpoint::Constant::Str(s),
     }
 }
 
@@ -699,7 +711,7 @@ struct ConstInfo {
     name: fixpoint::GlobalVar,
     orig: String,
     sort: fixpoint::Sort,
-    val: Option<Constant>,
+    val: Option<rty::Constant>,
 }
 
 impl FixpointKVar {
@@ -887,7 +899,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
+            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => {
@@ -1228,7 +1240,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .ok()
                     .and_then(|val| {
                         let val = val.try_to_scalar_int()?;
-                        const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
+                        rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
                     });
 
                 ConstInfo {

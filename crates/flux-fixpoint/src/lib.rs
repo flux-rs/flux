@@ -37,11 +37,21 @@ pub trait Types {
     type KVar: Symbol;
     type Var: Symbol;
     type Tag: fmt::Display + Hash + FromStr;
+    type IntLit: fmt::Display + Hash;
+    type StrLit: fmt::Display + Hash;
+    type RealLit: fmt::Display + Hash;
 }
 
 #[macro_export]
 macro_rules! declare_types {
-    (type Sort = $sort:ty; type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
+    (   type Sort = $sort:ty;
+        type KVar = $kvar:ty;
+        type Var = $var:ty;
+        type Tag = $tag:ty;
+        type IntLit = $int:ty;
+        type RealLit = $real:ty;
+        type StrLit = $str:ty;
+    ) => {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
             pub type Expr = $crate::Expr<FixpointTypes>;
@@ -57,6 +67,7 @@ macro_rules! declare_types {
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
+            pub type Constant = $crate::Constant<FixpointTypes>;
             pub use $crate::{BinOp, BinRel};
         }
 
@@ -65,17 +76,23 @@ macro_rules! declare_types {
             type KVar = $kvar;
             type Var = $var;
             type Tag = $tag;
+            type IntLit = $int;
+            type RealLit = $real;
+            type StrLit = $str;
         }
     };
 }
 
-struct StringTypes;
+struct DefaultTypes;
 
-impl Types for StringTypes {
+impl Types for DefaultTypes {
     type Sort = &'static str;
     type KVar = &'static str;
     type Var = &'static str;
     type Tag = String;
+    type IntLit = i128;
+    type RealLit = i128;
+    type StrLit = String;
 }
 
 #[derive_where(Hash)]

@@ -19,10 +19,12 @@ use flux_middle::{
         GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
         Ty, TyKind, INNERMOST,
     },
-    rustc::{
-        self,
-        mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
-    },
+    PlaceExt as _,
+};
+use flux_rustc_bridge::{
+    self,
+    mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
+    ty,
 };
 use itertools::{izip, Itertools};
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
@@ -98,11 +100,7 @@ impl<'a> TypeEnv<'a> {
         BasicBlockEnvShape::new(scope, self)
     }
 
-    pub(crate) fn lookup_rust_ty(
-        &self,
-        genv: GlobalEnv,
-        place: &Place,
-    ) -> QueryResult<rustc::ty::Ty> {
+    pub(crate) fn lookup_rust_ty(&self, genv: GlobalEnv, place: &Place) -> QueryResult<ty::Ty> {
         Ok(place.ty(genv, self.local_decls)?.ty)
     }
 

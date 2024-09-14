@@ -13,11 +13,13 @@ use flux_middle::{
         GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
         Var,
     },
-    rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_middle::ty::{TyCtxt, Variance};
+use rustc_middle::{
+    mir::BasicBlock,
+    ty::{TyCtxt, Variance},
+};
 use rustc_span::Span;
 
 use crate::{

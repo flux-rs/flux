@@ -984,7 +984,7 @@ impl fmt::Debug for Const {
     }
 }
 
-pub(crate) fn region_to_string(region: Region) -> String {
+pub fn region_to_string(region: Region) -> String {
     match region {
         Region::ReBound(_, region) => {
             match region.kind {

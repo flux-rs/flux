@@ -6,6 +6,11 @@ use std::{
 use flux_arc_interner::List;
 use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
+use flux_rustc_bridge::{
+    self,
+    lowering::{self, UnsupportedErr, UnsupportedReason},
+    mir, ty,
+};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
@@ -23,11 +28,6 @@ use crate::{
     rty::{
         self,
         refining::{self, Refiner},
-    },
-    rustc::{
-        self,
-        lowering::{self, UnsupportedErr, UnsupportedReason},
-        ty,
     },
 };
 
@@ -191,7 +191,7 @@ impl Default for Providers {
 
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
-    mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
+    mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
@@ -219,7 +219,7 @@ pub struct Queries<'genv, 'tcx> {
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
-    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<rustc::ty::BoundVariableKind>>>,
+    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -260,10 +260,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: LocalDefId,
-    ) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
+    ) -> QueryResult<Rc<mir::Body<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-            let mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
+            let mir = lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
             Ok(Rc::new(mir))
         })
     }
@@ -661,7 +661,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: LocalDefId,
-    ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
+    ) -> QueryResult<List<ty::BoundVariableKind>> {
         run_with_cache(&self.lower_late_bound_vars, def_id, || {
             let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx().late_bound_vars(hir_id);

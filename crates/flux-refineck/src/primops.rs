@@ -2,10 +2,8 @@ use std::{hash::Hash, sync::LazyLock};
 
 use flux_infer::infer::ConstrReason;
 use flux_macros::primop_rules;
-use flux_middle::{
-    rty::{self, BaseTy, Expr},
-    rustc::mir,
-};
+use flux_middle::rty::{self, BaseTy, Expr};
+use flux_rustc_bridge::mir;
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
 

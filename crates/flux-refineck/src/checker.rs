@@ -17,15 +17,15 @@ use flux_middle::{
         GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
         Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
-    rustc::{
-        self,
-        mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-            Terminator, TerminatorKind, START_BLOCK,
-        },
-        ty::{self, GenericArgsExt as _},
+};
+use flux_rustc_bridge::{
+    self,
+    mir::{
+        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind, START_BLOCK,
     },
+    ty::{self, GenericArgsExt as _},
 };
 use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
@@ -954,7 +954,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(stmt_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), &len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -988,7 +988,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &rustc::ty::Ty) -> Ty {
+    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
         match null_op {
             mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
                 // We could try to get the layout of type to index this with the actual value, but
@@ -1066,9 +1066,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         kind: CastKind,
         from: &Ty,
-        to: &rustc::ty::Ty,
+        to: &ty::Ty,
     ) -> Result<Ty> {
-        use rustc::ty::TyKind as RustTy;
+        use ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::PointerExposeProvenance => {
                 match to.kind() {
@@ -1133,7 +1133,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
         src: &Ty,
-        dst: &rustc::ty::Ty,
+        dst: &ty::Ty,
     ) -> Result<Ty> {
         // Convert `ptr` to `&mut`
         let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
@@ -1149,8 +1149,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             src.clone()
         };
 
-        if let rustc::ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
-            && let rustc::ty::TyKind::Dynamic(..) = deref_ty.kind()
+        if let ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
+            && let ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
             return self
                 .genv
@@ -1161,7 +1161,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
         if let TyKind::Indexed(BaseTy::Ref(_, deref_ty, _), _) = src.kind()
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
-            && let rustc::ty::TyKind::Ref(re, _, mutbl) = dst.kind()
+            && let ty::TyKind::Ref(re, _, mutbl) = dst.kind()
         {
             let idx = Expr::from_const(self.genv.tcx(), arr_len);
             Ok(Ty::mk_ref(*re, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), *mutbl))

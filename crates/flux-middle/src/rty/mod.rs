@@ -23,6 +23,17 @@ pub use expr::{
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_bug};
+pub use flux_rustc_bridge::ty::{
+    AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
+    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    Region::{self, *},
+    RegionVid,
+};
+use flux_rustc_bridge::{
+    mir::Place,
+    ty::{self, VariantDef},
+    ToRustc,
+};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
@@ -44,21 +55,12 @@ use self::{
     fold::TypeFoldable,
     subst::{BoundVarReplacer, FnMutDelegate},
 };
-pub use crate::{
-    fhir::InferMode,
-    rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
-        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
-        Region::{self, *},
-        RegionVid,
-    },
-};
+pub use crate::fhir::InferMode;
 use crate::{
     fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{self, mir::Place, ty::VariantDef, ToRustc},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -778,7 +780,7 @@ pub struct AdtDefData {
     invariants: Vec<Invariant>,
     sort_def: AdtSortDef,
     opaque: bool,
-    rustc: rustc::ty::AdtDef,
+    rustc: ty::AdtDef,
 }
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
@@ -868,12 +870,12 @@ impl List<BoundVariableKind> {
             })
             .collect()
     }
-}
 
-impl<'tcx> ToRustc<'tcx> for List<BoundVariableKind> {
-    type T = &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+    // We can't implement [`ToRustc`] because of coherence so we add it here
+    fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
         tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
@@ -1856,12 +1858,9 @@ impl GenericArgs {
             bug!("invalid generic arguments for box");
         }
     }
-}
 
-impl<'tcx> ToRustc<'tcx> for GenericArgs {
-    type T = rustc_middle::ty::GenericArgsRef<'tcx>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+    // We can't implement [`ToRustc`] because of coherence so we add it here
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
@@ -2127,7 +2126,7 @@ impl<'tcx> ToRustc<'tcx> for FnOutput {
 
 impl AdtDef {
     pub fn new(
-        rustc: rustc::ty::AdtDef,
+        rustc: ty::AdtDef,
         sort_def: AdtSortDef,
         invariants: Vec<Invariant>,
         opaque: bool,

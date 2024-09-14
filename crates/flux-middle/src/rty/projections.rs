@@ -2,6 +2,7 @@ use std::iter;
 
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
+use flux_rustc_bridge::{lowering::lower_ty, ToRustc};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -19,7 +20,6 @@ use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::{lowering::lower_ty, ToRustc},
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
