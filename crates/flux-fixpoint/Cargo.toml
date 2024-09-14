@@ -8,7 +8,6 @@ edition.workspace = true
 
 [dependencies]
 flux-common.workspace = true
-flux-config.workspace = true
 
 derive-where.workspace = true
 itertools.workspace = true

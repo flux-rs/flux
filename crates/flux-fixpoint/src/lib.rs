@@ -14,55 +14,82 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use flux_common::{cache::QueryCache, format::PadAdapter};
-use flux_config as config;
+use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-pub trait Identifier: Hash {
+pub trait FixpointFmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
-    fn display(&self) -> IdentifierDisplay<Self> {
-        IdentifierDisplay(self)
+    fn display(&self) -> DisplayAdapter<&Self> {
+        DisplayAdapter(self)
     }
 }
 
-pub struct IdentifierDisplay<'a, T: ?Sized>(&'a T);
+pub struct DisplayAdapter<T>(T);
 
-impl<T: Identifier> fmt::Display for IdentifierDisplay<'_, T> {
+impl<T: FixpointFmt> std::fmt::Display for DisplayAdapter<&T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Identifier::fmt(self.0, f)
+        FixpointFmt::fmt(self.0, f)
     }
 }
 
-pub trait ConstFmt: Hash {
+pub trait Identifier: FixpointFmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-
-    fn display(&self) -> ConstDisplay<Self> {
-        ConstDisplay(self)
-    }
 }
 
-pub struct ConstDisplay<'a, T: ?Sized>(&'a T);
-
-impl<T: ConstFmt> fmt::Display for ConstDisplay<'_, T> {
+impl<T: Identifier> FixpointFmt for T {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ConstFmt::fmt(self.0, f)
+        Identifier::fmt(self, f)
     }
 }
 
 pub trait Types {
-    type Sort: Identifier + Clone;
-    type KVar: Identifier;
-    type Var: Identifier;
+    type Sort: Identifier + Hash + Clone;
+    type KVar: Identifier + Hash;
+    type Var: Identifier + Hash;
 
-    type Numeral: ConstFmt;
-    type Decimal: ConstFmt;
-    type String: ConstFmt;
+    type Numeral: FixpointFmt + Hash;
+    type Decimal: FixpointFmt + Hash;
+    type String: FixpointFmt + Hash;
 
-    type Tag: fmt::Display + Hash + FromStr;
+    type Tag: fmt::Display + FromStr + Hash;
+}
+
+struct DefaultTypes;
+
+impl Types for DefaultTypes {
+    type Sort = &'static str;
+    type KVar = &'static str;
+    type Var = &'static str;
+    type Tag = String;
+    type Numeral = i128;
+    type Decimal = i128;
+    type String = String;
+}
+
+impl Identifier for &str {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl FixpointFmt for i128 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self < 0 {
+            write!(f, "(- {})", self.unsigned_abs())
+        } else {
+            write!(f, "{self}")
+        }
+    }
+}
+
+impl FixpointFmt for String {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{self}\"")
+    }
 }
 
 #[macro_export]
@@ -108,40 +135,6 @@ macro_rules! declare_types {
             type Tag = $tag;
         }
     };
-}
-
-struct DefaultTypes;
-
-impl Types for DefaultTypes {
-    type Sort = &'static str;
-    type KVar = &'static str;
-    type Var = &'static str;
-    type Tag = String;
-    type Numeral = i128;
-    type Decimal = i128;
-    type String = String;
-}
-
-impl Identifier for &str {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self}")
-    }
-}
-
-impl ConstFmt for i128 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if *self < 0 {
-            write!(f, "(- {})", self.unsigned_abs())
-        } else {
-            write!(f, "{self}")
-        }
-    }
-}
-
-impl ConstFmt for String {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\"{self}\"")
-    }
 }
 
 #[derive_where(Hash)]
@@ -206,28 +199,7 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    pub fn check_with_cache(
-        &self,
-        key: String,
-        cache: &mut QueryCache,
-    ) -> io::Result<FixpointResult<T::Tag>> {
-        let hash = self.hash_with_default();
-
-        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
-            return Ok(FixpointResult::Safe(Default::default()));
-        }
-
-        let result = self.check();
-
-        if config::is_cache_enabled() {
-            if let Ok(FixpointResult::Safe(_)) = result {
-                cache.insert(key, hash);
-            }
-        }
-        result
-    }
-
-    fn check(&self) -> io::Result<FixpointResult<T::Tag>> {
+    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")

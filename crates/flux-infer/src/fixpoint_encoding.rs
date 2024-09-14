@@ -8,7 +8,7 @@ use flux_common::{
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
-    span_bug,
+    span_bug, tracked_span_bug,
 };
 use flux_config as config;
 use flux_errors::Errors;
@@ -34,7 +34,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_fixpoint::{ConstFmt, Identifier};
+    use flux_fixpoint::{FixpointFmt, Identifier};
     use flux_middle::{
         big_int::BigInt,
         rty::{EarlyReftParam, Real},
@@ -137,7 +137,7 @@ pub mod fixpoint {
     #[derive(Hash)]
     pub struct SymStr(pub Symbol);
 
-    impl ConstFmt for SymStr {
+    impl FixpointFmt for SymStr {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "\"{}\"", self.0)
         }
@@ -424,18 +424,39 @@ where
 
         let task_key = self.genv.tcx().def_path_str(self.def_id);
 
-        match task.check_with_cache(task_key, cache) {
-            Ok(FixpointResult::Safe(_)) => Ok(vec![]),
-            Ok(FixpointResult::Unsafe(_, errors)) => {
+        match Self::run_task_with_cache(task, task_key, cache) {
+            FixpointResult::Safe(_) => Ok(vec![]),
+            FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
                     .collect_vec())
             }
-            Ok(FixpointResult::Crash(err)) => span_bug!(def_span, "fixpoint crash: {err:?}"),
-            Err(err) => span_bug!(def_span, "failed to run fixpoint: {err:?}"),
+            FixpointResult::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         }
+    }
+
+    fn run_task_with_cache(
+        task: fixpoint::Task,
+        key: String,
+        cache: &mut QueryCache,
+    ) -> FixpointResult<TagIdx> {
+        let hash = task.hash_with_default();
+        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
+            return FixpointResult::Safe(Default::default());
+        }
+
+        let result = task
+            .run()
+            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint {err:?}"));
+
+        if config::is_cache_enabled() {
+            if let FixpointResult::Safe(_) = result {
+                cache.insert(key, hash);
+            }
+        }
+        result
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx

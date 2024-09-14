@@ -881,7 +881,7 @@ impl From<Local> for Loc {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct Real(pub i128);
 
-impl flux_fixpoint::ConstFmt for Real {
+impl flux_fixpoint::FixpointFmt for Real {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0 < 0 {
             write!(f, "(- {}.0)", self.0.unsigned_abs())

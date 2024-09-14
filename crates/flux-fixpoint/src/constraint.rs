@@ -7,7 +7,7 @@ use derive_where::derive_where;
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 
-use crate::{ConstFmt, DefaultTypes, Identifier, Types};
+use crate::{DefaultTypes, FixpointFmt, Types};
 
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
@@ -430,7 +430,7 @@ impl<T: Types> fmt::Display for Pred<T> {
                     f,
                     "(${} {})",
                     kvid.display(),
-                    vars.iter().map(Identifier::display).format(" ")
+                    vars.iter().map(FixpointFmt::display).format(" ")
                 )
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
