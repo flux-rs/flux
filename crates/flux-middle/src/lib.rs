@@ -29,6 +29,7 @@ extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
+pub mod big_int;
 pub mod cstore;
 pub mod fhir;
 pub mod global_env;

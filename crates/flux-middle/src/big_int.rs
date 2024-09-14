@@ -1,8 +1,7 @@
 use std::fmt;
 
+use flux_fixpoint::ConstFmt;
 use rustc_macros::{Decodable, Encodable};
-
-use crate::ConstFmt;
 
 /// A signed integer in the range [-2^128, 2^128], represented by a `u128` and an explicit sign.
 ///

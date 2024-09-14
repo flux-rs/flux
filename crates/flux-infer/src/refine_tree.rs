@@ -666,26 +666,6 @@ mod pretty {
         go(ptr, vec![])
     }
 
-    fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
-        fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
-            let node = ptr.borrow();
-            if let NodeKind::Root(ps) = &node.kind
-                && ps.is_empty()
-            {
-                for child in &node.children {
-                    go(child, children);
-                }
-            } else {
-                children.push(NodePtr::clone(ptr));
-            }
-        }
-        let mut children = vec![];
-        for ptr in nodes {
-            go(ptr, &mut children);
-        }
-        children
-    }
-
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
@@ -779,8 +759,7 @@ mod pretty {
     ) -> fmt::Result {
         let mut f = PadAdapter::wrap_fmt(f, 2);
         define_scoped!(cx, f);
-        let children = flatten_conjs(children);
-        match &children[..] {
+        match children {
             [] => w!(" true"),
             [n] => {
                 if n.borrow().is_head() {
@@ -788,7 +767,7 @@ mod pretty {
                 } else {
                     w!("\n")?;
                 }
-                w!("{:?}", NodePtr::clone(n))
+                w!("{:?}", n)
             }
             _ => w!("\n{:?}", join!("\n", children)),
         }

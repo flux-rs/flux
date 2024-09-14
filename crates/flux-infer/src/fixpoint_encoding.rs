@@ -12,8 +12,9 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_errors::Errors;
-use flux_fixpoint::{big_int::BigInt, FixpointResult};
+use flux_fixpoint::FixpointResult;
 use flux_middle::{
+    big_int::BigInt,
     def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
@@ -33,8 +34,11 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_fixpoint::{big_int::BigInt, ConstFmt, Identifier};
-    use flux_middle::rty::{EarlyReftParam, Real};
+    use flux_fixpoint::{ConstFmt, Identifier};
+    use flux_middle::{
+        big_int::BigInt,
+        rty::{EarlyReftParam, Real},
+    };
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;

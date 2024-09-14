@@ -2,7 +2,6 @@ use std::{fmt, sync::OnceLock};
 
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
-use flux_fixpoint::big_int::BigInt;
 use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind},
@@ -25,6 +24,7 @@ use super::{
     GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
+    big_int::BigInt,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,

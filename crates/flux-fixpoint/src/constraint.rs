@@ -163,7 +163,7 @@ impl<T: Types> Constraint<T> {
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
-    /// If `!c.is_concrete`  then `c` is trivially satisfiable and we can avoid calling fixpoint.
+    /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
         match self {
             Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
@@ -193,7 +193,7 @@ impl<T: Types> Pred<T> {
     }
 }
 
-pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<DefaultTypes>>> =
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
     LazyLock::new(|| {
         // -----
         // UNARY
@@ -286,7 +286,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<DefaultTypes>>> =
             name: String::from("Le1"),
         };
 
-        vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+        [eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     });
 
 impl<T: Types> fmt::Display for DataDecl<T> {
@@ -407,7 +407,8 @@ impl<T: Types> fmt::Display for Sort<T> {
 fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "(func {params} (")?;
     let mut curr = sort;
-    while let Sort::Func(box [input, output]) = curr {
+    while let Sort::Func(input_and_output) = curr {
+        let [input, output] = &**input_and_output;
         write!(f, "{input} ")?;
         curr = output;
     }
@@ -458,10 +459,12 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Neg(e) => {
                 write!(f, "(- {e})")
             }
-            Expr::BinaryOp(op, box [e1, e2]) => {
+            Expr::BinaryOp(op, exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "({op} {e1} {e2})")
             }
-            Expr::IfThenElse(box [p, e1, e2]) => {
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &**exprs;
                 write!(f, "(if {p} {e1} {e2})")
             }
             Expr::And(exprs) => {
@@ -473,13 +476,16 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Not(e) => {
                 write!(f, "(not {e})")
             }
-            Expr::Imp(box [e1, e2]) => {
+            Expr::Imp(exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "(=> {e1} {e2})")
             }
-            Expr::Iff(box [e1, e2]) => {
+            Expr::Iff(exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "(<=> {e1} {e2})")
             }
-            Expr::Atom(rel, box [e1, e2]) => {
+            Expr::Atom(rel, exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "({rel} {e1} {e2})")
             }
         }
