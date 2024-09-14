@@ -18,7 +18,7 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 pub use evars::{EVar, EVarGen};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
-    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};

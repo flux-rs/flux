@@ -879,9 +879,22 @@ impl From<Local> for Loc {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct Real(pub i128);
+
+impl flux_fixpoint::ConstFmt for Real {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 < 0 {
+            write!(f, "(- {}.0)", self.0.unsigned_abs())
+        } else {
+            write!(f, "{}.0", self.0)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
     Int(BigInt),
-    Real(i128),
+    Real(Real),
     Bool(bool),
     Str(Symbol),
 }
@@ -1170,7 +1183,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Constant::Int(i) => w!("{i}"),
-                Constant::Real(i) => w!("{i}.0"),
+                Constant::Real(r) => w!("{}.0", ^r.0),
                 Constant::Bool(b) => w!("{b}"),
                 Constant::Str(sym) => w!("{sym}"),
             }

@@ -17,7 +17,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
@@ -28,18 +28,48 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-pub trait Symbol: fmt::Display + Hash {}
+pub trait Identifier: Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
-impl<T: fmt::Display + Hash> Symbol for T {}
+    fn display(&self) -> IdentifierDisplay<Self> {
+        IdentifierDisplay(self)
+    }
+}
+
+pub struct IdentifierDisplay<'a, T: ?Sized>(&'a T);
+
+impl<T: Identifier> fmt::Display for IdentifierDisplay<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Identifier::fmt(self.0, f)
+    }
+}
+
+pub trait ConstFmt: Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    fn display(&self) -> ConstDisplay<Self> {
+        ConstDisplay(self)
+    }
+}
+
+pub struct ConstDisplay<'a, T: ?Sized>(&'a T);
+
+impl<T: ConstFmt> fmt::Display for ConstDisplay<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        ConstFmt::fmt(self.0, f)
+    }
+}
 
 pub trait Types {
-    type Sort: Symbol + Clone;
-    type KVar: Symbol;
-    type Var: Symbol;
+    type Sort: Identifier + Clone;
+    type KVar: Identifier;
+    type Var: Identifier;
+
+    type Numeral: ConstFmt;
+    type Decimal: ConstFmt;
+    type String: ConstFmt;
+
     type Tag: fmt::Display + Hash + FromStr;
-    type IntLit: fmt::Display + Hash;
-    type StrLit: fmt::Display + Hash;
-    type RealLit: fmt::Display + Hash;
 }
 
 #[macro_export]
@@ -47,10 +77,12 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
+
+        type Numeral = $int:ty;
+        type Decimal = $real:ty;
+        type String = $str:ty;
+
         type Tag = $tag:ty;
-        type IntLit = $int:ty;
-        type RealLit = $real:ty;
-        type StrLit = $str:ty;
     ) => {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
@@ -75,10 +107,12 @@ macro_rules! declare_types {
             type Sort = $sort;
             type KVar = $kvar;
             type Var = $var;
+
+            type Numeral = $int;
+            type Decimal = $real;
+            type String = $str;
+
             type Tag = $tag;
-            type IntLit = $int;
-            type RealLit = $real;
-            type StrLit = $str;
         }
     };
 }
@@ -90,9 +124,31 @@ impl Types for DefaultTypes {
     type KVar = &'static str;
     type Var = &'static str;
     type Tag = String;
-    type IntLit = i128;
-    type RealLit = i128;
-    type StrLit = String;
+    type Numeral = i128;
+    type Decimal = i128;
+    type String = String;
+}
+
+impl Identifier for &str {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl ConstFmt for i128 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self < 0 {
+            write!(f, "(- {})", self.unsigned_abs())
+        } else {
+            write!(f, "{self}")
+        }
+    }
+}
+
+impl ConstFmt for String {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{self}\"")
+    }
 }
 
 #[derive_where(Hash)]
@@ -249,13 +305,19 @@ impl<T: Types> fmt::Display for Task<T> {
 
 impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(var ${} ({})) ;; {}", self.kvid, self.sorts.iter().format(" "), self.comment)
+        write!(
+            f,
+            "(var ${} ({})) ;; {}",
+            self.kvid.display(),
+            self.sorts.iter().format(" "),
+            self.comment
+        )
     }
 }
 
 impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {} {})", self.name, self.sort)?;
+        write!(f, "(constant {} {})", self.name.display(), self.sort)?;
         if let Some(orig) = &self.orig {
             write!(f, "  ;; orig: {orig}")?;
         }

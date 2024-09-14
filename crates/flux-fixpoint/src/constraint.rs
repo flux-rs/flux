@@ -7,7 +7,7 @@ use derive_where::derive_where;
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 
-use crate::{DefaultTypes, Types};
+use crate::{ConstFmt, DefaultTypes, Identifier, Types};
 
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
@@ -130,10 +130,10 @@ pub enum Expr<T: Types> {
 
 #[derive_where(Hash)]
 pub enum Constant<T: Types> {
-    Int(T::IntLit),
-    Real(T::RealLit),
-    Bool(bool),
-    Str(T::StrLit),
+    Numeral(T::Numeral),
+    Decimal(T::Decimal),
+    Boolean(bool),
+    String(T::String),
 }
 
 #[derive_where(Hash)]
@@ -141,12 +141,6 @@ pub struct Qualifier<T: Types> {
     pub name: String,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
-}
-
-#[derive(Clone, Copy)]
-pub struct Const<T: Types> {
-    pub name: T::Var,
-    pub val: i128,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -180,11 +174,11 @@ impl<T: Types> Constraint<T> {
 }
 
 impl<T: Types> Pred<T> {
-    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
+    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
     pub fn is_trivially_true(&self) -> bool {
         match self {
-            Pred::Expr(Expr::Constant(Constant::Bool(true))) => true,
+            Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
@@ -297,19 +291,25 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<DefaultTypes>>> =
 
 impl<T: Types> fmt::Display for DataDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(datatype ({} {}) ({}))", self.name, self.vars, self.ctors.iter().format(" "))
+        write!(
+            f,
+            "(datatype ({} {}) ({}))",
+            self.name.display(),
+            self.vars,
+            self.ctors.iter().format(" ")
+        )
     }
 }
 
 impl<T: Types> fmt::Display for DataCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} ({}))", self.name, self.fields.iter().format(" "))
+        write!(f, "({} ({}))", self.name.display(), self.fields.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataField<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {})", self.name, self.sort)
+        write!(f, "({} {})", self.name.display(), self.sort)
     }
 }
 
@@ -329,7 +329,7 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 }
             }
             Constraint::ForAll(bind, head) => {
-                write!(f, "(forall (({} {}) {})", bind.name, bind.sort, bind.pred)?;
+                write!(f, "(forall (({} {}) {})", bind.name.display(), bind.sort, bind.pred)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -373,7 +373,7 @@ impl<T: Types> fmt::Display for SortCtor<T> {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
             SortCtor::Map => write!(f, "Map_t"),
-            SortCtor::Data(name) => write!(f, "{name}"),
+            SortCtor::Data(name) => write!(f, "{}", name.display()),
         }
     }
 }
@@ -425,7 +425,12 @@ impl<T: Types> fmt::Display for Pred<T> {
                 }
             }
             Pred::KVar(kvid, vars) => {
-                write!(f, "(${kvid} {})", vars.iter().format(" "))
+                write!(
+                    f,
+                    "(${} {})",
+                    kvid.display(),
+                    vars.iter().map(Identifier::display).format(" ")
+                )
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
         }
@@ -433,8 +438,8 @@ impl<T: Types> fmt::Display for Pred<T> {
 }
 
 impl<T: Types> Expr<T> {
-    pub const fn int(val: T::IntLit) -> Expr<T> {
-        Expr::Constant(Constant::Int(val))
+    pub const fn int(val: T::Numeral) -> Expr<T> {
+        Expr::Constant(Constant::Numeral(val))
     }
 
     pub fn eq(self, other: Self) -> Self {
@@ -446,7 +451,7 @@ impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Constant(c) => write!(f, "{c}"),
-            Expr::Var(x) => write!(f, "{x}"),
+            Expr::Var(x) => write!(f, "{}", x.display()),
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().format(" "))
             }
@@ -484,10 +489,10 @@ impl<T: Types> fmt::Display for Expr<T> {
 impl<T: Types> fmt::Display for Constant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(i) => write!(f, "{i}"),
-            Constant::Real(r) => write!(f, "{r}"),
-            Constant::Bool(b) => write!(f, "{b}"),
-            Constant::Str(s) => write!(f, "{s}"),
+            Constant::Numeral(i) => write!(f, "{}", i.display()),
+            Constant::Decimal(r) => write!(f, "{}", r.display()),
+            Constant::Boolean(b) => write!(f, "{b}"),
+            Constant::String(s) => write!(f, "{}", s.display()),
         }
     }
 }
@@ -498,9 +503,9 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             f,
             "(qualif {} ({}) ({}))",
             self.name,
-            self.args
-                .iter()
-                .format_with(" ", |(name, sort), f| f(&format_args!("({name} {sort})"))),
+            self.args.iter().format_with(" ", |(name, sort), f| {
+                f(&format_args!("({} {sort})", name.display()))
+            }),
             self.body
         )
     }

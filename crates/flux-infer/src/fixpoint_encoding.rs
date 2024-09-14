@@ -33,8 +33,8 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_fixpoint::big_int::BigInt;
-    use flux_middle::rty::EarlyReftParam;
+    use flux_fixpoint::{big_int::BigInt, ConstFmt, Identifier};
+    use flux_middle::rty::{EarlyReftParam, Real};
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -43,7 +43,7 @@ pub mod fixpoint {
         pub struct KVid {}
     }
 
-    impl fmt::Display for KVid {
+    impl Identifier for KVid {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "k{}", self.as_u32())
         }
@@ -89,7 +89,7 @@ pub mod fixpoint {
         }
     }
 
-    impl fmt::Display for Var {
+    impl Identifier for Var {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
@@ -120,7 +120,7 @@ pub mod fixpoint {
         Tuple(usize),
     }
 
-    impl fmt::Display for DataSort {
+    impl Identifier for DataSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 DataSort::Tuple(arity) => {
@@ -130,14 +130,25 @@ pub mod fixpoint {
         }
     }
 
+    #[derive(Hash)]
+    pub struct SymStr(pub Symbol);
+
+    impl ConstFmt for SymStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "\"{}\"", self.0)
+        }
+    }
+
     flux_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
+
+        type Numeral = BigInt;
+        type Decimal = Real;
+        type String = SymStr;
+
         type Tag = super::TagIdx;
-        type IntLit = BigInt;
-        type RealLit = i128;
-        type StrLit = Symbol;
     }
     pub use fixpoint_generated::*;
 }
@@ -595,10 +606,10 @@ where
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
     match cst {
-        rty::Constant::Int(i) => fixpoint::Constant::Int(i),
-        rty::Constant::Real(r) => fixpoint::Constant::Real(r),
-        rty::Constant::Bool(b) => fixpoint::Constant::Bool(b),
-        rty::Constant::Str(s) => fixpoint::Constant::Str(s),
+        rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
+        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
+        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
+        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
     }
 }
 
