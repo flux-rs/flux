@@ -28,8 +28,7 @@ use super::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
-        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
-        VariantDef,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
     },
 };
 use crate::{
@@ -408,7 +407,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
             rustc_mir::Rvalue::Repeat(op, c) => {
                 let op = self.lower_operand(op)?;
-                let c = lower_const(self.tcx, *c)?;
+                let c = c.lower(self.tcx)?;
                 Ok(Rvalue::Repeat(op, c))
             }
             rustc_mir::Rvalue::Ref(region, bk, p) => {
@@ -678,68 +677,61 @@ pub fn lower_place<'tcx>(
     Ok(Place { local: place.local, projection })
 }
 
-pub fn lower_fn_sig<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    fn_sig: rustc_ty::PolyFnSig<'tcx>,
-) -> Result<PolyFnSig, UnsupportedReason> {
-    lower_binder(fn_sig, |fn_sig| {
+impl<'tcx> Lower<'tcx> for rustc_ty::FnSig<'tcx> {
+    type R = Result<FnSig, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
         let inputs_and_output = List::from_vec(
-            fn_sig
-                .inputs_and_output
+            self.inputs_and_output
                 .iter()
                 .map(|ty| ty.lower(tcx))
                 .try_collect()?,
         );
-        Ok(FnSig { safety: fn_sig.safety, abi: fn_sig.abi, inputs_and_output })
-    })
-}
-
-fn lower_binder<S, T>(
-    binder: rustc_ty::Binder<S>,
-    mut f: impl FnMut(S) -> Result<T, UnsupportedReason>,
-) -> Result<Binder<T>, UnsupportedReason> {
-    let vars = lower_bound_vars(binder.bound_vars())?;
-    Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
-}
-
-pub fn lower_bound_vars(
-    bound_vars: &[rustc_ty::BoundVariableKind],
-) -> Result<List<BoundVariableKind>, UnsupportedReason> {
-    let mut vars = vec![];
-    for var in bound_vars {
-        match var {
-            rustc_ty::BoundVariableKind::Region(kind) => {
-                vars.push(BoundVariableKind::Region(*kind));
-            }
-            _ => {
-                return Err(UnsupportedReason {
-                    descr: format!("unsupported bound variable {var:?}"),
-                });
-            }
-        }
+        Ok(FnSig { safety: self.safety, abi: self.abi, inputs_and_output })
     }
-    Ok(List::from_vec(vars))
 }
 
-fn lower_const<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    c: rustc_ty::Const<'tcx>,
-) -> Result<Const, UnsupportedReason> {
-    let kind = match c.kind() {
-        rustc_type_ir::ConstKind::Param(param_const) => {
-            ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
+impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
+    type R = Result<List<BoundVariableKind>, UnsupportedReason>;
+
+    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
+        let mut vars = vec![];
+        for var in self {
+            match var {
+                rustc_ty::BoundVariableKind::Region(kind) => {
+                    vars.push(BoundVariableKind::Region(kind));
+                }
+                _ => {
+                    return Err(UnsupportedReason {
+                        descr: format!("unsupported bound variable {var:?}"),
+                    });
+                }
+            }
         }
-        rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) => {
-            ConstKind::Value(ty.lower(tcx)?, scalar_int)
-        }
-        rustc_type_ir::ConstKind::Unevaluated(c) => {
-            // TODO: raise unsupported if c.args is not empty?
-            let args = c.args.lower(tcx)?;
-            ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
-        }
-        _ => return Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
-    };
-    Ok(Const { kind })
+        Ok(List::from_vec(vars))
+    }
+}
+
+impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
+    type R = Result<Const, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+        let kind = match self.kind() {
+            rustc_type_ir::ConstKind::Param(param_const) => {
+                ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
+            }
+            rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) => {
+                ConstKind::Value(ty.lower(tcx)?, scalar_int)
+            }
+            rustc_type_ir::ConstKind::Unevaluated(c) => {
+                // TODO: raise unsupported if c.args is not empty?
+                let args = c.args.lower(tcx)?;
+                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
+            }
+            _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
+        };
+        Ok(Const { kind })
+    }
 }
 
 impl<'tcx, T, S> Lower<'tcx> for rustc_ty::Binder<'tcx, T>
@@ -749,7 +741,7 @@ where
     type R = Result<Binder<S>, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
-        let vars = lower_bound_vars(self.bound_vars())?;
+        let vars = self.bound_vars().lower(tcx)?;
         Ok(Binder::bind_with_vars(self.skip_binder().lower(tcx)?, vars))
     }
 }
@@ -778,7 +770,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 let tys = List::from_vec(tys.iter().map(|ty| ty.lower(tcx)).try_collect()?);
                 Ok(Ty::mk_tuple(tys))
             }
-            rustc_ty::Array(ty, len) => Ok(Ty::mk_array(ty.lower(tcx)?, lower_const(tcx, *len)?)),
+            rustc_ty::Array(ty, len) => Ok(Ty::mk_array(ty.lower(tcx)?, len.lower(tcx)?)),
             rustc_ty::Slice(ty) => Ok(Ty::mk_slice(ty.lower(tcx)?)),
             rustc_ty::RawPtr(ty, mutbl) => {
                 let ty = ty.lower(tcx)?;
@@ -793,7 +785,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                         abi: header.abi,
                     }
                 });
-                let fn_sig = lower_fn_sig(tcx, fn_sig)?;
+                let fn_sig = fn_sig.lower(tcx)?;
                 Ok(Ty::mk_fn_ptr(fn_sig))
             }
             rustc_ty::Closure(did, args) => {
@@ -913,7 +905,7 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArg<'tcx> {
         match self.unpack() {
             GenericArgKind::Type(ty) => Ok(GenericArg::Ty(ty.lower(tcx)?)),
             GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(region.lower(tcx)?)),
-            GenericArgKind::Const(c) => Ok(GenericArg::Const(lower_const(tcx, c)?)),
+            GenericArgKind::Const(c) => Ok(GenericArg::Const(c.lower(tcx)?)),
         }
     }
 }
@@ -1026,7 +1018,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
                 ClauseKind::TypeOutlives(outlives.lower(tcx)?)
             }
             rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
-                ClauseKind::ConstArgHasType(lower_const(tcx, const_)?, ty.lower(tcx)?)
+                ClauseKind::ConstArgHasType(const_.lower(tcx)?, ty.lower(tcx)?)
             }
             _ => {
                 return Err(UnsupportedReason::new(format!("unsupported clause kind `{self:?}`")));

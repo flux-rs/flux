@@ -74,7 +74,7 @@ pub enum QueryErr {
         container_def_id: DefId,
         name: Symbol,
     },
-    /// Used to report bugs, typically this means executing an arm in a match we though it was
+    /// Used to report bugs, typically this means executing an arm in a match we thought it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
     /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
     Bug {
@@ -355,7 +355,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
             let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
-                lowering::lower_fn_sig(genv.tcx(), fn_sig)
+                fn_sig
+                    .lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
@@ -643,8 +644,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
-            // If it's an extern_fn, resolve it to its local fn_sig's def_id,
-            // otherwise don't change it.
             let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
@@ -666,8 +665,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<List<ty::BoundVariableKind>> {
         run_with_cache(&self.lower_late_bound_vars, def_id, || {
             let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            let bound_vars = genv.tcx().late_bound_vars(hir_id);
-            lowering::lower_bound_vars(bound_vars)
+            genv.tcx()
+                .late_bound_vars(hir_id)
+                .lower(genv.tcx())
                 .map_err(UnsupportedReason::into_err)
                 .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
         })
