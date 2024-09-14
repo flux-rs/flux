@@ -14,9 +14,9 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_fixpoint::{big_int::BigInt, FixpointResult};
 use flux_middle::{
+    def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
-    pretty,
     queries::QueryResult,
     rty::{self, BoundVariableKindsExt as _, ESpan, Lambda, List},
 };
@@ -1256,7 +1256,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: pretty::def_id_to_string(def_id),
+                    orig: def_id_to_string(def_id),
                     sort: fixpoint::Sort::Int,
                     val,
                 }

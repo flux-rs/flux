@@ -2,7 +2,7 @@ use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::GlobalEnv, pretty::def_id_to_string, queries::QueryResult, rty, PlaceExt as _,
+    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty, PlaceExt as _,
 };
 use flux_rustc_bridge::{
     mir::{

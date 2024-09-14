@@ -4,7 +4,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config::CrateConfig;
 use flux_errors::FluxSession;
-use flux_rustc_bridge::{self, lowering, mir, ty};
+use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -224,7 +224,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         trait_ref: rustc_middle::ty::TraitRef<'tcx>,
     ) -> QueryResult<ty::TraitRef> {
-        lowering::lower_trait_ref(self.tcx(), trait_ref)
+        trait_ref
+            .lower(self.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 

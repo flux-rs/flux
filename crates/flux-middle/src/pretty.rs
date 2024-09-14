@@ -472,10 +472,6 @@ impl Pretty for DefId {
     }
 }
 
-pub fn def_id_to_string(def_id: DefId) -> String {
-    rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PrettyCx::default(tcx), def_id)))
-}
-
 impl Pretty for FieldIdx {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_u32())

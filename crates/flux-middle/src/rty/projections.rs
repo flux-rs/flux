@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
-use flux_rustc_bridge::{lowering::lower_ty, ToRustc};
+use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -112,7 +112,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             &mut vec![],
         )
         .expect_type();
-        let rustc_ty = lower_ty(self.tcx(), ty).unwrap();
+        let rustc_ty = ty.lower(self.tcx()).unwrap();
         let generics = self.genv.generics_of(self.def_id)?;
         let ty = self.genv.refine_default(&generics, &rustc_ty)?;
         Ok(ty)
@@ -300,7 +300,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         let param_env = self.rustc_param_env();
         let rc = c.to_rustc(self.tcx());
         if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
-            && let Ok(ty) = lower_ty(self.tcx(), ty)
+            && let Ok(ty) = ty.lower(self.tcx())
         {
             Ok(Const { kind: ConstKind::Value(ty, scalar_int) })
         } else {

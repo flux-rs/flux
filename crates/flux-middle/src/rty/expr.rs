@@ -1035,6 +1035,8 @@ impl_internable!(ExprKind);
 impl_slice_internable!(Expr, KVar);
 
 mod pretty {
+    use flux_rustc_bridge::def_id_to_string;
+
     use super::*;
     use crate::pretty::*;
 
@@ -1090,7 +1092,7 @@ mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!("{:?}", var),
                 ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
+                ExprKind::ConstDefId(did) => w!("{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!("{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {

@@ -2,7 +2,7 @@
 //! in this module can be understood as the current supported subset of rust. As we implement
 //! more features we should be able to work directly on rustc's structures.
 
-#![feature(rustc_private, box_patterns)]
+#![feature(rustc_private, box_patterns, associated_type_defaults, never_type)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;

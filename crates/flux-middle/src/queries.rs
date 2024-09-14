@@ -7,8 +7,8 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
 use flux_rustc_bridge::{
-    self,
-    lowering::{self, UnsupportedErr, UnsupportedReason},
+    self, def_id_to_string,
+    lowering::{self, Lower, UnsupportedErr, UnsupportedReason},
     mir, ty,
 };
 use itertools::Itertools;
@@ -24,7 +24,6 @@ use rustc_span::{Span, Symbol};
 use crate::{
     fhir,
     global_env::GlobalEnv,
-    pretty,
     rty::{
         self,
         refining::{self, Refiner},
@@ -263,7 +262,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<Rc<mir::Body<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-            let mir = lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
+            let mir = lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
             Ok(Rc::new(mir))
         })
     }
@@ -316,8 +315,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> ty::Generics<'tcx> {
         run_with_cache(&self.lower_generics_of, def_id, || {
-            let generics = genv.tcx().generics_of(def_id);
-            lowering::lower_generics(generics)
+            genv.tcx().generics_of(def_id).lower(genv.tcx())
         })
     }
 
@@ -327,8 +325,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::GenericPredicates> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
-            let predicates = genv.tcx().predicates_of(def_id);
-            lowering::lower_generic_predicates(genv.tcx(), predicates)
+            genv.tcx()
+                .predicates_of(def_id)
+                .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
@@ -341,7 +340,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.lower_type_of, def_id, || {
             let ty = genv.tcx().type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
-                lowering::lower_ty(genv.tcx(), ty)
+                ty.lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
@@ -421,9 +420,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 adt_def
             } else {
                 let adt_def = if let Some(extern_id) = extern_id {
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
+                    genv.tcx().adt_def(extern_id).lower(genv.tcx())
                 } else {
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id))
+                    genv.tcx().adt_def(def_id).lower(genv.tcx())
                 };
                 Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
             }
@@ -474,8 +473,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(bounds) = genv.cstore().item_bounds(def_id) {
                 bounds
             } else {
-                let bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                let clauses = lowering::lower_clauses(genv.tcx(), bounds)
+                let clauses = genv
+                    .tcx()
+                    .item_bounds(def_id)
+                    .skip_binder()
+                    .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
                 let clauses =
@@ -776,7 +778,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                 QueryErr::Ignored { def_id } => {
                     let mut diag = dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
                     diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                    diag.arg("name", pretty::def_id_to_string(def_id));
+                    diag.arg("name", def_id_to_string(def_id));
                     diag.span_label(self.span, fluent::_subdiag::label);
                     diag
                 }
