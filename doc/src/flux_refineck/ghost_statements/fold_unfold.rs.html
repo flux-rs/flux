@@ -875,25 +875,19 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_middle::{
-    global_env::GlobalEnv,
-    pretty::def_id_to_string,
-    queries::QueryResult,
-    rty,
-    rustc::{
-        mir::{
-            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic,
-            Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
-            TerminatorKind, VariantIdx, FIRST_VARIANT,
-        },
-        ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Ty, TyKind},
+    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty, PlaceExt <span class="kw">as _</span>,
+};
+<span class="kw">use </span>flux_rustc_bridge::{
+    mir::{
+        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
+        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
+        FIRST_VARIANT,
     },
+    ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Ty, TyKind},
 };
 <span class="kw">use </span>itertools::{repeat_n, Itertools};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;

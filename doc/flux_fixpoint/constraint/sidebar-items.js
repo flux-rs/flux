@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOp","BinRel","Constant","Constraint","Expr","Pred","Sort","SortCtor"],"fn":["fmt_func"],"static":["DEFAULT_QUALIFIERS"],"struct":["Bind","Const","DataCtor","DataDecl","DataField","PredTag","Qualifier"]};

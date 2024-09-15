@@ -737,11 +737,6 @@
 <a href="#737" id="737">737</a>
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -760,9 +755,9 @@
         fold::{BottomUpFolder, TypeFoldable},
         refining::Refiner,
     },
-    rustc::ty::{<span class="self">self</span>, FieldIdx, VariantIdx},
     MaybeExternId,
 };
+<span class="kw">use </span>flux_rustc_bridge::ty::{<span class="self">self</span>, FieldIdx, VariantIdx};
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
@@ -1259,15 +1254,10 @@
     <span class="kw">use </span>flux_common::span_bug;
     <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
-    <span class="kw">use </span>flux_middle::{
-        fhir,
-        global_env::GlobalEnv,
-        rty,
-        rustc::{
-            ty::{FieldIdx, VariantIdx},
-            ToRustc,
-        },
-        MaybeExternId,
+    <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+    <span class="kw">use </span>flux_rustc_bridge::{
+        ty::{FieldIdx, VariantIdx},
+        ToRustc,
     };
     <span class="kw">use </span>rustc_span::{Span, DUMMY_SP};
 

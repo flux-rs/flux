@@ -524,10 +524,11 @@
 <a href="#524" id="524">524</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
+<span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
 <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<span class="kw">use crate</span>::{pretty::<span class="kw-2">*</span>, rustc::ty::region_to_string};
+<span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>ClauseKind {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
@@ -1043,7 +1044,6 @@
     FuncSort,
     SortCtor,
     SubsetTy,
-    Const,
     BvSize,
 );
 </code></pre></div></section></main></body></html>

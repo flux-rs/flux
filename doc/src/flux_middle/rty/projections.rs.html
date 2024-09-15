@@ -430,6 +430,7 @@
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_rustc_bridge::{lowering::Lower, ToRustc};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::{infer::InferCtxt, traits::Obligation};
 <span class="kw">use </span>rustc_middle::{
@@ -447,7 +448,6 @@
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::{lowering::lower_ty, ToRustc},
 };
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {
@@ -540,7 +540,7 @@
             <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[],
         )
         .expect_type();
-        <span class="kw">let </span>rustc_ty = lower_ty(<span class="self">self</span>.tcx(), ty).unwrap();
+        <span class="kw">let </span>rustc_ty = ty.lower(<span class="self">self</span>.tcx()).unwrap();
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(<span class="self">self</span>.def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>ty = <span class="self">self</span>.genv.refine_default(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(ty)
@@ -728,7 +728,7 @@
         <span class="kw">let </span>param_env = <span class="self">self</span>.rustc_param_env();
         <span class="kw">let </span>rc = c.to_rustc(<span class="self">self</span>.tcx());
         <span class="kw">if let </span><span class="prelude-val">Some</span>((ty, scalar_int)) = rc.try_eval_scalar_int(<span class="self">self</span>.tcx(), param_env)
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(ty) = lower_ty(<span class="self">self</span>.tcx(), ty)
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(ty) = ty.lower(<span class="self">self</span>.tcx())
         {
             <span class="prelude-val">Ok</span>(Const { kind: ConstKind::Value(ty, scalar_int) })
         } <span class="kw">else </span>{

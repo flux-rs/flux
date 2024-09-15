@@ -805,6 +805,8 @@
 <a href="#805" id="805">805</a>
 <a href="#806" id="806">806</a>
 <a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -813,6 +815,11 @@
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
+<span class="kw">use </span>flux_rustc_bridge::{
+    <span class="self">self</span>, def_id_to_string,
+    lowering::{<span class="self">self</span>, Lower, UnsupportedErr, UnsupportedReason},
+    mir, ty,
+};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
 <span class="kw">use </span>rustc_errors::Diagnostic;
@@ -826,15 +833,9 @@
 <span class="kw">use crate</span>::{
     fhir,
     global_env::GlobalEnv,
-    pretty,
     rty::{
         <span class="self">self</span>,
         refining::{<span class="self">self</span>, Refiner},
-    },
-    rustc::{
-        <span class="self">self</span>,
-        lowering::{<span class="self">self</span>, UnsupportedErr, UnsupportedReason},
-        ty,
     },
 };
 
@@ -882,7 +883,7 @@
         container_def_id: DefId,
         name: Symbol,
     },
-    <span class="doccomment">/// Used to report bugs, typically this means executing an arm in a match we though it was
+    <span class="doccomment">/// Used to report bugs, typically this means executing an arm in a match we thought it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
     /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
     </span>Bug {
@@ -998,7 +999,7 @@
 
 <span class="kw">pub struct </span>Queries&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) providers: Providers,
-    mir: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;&gt;,
+    mir: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;&gt;,
     collect_specs: OnceCell&lt;<span class="kw">crate</span>::Specs&gt;,
     resolve_crate: OnceCell&lt;<span class="kw">crate</span>::ResolverOutput&gt;,
     desugar: Cache&lt;LocalDefId, QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
@@ -1026,7 +1027,7 @@
     type_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;,
     variants_of: Cache&lt;DefId, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
     fn_sig: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;,
-    lower_late_bound_vars: Cache&lt;LocalDefId, QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt;&gt;,
+    lower_late_bound_vars: Cache&lt;LocalDefId, QueryResult&lt;List&lt;ty::BoundVariableKind&gt;&gt;&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Queries&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1067,10 +1068,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: LocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
+    ) -&gt; QueryResult&lt;Rc&lt;mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.mir, def_id, || {
             <span class="kw">let </span>mir = <span class="kw">unsafe </span>{ flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-            <span class="kw">let </span>mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)<span class="question-mark">?</span>;
+            <span class="kw">let </span>mir = lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Rc::new(mir))
         })
     }
@@ -1123,8 +1124,7 @@
         def_id: DefId,
     ) -&gt; ty::Generics&lt;<span class="lifetime">'tcx</span>&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_generics_of, def_id, || {
-            <span class="kw">let </span>generics = genv.tcx().generics_of(def_id);
-            lowering::lower_generics(generics)
+            genv.tcx().generics_of(def_id).lower(genv.tcx())
         })
     }
 
@@ -1134,8 +1134,9 @@
         def_id: DefId,
     ) -&gt; QueryResult&lt;ty::GenericPredicates&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_predicates_of, def_id, || {
-            <span class="kw">let </span>predicates = genv.tcx().predicates_of(def_id);
-            lowering::lower_generic_predicates(genv.tcx(), predicates)
+            genv.tcx()
+                .predicates_of(def_id)
+                .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
@@ -1148,7 +1149,7 @@
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_type_of, def_id, || {
             <span class="kw">let </span>ty = genv.tcx().type_of(def_id).instantiate_identity();
             <span class="prelude-val">Ok</span>(ty::EarlyBinder(
-                lowering::lower_ty(genv.tcx(), ty)
+                ty.lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>,
             ))
@@ -1163,7 +1164,8 @@
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_fn_sig, def_id, || {
             <span class="kw">let </span>fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
             <span class="prelude-val">Ok</span>(ty::EarlyBinder(
-                lowering::lower_fn_sig(genv.tcx(), fn_sig)
+                fn_sig
+                    .lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>,
             ))
@@ -1228,9 +1230,9 @@
                 adt_def
             } <span class="kw">else </span>{
                 <span class="kw">let </span>adt_def = <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = extern_id {
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
+                    genv.tcx().adt_def(extern_id).lower(genv.tcx())
                 } <span class="kw">else </span>{
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id))
+                    genv.tcx().adt_def(def_id).lower(genv.tcx())
                 };
                 <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>, <span class="macro">vec!</span>[], <span class="bool-val">false</span>))
             }
@@ -1281,8 +1283,11 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(bounds) = genv.cstore().item_bounds(def_id) {
                 bounds
             } <span class="kw">else </span>{
-                <span class="kw">let </span>bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                <span class="kw">let </span>clauses = lowering::lower_clauses(genv.tcx(), bounds)
+                <span class="kw">let </span>clauses = genv
+                    .tcx()
+                    .item_bounds(def_id)
+                    .skip_binder()
+                    .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>clauses =
@@ -1448,9 +1453,7 @@
         def_id: DefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.fn_sig, def_id, || {
-            <span class="comment">// If it's an extern_fn, resolve it to its local fn_sig's def_id,
-            // otherwise don't change it.
-            </span><span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
+            <span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.fn_sig)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fn_sig) = genv.cstore().fn_sig(def_id) {
@@ -1468,11 +1471,12 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
         def_id: LocalDefId,
-    ) -&gt; QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt; {
+    ) -&gt; QueryResult&lt;List&lt;ty::BoundVariableKind&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_late_bound_vars, def_id, || {
             <span class="kw">let </span>hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            <span class="kw">let </span>bound_vars = genv.tcx().late_bound_vars(hir_id);
-            lowering::lower_bound_vars(bound_vars)
+            genv.tcx()
+                .late_bound_vars(hir_id)
+                .lower(genv.tcx())
                 .map_err(UnsupportedReason::into_err)
                 .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
         })
@@ -1583,7 +1587,7 @@
                 QueryErr::Ignored { def_id } =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(<span class="self">self</span>.span, fluent::middle_query_ignored_at);
                     diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
-                    diag.arg(<span class="string">"name"</span>, pretty::def_id_to_string(def_id));
+                    diag.arg(<span class="string">"name"</span>, def_id_to_string(def_id));
                     diag.span_label(<span class="self">self</span>.span, fluent::_subdiag::label);
                     diag
                 }

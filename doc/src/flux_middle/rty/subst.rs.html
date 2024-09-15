@@ -578,12 +578,10 @@
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_rustc_bridge::ty;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_middle::ty::RegionVid;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -596,7 +594,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::rty::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// See `flux_refineck::type_env::TypeEnv::assign`
-</span><span class="kw">pub fn </span>match_regions(a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
+</span><span class="kw">pub fn </span>match_regions(a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>ty::Ty) -&gt; Ty {
     <span class="kw">let </span>a = replace_regions_with_unique_vars(a);
     <span class="kw">let </span><span class="kw-2">mut </span>subst = RegionSubst::default();
     subst.infer_from_ty(<span class="kw-2">&amp;</span>a, b);
@@ -642,8 +640,7 @@
         t.fold_with(<span class="kw-2">&amp;mut </span>Folder(<span class="self">self</span>))
     }
 
-    <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
-        <span class="kw">use </span>rustc::ty;
+    <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>ty::Ty) {
         <span class="kw">match </span>(a.kind(), b.kind()) {
             (TyKind::Exists(ty_a), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.infer_from_ty(ty_a.as_ref().skip_binder(), b);
@@ -666,8 +663,7 @@
         }
     }
 
-    <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
-        <span class="kw">use </span>rustc::ty;
+    <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>ty::Ty) {
         <span class="kw">match </span>(a, ty.kind()) {
             (BaseTy::Ref(re_a, ty_a, <span class="kw">_</span>), ty::TyKind::Ref(re_b, ty_b, <span class="kw">_</span>)) =&gt; {
                 <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
@@ -696,9 +692,8 @@
     <span class="kw">fn </span>infer_from_existential_pred(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         a: <span class="kw-2">&amp;</span>PolyExistentialPredicate,
-        b: <span class="kw-2">&amp;</span>rustc::ty::PolyExistentialPredicate,
+        b: <span class="kw-2">&amp;</span>ty::PolyExistentialPredicate,
     ) {
-        <span class="kw">use </span>rustc::ty;
         <span class="kw">match </span>(a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
             (
                 ExistentialPredicate::Trait(trait_ref_a),
@@ -719,15 +714,14 @@
         }
     }
 
-    <span class="kw">fn </span>infer_from_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArgs, b: <span class="kw-2">&amp;</span>rustc::ty::GenericArgs) {
+    <span class="kw">fn </span>infer_from_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArgs, b: <span class="kw-2">&amp;</span>ty::GenericArgs) {
         <span class="macro">debug_assert_eq!</span>(a.len(), b.len());
         <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(a, b) {
             <span class="self">self</span>.infer_from_generic_arg(arg_a, arg_b);
         }
     }
 
-    <span class="kw">fn </span>infer_from_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArg, b: <span class="kw-2">&amp;</span>rustc::ty::GenericArg) {
-        <span class="kw">use </span>rustc::ty;
+    <span class="kw">fn </span>infer_from_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArg, b: <span class="kw-2">&amp;</span>ty::GenericArg) {
         <span class="kw">match </span>(a, b) {
             (GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) =&gt; {
                 <span class="self">self</span>.infer_from_bty(ctor_a.as_bty_skipping_binder(), ty_b);

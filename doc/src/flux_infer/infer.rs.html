@@ -741,6 +741,8 @@
 <a href="#741" id="741">741</a>
 <a href="#742" id="742">742</a>
 <a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -756,11 +758,13 @@
         GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
         Var,
     },
-    rustc::mir::BasicBlock,
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
-<span class="kw">use </span>rustc_middle::ty::{TyCtxt, Variance};
+<span class="kw">use </span>rustc_middle::{
+    mir::BasicBlock,
+    ty::{TyCtxt, Variance},
+};
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{

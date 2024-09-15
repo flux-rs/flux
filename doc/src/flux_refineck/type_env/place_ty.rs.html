@@ -993,8 +993,8 @@
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
         Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
-    rustc::mir::{FieldIdx, Place, PlaceElem},
 };
+<span class="kw">use </span>flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;

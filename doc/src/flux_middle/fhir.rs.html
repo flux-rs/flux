@@ -1504,6 +1504,7 @@
 <a href="#1504" id="1504">1504</a>
 <a href="#1505" id="1505">1505</a>
 <a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1525,6 +1526,7 @@
 <span class="kw">use </span>std::{borrow::Cow, fmt};
 
 <span class="kw">use </span>flux_common::{bug, span_bug};
+<span class="kw">use </span>flux_rustc_bridge::def_id_to_string;
 <span class="kw">use </span>flux_syntax::surface::ParamMode;
 <span class="kw">pub use </span>flux_syntax::surface::{BinOp, UnOp};
 <span class="kw">use </span>itertools::Itertools;
@@ -1545,7 +1547,7 @@
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 <span class="kw">use </span>rustc_target::spec::abi;
 
-<span class="kw">use crate</span>::{global_env::GlobalEnv, pretty, MaybeExternId};
+<span class="kw">use crate</span>::{global_env::GlobalEnv, MaybeExternId};
 
 <span class="doccomment">/// A boolean-like enum used to mark whether a piece of code is ignored.
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -2975,15 +2977,15 @@
             SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
             SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
             SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{}"</span>, n),
-            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"sortof({})"</span>, pretty::def_id_to_string(<span class="kw-2">*</span>def_id)),
+            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"sortof({})"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
             SortRes::SelfParam { trait_id } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, pretty::def_id_to_string(<span class="kw-2">*</span>trait_id))
+                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
             }
             SortRes::SelfAlias { alias_to } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, pretty::def_id_to_string(<span class="kw-2">*</span>alias_to))
+                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
             }
             SortRes::User { name } =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
-            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::Sort"</span>, pretty::def_id_to_string(<span class="kw-2">*</span>def_id)),
+            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::Sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
         }
     }
 }

@@ -540,10 +540,6 @@
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
 <a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
@@ -1016,10 +1012,6 @@
             <span class="macro">w!</span>(<span class="string">"{}"</span>, ^path.data.last().unwrap())
         }
     }
-}
-
-<span class="kw">pub fn </span>def_id_to_string(def_id: DefId) -&gt; String {
-    rustc_middle::ty::tls::with(|tcx| <span class="macro">format!</span>(<span class="string">"{:?}"</span>, WithCx::new(<span class="kw-2">&amp;</span>PrettyCx::default(tcx), def_id)))
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FieldIdx {

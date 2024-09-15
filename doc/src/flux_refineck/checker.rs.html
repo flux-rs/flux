@@ -1739,15 +1739,15 @@
         GenericArg, GenericArgsExt <span class="kw">as _</span>, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
         Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
-    rustc::{
-        <span class="self">self</span>,
-        mir::{
-            <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-            Terminator, TerminatorKind, START_BLOCK,
-        },
-        ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>},
+};
+<span class="kw">use </span>flux_rustc_bridge::{
+    <span class="self">self</span>,
+    mir::{
+        <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind, START_BLOCK,
     },
+    ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
@@ -2710,7 +2710,7 @@
         }
     }
 
-    <span class="kw">fn </span>check_nullary_op(<span class="kw-2">&amp;</span><span class="self">self</span>, null_op: mir::NullOp, _ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
+    <span class="kw">fn </span>check_nullary_op(<span class="kw-2">&amp;</span><span class="self">self</span>, null_op: mir::NullOp, _ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; Ty {
         <span class="kw">match </span>null_op {
             mir::NullOp::SizeOf | mir::NullOp::AlignOf =&gt; {
                 <span class="comment">// We could try to get the layout of type to index this with the actual value, but
@@ -2788,9 +2788,9 @@
         stmt_span: Span,
         kind: CastKind,
         from: <span class="kw-2">&amp;</span>Ty,
-        to: <span class="kw-2">&amp;</span>rustc::ty::Ty,
+        to: <span class="kw-2">&amp;</span>ty::Ty,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">use </span>rustc::ty::TyKind <span class="kw">as </span>RustTy;
+        <span class="kw">use </span>ty::TyKind <span class="kw">as </span>RustTy;
         <span class="kw">let </span>ty = <span class="kw">match </span>kind {
             CastKind::PointerExposeProvenance =&gt; {
                 <span class="kw">match </span>to.kind() {
@@ -2855,7 +2855,7 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
         src: <span class="kw-2">&amp;</span>Ty,
-        dst: <span class="kw-2">&amp;</span>rustc::ty::Ty,
+        dst: <span class="kw-2">&amp;</span>ty::Ty,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="comment">// Convert `ptr` to `&amp;mut`
         </span><span class="kw">let </span>src = <span class="kw">if let </span>TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
@@ -2871,8 +2871,8 @@
             src.clone()
         };
 
-        <span class="kw">if let </span>rustc::ty::TyKind::Ref(<span class="kw">_</span>, deref_ty, <span class="kw">_</span>) = dst.kind()
-            &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Dynamic(..) = deref_ty.kind()
+        <span class="kw">if let </span>ty::TyKind::Ref(<span class="kw">_</span>, deref_ty, <span class="kw">_</span>) = dst.kind()
+            &amp;&amp; <span class="kw">let </span>ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
             <span class="kw">return </span><span class="self">self
                 </span>.genv
@@ -2883,7 +2883,7 @@
         <span class="comment">// `&amp;mut [T; n] -&gt; &amp;mut [T]` or `&amp;[T; n] -&gt; &amp;[T]`
         </span><span class="kw">if let </span>TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, deref_ty, <span class="kw">_</span>), <span class="kw">_</span>) = src.kind()
             &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), <span class="kw">_</span>) = deref_ty.kind()
-            &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Ref(re, <span class="kw">_</span>, mutbl) = dst.kind()
+            &amp;&amp; <span class="kw">let </span>ty::TyKind::Ref(re, <span class="kw">_</span>, mutbl) = dst.kind()
         {
             <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), arr_len);
             <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), <span class="kw-2">*</span>mutbl))
@@ -3352,7 +3352,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{pretty, queries::QueryErr};
+    <span class="kw">use </span>flux_middle::{def_id_to_string, queries::QueryErr};
     <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_middle::mir::SourceInfo;
@@ -3400,7 +3400,7 @@
                 CheckerErrKind::OpaqueStruct(def_id) =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag =
                         dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
-                    diag.arg(<span class="string">"struct"</span>, pretty::def_id_to_string(def_id));
+                    diag.arg(<span class="string">"struct"</span>, def_id_to_string(def_id));
                     diag.code(E0999);
                     diag
                 }

@@ -1312,6 +1312,61 @@
 <a href="#1312" id="1312">1312</a>
 <a href="#1313" id="1313">1313</a>
 <a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
+<a href="#1331" id="1331">1331</a>
+<a href="#1332" id="1332">1332</a>
+<a href="#1333" id="1333">1333</a>
+<a href="#1334" id="1334">1334</a>
+<a href="#1335" id="1335">1335</a>
+<a href="#1336" id="1336">1336</a>
+<a href="#1337" id="1337">1337</a>
+<a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
+<a href="#1343" id="1343">1343</a>
+<a href="#1344" id="1344">1344</a>
+<a href="#1345" id="1345">1345</a>
+<a href="#1346" id="1346">1346</a>
+<a href="#1347" id="1347">1347</a>
+<a href="#1348" id="1348">1348</a>
+<a href="#1349" id="1349">1349</a>
+<a href="#1350" id="1350">1350</a>
+<a href="#1351" id="1351">1351</a>
+<a href="#1352" id="1352">1352</a>
+<a href="#1353" id="1353">1353</a>
+<a href="#1354" id="1354">1354</a>
+<a href="#1355" id="1355">1355</a>
+<a href="#1356" id="1356">1356</a>
+<a href="#1357" id="1357">1357</a>
+<a href="#1358" id="1358">1358</a>
+<a href="#1359" id="1359">1359</a>
+<a href="#1360" id="1360">1360</a>
+<a href="#1361" id="1361">1361</a>
+<a href="#1362" id="1362">1362</a>
+<a href="#1363" id="1363">1363</a>
+<a href="#1364" id="1364">1364</a>
+<a href="#1365" id="1365">1365</a>
+<a href="#1366" id="1366">1366</a>
+<a href="#1367" id="1367">1367</a>
+<a href="#1368" id="1368">1368</a>
+<a href="#1369" id="1369">1369</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1322,20 +1377,20 @@
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
-    span_bug,
+    span_bug, tracked_span_bug,
 };
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::Errors;
-<span class="kw">use </span>flux_fixpoint::FixpointResult;
 <span class="kw">use </span>flux_middle::{
-    const_eval,
+    big_int::BigInt,
+    def_id_to_string,
     fhir::{<span class="self">self</span>, SpecFuncKind},
     global_env::GlobalEnv,
-    pretty,
     queries::QueryResult,
-    rty::{<span class="self">self</span>, BoundVariableKindsExt <span class="kw">as _</span>, Constant, ESpan, Lambda, List},
+    rty::{<span class="self">self</span>, BoundVariableKindsExt <span class="kw">as _</span>, ESpan, Lambda, List},
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>liquid_fixpoint::FixpointResult;
 <span class="kw">use </span>rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -1348,7 +1403,11 @@
 <span class="kw">pub mod </span>fixpoint {
     <span class="kw">use </span>std::fmt;
 
-    <span class="kw">use </span>flux_middle::rty::EarlyReftParam;
+    <span class="kw">use </span>flux_middle::{
+        big_int::BigInt,
+        rty::{EarlyReftParam, Real},
+    };
+    <span class="kw">use </span>liquid_fixpoint::{FixpointFmt, Identifier};
     <span class="kw">use </span>rustc_index::newtype_index;
     <span class="kw">use </span>rustc_middle::ty::ParamConst;
     <span class="kw">use </span>rustc_span::Symbol;
@@ -1357,7 +1416,7 @@
         <span class="kw">pub struct </span>KVid {}
     }
 
-    <span class="kw">impl </span>fmt::Display <span class="kw">for </span>KVid {
+    <span class="kw">impl </span>Identifier <span class="kw">for </span>KVid {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">write!</span>(f, <span class="string">"k{}"</span>, <span class="self">self</span>.as_u32())
         }
@@ -1403,7 +1462,7 @@
         }
     }
 
-    <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Var {
+    <span class="kw">impl </span>Identifier <span class="kw">for </span>Var {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">match </span><span class="self">self </span>{
                 Var::Global(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"c{}"</span>, v.as_u32()),
@@ -1434,7 +1493,7 @@
         Tuple(usize),
     }
 
-    <span class="kw">impl </span>fmt::Display <span class="kw">for </span>DataSort {
+    <span class="kw">impl </span>Identifier <span class="kw">for </span>DataSort {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">match </span><span class="self">self </span>{
                 DataSort::Tuple(arity) =&gt; {
@@ -1444,10 +1503,24 @@
         }
     }
 
-    <span class="macro">flux_fixpoint::declare_types!</span> {
+    <span class="attr">#[derive(Hash)]
+    </span><span class="kw">pub struct </span>SymStr(<span class="kw">pub </span>Symbol);
+
+    <span class="kw">impl </span>FixpointFmt <span class="kw">for </span>SymStr {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">write!</span>(f, <span class="string">"\"{}\""</span>, <span class="self">self</span>.<span class="number">0</span>)
+        }
+    }
+
+    <span class="macro">liquid_fixpoint::declare_types!</span> {
         <span class="kw">type </span>Sort = DataSort;
         <span class="kw">type </span>KVar = KVid;
         <span class="kw">type </span>Var = Var;
+
+        <span class="kw">type </span>Numeral = BigInt;
+        <span class="kw">type </span>Decimal = Real;
+        <span class="kw">type </span>String = SymStr;
+
         <span class="kw">type </span>Tag = <span class="kw">super</span>::TagIdx;
     }
     <span class="kw">pub use </span>fixpoint_generated::<span class="kw-2">*</span>;
@@ -1515,14 +1588,11 @@
     <span class="kw">fn </span>func_sort_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: <span class="kw-2">&amp;</span>rty::PolyFuncSort) -&gt; fixpoint::Sort {
         <span class="kw">let </span>params = fsort.params().len();
         <span class="kw">let </span>fsort = fsort.skip_binders();
+        <span class="kw">let </span>output = <span class="self">self</span>.sort_to_fixpoint(fsort.output());
         fixpoint::Sort::mk_func(
             params,
-            fsort
-                .inputs()
-                .iter()
-                .map(|s| <span class="self">self</span>.sort_to_fixpoint(s))
-                .collect_vec(),
-            <span class="self">self</span>.sort_to_fixpoint(fsort.output()),
+            fsort.inputs().iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)),
+            output,
         )
     }
 
@@ -1613,79 +1683,30 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_name_map&lt;R&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        name: rty::Name,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, fixpoint::LocalVar) -&gt; R,
-    ) -&gt; R {
-        <span class="kw">let </span>fresh = <span class="self">self</span>.ecx.local_var_env.insert_fvar_map(name);
-        <span class="kw">let </span>r = f(<span class="self">self</span>, fresh);
-        <span class="self">self</span>.ecx.local_var_env.remove_fvar_map(name);
-        r
-    }
-
-    <span class="kw">fn </span>assume_const_val(
-        cstr: fixpoint::Constraint,
-        var: fixpoint::GlobalVar,
-        const_val: Constant,
-    ) -&gt; fixpoint::Constraint {
-        <span class="kw">let </span>e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
-        <span class="kw">let </span>e2 = fixpoint::Expr::Constant(const_val);
-        <span class="kw">let </span>pred = fixpoint::Pred::Expr(e1.eq(e2));
-        fixpoint::Constraint::ForAll(
-            fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
-            Box::new(cstr),
-        )
-    }
-
-    <span class="kw">fn </span>fixpoint_const_info(const_info: ConstInfo) -&gt; fixpoint::ConstInfo {
-        fixpoint::ConstInfo {
-            name: fixpoint::Var::Global(const_info.name),
-            orig: <span class="prelude-val">Some</span>(const_info.orig),
-            sort: const_info.sort,
-        }
-    }
-
     <span class="kw">pub fn </span>check(
         <span class="kw-2">mut </span><span class="self">self</span>,
         cache: <span class="kw-2">&amp;mut </span>QueryCache,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
-        <span class="kw">if </span>!constraint.is_concrete() {
-            <span class="comment">// skip checking trivial constraints
-            </span><span class="self">self</span>.ecx.errors.into_result()<span class="question-mark">?</span>;
+        <span class="comment">// skip checking trivial constraints
+        </span><span class="kw">if </span>!constraint.is_concrete() {
+            <span class="self">self</span>.ecx.errors.into_result()<span class="question-mark">?</span>;
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
         }
         <span class="kw">let </span>def_span = <span class="self">self</span>.def_span();
 
-        <span class="kw">let </span>kvars = <span class="self">self
-            </span>.kcx
-            .kvars
-            .into_iter_enumerated()
-            .map(|(kvid, kvar)| {
-                fixpoint::KVar::new(kvid, kvar.sorts, <span class="macro">format!</span>(<span class="string">"orig: {:?}"</span>, kvar.orig))
-            })
-            .collect_vec();
+        <span class="kw">let </span>kvars = <span class="self">self</span>.kcx.into_fixpoint();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>constraint = constraint;
-        <span class="kw">for </span>const_info <span class="kw">in </span><span class="self">self</span>.ecx.const_map.values() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = const_info.val {
-                constraint = <span class="self">Self</span>::assume_const_val(constraint, const_info.name, val);
-            }
-        }
+        <span class="kw">let </span>constraint = <span class="self">self</span>.ecx.assume_const_values(constraint);
 
-        <span class="kw">let </span>qualifiers = <span class="self">self
-            </span>.genv
-            .qualifiers_for(<span class="self">self</span>.def_id)<span class="question-mark">?
-            </span>.map(|qual| <span class="self">self</span>.ecx.qualifier_to_fixpoint(qual, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx))
-            .try_collect()<span class="question-mark">?</span>;
+        <span class="kw">let </span>qualifiers = <span class="self">self</span>.ecx.qualifiers_for(<span class="self">self</span>.def_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>constants = <span class="self">self
             </span>.ecx
             .const_map
             .into_values()
-            .map(<span class="self">Self</span>::fixpoint_const_info)
+            .map(ConstInfo::into_fixpoint)
             .collect_vec();
 
         <span class="kw">for </span>rel <span class="kw">in </span>fixpoint::BinRel::INEQUALITIES {
@@ -1695,14 +1716,14 @@
                 [fixpoint::Sort::Var(<span class="number">0</span>), fixpoint::Sort::Var(<span class="number">0</span>)],
                 fixpoint::Sort::Bool,
             );
-            constants.push(fixpoint::ConstInfo {
+            constants.push(fixpoint::ConstDecl {
                 name: fixpoint::Var::UIFRel(rel),
                 sort,
-                orig: <span class="prelude-val">None</span>,
+                comment: <span class="prelude-val">None</span>,
             });
         }
 
-        <span class="comment">// Check if the encoding produced any errors
+        <span class="comment">// We are done encoding. Check if there are any errors.
         </span><span class="self">self</span>.ecx.errors.into_result()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>task = fixpoint::Task {
@@ -1720,18 +1741,39 @@
 
         <span class="kw">let </span>task_key = <span class="self">self</span>.genv.tcx().def_path_str(<span class="self">self</span>.def_id);
 
-        <span class="kw">match </span>task.check_with_cache(task_key, cache) {
-            <span class="prelude-val">Ok</span>(FixpointResult::Safe(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
-            <span class="prelude-val">Ok</span>(FixpointResult::Unsafe(<span class="kw">_</span>, errors)) =&gt; {
+        <span class="kw">match </span><span class="self">Self</span>::run_task_with_cache(task, task_key, cache) {
+            FixpointResult::Safe(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
+            FixpointResult::Unsafe(<span class="kw">_</span>, errors) =&gt; {
                 <span class="prelude-val">Ok</span>(errors
                     .into_iter()
                     .map(|err| <span class="self">self</span>.tags[err.tag])
                     .unique()
                     .collect_vec())
             }
-            <span class="prelude-val">Ok</span>(FixpointResult::Crash(err)) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"fixpoint crash: {err:?}"</span>),
-            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"failed to run fixpoint: {err:?}"</span>),
+            FixpointResult::Crash(err) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"fixpoint crash: {err:?}"</span>),
         }
+    }
+
+    <span class="kw">fn </span>run_task_with_cache(
+        task: fixpoint::Task,
+        key: String,
+        cache: <span class="kw-2">&amp;mut </span>QueryCache,
+    ) -&gt; FixpointResult&lt;TagIdx&gt; {
+        <span class="kw">let </span>hash = task.hash_with_default();
+        <span class="kw">if </span>config::is_cache_enabled() &amp;&amp; cache.is_safe(<span class="kw-2">&amp;</span>key, hash) {
+            <span class="kw">return </span>FixpointResult::Safe(Default::default());
+        }
+
+        <span class="kw">let </span>result = task
+            .run()
+            .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint {err:?}"</span>));
+
+        <span class="kw">if </span>config::is_cache_enabled() {
+            <span class="kw">if let </span>FixpointResult::Safe(<span class="kw">_</span>) = result {
+                cache.insert(key, hash);
+            }
+        }
+        result
     }
 
     <span class="kw">fn </span>tag_idx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tag: Tag) -&gt; TagIdx
@@ -1745,6 +1787,17 @@
         })
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_name_map&lt;R&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        name: rty::Name,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, fixpoint::LocalVar) -&gt; R,
+    ) -&gt; R {
+        <span class="kw">let </span>fresh = <span class="self">self</span>.ecx.local_var_env.insert_fvar_map(name);
+        <span class="kw">let </span>r = f(<span class="self">self</span>, fresh);
+        <span class="self">self</span>.ecx.local_var_env.remove_fvar_map(name);
+        r
+    }
+
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>sort_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; fixpoint::Sort {
         <span class="self">self</span>.scx.sort_to_fixpoint(sort)
     }
@@ -1756,7 +1809,7 @@
     <span class="doccomment">/// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
     ///
-    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
+    /// [`fixpoint::Constraint`]: liquid_fixpoint::Constraint
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>head_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>rty::Expr,
@@ -1815,7 +1868,7 @@
     <span class="doccomment">/// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
     /// predicate and a list of bindings produced by ANF-fing kvars.
     ///
-    /// [`fixpoint::Pred`]: flux_fixpoint::Pred
+    /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assumption_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         pred: <span class="kw-2">&amp;</span>rty::Expr,
@@ -1826,7 +1879,7 @@
         <span class="prelude-val">Ok</span>((bindings, fixpoint::Pred::And(preds)))
     }
 
-    <span class="doccomment">/// Auxiliary function to avoid creating nested conjunctions
+    <span class="doccomment">/// Auxiliary function to merge nested conjunctions in a single predicate
     </span><span class="kw">fn </span>assumption_to_fixpoint_aux(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>rty::Expr,
@@ -1881,7 +1934,7 @@
                 sort: fixpoint::Sort::Int,
                 pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
-                    fixpoint::Expr::ZERO,
+                    fixpoint::Expr::int(BigInt::ZERO),
                 )),
             });
             <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Pred::KVar(kvids[<span class="number">0</span>], <span class="macro">vec!</span>[var]));
@@ -1904,12 +1957,21 @@
     }
 }
 
+<span class="kw">fn </span>const_to_fixpoint(cst: rty::Constant) -&gt; fixpoint::Constant {
+    <span class="kw">match </span>cst {
+        rty::Constant::Int(i) =&gt; fixpoint::Constant::Numeral(i),
+        rty::Constant::Real(r) =&gt; fixpoint::Constant::Decimal(r),
+        rty::Constant::Bool(b) =&gt; fixpoint::Constant::Boolean(b),
+        rty::Constant::Str(s) =&gt; fixpoint::Constant::String(fixpoint::SymStr(s)),
+    }
+}
+
 <span class="kw">struct </span>FixpointKVar {
     sorts: Vec&lt;fixpoint::Sort&gt;,
     orig: rty::KVid,
 }
 
-<span class="doccomment">/// During encoding into fixpoint we generate multiple fxpoint kvars per kvar in flux. A
+<span class="doccomment">/// During encoding into fixpoint we generate multiple fixpoint kvars per kvar in flux. A
 /// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>KVarEncodingCtxt {
@@ -1957,10 +2019,18 @@
             }
         })
     }
+
+    <span class="kw">fn </span>into_fixpoint(<span class="self">self</span>) -&gt; Vec&lt;fixpoint::KVarDecl&gt; {
+        <span class="self">self</span>.kvars
+            .into_iter_enumerated()
+            .map(|(kvid, kvar)| {
+                fixpoint::KVarDecl::new(kvid, kvar.sorts, <span class="macro">format!</span>(<span class="string">"orig: {:?}"</span>, kvar.orig))
+            })
+            .collect()
+    }
 }
 
-<span class="doccomment">/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
+<span class="doccomment">/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
 </span><span class="kw">struct </span>LocalVarEnv {
     local_var_gen: IndexGen&lt;fixpoint::LocalVar&gt;,
     fvars: UnordMap&lt;rty::Name, fixpoint::LocalVar&gt;,
@@ -2011,9 +2081,19 @@
 
 <span class="kw">struct </span>ConstInfo {
     name: fixpoint::GlobalVar,
-    orig: String,
     sort: fixpoint::Sort,
-    val: <span class="prelude-ty">Option</span>&lt;Constant&gt;,
+    val: <span class="prelude-ty">Option</span>&lt;rty::Constant&gt;,
+    comment: String,
+}
+
+<span class="kw">impl </span>ConstInfo {
+    <span class="kw">fn </span>into_fixpoint(<span class="self">self</span>) -&gt; fixpoint::ConstDecl {
+        fixpoint::ConstDecl {
+            name: fixpoint::Var::Global(<span class="self">self</span>.name),
+            sort: <span class="self">self</span>.sort,
+            comment: <span class="prelude-val">Some</span>(<span class="self">self</span>.comment),
+        }
+    }
 }
 
 <span class="kw">impl </span>FixpointKVar {
@@ -2024,7 +2104,7 @@
 
 <span class="kw">pub struct </span>KVarGen {
     kvars: IndexVec&lt;rty::KVid, KVarDecl&gt;,
-    <span class="doccomment">/// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    <span class="doccomment">/// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
     /// unnecessary kvars.
     ///
     /// [holes]: rty::ExprKind::Hole
@@ -2201,7 +2281,7 @@
     ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>e = <span class="kw">match </span>expr.kind() {
             rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(<span class="self">self</span>.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(<span class="kw-2">*</span>c),
+            rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(const_to_fixpoint(<span class="kw-2">*</span>c)),
             rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, scx)<span class="question-mark">?</span>,
             rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, scx)<span class="question-mark">?</span>,
             rty::ExprKind::FieldProj(e, proj) =&gt; {
@@ -2516,9 +2596,9 @@
                     });
                 ConstInfo {
                     name: <span class="self">self</span>.global_var_gen.fresh(),
-                    orig: name.to_string(),
                     sort,
                     val: <span class="prelude-val">None</span>,
+                    comment: <span class="macro">format!</span>(<span class="string">"uif: {name}"</span>),
                 }
             })
             .name
@@ -2542,12 +2622,12 @@
                     .ok()
                     .and_then(|val| {
                         <span class="kw">let </span>val = val.try_to_scalar_int()<span class="question-mark">?</span>;
-                        const_eval::scalar_int_to_rty_constant(<span class="self">self</span>.genv.tcx(), val, ty)
+                        rty::Constant::from_scalar_int(<span class="self">self</span>.genv.tcx(), val, <span class="kw-2">&amp;</span>ty)
                     });
 
                 ConstInfo {
                     name: <span class="self">self</span>.global_var_gen.fresh(),
-                    orig: pretty::def_id_to_string(def_id),
+                    comment: <span class="macro">format!</span>(<span class="string">"rust const: {}"</span>, def_id_to_string(def_id)),
                     sort: fixpoint::Sort::Int,
                     val,
                 }
@@ -2567,11 +2647,11 @@
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
-                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">"{alias_reft:?}"</span>);
+                <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"alias reft: {alias_reft:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
                 <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
-                ConstInfo { name, orig, sort, val: <span class="prelude-val">None </span>}
+                ConstInfo { name, comment, sort, val: <span class="prelude-val">None </span>}
             })
             .name
     }
@@ -2588,12 +2668,42 @@
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
-                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">"{lam:?}"</span>);
+                <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"lambda: {lam:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
                 <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.sort().to_poly());
-                ConstInfo { name, orig, sort, val: <span class="prelude-val">None </span>}
+                ConstInfo { name, comment, sort, val: <span class="prelude-val">None </span>}
             })
             .name
+    }
+
+    <span class="kw">fn </span>assume_const_values(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>constraint: fixpoint::Constraint) -&gt; fixpoint::Constraint {
+        <span class="kw">for </span>const_info <span class="kw">in </span><span class="self">self</span>.const_map.values() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = const_info.val {
+                <span class="kw">let </span>e1 = fixpoint::Expr::Var(fixpoint::Var::Global(const_info.name));
+                <span class="kw">let </span>e2 = fixpoint::Expr::Constant(const_to_fixpoint(val));
+                <span class="kw">let </span>pred = fixpoint::Pred::Expr(e1.eq(e2));
+                constraint = fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        pred,
+                    },
+                    Box::new(constraint),
+                );
+            }
+        }
+        constraint
+    }
+
+    <span class="kw">fn </span>qualifiers_for(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        def_id: LocalDefId,
+        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+    ) -&gt; QueryResult&lt;Vec&lt;fixpoint::Qualifier&gt;&gt; {
+        <span class="self">self</span>.genv
+            .qualifiers_for(def_id)<span class="question-mark">?
+            </span>.map(|qual| <span class="self">self</span>.qualifier_to_fixpoint(qual, scx))
+            .try_collect()
     }
 
     <span class="kw">fn </span>qualifier_to_fixpoint(

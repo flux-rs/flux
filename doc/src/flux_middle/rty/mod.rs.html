@@ -2478,7 +2478,6 @@
 <a href="#2478" id="2478">2478</a>
 <a href="#2479" id="2479">2479</a>
 <a href="#2480" id="2480">2480</a>
-<a href="#2481" id="2481">2481</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2499,11 +2498,22 @@
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
 <span class="kw">pub use </span>expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
-    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 <span class="kw">pub use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">pub use </span>flux_rustc_bridge::ty::{
+    AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
+    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
+    RegionVid,
+};
+<span class="kw">use </span>flux_rustc_bridge::{
+    mir::Place,
+    ty::{<span class="self">self</span>, VariantDef},
+    ToRustc,
+};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -2525,21 +2535,12 @@
     fold::TypeFoldable,
     subst::{BoundVarReplacer, FnMutDelegate},
 };
-<span class="kw">pub use crate</span>::{
-    fhir::InferMode,
-    rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
-        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
-        Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
-        RegionVid,
-    },
-};
+<span class="kw">pub use </span><span class="kw">crate</span>::fhir::InferMode;
 <span class="kw">use crate</span>::{
     fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{<span class="self">self</span>, mir::Place, ty::VariantDef, ToRustc},
 };
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -3259,7 +3260,7 @@
     invariants: Vec&lt;Invariant&gt;,
     sort_def: AdtSortDef,
     opaque: bool,
-    rustc: rustc::ty::AdtDef,
+    rustc: ty::AdtDef,
 }
 
 <span class="doccomment">/// Option-like enum to explicitly mark that we don't have information about an ADT because it was
@@ -3349,12 +3350,12 @@
             })
             .collect()
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>List&lt;BoundVariableKind&gt; {
-    <span class="kw">type </span>T = <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::List&lt;rustc_middle::ty::BoundVariableKind&gt;;
-
-    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+    <span class="comment">// We can't implement [`ToRustc`] because of coherence so we add it here
+    </span><span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::List&lt;rustc_middle::ty::BoundVariableKind&gt; {
         tcx.mk_bound_variable_kinds_from_iter(<span class="self">self</span>.iter().flat_map(|kind| {
             <span class="kw">match </span>kind {
                 BoundVariableKind::Region(brk) =&gt; {
@@ -3828,8 +3829,8 @@
     /// the creation of this type until we use it in a [`match`].
     ///
     ///
-    /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`Rvalue::Discriminant`]: flux_rustc_bridge::mir::Rvalue::Discriminant
+    /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     </span>Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List&lt;Ty&gt;),
@@ -4337,12 +4338,9 @@
             <span class="macro">bug!</span>(<span class="string">"invalid generic arguments for box"</span>);
         }
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>GenericArgs {
-    <span class="kw">type </span>T = rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;;
-
-    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+    <span class="comment">// We can't implement [`ToRustc`] because of coherence so we add it here
+    </span><span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt; {
         tcx.mk_args_from_iter(<span class="self">self</span>.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
@@ -4608,7 +4606,7 @@
 
 <span class="kw">impl </span>AdtDef {
     <span class="kw">pub fn </span>new(
-        rustc: rustc::ty::AdtDef,
+        rustc: ty::AdtDef,
         sort_def: AdtSortDef,
         invariants: Vec&lt;Invariant&gt;,
         opaque: bool,

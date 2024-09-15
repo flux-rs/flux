@@ -571,8 +571,8 @@
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{<span class="self">self</span>, fold::TypeFoldable, refining::Refiner, WfckResults},
-    rustc::lowering,
 };
+<span class="kw">use </span>flux_rustc_bridge::lowering::Lower;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashMap;
@@ -680,7 +680,7 @@
     <span class="kw">let </span>item = genv.map().expect_item(def_id.local_id())<span class="question-mark">?</span>;
     <span class="kw">let </span>invariants = invariants_of(genv, item)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>adt_def = lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id.resolved_id()));
+    <span class="kw">let </span>adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
 

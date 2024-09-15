@@ -835,23 +835,6 @@
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
 <a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -1498,8 +1481,8 @@
 <span class="kw">mod </span>pretty {
     <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
-    <span class="kw">use </span>flux_common::format::PadAdapter;
     <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
+    <span class="kw">use </span>pad_adapter::PadAdapter;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1518,26 +1501,6 @@
             }
         }
         go(ptr, <span class="macro">vec!</span>[])
-    }
-
-    <span class="kw">fn </span>flatten_conjs(nodes: <span class="kw-2">&amp;</span>[NodePtr]) -&gt; Vec&lt;NodePtr&gt; {
-        <span class="kw">fn </span>go(ptr: <span class="kw-2">&amp;</span>NodePtr, children: <span class="kw-2">&amp;mut </span>Vec&lt;NodePtr&gt;) {
-            <span class="kw">let </span>node = ptr.borrow();
-            <span class="kw">if let </span>NodeKind::Root(ps) = <span class="kw-2">&amp;</span>node.kind
-                &amp;&amp; ps.is_empty()
-            {
-                <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
-                    go(child, children);
-                }
-            } <span class="kw">else </span>{
-                children.push(NodePtr::clone(ptr));
-            }
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>ptr <span class="kw">in </span>nodes {
-            go(ptr, <span class="kw-2">&amp;mut </span>children);
-        }
-        children
     }
 
     <span class="kw">fn </span>preds_chain(ptr: <span class="kw-2">&amp;</span>NodePtr) -&gt; (Vec&lt;Expr&gt;, Vec&lt;NodePtr&gt;) {
@@ -1571,13 +1534,13 @@
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
                 NodeKind::Trace(trace) =&gt; {
                     <span class="macro">w!</span>(<span class="string">"@ {:?}"</span>, ^trace)<span class="question-mark">?</span>;
-                    <span class="macro">w!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
+                    <span class="macro">w!</span>(with_padding(f), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
                 }
                 NodeKind::Root(bindings) =&gt; {
                     <span class="macro">w!</span>(
                         <span class="string">"∀ {}."</span>,
                         ^bindings
-                            .into_iter()
+                            .iter()
                             .format_with(<span class="string">", "</span>, |(name, sort), f| {
                                 f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             })
@@ -1631,10 +1594,9 @@
         cx: <span class="kw-2">&amp;</span>PrettyCx,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
-        <span class="kw">let </span><span class="kw-2">mut </span>f = PadAdapter::wrap_fmt(f, <span class="number">2</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>f = with_padding(f);
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="kw">let </span>children = flatten_conjs(children);
-        <span class="kw">match </span><span class="kw-2">&amp;</span>children[..] {
+        <span class="kw">match </span>children {
             [] =&gt; <span class="macro">w!</span>(<span class="string">" true"</span>),
             [n] =&gt; {
                 <span class="kw">if </span>n.borrow().is_head() {
@@ -1642,7 +1604,7 @@
                 } <span class="kw">else </span>{
                     <span class="macro">w!</span>(<span class="string">"\n"</span>)<span class="question-mark">?</span>;
                 }
-                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, NodePtr::clone(n))
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, n)
             }
             <span class="kw">_ </span>=&gt; <span class="macro">w!</span>(<span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, children)),
         }
@@ -1698,6 +1660,10 @@
                     }),
             )
         }
+    }
+
+    <span class="kw">fn </span>with_padding&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt;(f: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>fmt::Formatter&lt;<span class="lifetime">'b</span>&gt;) -&gt; PadAdapter&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'static</span>&gt; {
+        PadAdapter::with_padding(f, <span class="string">"  "</span>)
     }
 
     <span class="macro">impl_debug_with_default_cx!</span>(

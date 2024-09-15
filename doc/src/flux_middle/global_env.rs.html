@@ -574,12 +574,14 @@
 <a href="#574" id="574">574</a>
 <a href="#575" id="575">575</a>
 <a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
 <span class="kw">use </span>flux_config::CrateConfig;
 <span class="kw">use </span>flux_errors::FluxSession;
+<span class="kw">use </span>flux_rustc_bridge::{<span class="self">self</span>, lowering::Lower, mir, ty};
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
@@ -596,7 +598,6 @@
     fhir::{<span class="self">self</span>, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
-    rustc::{<span class="self">self</span>, lowering, ty},
     MaybeExternId,
 };
 
@@ -739,7 +740,7 @@
         <span class="self">self</span>.tcx().variances_of(did)
     }
 
-    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
+    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
         <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
     }
 
@@ -799,8 +800,9 @@
     <span class="kw">pub fn </span>lower_trait_ref(
         <span class="self">self</span>,
         trait_ref: rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; QueryResult&lt;rustc::ty::TraitRef&gt; {
-        lowering::lower_trait_ref(<span class="self">self</span>.tcx(), trait_ref)
+    ) -&gt; QueryResult&lt;ty::TraitRef&gt; {
+        trait_ref
+            .lower(<span class="self">self</span>.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
@@ -893,7 +895,7 @@
     <span class="kw">pub fn </span>lower_late_bound_vars(
         <span class="self">self</span>,
         def_id: LocalDefId,
-    ) -&gt; QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt; {
+    ) -&gt; QueryResult&lt;List&lt;ty::BoundVariableKind&gt;&gt; {
         <span class="self">self</span>.inner.queries.lower_late_bound_vars(<span class="self">self</span>, def_id)
     }
 

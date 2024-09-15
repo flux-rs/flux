@@ -767,6 +767,9 @@
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -788,10 +791,12 @@
         GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
         Ty, TyKind, INNERMOST,
     },
-    rustc::{
-        <span class="self">self</span>,
-        mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
-    },
+    PlaceExt <span class="kw">as _</span>,
+};
+<span class="kw">use </span>flux_rustc_bridge::{
+    <span class="self">self</span>,
+    mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
+    ty,
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
@@ -867,11 +872,7 @@
         BasicBlockEnvShape::new(scope, <span class="self">self</span>)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_rust_ty(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv,
-        place: <span class="kw-2">&amp;</span>Place,
-    ) -&gt; QueryResult&lt;rustc::ty::Ty&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_rust_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;ty::Ty&gt; {
         <span class="prelude-val">Ok</span>(place.ty(genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty)
     }
 
@@ -932,9 +933,12 @@
     /// -------------------------------------------------
     /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) =&gt; Γ₁,ℓ:†t₂,Γ₂ ; &amp;mut t2
     /// ```
+    /// That's it, we first get the current type `t₁` at location `ℓ` and check it is a subtype
+    /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
-    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), or explicilty provided
-    /// ([`PtrToRefBound::Ty`]).
+    ///
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicilty provided
+    /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
     /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
     /// Converting the pointer to a mutable reference with an inferred bound produces the following
@@ -990,12 +994,14 @@
         <span class="prelude-val">Ok</span>(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
-    <span class="doccomment">/// Updates the type of `place` to `new_ty`
+    <span class="doccomment">/// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
+    /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
+    /// constraint)
     ///
-    /// This process involves recovering the original regions (lifetimes) used in the (unrefined)
-    /// Rust type of `place` and then substituting these regions in `new_ty`. For instance, if we
-    /// are assigning a value of type `S&lt;&amp;'?10 i32{v: v &gt; 0}&gt;` to a variable `x`, and the
-    /// (unrefined) Rust type of `x` is `S&lt;&amp;'?5 i32&gt;`, before the assignment, we identify a
+    /// When strong updating, the process involves recovering the original regions (lifetimes) used
+    /// in the (unrefined) Rust type of `place` and then substituting these regions in `new_ty`. For
+    /// instance, if we are assigning a value of type `S&lt;&amp;'?10 i32{v: v &gt; 0}&gt;` to a variable `x`,
+    /// and the (unrefined) Rust type of `x` is `S&lt;&amp;'?5 i32&gt;`, before the assignment, we identify a
     /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
     /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
     /// assigned type are consistent with those expected by the place's original type definition.

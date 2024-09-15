@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOp","BinRel","Constant","Constraint","Expr","FixpointResult","Pred","Sort","SortCtor"],"macro":["declare_types"],"mod":["big_int","constraint"],"struct":["Bind","Const","ConstInfo","CrashInfo","DataCtor","DataDecl","DataField","Error","KVar","Qualifier","Stats","StringTypes","Task"],"trait":["Symbol","Types"]};

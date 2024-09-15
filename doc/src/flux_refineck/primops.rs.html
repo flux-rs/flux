@@ -386,16 +386,12 @@
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{hash::Hash, sync::LazyLock};
 
 <span class="kw">use </span>flux_infer::infer::ConstrReason;
 <span class="kw">use </span>flux_macros::primop_rules;
-<span class="kw">use </span>flux_middle::{
-    rty::{<span class="self">self</span>, BaseTy, Expr},
-    rustc::mir,
-};
+<span class="kw">use </span>flux_middle::rty::{<span class="self">self</span>, BaseTy, Expr};
+<span class="kw">use </span>flux_rustc_bridge::mir;
 <span class="kw">use </span>rty::{BinOp::Mod, Expr <span class="kw">as </span>E};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 
