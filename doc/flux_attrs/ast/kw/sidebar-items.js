@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["base","bitvec","by","ensures","refined","reft","requires","strg"]};

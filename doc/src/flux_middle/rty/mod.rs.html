@@ -2474,10 +2474,6 @@
 <a href="#2474" id="2474">2474</a>
 <a href="#2475" id="2475">2475</a>
 <a href="#2476" id="2476">2476</a>
-<a href="#2477" id="2477">2477</a>
-<a href="#2478" id="2478">2478</a>
-<a href="#2479" id="2479">2479</a>
-<a href="#2480" id="2480">2480</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -4146,7 +4142,7 @@
 /// explicit about separating refinements from program values via an index).
 ///
 /// The main purpose for subset types is to be used as generic arguments of [kind base] when
-/// interpreted as type contructors. A subset type has two key properties that makes them suitable
+/// interpreted as type constructors. A subset type has two key properties that makes them suitable
 /// for that.
 ///
 /// First, because subset types are syntactically restricted, they make it easier to relate types
@@ -4178,7 +4174,7 @@
     <span class="doccomment">/// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
     /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
-    /// facilitate syntatic manipulation we may restrict this.
+    /// facilitate syntactic manipulation we may restrict this.
     </span><span class="kw">pub </span>bty: BaseTy,
     <span class="doccomment">/// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
     /// going to be under a binder we expect it to be [`Expr::nu()`].
@@ -4470,11 +4466,7 @@
                     })
                     .clone()
             },
-            |bre| {
-                <span class="kw-2">*</span>regions
-                    .entry(bre.var)
-                    .or_insert_with(|| replace_region(bre))
-            },
+            |br| <span class="kw-2">*</span>regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
         <span class="self">self</span>.value

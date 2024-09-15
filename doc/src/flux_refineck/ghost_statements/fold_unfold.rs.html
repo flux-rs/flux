@@ -1613,13 +1613,13 @@
             | PlaceNode::Generator(<span class="kw">_</span>, <span class="kw">_</span>, fields)
             | PlaceNode::Tuple(<span class="kw">_</span>, fields) =&gt; fields,
         };
-        <span class="kw">let </span><span class="kw-2">mut </span>all_leafs = <span class="bool-val">true</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>all_leaves = <span class="bool-val">true</span>;
         <span class="kw">for </span>(i, node) <span class="kw">in </span>fields.iter().enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leafs &amp;= node.collect_unfolds(place, stmts);
+            all_leaves &amp;= node.collect_unfolds(place, stmts);
             place.projection.pop();
         }
-        <span class="kw">if </span>all_leafs {
+        <span class="kw">if </span>all_leaves {
             stmts.insert(GhostStatement::Unfold(place.clone()));
         }
         <span class="kw">if let </span>PlaceNode::Downcast(adt, ..) = <span class="self">self

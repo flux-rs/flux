@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FLUX_ATTRS"],"fn":["defs","extern_spec","flux","flux_tool_attrs","flux_tool_item_attr","is_flux_attr","path_is_one_of","path_of_attr_mut","refined_by","refined_by_enum","refined_by_struct","tokens_or_default","transform_flux_attr"],"mod":["ast","extern_spec"]};

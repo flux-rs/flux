@@ -1020,7 +1020,7 @@
             ItemKind::Impl(..) =&gt; <span class="self">self</span>.collect_impl(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::Trait(..) =&gt; <span class="self">self</span>.collect_trait(owner_id, attrs)<span class="question-mark">?</span>,
             ItemKind::Const(.., body_id) =&gt; {
-                <span class="comment">// The flux-rs macro puts defs as an outter attribute on a `const _: () = { }`. We
+                <span class="comment">// The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
                 </span><span class="self">self</span>.specs
                     .flux_items_by_parent

@@ -318,7 +318,7 @@
             </span>.set_default(<span class="string">"cache_file"</span>, <span class="string">"cache.json"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_overflow"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"scrape_quals"</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
-        <span class="comment">// Config comes first, enviroment settings override it.
+        <span class="comment">// Config comes first, environment settings override it.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.clone()));
         };

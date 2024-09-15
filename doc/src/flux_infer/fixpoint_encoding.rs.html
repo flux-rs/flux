@@ -1866,7 +1866,7 @@
     }
 
     <span class="doccomment">/// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
-    /// predicate and a list of bindings produced by ANF-fing kvars.
+    /// predicate and a list of bindings produced by ANF-ing kvars.
     ///
     /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assumption_to_fixpoint(
@@ -1897,7 +1897,7 @@
             rty::ExprKind::ForAll(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// If a forall appears in assumptive position replace it with true. This is sound
                 // because we are weakining the context, i.e., anything true without the assumption
-                // should remaing true after adding it. Note that this relies on the predicate
+                // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
                 </span>preds.push(fixpoint::Pred::TRUE);
@@ -1924,7 +1924,7 @@
             .try_collect_vec()<span class="question-mark">?</span>;
 
         <span class="comment">// Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
-        // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
+        // around it, we encode `$k()` as ($k 0), or more precisely `(forall ((x int) (= x 0)) ... ($k x)`
         // after ANF-ing.
         </span><span class="kw">if </span>all_args.is_empty() {
             <span class="kw">let </span>fresh = <span class="self">self</span>.ecx.local_var_env.fresh_name();
@@ -2503,7 +2503,7 @@
         <span class="prelude-val">Ok</span>(e)
     }
 
-    <span class="doccomment">/// Apply binary relation recursively over aggregate expessions
+    <span class="doccomment">/// Apply binary relation recursively over aggregate expressions
     </span><span class="kw">fn </span>apply_bin_rel_rec(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sorts: <span class="kw-2">&amp;</span>[rty::Sort],

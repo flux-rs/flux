@@ -1460,7 +1460,7 @@
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generaly, we need to partially evaluate expressions such that all abstractions in
+    ///    More generally, we need to partially evaluate expressions such that all abstractions in
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
@@ -1535,7 +1535,7 @@
 }
 
 <span class="doccomment">/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
+/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1872,7 +1872,7 @@
     }
 
     <span class="doccomment">/// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
-    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+    /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
     </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
@@ -1997,7 +1997,7 @@
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Abs(..))
     }
 
-    <span class="doccomment">/// Wether this is an aggregate expression with no fields.
+    <span class="doccomment">/// Whether this is an aggregate expression with no fields.
     </span><span class="kw">pub fn </span>is_unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Aggregate(<span class="kw">_</span>, flds) <span class="kw">if </span>flds.is_empty())
     }

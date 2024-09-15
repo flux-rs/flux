@@ -26,7 +26,7 @@ they have some syntactic restrictions that we must carefully maintain:</p>
 <ol>
 <li>They can appear as an index at the top level.</li>
 <li>We can only substitute an abstraction for a variable in function position (or as an index).
-More generaly, we need to partially evaluate expressions such that all abstractions in
+More generally, we need to partially evaluate expressions such that all abstractions in
 non-index position are eliminated before encoding into fixpoint. Right now, the
 implementation only evaluates abstractions that are immediately applied to arguments,
 thus the restriction.</li>

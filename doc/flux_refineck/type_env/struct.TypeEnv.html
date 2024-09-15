@@ -45,7 +45,7 @@ and then replaced by the region in the type of <code>x</code> after the assignme
 </code></pre></div>
 <p>That’s it, we first get the current type <code>t₁</code> at location <code>ℓ</code> and check it is a subtype
 of <code>t₂</code>. Then, we update the type of <code>ℓ</code> to <code>t₂</code> and block the place.</p>
-<p>The bound <code>t₂</code> can be either inferred (<a href="enum.PtrToRefBound.html#variant.Infer" title="variant flux_refineck::type_env::PtrToRefBound::Infer"><code>PtrToRefBound::Infer</code></a>), explicilty provided
+<p>The bound <code>t₂</code> can be either inferred (<a href="enum.PtrToRefBound.html#variant.Infer" title="variant flux_refineck::type_env::PtrToRefBound::Infer"><code>PtrToRefBound::Infer</code></a>), explicitly provided
 (<a href="enum.PtrToRefBound.html#variant.Ty" title="variant flux_refineck::type_env::PtrToRefBound::Ty"><code>PtrToRefBound::Ty</code></a>), or made equal to <code>t₁</code> (<a href="enum.PtrToRefBound.html#variant.Identity" title="variant flux_refineck::type_env::PtrToRefBound::Identity"><code>PtrToRefBound::Identity</code></a>).</p>
 <p>As an example, consider the environment <code>x: i32[a]</code> and the pointer <code>ptr(mut, x)</code>.
 Converting the pointer to a mutable reference with an inferred bound produces the following

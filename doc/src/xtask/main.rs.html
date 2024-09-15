@@ -209,9 +209,6 @@
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
@@ -362,8 +359,7 @@
 }
 
 <span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="comment">// CODESYNC(build-sysroot, 5)
-    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
+    <span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
     <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
 
     <span class="kw">let </span>out_dir = default_sysroot_dir();
@@ -389,7 +385,7 @@
 
 <span class="kw">fn </span>doc(sh: Shell, args: Doc) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>_env = sh.push_env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>);
-    <span class="macro">cmd!</span>(sh, <span class="string">"cargo doc --document-private-items --no-deps"</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo doc --workspace --document-private-items --no-deps"</span>).run()<span class="question-mark">?</span>;
     <span class="kw">if </span>args.open {
         opener::open(<span class="string">"target/doc/index.html"</span>)<span class="question-mark">?</span>;
     }
@@ -407,8 +403,7 @@
 }
 
 <span class="kw">fn </span>build_sysroot(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="comment">// CODESYNC(build-sysroot, 5)
-    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
+    <span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
     <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
     <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -p flux-rs"</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
@@ -420,8 +415,7 @@
     }
 }
 
-<span class="comment">// CODESYNC(default-sysroot) we must use the same default sysroot used in flux-bin
-</span><span class="kw">fn </span>default_sysroot_dir() -&gt; PathBuf {
+<span class="kw">fn </span>default_sysroot_dir() -&gt; PathBuf {
     home::home_dir()
         .expect(<span class="string">"Couldn't find home directory"</span>)
         .join(<span class="string">".flux"</span>)

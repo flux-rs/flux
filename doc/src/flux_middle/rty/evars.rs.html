@@ -247,7 +247,7 @@
 /// fashion. When entering a context data can be associated to that particular context. When a context
 /// is exited, all its evars are put in a list of pending contexts. No more evars can be generated
 /// for pending contexts, but they can still be unified. At any point, pending contexts can be solved,
-/// returning a solution for all of their evars or an error if some evar hasn't been unifed yet.
+/// returning a solution for all of their evars or an error if some evar hasn't been unified yet.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EVarGen&lt;T&gt; {
     stack: FxIndexMap&lt;EVarCxId, EVarCtxt&lt;T&gt;&gt;,

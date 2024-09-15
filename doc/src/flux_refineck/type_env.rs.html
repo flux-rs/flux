@@ -937,7 +937,7 @@
     /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
     ///
-    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicilty provided
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicitly provided
     /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
     /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
@@ -1422,15 +1422,15 @@
             .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
-        <span class="kw">let </span>outter_sorts = vars.to_sort_list();
+        <span class="kw">let </span>outer_sorts = vars.to_sort_list();
 
-        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
+        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[outer_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
-        <span class="comment">// Replace remaning holes by fresh kvars
+        <span class="comment">// Replace remaining holes by fresh kvars
         </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
             <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
-            <span class="kw">let </span>sorts = std::iter::once(outter_sorts.clone())
+            <span class="kw">let </span>sorts = std::iter::once(outer_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
             kvar_gen.fresh(<span class="kw-2">&amp;</span>sorts, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)

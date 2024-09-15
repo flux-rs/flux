@@ -1505,7 +1505,7 @@
 <a href="#1505" id="1505">1505</a>
 <a href="#1506" id="1506">1506</a>
 <a href="#1507" id="1507">1507</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
+</pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1954,7 +1954,7 @@
 <span class="doccomment">/// A predicate required to hold before calling a function.
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>Requires&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="doccomment">/// An (optional) list of universally quanitified parameters
+    <span class="doccomment">/// An (optional) list of universally quantified parameters
     </span><span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>pred: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
 }
@@ -2270,7 +2270,7 @@
     /// ```ignore
     /// fn(x: {v. i32[v] | v &gt; 0}) -&gt; i32[x]
     /// ```
-    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// In this definition, we know syntactically that `x` binds to a non-base type so it's an error
     /// to use `x` as an index in the return type.
     ///
     /// These parameters should not appear in a desugared item and we only track them during name

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["alias","assoc","constant","defs","extern_spec","generics","ignore","invariant","opaque","qualifiers","refined_by","should_fail","sig","spec","trusted"],"macro":["no_op"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["alias","assoc","constant","extern_spec","generics","ignore","invariant","opaque","qualifiers","refined_by","should_fail","sig","spec","trusted"],"macro":["defs","flux"],"mod":["attr_dummy"]};

@@ -85,8 +85,6 @@
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{env, ffi::OsString, fs, path::PathBuf};
 
 <span class="kw">use </span>anyhow::{anyhow, <span class="prelude-ty">Result</span>};
@@ -101,8 +99,7 @@
 
 <span class="kw">pub const </span>EXIT_ERR: i32 = -<span class="number">1</span>;
 
-<span class="comment">// CODESYNC(sysroot-env) we must use the same env var in flux-tests
-</span><span class="kw">pub const </span>FLUX_SYSROOT: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_SYSROOT"</span>;
+<span class="kw">pub const </span>FLUX_SYSROOT: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_SYSROOT"</span>;
 
 <span class="doccomment">/// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 </span><span class="kw">pub fn </span>sysroot_dir() -&gt; PathBuf {
@@ -120,7 +117,6 @@
 }
 
 <span class="doccomment">/// Return the default sysroot
-</span><span class="comment">// CODESYNC(default-sysroot) we must use the same dir used in xtask
 </span><span class="kw">fn </span>default_sysroot_dir() -&gt; PathBuf {
     home::home_dir()
         .expect(<span class="string">"Couldn't find home directory"</span>)

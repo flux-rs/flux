@@ -15,7 +15,7 @@
 to use inside a refinement. For example, consider the following:</p>
 
 <div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">fn</span>(x: {v. i32[v] | v &gt; <span class="number">0</span>}) -&gt; i32[x]</code></pre></div>
-<p>In this definition, we know syntatically that <code>x</code> binds to a non-base type so it’s an error
+<p>In this definition, we know syntactically that <code>x</code> binds to a non-base type so it’s an error
 to use <code>x</code> as an index in the return type.</p>
 <p>These parameters should not appear in a desugared item and we only track them during name
 resolution to report errors at the use site.</p>

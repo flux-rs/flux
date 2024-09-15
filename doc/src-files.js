@@ -1,6 +1,7 @@
 var srcIndex = new Map(JSON.parse('[\
 ["cargo_flux",["",[],["cargo-flux.rs"]]],\
 ["flux_arc_interner",["",[],["lib.rs"]]],\
+["flux_attrs",["",[],["ast.rs","extern_spec.rs","lib.rs"]]],\
 ["flux_bin",["",[],["lib.rs","utils.rs"]]],\
 ["flux_common",["",[],["bug.rs","cache.rs","dbg.rs","index.rs","iter.rs","lib.rs","mir_storage.rs","result.rs"]]],\
 ["flux_config",["",[],["lib.rs"]]],\
@@ -13,9 +14,12 @@ var srcIndex = new Map(JSON.parse('[\
 ["flux_metadata",["",[],["decoder.rs","encoder.rs","lib.rs"]]],\
 ["flux_middle",["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","subst.rs"]]],["big_int.rs","cstore.rs","fhir.rs","global_env.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]]],\
 ["flux_refineck",["",[["ghost_statements",[],["fold_unfold.rs","points_to.rs"]],["type_env",[],["place_ty.rs"]]],["checker.rs","ghost_statements.rs","invariants.rs","lib.rs","primops.rs","queue.rs","type_env.rs"]]],\
+["flux_rs",["",[],["lib.rs"]]],\
 ["flux_rustc_bridge",["",[["ty",[],["mod.rs","subst.rs"]]],["const_eval.rs","lib.rs","lowering.rs","mir.rs"]]],\
 ["flux_syntax",["",[["surface",[],["visit.rs"]]],["lexer.rs","lib.rs","surface.rs"]]],\
+["liquid_fixpoint",["",[],["constraint.rs","lib.rs"]]],\
 ["rustc_flux",["",[],["rustc-flux.rs"]]],\
+["tests",["",[],["lib.rs"]]],\
 ["xtask",["",[],["main.rs"]]]\
 ]'));
 createSrcSidebar();

@@ -53,8 +53,6 @@
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
 <a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::PathBuf,
@@ -99,10 +97,8 @@
         .arg(<span class="string">"check"</span>)
         .args(args)
         .env(LIB_PATH, extended_lib_path)
-        <span class="comment">// CODESYNC(build-sysroot, 5) Tell flux dependencies to build in flux mode.
-        </span>.env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>)
-        <span class="comment">// CODESYNC(flux-cargo) Tell the flux-driver it's being called from cargo.
-        </span>.env(<span class="string">"FLUX_CARGO"</span>, <span class="string">"1"</span>)
+        .env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>)
+        .env(<span class="string">"FLUX_CARGO"</span>, <span class="string">"1"</span>)
         .env(<span class="string">"RUST_TOOLCHAIN"</span>, rust_toolchain.clone())
         .env(<span class="string">"RUSTUP_TOOLCHAIN"</span>, rust_toolchain)
         .env(<span class="string">"RUSTC"</span>, flux_driver_path)

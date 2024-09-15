@@ -556,7 +556,7 @@
     ) {
         <span class="macro">macro_rules!</span> merge_extern_table {
             (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$tcx</span>:expr, <span class="macro-nonterminal">$table</span>:ident, <span class="macro-nonterminal">$extern_tables</span>:expr) =&gt; {{
-                <span class="comment">// This is technically observing the order becauses it has side effects, but it's ok
+                <span class="comment">// This is technically observing the order because it has side effects, but it's ok
                 // because we emit a fatal error and abort the process
                 </span><span class="macro-nonterminal">$extern_tables</span>.<span class="macro-nonterminal">$table</span>.keys().map(|k| {
                     <span class="kw">if </span><span class="self">self</span>.<span class="macro-nonterminal">$table</span>(<span class="kw-2">*</span>k).is_some() {
