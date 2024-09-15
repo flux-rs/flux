@@ -165,7 +165,7 @@ impl<'a> TypeEnv<'a> {
     /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
     ///
-    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicilty provided
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicitly provided
     /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
     /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
@@ -650,15 +650,15 @@ impl BasicBlockEnvShape {
             .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
-        let outter_sorts = vars.to_sort_list();
+        let outer_sorts = vars.to_sort_list();
 
-        let kvar = kvar_gen.fresh(&[outter_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
+        let kvar = kvar_gen.fresh(&[outer_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
-        // Replace remaning holes by fresh kvars
+        // Replace remaining holes by fresh kvars
         let mut kvar_gen = |sorts: &[_], kind| {
             debug_assert_eq!(kind, HoleKind::Pred);
-            let sorts = std::iter::once(outter_sorts.clone())
+            let sorts = std::iter::once(outer_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
             kvar_gen.fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)

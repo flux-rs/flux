@@ -107,7 +107,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Allocates space to store `cap` elements of type `T`.
     ///
     /// The elements are initialized using the supplied iterator. At most `cap` elements will be
-    /// retrived from the iterator. If the iterator yields fewer than `cap` elements, the returned
+    /// retrieved from the iterator. If the iterator yields fewer than `cap` elements, the returned
     /// slice will be of length less than the allocated capacity.
     ///
     /// ## Panics

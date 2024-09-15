@@ -6,7 +6,7 @@ use rustc_macros::{Decodable, Encodable};
 ///
 /// In the logic, we work with natural numbers so we could represent them with arbitrary precision
 /// integers. We instead take the simpler approach of using a fixed size representation that allows
-/// us to store any Rust literal, i.e., we can reprent both `i128::MIN` and `u128::MAX`. Since we
+/// us to store any Rust literal, i.e., we can represent both `i128::MIN` and `u128::MAX`. Since we
 /// never do arithmetic, this representation doesn't present any problems. We may choose to change
 /// the representation in the future (and use arbitrary precision integers) if this ever become a
 /// problem, e.g., if we want to do (precise) arithmetic during constant folding.

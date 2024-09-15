@@ -157,7 +157,7 @@ pub trait Visitor: Sized {
         walk_alias_pred(self, alias_pred);
     }
 
-    fn vist_path_expr(&mut self, qpath: &ExprPath) {
+    fn visit_path_expr(&mut self, qpath: &ExprPath) {
         walk_path_expr(self, qpath);
     }
 
@@ -464,9 +464,9 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
-        ExprKind::Path(qpath) => vis.vist_path_expr(qpath),
+        ExprKind::Path(qpath) => vis.visit_path_expr(qpath),
         ExprKind::Dot(qpath, fld) => {
-            vis.vist_path_expr(qpath);
+            vis.visit_path_expr(qpath);
             vis.visit_ident(*fld);
         }
         ExprKind::Literal(lit) => {

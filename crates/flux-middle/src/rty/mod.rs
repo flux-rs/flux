@@ -1666,7 +1666,7 @@ impl SubsetTyCtor {
 /// explicit about separating refinements from program values via an index).
 ///
 /// The main purpose for subset types is to be used as generic arguments of [kind base] when
-/// interpreted as type contructors. A subset type has two key properties that makes them suitable
+/// interpreted as type constructors. A subset type has two key properties that makes them suitable
 /// for that.
 ///
 /// First, because subset types are syntactically restricted, they make it easier to relate types
@@ -1698,7 +1698,7 @@ pub struct SubsetTy {
     /// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
     /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
-    /// facilitate syntatic manipulation we may restrict this.
+    /// facilitate syntactic manipulation we may restrict this.
     pub bty: BaseTy,
     /// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
     /// going to be under a binder we expect it to be [`Expr::nu()`].
@@ -1990,11 +1990,7 @@ where
                     })
                     .clone()
             },
-            |bre| {
-                *regions
-                    .entry(bre.var)
-                    .or_insert_with(|| replace_region(bre))
-            },
+            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
         self.value

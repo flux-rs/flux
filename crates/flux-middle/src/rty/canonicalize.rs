@@ -125,7 +125,7 @@ impl Ty {
 }
 
 pub struct CanonicalConstrTy {
-    /// Guranteed to not have any (shallow) [existential] or [constraint] types
+    /// Guaranteed to not have any (shallow) [existential] or [constraint] types
     ///
     /// [existential]: TyKind::Exists
     /// [constraint]: TyKind::Constr

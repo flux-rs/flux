@@ -1,4 +1,4 @@
-//! Flux High-Level Intermediate Repesentation
+//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -447,7 +447,7 @@ pub struct FnDecl<'fhir> {
 /// A predicate required to hold before calling a function.
 #[derive(Clone, Copy)]
 pub struct Requires<'fhir> {
-    /// An (optional) list of universally quanitified parameters
+    /// An (optional) list of universally quantified parameters
     pub params: &'fhir [RefineParam<'fhir>],
     pub pred: Expr<'fhir>,
 }
@@ -763,7 +763,7 @@ pub enum ParamKind {
     /// ```ignore
     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
     /// ```
-    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// In this definition, we know syntactically that `x` binds to a non-base type so it's an error
     /// to use `x` as an index in the return type.
     ///
     /// These parameters should not appear in a desugared item and we only track them during name

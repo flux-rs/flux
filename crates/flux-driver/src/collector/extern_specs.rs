@@ -284,7 +284,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 Ok(callee_id)
             } else {
                 // I can't figure out how to trigger this with generated with the extern spec
-                // macro that type checks but leaving it here as a precausion.
+                // macro that type checks but leaving it here as a precaution.
                 Err(self.item_not_in_trait(item.id.owner_id, callee_id, trait_id))
             }
         } else {

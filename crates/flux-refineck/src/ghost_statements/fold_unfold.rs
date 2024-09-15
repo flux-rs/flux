@@ -736,13 +736,13 @@ impl PlaceNode {
             | PlaceNode::Generator(_, _, fields)
             | PlaceNode::Tuple(_, fields) => fields,
         };
-        let mut all_leafs = true;
+        let mut all_leaves = true;
         for (i, node) in fields.iter().enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leafs &= node.collect_unfolds(place, stmts);
+            all_leaves &= node.collect_unfolds(place, stmts);
             place.projection.pop();
         }
-        if all_leafs {
+        if all_leaves {
             stmts.insert(GhostStatement::Unfold(place.clone()));
         }
         if let PlaceNode::Downcast(adt, ..) = self
