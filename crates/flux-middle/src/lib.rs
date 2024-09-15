@@ -414,9 +414,9 @@ pub struct ResolverOutput {
 }
 
 /// This enum serves as a type-level reminder that local ids can refer to extern specs. The
-/// abstraction is not infallible, so one shoud still be careful and decide in each situation
+/// abstraction is not infallible, so one should still be careful and decide in each situation
 /// whether to use the [_local id_] or the [_resolved id_]. Although the construction of
-/// [`MaybeExternId`] is not encapsulated, it is recommened to use [`GlobalEnv::maybe_extern_id`]
+/// [`MaybeExternId`] is not encapsulated, it is recommended to use [`GlobalEnv::maybe_extern_id`]
 /// to create one.
 ///
 /// The enum is generic on the local `Id` as we use it with various kinds of local ids, e.g.,
@@ -482,7 +482,7 @@ impl<Id> MaybeExternId<Id> {
 }
 
 impl<Id: Into<DefId>> MaybeExternId<Id> {
-    /// Returns the [`DefId`] this id _trully_ corresponds to, i.e, returns the [`DefId`] of the
+    /// Returns the [`DefId`] this id _truly_ corresponds to, i.e, returns the [`DefId`] of the
     /// extern item if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
     ///
     /// [`Local`]: MaybeExternId::Local

@@ -161,7 +161,7 @@ pub enum ExprKind {
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generaly, we need to partially evaluate expressions such that all abstractions in
+    ///    More generally, we need to partially evaluate expressions such that all abstractions in
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
@@ -236,7 +236,7 @@ pub enum HoleKind {
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
+/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -573,7 +573,7 @@ impl Expr {
     }
 
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
-    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+    /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
         !matches!(self.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
@@ -698,7 +698,7 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
-    /// Wether this is an aggregate expression with no fields.
+    /// Whether this is an aggregate expression with no fields.
     pub fn is_unit(&self) -> bool {
         matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
     }

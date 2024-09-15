@@ -1,4 +1,4 @@
-//! This modules folows the implementation of folding in rustc. For more information read the
+//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 use std::ops::ControlFlow;

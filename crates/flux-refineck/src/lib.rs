@@ -70,7 +70,7 @@ pub fn check_fn(
             return Ok(());
         }
 
-        // Make sure we run convertion and report any errors even if the function is trusted or
+        // Make sure we run conversion and report any errors even if the function is trusted or
         // doesn't have body.
         force_conv(genv, def_id).emit(&genv)?;
 

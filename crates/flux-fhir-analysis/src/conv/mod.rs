@@ -1095,7 +1095,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let bound = match qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
                 let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
-                    // A cycle error ocurred most likely (comment copied from rustc)
+                    // A cycle error occurred most likely (comment copied from rustc)
                     span_bug!(qself.span, "expected cycle error");
                 };
 

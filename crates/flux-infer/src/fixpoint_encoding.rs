@@ -497,7 +497,7 @@ where
     }
 
     /// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
-    /// predicate and a list of bindings produced by ANF-fing kvars.
+    /// predicate and a list of bindings produced by ANF-ing kvars.
     ///
     /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
     pub(crate) fn assumption_to_fixpoint(
@@ -528,7 +528,7 @@ where
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
                 // because we are weakining the context, i.e., anything true without the assumption
-                // should remaing true after adding it. Note that this relies on the predicate
+                // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
                 preds.push(fixpoint::Pred::TRUE);
@@ -555,7 +555,7 @@ where
             .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
-        // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
+        // around it, we encode `$k()` as ($k 0), or more precisely `(forall ((x int) (= x 0)) ... ($k x)`
         // after ANF-ing.
         if all_args.is_empty() {
             let fresh = self.ecx.local_var_env.fresh_name();
@@ -1134,7 +1134,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok(e)
     }
 
-    /// Apply binary relation recursively over aggregate expessions
+    /// Apply binary relation recursively over aggregate expressions
     fn apply_bin_rel_rec(
         &mut self,
         sorts: &[rty::Sort],

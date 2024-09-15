@@ -71,7 +71,7 @@ pub struct RefineCtxt<'a> {
 }
 
 /// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
-/// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
+/// snapshot corresponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
 /// if the underlying node is [`cleared`].
 ///
 /// [`cleared`]: RefineCtxt::clear_children

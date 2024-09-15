@@ -35,7 +35,7 @@ pub trait FixpointFmt {
     }
 }
 
-/// Helper type that implements [`Display`] forwarding the implementaiton to [`FixpointFmt::fmt`].
+/// Helper type that implements [`Display`] forwarding the implementation to [`FixpointFmt::fmt`].
 ///
 /// [`Display`]: std::fmt::Display
 pub struct DisplayAdapter<T>(T);

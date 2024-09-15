@@ -176,7 +176,7 @@ pub struct PrettyCx<'tcx> {
 }
 
 newtype_index! {
-    /// Name used during pretty printing to format annonymous bound variables
+    /// Name used during pretty printing to format anonymous bound variables
     #[debug_format = "b{}"]
     struct BoundVarName {}
 }

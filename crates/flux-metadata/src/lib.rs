@@ -141,7 +141,7 @@ impl CStore {
     ) {
         macro_rules! merge_extern_table {
             ($self:expr, $tcx:expr, $table:ident, $extern_tables:expr) => {{
-                // This is technically observing the order becauses it has side effects, but it's ok
+                // This is technically observing the order because it has side effects, but it's ok
                 // because we emit a fatal error and abort the process
                 $extern_tables.$table.keys().map(|k| {
                     if self.$table(*k).is_some() {

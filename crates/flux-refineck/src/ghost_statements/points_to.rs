@@ -12,7 +12,7 @@
 //!     }
 //! }
 //! ```
-//! In the then branch (resp. else) we know `r` must poin to `x` (resp. `y`). During refinement checking,
+//! In the then branch (resp. else) we know `r` must point to `x` (resp. `y`). During refinement checking,
 //! we will give `r` types `ptr(x)` and `ptr(y)` in each branch respectively. However, at the join point
 //! `r` could pointn to either `x` or `y`. Thus, we use the result of the analysis to insert a ghost
 //! statement at the end of each branch to convert the pointers to a borrow `&mut T` for a type `T` that
@@ -62,7 +62,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
 type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
-/// a may analysis. If you want to know if a reference definitiely points to a location you have to
+/// a may analysis. If you want to know if a reference definitively points to a location you have to
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
 struct PointsToAnalysis<'a> {
