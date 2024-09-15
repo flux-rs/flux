@@ -161,9 +161,12 @@ impl<'a> TypeEnv<'a> {
     /// -------------------------------------------------
     /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) => Γ₁,ℓ:†t₂,Γ₂ ; &mut t2
     /// ```
+    /// That's it, we first get the current type `t₁` at location `ℓ` and check it is a subtype
+    /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
-    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), or explicilty provided
-    /// ([`PtrToRefBound::Ty`]).
+    ///
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicilty provided
+    /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
     /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
     /// Converting the pointer to a mutable reference with an inferred bound produces the following
@@ -219,12 +222,14 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
-    /// Updates the type of `place` to `new_ty`
+    /// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
+    /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
+    /// constraint)
     ///
-    /// This process involves recovering the original regions (lifetimes) used in the (unrefined)
-    /// Rust type of `place` and then substituting these regions in `new_ty`. For instance, if we
-    /// are assigning a value of type `S<&'?10 i32{v: v > 0}>` to a variable `x`, and the
-    /// (unrefined) Rust type of `x` is `S<&'?5 i32>`, before the assignment, we identify a
+    /// When strong updating, the process involves recovering the original regions (lifetimes) used
+    /// in the (unrefined) Rust type of `place` and then substituting these regions in `new_ty`. For
+    /// instance, if we are assigning a value of type `S<&'?10 i32{v: v > 0}>` to a variable `x`,
+    /// and the (unrefined) Rust type of `x` is `S<&'?5 i32>`, before the assignment, we identify a
     /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
     /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
     /// assigned type are consistent with those expected by the place's original type definition.
