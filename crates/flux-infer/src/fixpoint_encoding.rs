@@ -347,7 +347,7 @@ where
                 [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
                 fixpoint::Sort::Bool,
             );
-            constants.push(fixpoint::ConstInfo {
+            constants.push(fixpoint::ConstDecl {
                 name: fixpoint::Var::UIFRel(rel),
                 sort,
                 comment: None,
@@ -718,8 +718,8 @@ struct ConstInfo {
 }
 
 impl ConstInfo {
-    fn into_fixpoint(self) -> fixpoint::ConstInfo {
-        fixpoint::ConstInfo {
+    fn into_fixpoint(self) -> fixpoint::ConstDecl {
+        fixpoint::ConstDecl {
             name: fixpoint::Var::Global(self.name),
             sort: self.sort,
             comment: Some(self.comment),

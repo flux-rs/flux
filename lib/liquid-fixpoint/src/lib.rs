@@ -120,7 +120,7 @@ macro_rules! declare_types {
             pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
-            pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
+            pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
@@ -148,7 +148,7 @@ macro_rules! declare_types {
 }
 
 #[derive_where(Hash)]
-pub struct ConstInfo<T: Types> {
+pub struct ConstDecl<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
     #[derive_where(skip)]
@@ -159,7 +159,7 @@ pub struct ConstInfo<T: Types> {
 pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
-    pub constants: Vec<ConstInfo<T>>,
+    pub constants: Vec<ConstDecl<T>>,
     pub data_decls: Vec<DataDecl<T>>,
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
@@ -290,7 +290,7 @@ impl<T: Types> fmt::Display for KVarDecl<T> {
     }
 }
 
-impl<T: Types> fmt::Display for ConstInfo<T> {
+impl<T: Types> fmt::Display for ConstDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(constant {} {})", self.name.display(), self.sort)?;
         if let Some(comment) = &self.comment {
