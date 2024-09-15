@@ -7,8 +7,9 @@ version = "0.1.0"
 flux-common.workspace = true
 flux-config.workspace = true
 flux-errors.workspace = true
-flux-fixpoint.workspace = true
 flux-middle.workspace = true
+
+liquid-fixpoint.workspace = true
 
 itertools.workspace = true
 pad-adapter.workspace = true

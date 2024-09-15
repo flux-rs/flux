@@ -11,10 +11,11 @@ flux-arc-interner.workspace = true
 flux-common.workspace = true
 flux-config.workspace = true
 flux-errors.workspace = true
-flux-fixpoint.workspace = true
 flux-macros.workspace = true
 flux-rustc-bridge.workspace = true
 flux-syntax.workspace = true
+
+liquid-fixpoint.workspace = true
 
 dashmap.workspace = true
 hashbrown.workspace = true

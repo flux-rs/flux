@@ -12,7 +12,7 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_errors::Errors;
-use flux_fixpoint::FixpointResult;
+use liquid_fixpoint::FixpointResult;
 use flux_middle::{
     big_int::BigInt,
     def_id_to_string,
@@ -34,7 +34,7 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_fixpoint::{FixpointFmt, Identifier};
+    use liquid_fixpoint::{FixpointFmt, Identifier};
     use flux_middle::{
         big_int::BigInt,
         rty::{EarlyReftParam, Real},
@@ -143,7 +143,7 @@ pub mod fixpoint {
         }
     }
 
-    flux_fixpoint::declare_types! {
+    liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
@@ -440,7 +440,7 @@ where
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
     ///
-    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
+    /// [`fixpoint::Constraint`]: liquid_fixpoint::Constraint
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -499,7 +499,7 @@ where
     /// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
     /// predicate and a list of bindings produced by ANF-fing kvars.
     ///
-    /// [`fixpoint::Pred`]: flux_fixpoint::Pred
+    /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,

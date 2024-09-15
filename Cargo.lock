@@ -513,26 +513,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-fixpoint"
-version = "0.1.0"
-dependencies = [
- "derive-where",
- "itertools 0.13.0",
- "pad-adapter",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "flux-infer"
 version = "0.1.0"
 dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-middle",
  "itertools 0.13.0",
+ "liquid-fixpoint",
  "pad-adapter",
 ]
 
@@ -574,12 +563,12 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-macros",
  "flux-rustc-bridge",
  "flux-syntax",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
+ "liquid-fixpoint",
  "toposort-scc",
 ]
 
@@ -590,12 +579,12 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-infer",
  "flux-macros",
  "flux-middle",
  "flux-rustc-bridge",
  "itertools 0.13.0",
+ "liquid-fixpoint",
  "tracing",
 ]
 
@@ -822,6 +811,17 @@ checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
  "bitflags 2.6.0",
  "libc",
+]
+
+[[package]]
+name = "liquid-fixpoint"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "itertools 0.13.0",
+ "pad-adapter",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

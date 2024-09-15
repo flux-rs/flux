@@ -25,7 +25,7 @@ flux-rustc-bridge = { path = "./crates/flux-rustc-bridge", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 tests = { path = "./tests", version = "0.1.0" }
 
-flux-fixpoint = { path = "./crates/flux-fixpoint", version = "0.1.0" }
+liquid-fixpoint = { path = "./lib/liquid-fixpoint", version = "0.1.0" }
 
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 derive-where = "1.2.7"

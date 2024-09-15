@@ -1,6 +1,5 @@
 use std::fmt;
 
-use flux_fixpoint::FixpointFmt;
 use rustc_macros::{Decodable, Encodable};
 
 /// A signed integer in the range [-2^128, 2^128], represented by a `u128` and an explicit sign.
@@ -77,7 +76,7 @@ impl From<i32> for BigInt {
     }
 }
 
-impl FixpointFmt for BigInt {
+impl liquid_fixpoint::FixpointFmt for BigInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.sign {
             Sign::NonNegative => write!(f, "{}", self.val),
