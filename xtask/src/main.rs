@@ -175,7 +175,7 @@ fn uninstall(sh: &Shell) -> anyhow::Result<()> {
 
 fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
     let _env = sh.push_env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
-    cmd!(sh, "cargo doc --document-private-items --no-deps").run()?;
+    cmd!(sh, "cargo doc --workspace --document-private-items --no-deps").run()?;
     if args.open {
         opener::open("target/doc/index.html")?;
     }
