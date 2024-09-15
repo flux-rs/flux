@@ -6,6 +6,11 @@ use std::{
 use flux_arc_interner::List;
 use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
+use flux_rustc_bridge::{
+    self, def_id_to_string,
+    lowering::{self, Lower, UnsupportedErr, UnsupportedReason},
+    mir, ty,
+};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
@@ -19,15 +24,9 @@ use rustc_span::{Span, Symbol};
 use crate::{
     fhir,
     global_env::GlobalEnv,
-    pretty,
     rty::{
         self,
         refining::{self, Refiner},
-    },
-    rustc::{
-        self,
-        lowering::{self, UnsupportedErr, UnsupportedReason},
-        ty,
     },
 };
 
@@ -75,7 +74,7 @@ pub enum QueryErr {
         container_def_id: DefId,
         name: Symbol,
     },
-    /// Used to report bugs, typically this means executing an arm in a match we though it was
+    /// Used to report bugs, typically this means executing an arm in a match we thought it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
     /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
     Bug {
@@ -191,7 +190,7 @@ impl Default for Providers {
 
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
-    mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
+    mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
@@ -219,7 +218,7 @@ pub struct Queries<'genv, 'tcx> {
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
-    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<rustc::ty::BoundVariableKind>>>,
+    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -260,10 +259,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: LocalDefId,
-    ) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
+    ) -> QueryResult<Rc<mir::Body<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-            let mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
+            let mir = lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
             Ok(Rc::new(mir))
         })
     }
@@ -316,8 +315,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> ty::Generics<'tcx> {
         run_with_cache(&self.lower_generics_of, def_id, || {
-            let generics = genv.tcx().generics_of(def_id);
-            lowering::lower_generics(generics)
+            genv.tcx().generics_of(def_id).lower(genv.tcx())
         })
     }
 
@@ -327,8 +325,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::GenericPredicates> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
-            let predicates = genv.tcx().predicates_of(def_id);
-            lowering::lower_generic_predicates(genv.tcx(), predicates)
+            genv.tcx()
+                .predicates_of(def_id)
+                .lower(genv.tcx())
                 .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
@@ -341,7 +340,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.lower_type_of, def_id, || {
             let ty = genv.tcx().type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
-                lowering::lower_ty(genv.tcx(), ty)
+                ty.lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
@@ -356,7 +355,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
             let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
-                lowering::lower_fn_sig(genv.tcx(), fn_sig)
+                fn_sig
+                    .lower(genv.tcx())
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
@@ -421,9 +421,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 adt_def
             } else {
                 let adt_def = if let Some(extern_id) = extern_id {
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
+                    genv.tcx().adt_def(extern_id).lower(genv.tcx())
                 } else {
-                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id))
+                    genv.tcx().adt_def(def_id).lower(genv.tcx())
                 };
                 Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
             }
@@ -474,8 +474,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(bounds) = genv.cstore().item_bounds(def_id) {
                 bounds
             } else {
-                let bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                let clauses = lowering::lower_clauses(genv.tcx(), bounds)
+                let clauses = genv
+                    .tcx()
+                    .item_bounds(def_id)
+                    .skip_binder()
+                    .lower(genv.tcx())
                     .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
                 let clauses =
@@ -641,8 +644,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
-            // If it's an extern_fn, resolve it to its local fn_sig's def_id,
-            // otherwise don't change it.
             let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
@@ -661,11 +662,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: LocalDefId,
-    ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
+    ) -> QueryResult<List<ty::BoundVariableKind>> {
         run_with_cache(&self.lower_late_bound_vars, def_id, || {
             let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            let bound_vars = genv.tcx().late_bound_vars(hir_id);
-            lowering::lower_bound_vars(bound_vars)
+            genv.tcx()
+                .late_bound_vars(hir_id)
+                .lower(genv.tcx())
                 .map_err(UnsupportedReason::into_err)
                 .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
         })
@@ -776,7 +778,7 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                 QueryErr::Ignored { def_id } => {
                     let mut diag = dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
                     diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                    diag.arg("name", pretty::def_id_to_string(def_id));
+                    diag.arg("name", def_id_to_string(def_id));
                     diag.span_label(self.span, fluent::_subdiag::label);
                     diag
                 }

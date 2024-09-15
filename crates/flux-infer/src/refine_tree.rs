@@ -644,8 +644,8 @@ impl Iterator for ParentsIter {
 mod pretty {
     use std::fmt::{self, Write};
 
-    use flux_common::format::PadAdapter;
     use flux_middle::pretty::*;
+    use pad_adapter::PadAdapter;
 
     use super::*;
 
@@ -664,26 +664,6 @@ mod pretty {
             }
         }
         go(ptr, vec![])
-    }
-
-    fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
-        fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
-            let node = ptr.borrow();
-            if let NodeKind::Root(ps) = &node.kind
-                && ps.is_empty()
-            {
-                for child in &node.children {
-                    go(child, children);
-                }
-            } else {
-                children.push(NodePtr::clone(ptr));
-            }
-        }
-        let mut children = vec![];
-        for ptr in nodes {
-            go(ptr, &mut children);
-        }
-        children
     }
 
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
@@ -717,13 +697,13 @@ mod pretty {
             match &node.kind {
                 NodeKind::Trace(trace) => {
                     w!("@ {:?}", ^trace)?;
-                    w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
+                    w!(with_padding(f), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {
                     w!(
                         "∀ {}.",
                         ^bindings
-                            .into_iter()
+                            .iter()
                             .format_with(", ", |(name, sort), f| {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             })
@@ -777,10 +757,9 @@ mod pretty {
         cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let mut f = PadAdapter::wrap_fmt(f, 2);
+        let mut f = with_padding(f);
         define_scoped!(cx, f);
-        let children = flatten_conjs(children);
-        match &children[..] {
+        match children {
             [] => w!(" true"),
             [n] => {
                 if n.borrow().is_head() {
@@ -788,7 +767,7 @@ mod pretty {
                 } else {
                     w!("\n")?;
                 }
-                w!("{:?}", NodePtr::clone(n))
+                w!("{:?}", n)
             }
             _ => w!("\n{:?}", join!("\n", children)),
         }
@@ -844,6 +823,10 @@ mod pretty {
                     }),
             )
         }
+    }
+
+    fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
+        PadAdapter::with_padding(f, "  ")
     }
 
     impl_debug_with_default_cx!(

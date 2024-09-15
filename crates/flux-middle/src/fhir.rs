@@ -19,6 +19,7 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
@@ -39,7 +40,7 @@ use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
+use crate::{global_env::GlobalEnv, MaybeExternId};
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -1469,15 +1470,15 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{}", n),
-            SortRes::TyParam(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            SortRes::TyParam(def_id) => write!(f, "sortof({})", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
+                write!(f, "sortof({}::Self)", def_id_to_string(*trait_id))
             }
             SortRes::SelfAlias { alias_to } => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
+                write!(f, "sortof({}::Self)", def_id_to_string(*alias_to))
             }
             SortRes::User { name } => write!(f, "{name}"),
-            SortRes::Adt(def_id) => write!(f, "{}::Sort", pretty::def_id_to_string(*def_id)),
+            SortRes::Adt(def_id) => write!(f, "{}::Sort", def_id_to_string(*def_id)),
         }
     }
 }

@@ -4,6 +4,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config::CrateConfig;
 use flux_errors::FluxSession;
+use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -20,7 +21,6 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
-    rustc::{self, lowering, ty},
     MaybeExternId,
 };
 
@@ -163,7 +163,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx().variances_of(did)
     }
 
-    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
+    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<mir::Body<'tcx>>> {
         self.inner.queries.mir(self, def_id)
     }
 
@@ -223,8 +223,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn lower_trait_ref(
         self,
         trait_ref: rustc_middle::ty::TraitRef<'tcx>,
-    ) -> QueryResult<rustc::ty::TraitRef> {
-        lowering::lower_trait_ref(self.tcx(), trait_ref)
+    ) -> QueryResult<ty::TraitRef> {
+        trait_ref
+            .lower(self.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
@@ -317,7 +318,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn lower_late_bound_vars(
         self,
         def_id: LocalDefId,
-    ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
+    ) -> QueryResult<List<ty::BoundVariableKind>> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
     }
 

@@ -4,7 +4,7 @@ use super::{
     Binder, Const, ConstKind, ExistentialPredicate, ExistentialProjection, ExistentialTraitRef,
     FnSig, GenericArg, Region, Ty, TyKind,
 };
-use crate::rustc::ty::TraitRef;
+use crate::ty::TraitRef;
 
 pub(super) trait Subst {
     fn subst(&self, args: &[GenericArg]) -> Self;

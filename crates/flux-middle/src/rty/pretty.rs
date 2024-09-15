@@ -1,9 +1,10 @@
 use std::fmt;
 
+use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
 
 use super::*;
-use crate::{pretty::*, rustc::ty::region_to_string};
+use crate::pretty::*;
 
 impl Pretty for ClauseKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -519,6 +520,5 @@ impl_debug_with_default_cx!(
     FuncSort,
     SortCtor,
     SubsetTy,
-    Const,
     BvSize,
 );

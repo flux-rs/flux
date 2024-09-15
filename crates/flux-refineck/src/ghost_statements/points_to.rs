@@ -23,7 +23,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, Loc},
-    rustc::mir::FieldIdx,
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
@@ -37,6 +36,7 @@ use rustc_mir_dataflow::{
     lattice::{FlatSet, HasBottom, HasTop},
     Analysis, JoinSemiLattice, ResultsVisitor,
 };
+use rustc_target::abi::FieldIdx;
 
 use super::GhostStatements;
 use crate::ghost_statements::{GhostStatement, Point};
@@ -258,7 +258,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
 
 struct CollectPointerToBorrows<'a> {
     map: &'a Map,
-    tracked_places: FxHashMap<PlaceIndex, flux_middle::rustc::mir::Place>,
+    tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
     before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
 }
@@ -270,10 +270,9 @@ impl<'a> CollectPointerToBorrows<'a> {
             let projection = projection
                 .iter()
                 .copied()
-                .map(flux_middle::rustc::mir::PlaceElem::Field)
+                .map(flux_rustc_bridge::mir::PlaceElem::Field)
                 .collect();
-            tracked_places
-                .insert(place_idx, flux_middle::rustc::mir::Place::new(local, projection));
+            tracked_places.insert(place_idx, flux_rustc_bridge::mir::Place::new(local, projection));
         });
         Self { map, tracked_places, stmts, before_state: vec![] }
     }

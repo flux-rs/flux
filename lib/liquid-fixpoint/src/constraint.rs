@@ -4,12 +4,9 @@ use std::{
 };
 
 use derive_where::derive_where;
-use flux_common::format::PadAdapter;
 use itertools::Itertools;
-use rustc_macros::{Decodable, Encodable};
-use rustc_span::Symbol;
 
-use crate::{big_int::BigInt, StringTypes, Types};
+use crate::{with_padding, DefaultTypes, FixpointFmt, Types};
 
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
@@ -116,7 +113,7 @@ impl BinRel {
 
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
-    Constant(Constant),
+    Constant(Constant<T>),
     Var(T::Var),
     App(Box<Self>, Vec<Self>),
     Neg(Box<Self>),
@@ -131,16 +128,18 @@ pub enum Expr<T: Types> {
 }
 
 #[derive_where(Hash)]
+pub enum Constant<T: Types> {
+    Numeral(T::Numeral),
+    Decimal(T::Decimal),
+    Boolean(bool),
+    String(T::String),
+}
+
+#[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
-}
-
-#[derive(Clone, Copy)]
-pub struct Const<T: Types> {
-    pub name: T::Var,
-    pub val: i128,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -150,14 +149,6 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum Constant {
-    Int(BigInt),
-    Real(i128),
-    Bool(bool),
-    Str(Symbol),
 }
 
 impl<T: Types> Constraint<T> {
@@ -171,7 +162,7 @@ impl<T: Types> Constraint<T> {
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
-    /// If `!c.is_concrete`  then `c` is trivially satisfiable and we can avoid calling fixpoint.
+    /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
         match self {
             Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
@@ -182,11 +173,11 @@ impl<T: Types> Constraint<T> {
 }
 
 impl<T: Types> Pred<T> {
-    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
+    pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
     pub fn is_trivially_true(&self) -> bool {
         match self {
-            Pred::Expr(Expr::Constant(Constant::Bool(true))) => true,
+            Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
@@ -201,21 +192,123 @@ impl<T: Types> Pred<T> {
     }
 }
 
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
+    LazyLock::new(|| {
+        // -----
+        // UNARY
+        // -----
+
+        // (qualif EqZero ((v int)) (v == 0))
+        let eqzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("EqZero"),
+        };
+
+        // (qualif GtZero ((v int)) (v > 0))
+        let gtzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("GtZero"),
+        };
+
+        // (qualif GeZero ((v int)) (v >= 0))
+        let gezero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("GeZero"),
+        };
+
+        // (qualif LtZero ((v int)) (v < 0))
+        let ltzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("LtZero"),
+        };
+
+        // (qualif LeZero ((v int)) (v <= 0))
+        let lezero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("LeZero"),
+        };
+
+        // ------
+        // BINARY
+        // ------
+
+        // (qualif Eq ((a int) (b int)) (a == b))
+        let eq = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Eq"),
+        };
+
+        // (qualif Gt ((a int) (b int)) (a > b))
+        let gt = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Gt"),
+        };
+
+        // (qualif Lt ((a int) (b int)) (a < b))
+        let ge = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Ge"),
+        };
+
+        // (qualif Ge ((a int) (b int)) (a >= b))
+        let lt = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Lt"),
+        };
+
+        // (qualif Le ((a int) (b int)) (a <= b))
+        let le = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Le"),
+        };
+
+        // (qualif Le1 ((a int) (b int)) (a < b - 1))
+        let le1 = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(
+                BinRel::Le,
+                Box::new([
+                    Expr::Var("a"),
+                    Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::int(1)])),
+                ]),
+            ),
+            name: String::from("Le1"),
+        };
+
+        [eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+    });
+
 impl<T: Types> fmt::Display for DataDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(datatype ({} {}) ({}))", self.name, self.vars, self.ctors.iter().format(" "))
+        write!(
+            f,
+            "(datatype ({} {}) ({}))",
+            self.name.display(),
+            self.vars,
+            self.ctors.iter().format(" ")
+        )
     }
 }
 
 impl<T: Types> fmt::Display for DataCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} ({}))", self.name, self.fields.iter().format(" "))
+        write!(f, "({} ({}))", self.name.display(), self.fields.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataField<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {})", self.name, self.sort)
+        write!(f, "({} {})", self.name.display(), self.sort)
     }
 }
 
@@ -229,14 +322,14 @@ impl<T: Types> fmt::Display for Constraint<T> {
                     [pred] => write!(f, "{pred}"),
                     preds => {
                         write!(f, "(and")?;
-                        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", preds.iter().join("\n"))?;
+                        write!(with_padding(f), "\n{}", preds.iter().join("\n"))?;
                         write!(f, "\n)")
                     }
                 }
             }
             Constraint::ForAll(bind, head) => {
-                write!(f, "(forall (({} {}) {})", bind.name, bind.sort, bind.pred)?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
+                write!(f, "(forall (({} {}) {})", bind.name.display(), bind.sort, bind.pred)?;
+                write!(with_padding(f), "\n{head}")?;
                 write!(f, "\n)")
             }
         }
@@ -255,7 +348,7 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
                     [pred] => write!(f, "{}", PredTag(pred, tag)),
                     _ => {
                         write!(f, "(and")?;
-                        let mut w = PadAdapter::wrap_fmt(f, 2);
+                        let mut w = with_padding(f);
                         for pred in preds {
                             write!(w, "\n{}", PredTag(pred, tag))?;
                         }
@@ -279,7 +372,7 @@ impl<T: Types> fmt::Display for SortCtor<T> {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
             SortCtor::Map => write!(f, "Map_t"),
-            SortCtor::Data(name) => write!(f, "{name}"),
+            SortCtor::Data(name) => write!(f, "{}", name.display()),
         }
     }
 }
@@ -313,7 +406,8 @@ impl<T: Types> fmt::Display for Sort<T> {
 fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "(func {params} (")?;
     let mut curr = sort;
-    while let Sort::Func(box [input, output]) = curr {
+    while let Sort::Func(input_and_output) = curr {
+        let [input, output] = &**input_and_output;
         write!(f, "{input} ")?;
         curr = output;
     }
@@ -331,7 +425,12 @@ impl<T: Types> fmt::Display for Pred<T> {
                 }
             }
             Pred::KVar(kvid, vars) => {
-                write!(f, "(${kvid} {})", vars.iter().format(" "))
+                write!(
+                    f,
+                    "(${} {})",
+                    kvid.display(),
+                    vars.iter().map(FixpointFmt::display).format(" ")
+                )
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
         }
@@ -339,9 +438,10 @@ impl<T: Types> fmt::Display for Pred<T> {
 }
 
 impl<T: Types> Expr<T> {
-    pub const ZERO: Expr<T> = Expr::Constant(Constant::ZERO);
-    pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
-    pub const TRUE: Expr<T> = Expr::Constant(Constant::TRUE);
+    pub const fn int(val: T::Numeral) -> Expr<T> {
+        Expr::Constant(Constant::Numeral(val))
+    }
+
     pub fn eq(self, other: Self) -> Self {
         Expr::Atom(BinRel::Eq, Box::new([self, other]))
     }
@@ -351,17 +451,19 @@ impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Constant(c) => write!(f, "{c}"),
-            Expr::Var(x) => write!(f, "{x}"),
+            Expr::Var(x) => write!(f, "{}", x.display()),
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().format(" "))
             }
             Expr::Neg(e) => {
                 write!(f, "(- {e})")
             }
-            Expr::BinaryOp(op, box [e1, e2]) => {
+            Expr::BinaryOp(op, exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "({op} {e1} {e2})")
             }
-            Expr::IfThenElse(box [p, e1, e2]) => {
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &**exprs;
                 write!(f, "(if {p} {e1} {e2})")
             }
             Expr::And(exprs) => {
@@ -373,113 +475,32 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Not(e) => {
                 write!(f, "(not {e})")
             }
-            Expr::Imp(box [e1, e2]) => {
+            Expr::Imp(exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "(=> {e1} {e2})")
             }
-            Expr::Iff(box [e1, e2]) => {
+            Expr::Iff(exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "(<=> {e1} {e2})")
             }
-            Expr::Atom(rel, box [e1, e2]) => {
+            Expr::Atom(rel, exprs) => {
+                let [e1, e2] = &**exprs;
                 write!(f, "({rel} {e1} {e2})")
             }
         }
     }
 }
 
-pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = LazyLock::new(|| {
-    // -----
-    // UNARY
-    // -----
-
-    // (qualif EqZero ((v int)) (v == 0))
-    let eqzero = Qualifier {
-        args: vec![("v", Sort::Int)],
-        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
-        name: String::from("EqZero"),
-    };
-
-    // (qualif GtZero ((v int)) (v > 0))
-    let gtzero = Qualifier {
-        args: vec![("v", Sort::Int)],
-        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
-        name: String::from("GtZero"),
-    };
-
-    // (qualif GeZero ((v int)) (v >= 0))
-    let gezero = Qualifier {
-        args: vec![("v", Sort::Int)],
-        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
-        name: String::from("GeZero"),
-    };
-
-    // (qualif LtZero ((v int)) (v < 0))
-    let ltzero = Qualifier {
-        args: vec![("v", Sort::Int)],
-        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
-        name: String::from("LtZero"),
-    };
-
-    // (qualif LeZero ((v int)) (v <= 0))
-    let lezero = Qualifier {
-        args: vec![("v", Sort::Int)],
-        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
-        name: String::from("LeZero"),
-    };
-
-    // ------
-    // BINARY
-    // ------
-
-    // (qualif Eq ((a int) (b int)) (a == b))
-    let eq = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
-        name: String::from("Eq"),
-    };
-
-    // (qualif Gt ((a int) (b int)) (a > b))
-    let gt = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
-        name: String::from("Gt"),
-    };
-
-    // (qualif Lt ((a int) (b int)) (a < b))
-    let ge = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
-        name: String::from("Ge"),
-    };
-
-    // (qualif Ge ((a int) (b int)) (a >= b))
-    let lt = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
-        name: String::from("Lt"),
-    };
-
-    // (qualif Le ((a int) (b int)) (a <= b))
-    let le = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
-        name: String::from("Le"),
-    };
-
-    // (qualif Le1 ((a int) (b int)) (a < b - 1))
-    let le1 = Qualifier {
-        args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::Atom(
-            BinRel::Le,
-            Box::new([
-                Expr::Var("a"),
-                Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::ONE])),
-            ]),
-        ),
-        name: String::from("Le1"),
-    };
-
-    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
-});
+impl<T: Types> fmt::Display for Constant<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constant::Numeral(i) => write!(f, "{}", i.display()),
+            Constant::Decimal(r) => write!(f, "{}", r.display()),
+            Constant::Boolean(b) => write!(f, "{b}"),
+            Constant::String(s) => write!(f, "{}", s.display()),
+        }
+    }
+}
 
 impl<T: Types> fmt::Display for Qualifier<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -487,9 +508,9 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             f,
             "(qualif {} ({}) ({}))",
             self.name,
-            self.args
-                .iter()
-                .format_with(" ", |(name, sort), f| f(&format_args!("({name} {sort})"))),
+            self.args.iter().format_with(" ", |(name, sort), f| {
+                f(&format_args!("({} {sort})", name.display()))
+            }),
             self.body
         )
     }
@@ -523,131 +544,5 @@ impl fmt::Display for BinRel {
 impl fmt::Debug for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
-    }
-}
-
-impl fmt::Display for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Constant::Int(n) => n.fmt_sexp(f),
-            Constant::Real(r) => write!(f, "{r}.0"),
-            Constant::Bool(b) => write!(f, "{b}"),
-            Constant::Str(s) => write!(f, "{:?}", s),
-        }
-    }
-}
-
-impl Constant {
-    pub const ZERO: Constant = Constant::Int(BigInt::ZERO);
-    pub const ONE: Constant = Constant::Int(BigInt::ONE);
-    pub const TRUE: Constant = Constant::Bool(true);
-
-    fn to_bool(self) -> Option<bool> {
-        match self {
-            Constant::Bool(b) => Some(b),
-            _ => None,
-        }
-    }
-
-    fn to_int(self) -> Option<BigInt> {
-        match self {
-            Constant::Int(n) => Some(n),
-            _ => None,
-        }
-    }
-
-    pub fn iff(&self, other: &Constant) -> Option<Constant> {
-        let b1 = self.to_bool()?;
-        let b2 = other.to_bool()?;
-        Some(Constant::Bool(b1 == b2))
-    }
-
-    pub fn imp(&self, other: &Constant) -> Option<Constant> {
-        let b1 = self.to_bool()?;
-        let b2 = other.to_bool()?;
-        Some(Constant::Bool(!b1 || b2))
-    }
-
-    pub fn or(&self, other: &Constant) -> Option<Constant> {
-        let b1 = self.to_bool()?;
-        let b2 = other.to_bool()?;
-        Some(Constant::Bool(b1 || b2))
-    }
-
-    pub fn and(&self, other: &Constant) -> Option<Constant> {
-        let b1 = self.to_bool()?;
-        let b2 = other.to_bool()?;
-        Some(Constant::Bool(b1 && b2))
-    }
-
-    pub fn eq(&self, other: &Constant) -> Constant {
-        Constant::Bool(*self == *other)
-    }
-
-    pub fn ne(&self, other: &Constant) -> Constant {
-        Constant::Bool(*self != *other)
-    }
-
-    pub fn gt(&self, other: &Constant) -> Option<Constant> {
-        let n1 = self.to_int()?;
-        let n2 = other.to_int()?;
-        Some(Constant::Bool(n1 > n2))
-    }
-
-    pub fn ge(&self, other: &Constant) -> Option<Constant> {
-        let n1 = self.to_int()?;
-        let n2 = other.to_int()?;
-        Some(Constant::Bool(n1 >= n2))
-    }
-
-    /// See [`BigInt::int_min`]
-    pub fn int_min(bit_width: u32) -> Constant {
-        Constant::Int(BigInt::int_min(bit_width))
-    }
-
-    /// See [`BigInt::int_max`]
-    pub fn int_max(bit_width: u32) -> Constant {
-        Constant::Int(BigInt::int_max(bit_width))
-    }
-
-    /// See [`BigInt::uint_max`]
-    pub fn uint_max(bit_width: u32) -> Constant {
-        Constant::Int(BigInt::uint_max(bit_width))
-    }
-}
-
-impl From<i32> for Constant {
-    fn from(c: i32) -> Self {
-        Constant::Int(c.into())
-    }
-}
-
-impl From<usize> for Constant {
-    fn from(u: usize) -> Self {
-        Constant::Int(u.into())
-    }
-}
-
-impl From<u128> for Constant {
-    fn from(c: u128) -> Self {
-        Constant::Int(c.into())
-    }
-}
-
-impl From<i128> for Constant {
-    fn from(c: i128) -> Self {
-        Constant::Int(c.into())
-    }
-}
-
-impl From<bool> for Constant {
-    fn from(b: bool) -> Self {
-        Constant::Bool(b)
-    }
-}
-
-impl From<Symbol> for Constant {
-    fn from(s: Symbol) -> Self {
-        Constant::Str(s)
     }
 }

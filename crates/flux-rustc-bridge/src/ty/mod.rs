@@ -26,7 +26,7 @@ pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use super::ToRustc;
-use crate::pretty::{self, def_id_to_string};
+use crate::def_id_to_string;
 
 #[derive(Debug, Clone)]
 pub struct Generics<'tcx> {
@@ -833,7 +833,7 @@ impl fmt::Debug for ExistentialPredicate {
             ExistentialPredicate::Trait(trait_ref) => write!(f, "{trait_ref:?}"),
             ExistentialPredicate::Projection(proj) => write!(f, "({proj:?})"),
             ExistentialPredicate::AutoTrait(def_id) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))
+                write!(f, "{}", def_id_to_string(*def_id))
             }
         }
     }
@@ -841,7 +841,7 @@ impl fmt::Debug for ExistentialPredicate {
 
 impl fmt::Debug for ExistentialTraitRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        write!(f, "{}", def_id_to_string(self.def_id))?;
         if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args.iter().format(","))?;
         }
@@ -851,7 +851,7 @@ impl fmt::Debug for ExistentialTraitRef {
 
 impl fmt::Debug for ExistentialProjection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        write!(f, "{}", def_id_to_string(self.def_id))?;
         if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args.iter().format(","))?;
         }
@@ -973,7 +973,18 @@ impl fmt::Debug for Ty {
     }
 }
 
-pub(crate) fn region_to_string(region: Region) -> String {
+impl fmt::Debug for Const {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            ConstKind::Param(p) => write!(f, "{}", p.name.as_str()),
+            ConstKind::Value(_, v) => write!(f, "{v}"),
+            ConstKind::Infer(infer_const) => write!(f, "{infer_const:?}"),
+            ConstKind::Unevaluated(_uneval_const) => write!(f, "TODO:UNEVALCONST"),
+        }
+    }
+}
+
+pub fn region_to_string(region: Region) -> String {
     match region {
         Region::ReBound(_, region) => {
             match region.kind {

@@ -1,4 +1,4 @@
-use flux_middle::rustc::lowering;
+use flux_rustc_bridge::lowering;
 use rustc_hir as hir;
 use rustc_hir::{def_id::DefId, BodyId, OwnerId};
 use rustc_middle::ty::TyCtxt;

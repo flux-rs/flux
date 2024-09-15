@@ -1,8 +1,8 @@
 use std::collections::BinaryHeap;
 
-use flux_middle::rustc::mir::BasicBlock;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_index::bit_set::BitSet;
+use rustc_middle::mir::BasicBlock;
 
 struct Item<'a> {
     bb: BasicBlock,

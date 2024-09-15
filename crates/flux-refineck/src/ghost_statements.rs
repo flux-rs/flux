@@ -7,13 +7,10 @@ use std::{fmt, io, iter};
 
 use flux_common::dbg;
 use flux_config as config;
-use flux_middle::{
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rustc::{
-        lowering,
-        mir::{BasicBlock, Body, Place},
-    },
+use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
+use flux_rustc_bridge::{
+    lowering,
+    mir::{BasicBlock, Body, Place},
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -80,7 +77,7 @@ impl GhostStatements {
 
         fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
         points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-        stmts.add_unblocks(&body);
+        stmts.add_unblocks(genv.tcx(), &body);
 
         if config::dump_mir() {
             let mut writer =
@@ -90,11 +87,11 @@ impl GhostStatements {
         Ok(stmts)
     }
 
-    fn add_unblocks(&mut self, body: &Body) {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
-                let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
+                let place = lowering::lower_place(tcx, &borrow.borrowed_place).unwrap();
                 GhostStatement::Unblock(place)
             });
             self.at_location.entry(location).or_default().extend(stmts);

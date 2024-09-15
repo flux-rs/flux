@@ -482,6 +482,7 @@ dependencies = [
  "flux-metadata",
  "flux-middle",
  "flux-refineck",
+ "flux-rustc-bridge",
  "flux-syntax",
  "itertools 0.13.0",
  "toml",
@@ -507,19 +508,8 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-rustc-bridge",
  "itertools 0.13.0",
-]
-
-[[package]]
-name = "flux-fixpoint"
-version = "0.1.0"
-dependencies = [
- "derive-where",
- "flux-common",
- "flux-config",
- "itertools 0.13.0",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -529,9 +519,10 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-middle",
  "itertools 0.13.0",
+ "liquid-fixpoint",
+ "pad-adapter",
 ]
 
 [[package]]
@@ -572,11 +563,12 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-macros",
+ "flux-rustc-bridge",
  "flux-syntax",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
+ "liquid-fixpoint",
  "toposort-scc",
 ]
 
@@ -587,11 +579,12 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
- "flux-fixpoint",
  "flux-infer",
  "flux-macros",
  "flux-middle",
+ "flux-rustc-bridge",
  "itertools 0.13.0",
+ "liquid-fixpoint",
  "tracing",
 ]
 
@@ -600,6 +593,17 @@ name = "flux-rs"
 version = "0.1.0"
 dependencies = [
  "flux-attrs",
+]
+
+[[package]]
+name = "flux-rustc-bridge"
+version = "0.1.0"
+dependencies = [
+ "flux-arc-interner",
+ "flux-common",
+ "flux-errors",
+ "flux-macros",
+ "itertools 0.13.0",
 ]
 
 [[package]]
@@ -810,6 +814,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquid-fixpoint"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "itertools 0.13.0",
+ "pad-adapter",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -946,6 +961,12 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "pad-adapter"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d80efc4b6721e8be2a10a5df21a30fa0b470f1539e53d8b4e6e75faf938b63"
 
 [[package]]
 name = "parking_lot"

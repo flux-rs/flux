@@ -10,10 +10,12 @@ edition.workspace = true
 flux-common.workspace = true
 flux-config.workspace = true
 flux-errors.workspace = true
-flux-fixpoint.workspace = true
 flux-infer.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
+flux-rustc-bridge.workspace = true
+
+liquid-fixpoint.workspace = true
 
 itertools.workspace = true
 

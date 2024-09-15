@@ -13,9 +13,7 @@
     unwrap_infallible
 )]
 
-extern crate rustc_abi;
 extern crate rustc_ast;
-extern crate rustc_borrowck;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -31,14 +29,13 @@ extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-pub mod const_eval;
+pub mod big_int;
 pub mod cstore;
 pub mod fhir;
 pub mod global_env;
 pub mod pretty;
 pub mod queries;
 pub mod rty;
-pub mod rustc;
 mod sort_of;
 
 use std::sync::LazyLock;
@@ -46,18 +43,28 @@ use std::sync::LazyLock;
 use flux_arc_interner::List;
 use flux_config as config;
 use flux_macros::fluent_messages;
+pub use flux_rustc_bridge::def_id_to_string;
+use flux_rustc_bridge::{
+    mir::{LocalDecls, PlaceElem},
+    ty,
+};
 use flux_syntax::surface::{self, NodeId};
+use global_env::GlobalEnv;
+use queries::QueryResult;
+use rty::VariantIdx;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
+use rustc_macros::extension;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
     symbol::Ident,
     Symbol,
 };
+use rustc_target::abi::FieldIdx;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -491,5 +498,80 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
 impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
     fn into_query_param(self) -> DefId {
         self.resolved_id()
+    }
+}
+
+#[extension(pub trait PlaceExt)]
+impl flux_rustc_bridge::mir::Place {
+    fn ty(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
+        self.projection
+            .iter()
+            .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
+                place_ty.projection_ty(genv, *elem)
+            })
+    }
+
+    fn behind_raw_ptr(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<bool> {
+        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
+        for elem in &self.projection {
+            if let (PlaceElem::Deref, ty::TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
+                return Ok(true);
+            }
+            place_ty = place_ty.projection_ty(genv, *elem)?;
+        }
+        Ok(false)
+    }
+}
+
+#[derive(Debug)]
+pub struct PlaceTy {
+    pub ty: ty::Ty,
+    /// Downcast to a particular variant of an enum or a generator, if included.
+    pub variant_index: Option<VariantIdx>,
+}
+
+impl PlaceTy {
+    fn from_ty(ty: ty::Ty) -> PlaceTy {
+        PlaceTy { ty, variant_index: None }
+    }
+
+    fn projection_ty(&self, genv: GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
+        if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
+            Err(query_bug!("cannot use non field projection on downcasted place"))?;
+        }
+        let place_ty = match elem {
+            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref()),
+            PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
+            PlaceElem::Downcast(_, variant_idx) => {
+                PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
+            }
+            PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
+                if let ty::TyKind::Array(ty, _) | ty::TyKind::Slice(ty) = self.ty.kind() {
+                    PlaceTy::from_ty(ty.clone())
+                } else {
+                    return Err(query_bug!("cannot use non field projection on downcasted place"));
+                }
+            }
+        };
+        Ok(place_ty)
+    }
+
+    fn field_ty(&self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<ty::Ty> {
+        match self.ty.kind() {
+            ty::TyKind::Adt(adt_def, args) => {
+                let variant_def = match self.variant_index {
+                    None => adt_def.non_enum_variant(),
+                    Some(variant_index) => {
+                        assert!(adt_def.is_enum());
+                        adt_def.variant(variant_index)
+                    }
+                };
+                let field_def = &variant_def.fields[f];
+                let ty = genv.lower_type_of(field_def.did)?;
+                Ok(ty.subst(args))
+            }
+            ty::TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
+            _ => Err(query_bug!("extracting field of non-tuple non-adt: {self:?}")),
+        }
     }
 }

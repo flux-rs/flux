@@ -21,6 +21,7 @@ flux-macros.workspace = true
 flux-metadata.workspace = true
 flux-middle.workspace = true
 flux-refineck.workspace = true
+flux-rustc-bridge.workspace = true
 flux-syntax.workspace = true
 
 itertools.workspace = true

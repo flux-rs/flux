@@ -1,10 +1,7 @@
-#![feature(rustc_private, box_patterns)]
+//! This crate implements an interface to the [liquid-fixpoint] binary
+//!
+//! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 
-extern crate rustc_macros;
-extern crate rustc_serialize;
-extern crate rustc_span;
-
-pub mod big_int;
 mod constraint;
 
 use std::{
@@ -17,38 +14,113 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use flux_common::{cache::QueryCache, format::PadAdapter};
-use flux_config as config;
 use itertools::Itertools;
+use pad_adapter::PadAdapter;
 use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-pub trait Symbol: fmt::Display + Hash {}
+pub trait FixpointFmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
-impl<T: fmt::Display + Hash> Symbol for T {}
+    /// Returns a type that implements [`Display`] using the [`FixpointFmt::fmt`] implementation.
+    ///
+    /// [`Display`]: std::fmt::Display
+    fn display(&self) -> DisplayAdapter<&Self> {
+        DisplayAdapter(self)
+    }
+}
+
+/// Helper type that implements [`Display`] forwarding the implementaiton to [`FixpointFmt::fmt`].
+///
+/// [`Display`]: std::fmt::Display
+pub struct DisplayAdapter<T>(T);
+
+impl<T: FixpointFmt> std::fmt::Display for DisplayAdapter<&T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        FixpointFmt::fmt(self.0, f)
+    }
+}
+
+pub trait Identifier: FixpointFmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+}
+
+impl<T: Identifier> FixpointFmt for T {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Identifier::fmt(self, f)
+    }
+}
 
 pub trait Types {
-    type Sort: Symbol + Clone;
-    type KVar: Symbol;
-    type Var: Symbol;
-    type Tag: fmt::Display + Hash + FromStr;
+    type Sort: Identifier + Hash + Clone;
+    type KVar: Identifier + Hash;
+    type Var: Identifier + Hash;
+
+    type Numeral: FixpointFmt + Hash;
+    type Decimal: FixpointFmt + Hash;
+    type String: FixpointFmt + Hash;
+
+    type Tag: fmt::Display + FromStr + Hash;
+}
+
+struct DefaultTypes;
+
+impl Types for DefaultTypes {
+    type Sort = &'static str;
+    type KVar = &'static str;
+    type Var = &'static str;
+    type Tag = String;
+    type Numeral = i128;
+    type Decimal = i128;
+    type String = String;
+}
+
+impl Identifier for &str {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl FixpointFmt for i128 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if *self < 0 {
+            write!(f, "(- {})", self.unsigned_abs())
+        } else {
+            write!(f, "{self}")
+        }
+    }
+}
+
+impl FixpointFmt for String {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{self}\"")
+    }
 }
 
 #[macro_export]
 macro_rules! declare_types {
-    (type Sort = $sort:ty; type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
+    (   type Sort = $sort:ty;
+        type KVar = $kvar:ty;
+        type Var = $var:ty;
+
+        type Numeral = $int:ty;
+        type Decimal = $real:ty;
+        type String = $str:ty;
+
+        type Tag = $tag:ty;
+    ) => {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
             pub type Expr = $crate::Expr<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
-            pub type KVar = $crate::KVar<FixpointTypes>;
-            pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
+            pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
+            pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
@@ -57,6 +129,7 @@ macro_rules! declare_types {
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
+            pub type Constant = $crate::Constant<FixpointTypes>;
             pub use $crate::{BinOp, BinRel};
         }
 
@@ -64,35 +137,31 @@ macro_rules! declare_types {
             type Sort = $sort;
             type KVar = $kvar;
             type Var = $var;
+
+            type Numeral = $int;
+            type Decimal = $real;
+            type String = $str;
+
             type Tag = $tag;
         }
     };
 }
 
-struct StringTypes;
-
-impl Types for StringTypes {
-    type Sort = &'static str;
-    type KVar = &'static str;
-    type Var = &'static str;
-    type Tag = String;
-}
-
 #[derive_where(Hash)]
-pub struct ConstInfo<T: Types> {
+pub struct ConstDecl<T: Types> {
     pub name: T::Var,
-    #[derive_where(skip)]
-    pub orig: Option<String>,
     pub sort: Sort<T>,
+    #[derive_where(skip)]
+    pub comment: Option<String>,
 }
 
 #[derive_where(Hash)]
 pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
-    pub constants: Vec<ConstInfo<T>>,
+    pub constants: Vec<ConstDecl<T>>,
     pub data_decls: Vec<DataDecl<T>>,
-    pub kvars: Vec<KVar<T>>,
+    pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
@@ -126,7 +195,7 @@ pub struct Stats {
 pub struct CrashInfo(Vec<serde_json::Value>);
 
 #[derive_where(Hash)]
-pub struct KVar<T: Types> {
+pub struct KVarDecl<T: Types> {
     kvid: T::KVar,
     sorts: Vec<Sort<T>>,
     #[derive_where(skip)]
@@ -140,28 +209,7 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    pub fn check_with_cache(
-        &self,
-        key: String,
-        cache: &mut QueryCache,
-    ) -> io::Result<FixpointResult<T::Tag>> {
-        let hash = self.hash_with_default();
-
-        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
-            return Ok(FixpointResult::Safe(Default::default()));
-        }
-
-        let result = self.check();
-
-        if config::is_cache_enabled() {
-            if let Ok(FixpointResult::Safe(_)) = result {
-                cache.insert(key, hash);
-            }
-        }
-        result
-    }
-
-    fn check(&self) -> io::Result<FixpointResult<T::Tag>> {
+    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -187,7 +235,7 @@ impl<T: Types> Task<T> {
     }
 }
 
-impl<T: Types> KVar<T> {
+impl<T: Types> KVarDecl<T> {
     pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, comment: String) -> Self {
         Self { kvid, sorts, comment }
     }
@@ -225,22 +273,28 @@ impl<T: Types> fmt::Display for Task<T> {
 
         writeln!(f)?;
         write!(f, "(constraint")?;
-        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", self.constraint)?;
+        write!(with_padding(f), "\n{}", self.constraint)?;
         writeln!(f, "\n)")
     }
 }
 
-impl<T: Types> fmt::Display for KVar<T> {
+impl<T: Types> fmt::Display for KVarDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(var ${} ({})) ;; {}", self.kvid, self.sorts.iter().format(" "), self.comment)
+        write!(
+            f,
+            "(var ${} ({})) ;; {}",
+            self.kvid.display(),
+            self.sorts.iter().format(" "),
+            self.comment
+        )
     }
 }
 
-impl<T: Types> fmt::Display for ConstInfo<T> {
+impl<T: Types> fmt::Display for ConstDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {} {})", self.name, self.sort)?;
-        if let Some(orig) = &self.orig {
-            write!(f, "  ;; orig: {orig}")?;
+        write!(f, "(constant {} {})", self.name.display(), self.sort)?;
+        if let Some(comment) = &self.comment {
+            write!(f, "  ;; {comment}")?;
         }
         Ok(())
     }
@@ -266,4 +320,8 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(tag), &"valid tag"))?;
         Ok(Error { id, tag })
     }
+}
+
+fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
+    PadAdapter::with_padding(f, "  ")
 }

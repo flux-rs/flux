@@ -29,8 +29,8 @@ use flux_middle::{
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
-    rustc::lowering,
 };
+use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -138,7 +138,7 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let item = genv.map().expect_item(def_id.local_id())?;
     let invariants = invariants_of(genv, item)?;
 
-    let adt_def = lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id.resolved_id()));
+    let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
