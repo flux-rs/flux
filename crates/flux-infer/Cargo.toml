@@ -11,6 +11,7 @@ flux-fixpoint.workspace = true
 flux-middle.workspace = true
 
 itertools.workspace = true
+pad-adapter.workspace = true
 
 [lints]
 workspace = true

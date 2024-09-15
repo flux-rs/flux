@@ -11,7 +11,7 @@ extern crate serde_json;
 
 pub mod cache;
 pub mod dbg;
-pub mod format;
+// pub mod format;
 pub mod index;
 pub mod iter;
 pub mod mir_storage;

@@ -517,8 +517,8 @@ name = "flux-fixpoint"
 version = "0.1.0"
 dependencies = [
  "derive-where",
- "flux-common",
  "itertools 0.13.0",
+ "pad-adapter",
  "serde",
  "serde_json",
 ]
@@ -533,6 +533,7 @@ dependencies = [
  "flux-fixpoint",
  "flux-middle",
  "itertools 0.13.0",
+ "pad-adapter",
 ]
 
 [[package]]
@@ -960,6 +961,12 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "pad-adapter"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d80efc4b6721e8be2a10a5df21a30fa0b470f1539e53d8b4e6e75faf938b63"
 
 [[package]]
 name = "parking_lot"

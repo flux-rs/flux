@@ -4,10 +4,9 @@ use std::{
 };
 
 use derive_where::derive_where;
-use flux_common::format::PadAdapter;
 use itertools::Itertools;
 
-use crate::{DefaultTypes, FixpointFmt, Types};
+use crate::{with_padding, DefaultTypes, FixpointFmt, Types};
 
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
@@ -323,14 +322,14 @@ impl<T: Types> fmt::Display for Constraint<T> {
                     [pred] => write!(f, "{pred}"),
                     preds => {
                         write!(f, "(and")?;
-                        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", preds.iter().join("\n"))?;
+                        write!(with_padding(f), "\n{}", preds.iter().join("\n"))?;
                         write!(f, "\n)")
                     }
                 }
             }
             Constraint::ForAll(bind, head) => {
                 write!(f, "(forall (({} {}) {})", bind.name.display(), bind.sort, bind.pred)?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
+                write!(with_padding(f), "\n{head}")?;
                 write!(f, "\n)")
             }
         }
@@ -349,7 +348,7 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
                     [pred] => write!(f, "{}", PredTag(pred, tag)),
                     _ => {
                         write!(f, "(and")?;
-                        let mut w = PadAdapter::wrap_fmt(f, 2);
+                        let mut w = with_padding(f);
                         for pred in preds {
                             write!(w, "\n{}", PredTag(pred, tag))?;
                         }

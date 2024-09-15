@@ -644,8 +644,8 @@ impl Iterator for ParentsIter {
 mod pretty {
     use std::fmt::{self, Write};
 
-    use flux_common::format::PadAdapter;
     use flux_middle::pretty::*;
+    use pad_adapter::PadAdapter;
 
     use super::*;
 
@@ -697,13 +697,13 @@ mod pretty {
             match &node.kind {
                 NodeKind::Trace(trace) => {
                     w!("@ {:?}", ^trace)?;
-                    w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
+                    w!(with_padding(f), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {
                     w!(
                         "∀ {}.",
                         ^bindings
-                            .into_iter()
+                            .iter()
                             .format_with(", ", |(name, sort), f| {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             })
@@ -757,7 +757,7 @@ mod pretty {
         cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let mut f = PadAdapter::wrap_fmt(f, 2);
+        let mut f = with_padding(f);
         define_scoped!(cx, f);
         match children {
             [] => w!(" true"),
@@ -823,6 +823,10 @@ mod pretty {
                     }),
             )
         }
+    }
+
+    fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
+        PadAdapter::with_padding(f, "  ")
     }
 
     impl_debug_with_default_cx!(

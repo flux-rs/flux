@@ -1,29 +1,6 @@
 use rustc_middle::ty::{self as rustc_ty, ParamEnv, TyCtxt};
 use rustc_type_ir::{IntTy, UintTy};
 
-pub enum SimpleConst {
-    Int(i128),
-    Uint(u128),
-    Bool(bool),
-}
-
-pub fn scalar_int_to_simpl_constant<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    scalar: rustc_ty::ScalarInt,
-    ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<SimpleConst> {
-    use rustc_middle::ty::TyKind;
-    match ty.kind() {
-        TyKind::Int(int_ty) => Some(SimpleConst::Int(scalar_to_int(tcx, scalar, *int_ty))),
-        TyKind::Uint(uint_ty) => Some(SimpleConst::Uint(scalar_to_uint(tcx, scalar, *uint_ty))),
-        TyKind::Bool => {
-            let b = scalar_to_bits(tcx, scalar, ty)?;
-            Some(SimpleConst::Bool(b != 0))
-        }
-        _ => None,
-    }
-}
-
 pub fn scalar_to_bits<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,

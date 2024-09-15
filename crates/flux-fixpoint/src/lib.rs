@@ -14,8 +14,8 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use flux_common::format::PadAdapter;
 use itertools::Itertools;
+use pad_adapter::PadAdapter;
 use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
@@ -23,11 +23,17 @@ use crate::constraint::DEFAULT_QUALIFIERS;
 pub trait FixpointFmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
+    /// Returns a type that implements [`Display`] using the [`FixpointFmt::fmt`] implementation.
+    ///
+    /// [`Display`]: std::fmt::Display
     fn display(&self) -> DisplayAdapter<&Self> {
         DisplayAdapter(self)
     }
 }
 
+/// Helper type that implements [`Display`] forwarding the implementaiton to [`FixpointFmt::fmt`].
+///
+/// [`Display`]: std::fmt::Display
 pub struct DisplayAdapter<T>(T);
 
 impl<T: FixpointFmt> std::fmt::Display for DisplayAdapter<&T> {
@@ -263,7 +269,7 @@ impl<T: Types> fmt::Display for Task<T> {
 
         writeln!(f)?;
         write!(f, "(constraint")?;
-        write!(PadAdapter::wrap_fmt(f, 2), "\n{}", self.constraint)?;
+        write!(with_padding(f), "\n{}", self.constraint)?;
         writeln!(f, "\n)")
     }
 }
@@ -310,4 +316,8 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(tag), &"valid tag"))?;
         Ok(Error { id, tag })
     }
+}
+
+fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
+    PadAdapter::with_padding(f, "  ")
 }

@@ -1,21 +1,16 @@
 [package]
+edition.workspace = true
 name = "flux-fixpoint"
 version = "0.1.0"
-
-edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flux-common.workspace = true
-
-derive-where.workspace = true
-itertools.workspace = true
-serde.workspace = true
+derive-where = "1.0.0"
+itertools = "0.13.0"
+pad-adapter = "0.1.1"
+serde = "1.0"
 serde_json = "1.0"
-
-[package.metadata.rust-analyzer]
-rustc_private = true
 
 [lints]
 workspace = true
