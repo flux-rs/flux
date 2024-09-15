@@ -12,7 +12,6 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_errors::Errors;
-use liquid_fixpoint::FixpointResult;
 use flux_middle::{
     big_int::BigInt,
     def_id_to_string,
@@ -22,6 +21,7 @@ use flux_middle::{
     rty::{self, BoundVariableKindsExt as _, ESpan, Lambda, List},
 };
 use itertools::Itertools;
+use liquid_fixpoint::FixpointResult;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -34,11 +34,11 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use liquid_fixpoint::{FixpointFmt, Identifier};
     use flux_middle::{
         big_int::BigInt,
         rty::{EarlyReftParam, Real},
     };
+    use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -350,7 +350,7 @@ where
             constants.push(fixpoint::ConstInfo {
                 name: fixpoint::Var::UIFRel(rel),
                 sort,
-                orig: None,
+                comment: None,
             });
         }
 
@@ -510,7 +510,7 @@ where
         Ok((bindings, fixpoint::Pred::And(preds)))
     }
 
-    /// Auxiliary function to avoid creating nested conjunctions
+    /// Auxiliary function to merge nested conjunctions in a single predicate
     fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
@@ -602,7 +602,7 @@ struct FixpointKVar {
     orig: rty::KVid,
 }
 
-/// During encoding into fixpoint we generate multiple fxpoint kvars per kvar in flux. A
+/// During encoding into fixpoint we generate multiple fixpoint kvars per kvar in flux. A
 /// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
 #[derive(Default)]
 struct KVarEncodingCtxt {
@@ -651,18 +651,17 @@ impl KVarEncodingCtxt {
         })
     }
 
-    fn into_fixpoint(self) -> Vec<fixpoint::KVar> {
+    fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
             .into_iter_enumerated()
             .map(|(kvid, kvar)| {
-                fixpoint::KVar::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
+                fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
             })
             .collect()
     }
 }
 
-/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
+/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
 struct LocalVarEnv {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
@@ -713,17 +712,17 @@ impl LocalVarEnv {
 
 struct ConstInfo {
     name: fixpoint::GlobalVar,
-    orig: String,
     sort: fixpoint::Sort,
     val: Option<rty::Constant>,
+    comment: String,
 }
 
 impl ConstInfo {
     fn into_fixpoint(self) -> fixpoint::ConstInfo {
         fixpoint::ConstInfo {
             name: fixpoint::Var::Global(self.name),
-            orig: Some(self.orig),
             sort: self.sort,
+            comment: Some(self.comment),
         }
     }
 }
@@ -736,7 +735,7 @@ impl FixpointKVar {
 
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
-    /// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
     /// unnecessary kvars.
     ///
     /// [holes]: rty::ExprKind::Hole
@@ -1228,9 +1227,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     });
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: name.to_string(),
                     sort,
                     val: None,
+                    comment: format!("uif: {name}"),
                 }
             })
             .name
@@ -1259,7 +1258,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: def_id_to_string(def_id),
+                    comment: format!("rust const: {}", def_id_to_string(def_id)),
                     sort: fixpoint::Sort::Int,
                     val,
                 }
@@ -1279,11 +1278,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let orig = format!("{alias_reft:?}");
+                let comment = format!("alias reft: {alias_reft:?}");
                 let name = self.global_var_gen.fresh();
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
-                ConstInfo { name, orig, sort, val: None }
+                ConstInfo { name, comment, sort, val: None }
             })
             .name
     }
@@ -1300,10 +1299,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let orig = format!("{lam:?}");
+                let comment = format!("lambda: {lam:?}");
                 let name = self.global_var_gen.fresh();
                 let sort = scx.func_sort_to_fixpoint(&lam.sort().to_poly());
-                ConstInfo { name, orig, sort, val: None }
+                ConstInfo { name, comment, sort, val: None }
             })
             .name
     }

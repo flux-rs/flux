@@ -1,6 +1,8 @@
 //! *Refining* is the process of generating a refined version of a rust type.
 //!
-//! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
+//! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
+//! types in [`rty`].
+
 use flux_arc_interner::List;
 use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};

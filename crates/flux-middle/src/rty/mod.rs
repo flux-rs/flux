@@ -1349,8 +1349,8 @@ pub enum TyKind {
     /// the creation of this type until we use it in a [`match`].
     ///
     ///
-    /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`Rvalue::Discriminant`]: flux_rustc_bridge::mir::Rvalue::Discriminant
+    /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),

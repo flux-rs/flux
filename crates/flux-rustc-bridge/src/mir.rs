@@ -418,7 +418,7 @@ pub(crate) fn replicate_infer_ctxt<'tcx>(
 /// the total number of "predecessors" returned by `rustc`.  The option is to recompute "predecessors"
 /// from scratch but we may miss some cases there. (see also [`is_join_point`])
 ///
-/// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
+/// [`is_join_point`]: crate::mir::Body::is_join_point
 fn mk_fake_predecessors(
     basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
 ) -> IndexVec<BasicBlock, usize> {
