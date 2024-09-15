@@ -636,22 +636,20 @@ impl Expr {
                     ExprKind::BinaryOp(op, e1, e2) => {
                         let e1 = e1.fold_with(self);
                         let e2 = e2.fold_with(self);
-                        let e1_span = e1.span();
-                        let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
-                                Expr::constant(Constant::Bool(false)).at_opt(e1_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e1.span())
                             }
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                Expr::constant(Constant::Bool(false)).at_opt(e2_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e2.span())
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
-                                let e2_span = e2.span();
-                                match Expr::const_op(op, c1, c2) {
-                                    Some(c) => Expr::constant(c).at_opt(span.or(e2_span)),
-                                    None => Expr::binary_op(op.clone(), e1, e2).at_opt(span),
+                                if let Some(c) = Expr::const_op(op, c1, c2) {
+                                    Expr::constant(c).at_opt(span.or(e2.span()))
+                                } else {
+                                    Expr::binary_op(op.clone(), e1, e2).at_opt(span)
                                 }
                             }
                             _ => Expr::binary_op(op.clone(), e1, e2).at_opt(span),
@@ -665,7 +663,7 @@ impl Expr {
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone()).at_opt(span)
+                                Expr::binary_op(BinOp::Ne, e1, e2).at_opt(span)
                             }
                             _ => Expr::unary_op(UnOp::Not, e).at_opt(span),
                         }
