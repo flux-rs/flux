@@ -885,6 +885,10 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 let args = args.lower(tcx)?;
                 Ok(Ty::mk_adt(adt_def.lower(tcx), args))
             }
+            rustc_ty::FnDef(def_id, args) => {
+                let args = args.lower(tcx)?;
+                Ok(Ty::mk_fn_def(*def_id, args))
+            }
             rustc_ty::Never => Ok(Ty::mk_never()),
             rustc_ty::Str => Ok(Ty::mk_str()),
             rustc_ty::Char => Ok(Ty::mk_char()),

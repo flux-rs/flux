@@ -659,21 +659,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         oblig_sig: Binder<rty::FnSig>,
         span: Span,
     ) -> Result {
+        let mut infcx = infcx.at(span);
         let genv = self.genv;
         let tcx = genv.tcx();
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
 
-        // let oblig_sig = oblig_sig.replace_bound_vars(
-        //     |_| {
-        //         rty::ReVar(
-        //             infcx
-        //                 .region_infcx
-        //                 .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-        //                 .as_var(),
-        //         )
-        //     },
-        //     |sort, _| infcx.define_vars(sort),
-        // );
         let oblig_sig = oblig_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
@@ -686,25 +676,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .map(|ty| infcx.unpack(ty))
             .collect_vec();
 
-        // 2. Fresh names for `T_f` refine-params
+        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
         infcx.push_scope();
         let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-        // Instantiate fn_def_sig and normalize it
-        // let fn_def_sig = fn_def_sig
-        //     .instantiate(self.genv.tcx(), generic_args, &refine_args)
-        //     .replace_bound_vars(
-        //         |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-        //         |sort, mode| infcx.fresh_infer_var(sort, mode),
-        //     )
-        //     .normalize_projections(self.genv, infcx.region_infcx, infcx.def_id)
-        //     .with_span(span)?;
         let fn_def_sig = fn_def_sig
-            .instantiate(tcx, &generic_args, &refine_args)
+            .instantiate(tcx, generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
-
-        let mut at = infcx.at(span);
 
         // 3. INPUT subtyping (g-input <: f-input)
         // TODO: Check requires predicates (?)
@@ -714,14 +693,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         assert!(fn_def_sig.requires().is_empty()); // TODO
         for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
             let (formal, pred) = formal.unconstr();
-            at.check_pred(&pred, ConstrReason::Call);
+            infcx.check_pred(&pred, ConstrReason::Call);
             // see: TODO(pack-closure)
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
                     bug!("Not yet handled: FnDef subtyping with Ptr");
                 }
                 _ => {
-                    at.subtyping(&actual, &formal, ConstrReason::Call)
+                    infcx
+                        .subtyping(&actual, &formal, ConstrReason::Call)
                         .with_span(span)?;
                 }
             }
@@ -747,11 +727,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // 5. OUTPUT subtyping (f_out <: g_out)
         // RJ: new `at` to avoid borrowing errors...!
-        let mut at = infcx.at(span);
+        // let mut at = infcx.at(span);
         let oblig_output = oblig_sig
             .output()
-            .replace_bound_refts_with(|sort, mode, _| at.fresh_infer_var(sort, mode));
-        at.subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+        infcx
+            .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
             .with_span(span)?;
         assert!(output.ensures.is_empty()); // TODO
         assert!(oblig_output.ensures.is_empty()); // TODO
