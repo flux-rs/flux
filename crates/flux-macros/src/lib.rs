@@ -1,6 +1,7 @@
 #![feature(proc_macro_diagnostic, never_type, proc_macro_span, let_chains, if_let_guard)]
 
 mod diagnostics;
+mod fold;
 mod primops;
 
 use synstructure::decl_derive;
@@ -43,6 +44,14 @@ decl_derive!(
         primary_span,
         suggestion_part,
         applicability)] => diagnostics::subdiagnostic_derive
+);
+
+decl_derive!(
+    [TypeFoldable] => fold::type_foldable_derive
+);
+
+decl_derive!(
+    [TypeVisitable] => fold::type_visitable_derive
 );
 
 #[proc_macro]

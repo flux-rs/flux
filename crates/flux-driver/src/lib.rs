@@ -24,4 +24,5 @@ pub static DEFAULT_LOCALE_RESOURCES: &[&str] = &[
     flux_metadata::DEFAULT_LOCALE_RESOURCE,
     flux_middle::DEFAULT_LOCALE_RESOURCE,
     flux_refineck::DEFAULT_LOCALE_RESOURCE,
+    flux_rustc_bridge::DEFAULT_LOCALE_RESOURCE,
 ];

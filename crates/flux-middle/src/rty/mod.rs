@@ -23,6 +23,7 @@ pub use expr::{
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_bug};
+use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
     EarlyParamRegion, LateParamRegion, OutlivesPredicate,
@@ -221,14 +222,18 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
 
 pub type Clauses = List<Clause>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
@@ -240,14 +245,18 @@ pub enum ClauseKind {
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
 pub type PolyTraitPredicate = Binder<TraitPredicate>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -269,7 +278,7 @@ impl PolyTraitRef {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
@@ -328,7 +337,9 @@ impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -342,20 +353,26 @@ impl PolyExistentialTraitRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct ExistentialProjection {
     pub def_id: DefId,
     pub args: GenericArgs,
     pub term: Ty,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
+#[derive(
+    PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
     pub term: Ty,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct FnTraitPredicate {
     pub self_ty: Ty,
     pub tupled_args: Ty,
@@ -403,7 +420,9 @@ impl FnTraitPredicate {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
@@ -685,7 +704,7 @@ impl rustc_errors::IntoDiagArg for FuncSort {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
@@ -761,7 +780,9 @@ impl PolyFuncSort {
 
 /// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
 /// generic bit-vector size.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub enum SortArg {
     Sort(Sort),
     BvSize(BvSize),
@@ -780,7 +801,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -791,7 +812,9 @@ pub static INT_TYS: [IntTy; 6] =
 pub static UINT_TYS: [UintTy; 6] =
     [UintTy::Usize, UintTy::U8, UintTy::U16, UintTy::U32, UintTy::U64, UintTy::U128];
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
 pub struct Invariant {
     // This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
     // See comment on `apply` for details.
@@ -831,7 +854,9 @@ pub enum BoundReftKind {
     Named(Symbol),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
     Refine(Sort, InferMode, BoundReftKind),
@@ -965,7 +990,7 @@ pub struct EarlyBinder<T>(pub T);
 
 pub type PolyFnSig = Binder<FnSig>;
 
-#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FnSig {
     safety: Safety,
     abi: abi::Abi,
@@ -974,7 +999,9 @@ pub struct FnSig {
     output: Binder<FnOutput>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Ensures>,
@@ -986,7 +1013,7 @@ pub enum Ensures {
     Pred(Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
     pub name: Symbol,
     pub body: Binder<Expr>,
@@ -1612,7 +1639,9 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct AliasTy {
     pub args: GenericArgs,
     /// Holds the refinement-arguments for opaque-types; empty for projections

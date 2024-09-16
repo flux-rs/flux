@@ -2,6 +2,7 @@ use std::{fmt, sync::OnceLock};
 
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
+use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind},
@@ -36,10 +37,10 @@ use crate::{
 
 /// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for
 /// encoding into fixpoint
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct Lambda {
-    pub(super) body: Binder<Expr>,
-    pub(super) output: Sort,
+    body: Binder<Expr>,
+    output: Sort,
 }
 
 impl Lambda {
@@ -68,7 +69,7 @@ impl Lambda {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct AliasReft {
     pub trait_id: DefId,
     pub name: Symbol,
@@ -110,7 +111,7 @@ impl ESpan {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -223,7 +224,9 @@ impl FieldProj {
 /// quite the same as the [`InferMode`].
 ///
 /// [`InferMode`]: super::InferMode
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
 pub enum HoleKind {
     /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
     /// generating a kvar.
@@ -239,7 +242,7 @@ pub enum HoleKind {
 /// fixpoint makes a difference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct KVar {
     pub kvid: KVid,
     /// The number of arguments consider to be *self arguments*.

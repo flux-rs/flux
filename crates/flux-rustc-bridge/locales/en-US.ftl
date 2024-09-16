@@ -1,5 +1,3 @@
-# Lowering Errors
-
 rustc_bridge_unsupported_mir =
     unsupported {$kind}
     .note = {$reason}
