@@ -4,11 +4,13 @@ mod subst;
 
 use std::fmt;
 
+pub use flux_arc_interner::List;
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{extension, TyDecodable, TyEncodable};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
@@ -24,10 +26,7 @@ pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use super::ToRustc;
-use crate::{
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    pretty::{self, def_id_to_string},
-};
+use crate::def_id_to_string;
 
 #[derive(Debug, Clone)]
 pub struct Generics<'tcx> {
@@ -314,8 +313,9 @@ pub enum GenericArg {
 
 pub type GenericArgs = List<GenericArg>;
 
+#[extension(pub trait GenericArgsExt)]
 impl GenericArgs {
-    pub fn box_args(&self) -> (&Ty, &Ty) {
+    fn box_args(&self) -> (&Ty, &Ty) {
         if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
             (deref, alloc)
         } else {
@@ -323,11 +323,11 @@ impl GenericArgs {
         }
     }
 
-    pub fn as_closure(&self) -> ClosureArgs {
+    fn as_closure(&self) -> ClosureArgs {
         ClosureArgs { args: self.clone() }
     }
 
-    pub fn as_coroutine(&self) -> CoroutineArgs {
+    fn as_coroutine(&self) -> CoroutineArgs {
         CoroutineArgs { args: self.clone() }
     }
 }
@@ -365,6 +365,7 @@ pub enum Region {
     ReStatic,
     ReVar(RegionVid),
     ReLateParam(LateParamRegion),
+    ReErased,
 }
 
 impl<'tcx> ToRustc<'tcx> for Region {
@@ -381,6 +382,7 @@ impl<'tcx> ToRustc<'tcx> for Region {
             Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
+            Region::ReErased => tcx.lifetimes.re_erased,
         }
     }
 }
@@ -840,7 +842,7 @@ impl fmt::Debug for ExistentialPredicate {
             ExistentialPredicate::Trait(trait_ref) => write!(f, "{trait_ref:?}"),
             ExistentialPredicate::Projection(proj) => write!(f, "({proj:?})"),
             ExistentialPredicate::AutoTrait(def_id) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))
+                write!(f, "{}", def_id_to_string(*def_id))
             }
         }
     }
@@ -848,7 +850,7 @@ impl fmt::Debug for ExistentialPredicate {
 
 impl fmt::Debug for ExistentialTraitRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        write!(f, "{}", def_id_to_string(self.def_id))?;
         if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args.iter().format(","))?;
         }
@@ -858,7 +860,7 @@ impl fmt::Debug for ExistentialTraitRef {
 
 impl fmt::Debug for ExistentialProjection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        write!(f, "{}", def_id_to_string(self.def_id))?;
         if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args.iter().format(","))?;
         }
@@ -983,7 +985,18 @@ impl fmt::Debug for Ty {
     }
 }
 
-pub(crate) fn region_to_string(region: Region) -> String {
+impl fmt::Debug for Const {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            ConstKind::Param(p) => write!(f, "{}", p.name.as_str()),
+            ConstKind::Value(_, v) => write!(f, "{v}"),
+            ConstKind::Infer(infer_const) => write!(f, "{infer_const:?}"),
+            ConstKind::Unevaluated(_uneval_const) => write!(f, "TODO:UNEVALCONST"),
+        }
+    }
+}
+
+pub fn region_to_string(region: Region) -> String {
     match region {
         Region::ReBound(_, region) => {
             match region.kind {
@@ -1002,5 +1015,6 @@ pub(crate) fn region_to_string(region: Region) -> String {
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(rvid) => format!("{rvid:?}"),
         Region::ReLateParam(..) => "'<free>".to_string(),
+        Region::ReErased => "'_".to_string(),
     }
 }

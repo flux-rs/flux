@@ -1,5 +1,6 @@
 use std::{cell::RefCell, fmt};
 
+use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_hash::FxHashMap;
@@ -9,8 +10,6 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
-
-use crate::intern::{Internable, Interned};
 
 #[macro_export]
 macro_rules! _define_scoped {
@@ -177,7 +176,7 @@ pub struct PrettyCx<'tcx> {
 }
 
 newtype_index! {
-    /// Name used during pretty printing to format annonymous bound variables
+    /// Name used during pretty printing to format anonymous bound variables
     #[debug_format = "b{}"]
     struct BoundVarName {}
 }
@@ -471,10 +470,6 @@ impl Pretty for DefId {
             w!("{}", ^path.data.last().unwrap())
         }
     }
-}
-
-pub fn def_id_to_string(def_id: DefId) -> String {
-    rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PrettyCx::default(tcx), def_id)))
 }
 
 impl Pretty for FieldIdx {

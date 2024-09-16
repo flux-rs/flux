@@ -22,14 +22,15 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
+use flux_arc_interner::List;
 use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SubsetTy, SubsetTyCtor, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
+    Ty, TyKind,
 };
-use crate::intern::List;
 
 #[derive(Default)]
 pub struct Hoister {
@@ -124,7 +125,7 @@ impl Ty {
 }
 
 pub struct CanonicalConstrTy {
-    /// Guranteed to not have any (shallow) [existential] or [constraint] types
+    /// Guaranteed to not have any (shallow) [existential] or [constraint] types
     ///
     /// [existential]: TyKind::Exists
     /// [constraint]: TyKind::Constr

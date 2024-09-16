@@ -12,7 +12,7 @@
 //!     }
 //! }
 //! ```
-//! In the then branch (resp. else) we know `r` must poin to `x` (resp. `y`). During refinement checking,
+//! In the then branch (resp. else) we know `r` must point to `x` (resp. `y`). During refinement checking,
 //! we will give `r` types `ptr(x)` and `ptr(y)` in each branch respectively. However, at the join point
 //! `r` could pointn to either `x` or `y`. Thus, we use the result of the analysis to insert a ghost
 //! statement at the end of each branch to convert the pointers to a borrow `&mut T` for a type `T` that
@@ -23,7 +23,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, Loc},
-    rustc::mir::FieldIdx,
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
@@ -37,6 +36,7 @@ use rustc_mir_dataflow::{
     lattice::{FlatSet, HasBottom, HasTop},
     Analysis, JoinSemiLattice, ResultsVisitor,
 };
+use rustc_target::abi::FieldIdx;
 
 use super::GhostStatements;
 use crate::ghost_statements::{GhostStatement, Point};
@@ -62,7 +62,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
 type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
-/// a may analysis. If you want to know if a reference definitiely points to a location you have to
+/// a may analysis. If you want to know if a reference definitively points to a location you have to
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
 struct PointsToAnalysis<'a> {
@@ -258,7 +258,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
 
 struct CollectPointerToBorrows<'a> {
     map: &'a Map,
-    tracked_places: FxHashMap<PlaceIndex, flux_middle::rustc::mir::Place>,
+    tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
     before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
 }
@@ -270,10 +270,9 @@ impl<'a> CollectPointerToBorrows<'a> {
             let projection = projection
                 .iter()
                 .copied()
-                .map(flux_middle::rustc::mir::PlaceElem::Field)
+                .map(flux_rustc_bridge::mir::PlaceElem::Field)
                 .collect();
-            tracked_places
-                .insert(place_idx, flux_middle::rustc::mir::Place::new(local, projection));
+            tracked_places.insert(place_idx, flux_rustc_bridge::mir::Place::new(local, projection));
         });
         Self { map, tracked_places, stmts, before_state: vec![] }
     }

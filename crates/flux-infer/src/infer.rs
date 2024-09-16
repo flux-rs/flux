@@ -3,7 +3,6 @@ use std::{cell::RefCell, fmt, iter};
 use flux_common::bug;
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -11,14 +10,16 @@ use flux_middle::{
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyVariant, Sort, Ty, TyKind, Var,
+        GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
+        Var,
     },
-    rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
-use rustc_middle::ty::{BoundRegionKind, TyCtxt, Variance};
+use rustc_middle::{
+    mir::BasicBlock,
+    ty::{TyCtxt, Variance},
+};
 use rustc_span::Span;
 
 use crate::{
@@ -168,19 +169,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         args.iter()
             .map(|a| a.replace_holes(|binders, kind| self.fresh_infer_var_for_hole(binders, kind)))
             .collect_vec()
-    }
-
-    fn next_region_var(&self, origin: RegionVariableOrigin) -> rty::Region {
-        rty::ReVar(self.region_infcx.next_region_var(origin).as_var())
-    }
-
-    pub fn next_bound_region_var(
-        &self,
-        span: Span,
-        kind: BoundRegionKind,
-        conversion_time: BoundRegionConversionTime,
-    ) -> rty::Region {
-        self.next_region_var(RegionVariableOrigin::BoundRegion(span, kind, conversion_time))
     }
 
     pub fn fresh_infer_var(&self, sort: &Sort, mode: InferMode) -> Expr {
@@ -561,7 +549,7 @@ impl Sub {
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
-                assert_eq!(preds_a, preds_b);
+                assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
             }
             (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) if did1 == did2 => {
@@ -648,10 +636,7 @@ impl Sub {
             _ => {
                 infcx.unify_exprs(e1, e2);
                 let span = e2.span();
-                infcx.check_pred(
-                    ExprKind::BinaryOp(rty::BinOp::Eq, e1.into(), e2.into()).intern_at_opt(span),
-                    self.tag(),
-                );
+                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, e1, e2).at_opt(span), self.tag());
             }
         }
     }

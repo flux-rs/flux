@@ -42,9 +42,7 @@ fn run() -> Result<i32> {
         .arg("check")
         .args(args)
         .env(LIB_PATH, extended_lib_path)
-        // CODESYNC(build-sysroot, 5) Tell flux dependencies to build in flux mode.
         .env("FLUX_BUILD_SYSROOT", "1")
-        // CODESYNC(flux-cargo) Tell the flux-driver it's being called from cargo.
         .env("FLUX_CARGO", "1")
         .env("RUST_TOOLCHAIN", rust_toolchain.clone())
         .env("RUSTUP_TOOLCHAIN", rust_toolchain)

@@ -1,0 +1,9 @@
+[default.extend-words]
+ANF = "ANF"
+# The `Stats` struct we receive from fixpoint has a field name `num_chck`
+chck = "chck"
+# Typos recognizes `ment` in `*refine*ment` as a separate token
+ment = "ment"
+
+[files]
+extend-exclude = ["book/book/**"]

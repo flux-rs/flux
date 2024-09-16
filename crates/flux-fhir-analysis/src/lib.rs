@@ -26,12 +26,11 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     fhir,
     global_env::GlobalEnv,
-    intern::List,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
-    rustc::lowering,
 };
+use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -139,7 +138,7 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let item = genv.map().expect_item(def_id.local_id())?;
     let invariants = invariants_of(genv, item)?;
 
-    let adt_def = lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id.resolved_id()));
+    let adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
@@ -156,7 +155,7 @@ fn predicates_of(
     } else {
         Ok(rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx().predicates_of(local_id.to_def_id()).parent,
-            predicates: List::empty(),
+            predicates: rty::List::empty(),
         }))
     }
 }
@@ -288,7 +287,7 @@ fn sort_of_assoc_reft(
 fn item_bounds(
     genv: GlobalEnv,
     local_id: LocalDefId,
-) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
     let wfckresults = genv.check_wf(local_id)?;
     let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
@@ -318,7 +317,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         DefKind::Closure => {
             let rustc_generics = genv.tcx().generics_of(def_id.local_id());
             rty::Generics {
-                own_params: List::empty(),
+                own_params: rty::List::empty(),
                 parent: rustc_generics.parent,
                 parent_count: rustc_generics.parent_count,
                 has_self: rustc_generics.has_self,
@@ -366,7 +365,7 @@ fn refinement_generics_of(
             let params = conv::conv_refinement_generics(genv, generics.refinement_params, None)?;
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
-        _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),
+        _ => Ok(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
     }
 }
 

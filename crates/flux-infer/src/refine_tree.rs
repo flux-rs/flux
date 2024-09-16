@@ -7,7 +7,6 @@ use std::{
 use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     queries::QueryResult,
     rty::{
         evars::EVarSol,
@@ -15,7 +14,8 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, EarlyReftParam, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EarlyReftParam, Expr, GenericArg, GenericArgsExt, Mutability, Name, Sort, Ty,
+        TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -71,7 +71,7 @@ pub struct RefineCtxt<'a> {
 }
 
 /// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
-/// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
+/// snapshot corresponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
 /// if the underlying node is [`cleared`].
 ///
 /// [`cleared`]: RefineCtxt::clear_children
@@ -111,7 +111,7 @@ impl Snapshot {
 #[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
-    params: List<(Var, Sort)>,
+    params: Vec<(Var, Sort)>,
 }
 
 impl Scope {
@@ -184,7 +184,7 @@ impl WeakNodePtr {
 
 enum NodeKind {
     /// List of const and refinement generics
-    Root(List<(Var, Sort)>),
+    Root(Vec<(Var, Sort)>),
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
     ForAll(Name, Sort),
@@ -644,8 +644,8 @@ impl Iterator for ParentsIter {
 mod pretty {
     use std::fmt::{self, Write};
 
-    use flux_common::format::PadAdapter;
     use flux_middle::pretty::*;
+    use pad_adapter::PadAdapter;
 
     use super::*;
 
@@ -664,26 +664,6 @@ mod pretty {
             }
         }
         go(ptr, vec![])
-    }
-
-    fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
-        fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
-            let node = ptr.borrow();
-            if let NodeKind::Root(ps) = &node.kind
-                && ps.is_empty()
-            {
-                for child in &node.children {
-                    go(child, children);
-                }
-            } else {
-                children.push(NodePtr::clone(ptr));
-            }
-        }
-        let mut children = vec![];
-        for ptr in nodes {
-            go(ptr, &mut children);
-        }
-        children
     }
 
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
@@ -717,13 +697,13 @@ mod pretty {
             match &node.kind {
                 NodeKind::Trace(trace) => {
                     w!("@ {:?}", ^trace)?;
-                    w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
+                    w!(with_padding(f), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {
                     w!(
                         "∀ {}.",
                         ^bindings
-                            .into_iter()
+                            .iter()
                             .format_with(", ", |(name, sort), f| {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             })
@@ -777,10 +757,9 @@ mod pretty {
         cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let mut f = PadAdapter::wrap_fmt(f, 2);
+        let mut f = with_padding(f);
         define_scoped!(cx, f);
-        let children = flatten_conjs(children);
-        match &children[..] {
+        match children {
             [] => w!(" true"),
             [n] => {
                 if n.borrow().is_head() {
@@ -788,7 +767,7 @@ mod pretty {
                 } else {
                     w!("\n")?;
                 }
-                w!("{:?}", NodePtr::clone(n))
+                w!("{:?}", n)
             }
             _ => w!("\n{:?}", join!("\n", children)),
         }
@@ -844,6 +823,10 @@ mod pretty {
                     }),
             )
         }
+    }
+
+    fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
+        PadAdapter::with_padding(f, "  ")
     }
 
     impl_debug_with_default_cx!(

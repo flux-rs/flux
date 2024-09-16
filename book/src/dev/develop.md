@@ -176,7 +176,7 @@ cargo x expand path/to/file.rs
 
 ## Reporting and dealing with bugs
 
-As Flux is under active developement, there are many aspects of Rust that Flux does not yet support, are
+As Flux is under active development, there are many aspects of Rust that Flux does not yet support, are
 only partially implemented, or where the implementation may contain bugs. These issues typically manifest
 as unreachable arms in a match statement (that turn out not to be unreachable) or preemtive assertions to
 guard against code we don't yet support. To help identify the code that triggers these bugs, there are a few

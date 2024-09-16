@@ -1,0 +1,16 @@
+[package]
+edition.workspace = true
+name = "liquid-fixpoint"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+derive-where = "1.0.0"
+itertools = "0.13.0"
+pad-adapter = "0.1.1"
+serde = "1.0"
+serde_json = "1.0"
+
+[lints]
+workspace = true

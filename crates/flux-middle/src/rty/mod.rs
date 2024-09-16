@@ -18,15 +18,28 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 pub use evars::{EVar, EVarGen};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
-    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
+pub use flux_arc_interner::List;
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_bug};
+pub use flux_rustc_bridge::ty::{
+    AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
+    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    Region::{self, *},
+    RegionVid,
+};
+use flux_rustc_bridge::{
+    mir::Place,
+    ty::{self, VariantDef},
+    ToRustc,
+};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
@@ -42,22 +55,12 @@ use self::{
     fold::TypeFoldable,
     subst::{BoundVarReplacer, FnMutDelegate},
 };
-pub use crate::{
-    fhir::InferMode,
-    rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
-        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
-        Region::{self, *},
-        RegionVid,
-    },
-};
+pub use crate::fhir::InferMode;
 use crate::{
     fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{self, mir::Place, ty::VariantDef, ToRustc},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -222,6 +225,8 @@ pub struct GenericPredicates {
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
+
+pub type Clauses = List<Clause>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ClauseKind {
@@ -789,7 +794,7 @@ pub struct AdtDefData {
     invariants: Vec<Invariant>,
     sort_def: AdtSortDef,
     opaque: bool,
-    rustc: rustc::ty::AdtDef,
+    rustc: ty::AdtDef,
 }
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
@@ -865,8 +870,9 @@ impl BoundVariableKind {
     }
 }
 
+#[extension(pub trait BoundVariableKindsExt)]
 impl List<BoundVariableKind> {
-    pub fn to_sort_list(&self) -> List<Sort> {
+    fn to_sort_list(&self) -> List<Sort> {
         self.iter()
             .map(|kind| {
                 match kind {
@@ -878,12 +884,12 @@ impl List<BoundVariableKind> {
             })
             .collect()
     }
-}
 
-impl<'tcx> ToRustc<'tcx> for List<BoundVariableKind> {
-    type T = &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+    // We can't implement [`ToRustc`] because of coherence so we add it here
+    fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
         tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
@@ -1044,9 +1050,14 @@ impl TyCtor {
     }
 }
 
-pub type Ty = Interned<TyS>;
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct Ty(Interned<TyKind>);
 
 impl Ty {
+    pub fn kind(&self) -> &TyKind {
+        &self.0
+    }
+
     /// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
     /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
     /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
@@ -1279,6 +1290,33 @@ impl Ty {
             _ => None,
         }
     }
+
+    #[track_caller]
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
+        } else {
+            tracked_span_bug!("expected discr")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
+        } else {
+            tracked_span_bug!("expected adt `{self:?}`")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            tracked_span_bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
 }
 
 impl<'tcx> ToRustc<'tcx> for Ty {
@@ -1311,53 +1349,6 @@ impl<'tcx> ToRustc<'tcx> for Ty {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct TyS {
-    kind: TyKind,
-}
-
-impl TyS {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
-    }
-
-    #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
-        } else {
-            bug!("expected discr")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
-            (adt_def, args, idx)
-        } else {
-            tracked_span_bug!("expected adt `{self:?}`")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
-        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
-            tys
-        } else {
-            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_base(&self) -> BaseTy {
-        match self.kind() {
-            TyKind::Indexed(base_ty, _) => base_ty.clone(),
-            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
-            _ => bug!("expected indexed type"),
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
@@ -1372,8 +1363,8 @@ pub enum TyKind {
     /// the creation of this type until we use it in a [`match`].
     ///
     ///
-    /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`Rvalue::Discriminant`]: flux_rustc_bridge::mir::Rvalue::Discriminant
+    /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
@@ -1699,7 +1690,7 @@ impl SubsetTyCtor {
 /// explicit about separating refinements from program values via an index).
 ///
 /// The main purpose for subset types is to be used as generic arguments of [kind base] when
-/// interpreted as type contructors. A subset type has two key properties that makes them suitable
+/// interpreted as type constructors. A subset type has two key properties that makes them suitable
 /// for that.
 ///
 /// First, because subset types are syntactically restricted, they make it easier to relate types
@@ -1731,7 +1722,7 @@ pub struct SubsetTy {
     /// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
     /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
-    /// facilitate syntatic manipulation we may restrict this.
+    /// facilitate syntactic manipulation we may restrict this.
     pub bty: BaseTy,
     /// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
     /// going to be under a binder we expect it to be [`Expr::nu()`].
@@ -1821,38 +1812,11 @@ impl GenericArg {
             }
         }
     }
-}
-
-impl<'tcx> ToRustc<'tcx> for GenericArg {
-    type T = rustc_middle::ty::GenericArg<'tcx>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        use rustc_middle::ty;
-        match self {
-            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
-            GenericArg::Base(ctor) => ty::GenericArg::from(ctor.skip_binder_ref().to_rustc(tcx)),
-            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
-            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
-        }
-    }
-}
-
-pub type GenericArgs = List<GenericArg>;
-
-impl GenericArgs {
-    #[track_caller]
-    pub fn box_args(&self) -> (&Ty, &Ty) {
-        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
-            (deref, alloc)
-        } else {
-            bug!("invalid generic arguments for box");
-        }
-    }
 
     /// Creates a `GenericArgs` from the definition of generic parameters, by calling a closure to
     /// obtain arg. The closures get to observe the `GenericArgs` as they're being built, which can
     /// be used to correctly replace defaults of generic parameters.
-    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<Self>
+    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<GenericArgs>
     where
         F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
     {
@@ -1863,7 +1827,10 @@ impl GenericArgs {
         Ok(List::from_vec(args))
     }
 
-    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+    pub fn identity_for_item(
+        genv: GlobalEnv,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<GenericArgs> {
         Self::for_item(genv, def_id.into(), |param, _| GenericArg::from_param_def(param))
     }
 
@@ -1889,10 +1856,35 @@ impl GenericArgs {
     }
 }
 
-impl<'tcx> ToRustc<'tcx> for GenericArgs {
-    type T = rustc_middle::ty::GenericArgsRef<'tcx>;
+impl<'tcx> ToRustc<'tcx> for GenericArg {
+    type T = rustc_middle::ty::GenericArg<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        use rustc_middle::ty;
+        match self {
+            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
+            GenericArg::Base(ctor) => ty::GenericArg::from(ctor.skip_binder_ref().to_rustc(tcx)),
+            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
+            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
+        }
+    }
+}
+
+pub type GenericArgs = List<GenericArg>;
+
+#[extension(pub trait GenericArgsExt)]
+impl GenericArgs {
+    #[track_caller]
+    fn box_args(&self) -> (&Ty, &Ty) {
+        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+            (deref, alloc)
+        } else {
+            bug!("invalid generic arguments for box");
+        }
+    }
+
+    // We can't implement [`ToRustc`] because of coherence so we add it here
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
@@ -2022,11 +2014,7 @@ where
                     })
                     .clone()
             },
-            |bre| {
-                *regions
-                    .entry(bre.var)
-                    .or_insert_with(|| replace_region(bre))
-            },
+            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
         self.value
@@ -2158,7 +2146,7 @@ impl<'tcx> ToRustc<'tcx> for FnOutput {
 
 impl AdtDef {
     pub fn new(
-        rustc: rustc::ty::AdtDef,
+        rustc: ty::AdtDef,
         sort_def: AdtSortDef,
         invariants: Vec<Invariant>,
         opaque: bool,
@@ -2282,7 +2270,7 @@ impl EarlyBinder<PolyVariant> {
 
 impl TyKind {
     fn intern(self) -> Ty {
-        Interned::new(TyS { kind: self })
+        Ty(Interned::new(self))
     }
 }
 
@@ -2375,7 +2363,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, AdtSortDefData, TyS);
+impl_internable!(AdtDefData, AdtSortDefData, TyKind);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -2392,7 +2380,6 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    (Var, Sort)
 );
 
 #[macro_export]

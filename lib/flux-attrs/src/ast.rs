@@ -2857,7 +2857,7 @@ fn parse_trait_item_type(input: ParseStream) -> Result<TraitItem> {
     } = FlexibleItemType::parse(input, TypeDefaultness::Disallowed, WhereClauseLocation::AfterEq)?;
 
     if !matches!(vis, Visibility::Inherited) {
-        Err(syn::Error::new_spanned(vis, "visiblity qualifiers are not permitted here"))
+        Err(syn::Error::new_spanned(vis, "visibility qualifiers are not permitted here"))
     } else {
         Ok(TraitItem::Type(syn::TraitItemType {
             attrs: Vec::new(),

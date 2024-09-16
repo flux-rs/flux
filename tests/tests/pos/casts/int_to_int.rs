@@ -24,6 +24,6 @@ pub fn uint_int_lossless() -> i32 {
 }
 
 #[flux::sig(fn() -> usize[42])]
-pub fn unsiged_to_usize() -> usize {
+pub fn unsigned_to_usize() -> usize {
     42u32 as usize
 }
