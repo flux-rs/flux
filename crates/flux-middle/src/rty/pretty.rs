@@ -99,7 +99,7 @@ impl Pretty for Sort {
             Sort::Str => w!("str"),
             Sort::BitVec(size) => w!("bitvec({:?})", size),
             Sort::Loc => w!("loc"),
-            Sort::Var(n) => w!("@{}", ^n.index),
+            Sort::Var(n) => w!("@{}", ^n.index()),
             Sort::Func(sort) => w!("{:?}", sort),
             Sort::Tuple(sorts) => {
                 if let [sort] = &sorts[..] {

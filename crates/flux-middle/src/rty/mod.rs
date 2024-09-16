@@ -443,20 +443,15 @@ pub enum SortCtor {
     User { name: Symbol },
 }
 
-/// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters]. They
-/// should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params in the
-/// [`PolyFuncSort`].
-///
-/// [bit-vector size parameters]: BvSize::Param
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
-pub struct ParamSort {
-    pub index: usize,
-}
-
-impl From<usize> for ParamSort {
-    fn from(index: usize) -> Self {
-        ParamSort { index }
-    }
+newtype_index! {
+    /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
+    /// They should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params
+    /// in the [`PolyFuncSort`].
+    ///
+    /// [bit-vector size parameters]: BvSize::Param
+    #[debug_format = "?{}s"]
+    #[encodable]
+    pub struct ParamSort {}
 }
 
 newtype_index! {

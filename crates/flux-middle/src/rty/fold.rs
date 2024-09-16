@@ -840,10 +840,7 @@ impl TypeFoldable for Ensures {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let c = match self {
             Ensures::Type(path, ty) => {
-                let path_expr = path
-                    .to_expr()
-                    .try_fold_with(folder)?
-                    .normalize(&Default::default());
+                let path_expr = path.to_expr().try_fold_with(folder)?;
                 Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
@@ -917,7 +914,6 @@ impl TypeSuperFoldable for Ty {
                     re.try_fold_with(folder)?,
                     path.to_expr()
                         .try_fold_with(folder)?
-                        .normalize(&Default::default())
                         .to_path()
                         .expect("type folding produced an invalid path"),
                     ty.try_fold_with(folder)?,
@@ -932,7 +928,6 @@ impl TypeSuperFoldable for Ty {
                     pk,
                     path.to_expr()
                         .try_fold_with(folder)?
-                        .normalize(&Default::default())
                         .to_path()
                         .expect("type folding produced an invalid path"),
                 )
