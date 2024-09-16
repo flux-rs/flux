@@ -657,9 +657,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     /// The function `check_oblig_fn_def` does a "function subtyping" check between
-    /// - the sub-type (T_f) corresponding to the type of `def_id` @ `args`
-    /// - the super-type (T_g) corresponding to the `oblig_sig`
-    /// Informally this subtyping is handled as follows
+    /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
+    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled as
     ///
     ///   T_f := (S1,...,Sn) -> S
     ///   T_g := (T1,...,Tn) -> T
@@ -705,7 +704,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
         // Instantiate fn_def_sig and normalize it
         let fn_def_sig = fn_def_sig
-            .instantiate(self.genv.tcx(), &generic_args, &refine_args)
+            .instantiate(self.genv.tcx(), generic_args, &refine_args)
             .replace_bound_vars(
                 |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
@@ -728,7 +727,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // see: TODO(pack-closure)
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
-                    bug!("Not yet handled: FnDef subtyping with Ptr")
+                    bug!("Not yet handled: FnDef subtyping with Ptr");
                 }
                 _ => {
                     at.subtyping(&actual, &formal, ConstrReason::Call)
@@ -776,12 +775,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fn_trait_pred: FnTraitPredicate,
         span: Span,
     ) -> Result {
-        let self_ty = fn_trait_pred
-            .self_ty
-            .as_bty_skipping_existentials()
-            .unwrap_or_else(|| tracked_span_bug!("unexpected self_ty `{fn_trait_pred:?}`"));
+        let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            BaseTy::Closure(def_id, tys) => {
+            Some(BaseTy::Closure(def_id, tys)) => {
                 // The closure signature may contain region variables generated in the `InferCtxt` of the
                 // current function so we normalize it before passing it to `Checker::run`. After
                 // normalization, the signature could still contain region variables wich haven't been
@@ -803,7 +799,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     poly_sig,
                 )?;
             }
-            BaseTy::FnDef(def_id, args) => {
+            Some(BaseTy::FnDef(def_id, args)) => {
+                // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
+                // and the (sub-type) corresponding to the signature of `def_id + args`.
+                // See `tests/neg/surface/fndef00.rs`
                 let oblig_sig = EarlyBinder(fn_trait_pred.fndef_poly_sig())
                     .instantiate_identity()
                     .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
@@ -811,9 +810,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, span)?;
             }
             _ => {
-                // TODO: When we allow refining closure/fn at the surface level, we would need to do
-                // actual function subtyping here, but for now, we can skip as all the relevant types
-                // are unrefined. See issue-767.rs
+                // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
+                // but for now, we can skip as all the relevant types are unrefined.
+                // See issue-767.rs
             }
         }
         Ok(())
