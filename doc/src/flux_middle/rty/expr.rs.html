@@ -1297,10 +1297,14 @@
 <a href="#1297" id="1297">1297</a>
 <a href="#1298" id="1298">1298</a>
 <a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind},
@@ -1335,10 +1339,10 @@
 
 <span class="doccomment">/// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for
 /// encoding into fixpoint
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>Lambda {
-    <span class="kw">pub</span>(<span class="kw">super</span>) body: Binder&lt;Expr&gt;,
-    <span class="kw">pub</span>(<span class="kw">super</span>) output: Sort,
+    body: Binder&lt;Expr&gt;,
+    output: Sort,
 }
 
 <span class="kw">impl </span>Lambda {
@@ -1367,7 +1371,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>AliasReft {
     <span class="kw">pub </span>trait_id: DefId,
     <span class="kw">pub </span>name: Symbol,
@@ -1409,7 +1413,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
 </span><span class="kw">pub enum </span>BinOp {
     Iff,
     Imp,
@@ -1522,7 +1526,9 @@
 /// quite the same as the [`InferMode`].
 ///
 /// [`InferMode`]: super::InferMode
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+</span><span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
 </span><span class="kw">pub enum </span>HoleKind {
     <span class="doccomment">/// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
     /// generating a kvar.
@@ -1538,7 +1544,7 @@
 /// fixpoint makes a difference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>KVar {
     <span class="kw">pub </span>kvid: KVid,
     <span class="doccomment">/// The number of arguments consider to be *self arguments*.

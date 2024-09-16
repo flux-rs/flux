@@ -2469,6 +2469,35 @@
 <a href="#2469" id="2469">2469</a>
 <a href="#2470" id="2470">2470</a>
 <a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2494,6 +2523,7 @@
 <span class="kw">pub use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">pub use </span>flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
     EarlyParamRegion, LateParamRegion, OutlivesPredicate,
@@ -2692,14 +2722,18 @@
     <span class="kw">pub </span>predicates: List&lt;Clause&gt;,
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>Clause {
     kind: Binder&lt;ClauseKind&gt;,
 }
 
 <span class="kw">pub type </span>Clauses = List&lt;Clause&gt;;
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub enum </span>ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
@@ -2711,14 +2745,18 @@
 
 <span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty&gt;;
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>TraitPredicate {
     <span class="kw">pub </span>trait_ref: TraitRef,
 }
 
 <span class="kw">pub type </span>PolyTraitPredicate = Binder&lt;TraitPredicate&gt;;
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>TraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
@@ -2740,7 +2778,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub enum </span>ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
@@ -2799,7 +2837,9 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>ExistentialTraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
@@ -2813,20 +2853,26 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>ExistentialProjection {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
     <span class="kw">pub </span>term: Ty,
 }
 
-<span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>ProjectionPredicate {
     <span class="kw">pub </span>projection_ty: AliasTy,
     <span class="kw">pub </span>term: Ty,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>FnTraitPredicate {
     <span class="kw">pub </span>self_ty: Ty,
     <span class="kw">pub </span>tupled_args: Ty,
@@ -2874,7 +2920,9 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>CoroutineObligPredicate {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>resume_ty: Ty,
@@ -3156,7 +3204,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>FuncSort {
     <span class="kw">pub </span>inputs_and_output: List&lt;Sort&gt;,
 }
@@ -3232,7 +3280,9 @@
 
 <span class="doccomment">/// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
 /// generic bit-vector size.
-</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+</span><span class="attr">#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub enum </span>SortArg {
     Sort(Sort),
     BvSize(BvSize),
@@ -3251,7 +3301,7 @@
 
 <span class="doccomment">/// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-</span><span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+</span><span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub enum </span>Opaqueness&lt;T&gt; {
     Opaque,
     Transparent(T),
@@ -3262,7 +3312,9 @@
 <span class="kw">pub static </span>UINT_TYS: [UintTy; <span class="number">6</span>] =
     [UintTy::Usize, UintTy::U8, UintTy::U16, UintTy::U32, UintTy::U64, UintTy::U128];
 
-<span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
 </span><span class="kw">pub struct </span>Invariant {
     <span class="comment">// This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
     // See comment on `apply` for details.
@@ -3302,7 +3354,9 @@
     Named(Symbol),
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub enum </span>BoundVariableKind {
     Region(BoundRegionKind),
     Refine(Sort, InferMode, BoundReftKind),
@@ -3436,7 +3490,7 @@
 
 <span class="kw">pub type </span>PolyFnSig = Binder&lt;FnSig&gt;;
 
-<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>FnSig {
     safety: Safety,
     abi: abi::Abi,
@@ -3445,7 +3499,9 @@
     output: Binder&lt;FnOutput&gt;,
 }
 
-<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>FnOutput {
     <span class="kw">pub </span>ret: Ty,
     <span class="kw">pub </span>ensures: List&lt;Ensures&gt;,
@@ -3457,7 +3513,7 @@
     Pred(Expr),
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="attr">#[derive(Debug, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>Qualifier {
     <span class="kw">pub </span>name: Symbol,
     <span class="kw">pub </span>body: Binder&lt;Expr&gt;,
@@ -4083,7 +4139,9 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>AliasTy {
     <span class="kw">pub </span>args: GenericArgs,
     <span class="doccomment">/// Holds the refinement-arguments for opaque-types; empty for projections

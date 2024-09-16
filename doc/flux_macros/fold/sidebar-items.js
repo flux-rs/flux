@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["type_foldable_derive","type_visitable_derive"]};
