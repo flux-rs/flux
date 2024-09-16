@@ -1,4 +1,4 @@
-//! Flux High-Level Intermediate Repesentation
+//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -19,6 +19,7 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
@@ -39,7 +40,7 @@ use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{global_env::GlobalEnv, pretty, MaybeExternId};
+use crate::{global_env::GlobalEnv, MaybeExternId};
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -275,11 +276,6 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-#[derive(Debug)]
-pub struct GenericPredicates<'fhir> {
-    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct WhereBoundPredicate<'fhir> {
     pub span: Span,
@@ -451,7 +447,7 @@ pub struct FnDecl<'fhir> {
 /// A predicate required to hold before calling a function.
 #[derive(Clone, Copy)]
 pub struct Requires<'fhir> {
-    /// An (optional) list of universally quanitified parameters
+    /// An (optional) list of universally quantified parameters
     pub params: &'fhir [RefineParam<'fhir>],
     pub pred: Expr<'fhir>,
 }
@@ -767,7 +763,7 @@ pub enum ParamKind {
     /// ```ignore
     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
     /// ```
-    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// In this definition, we know syntactically that `x` binds to a non-base type so it's an error
     /// to use `x` as an index in the return type.
     ///
     /// These parameters should not appear in a desugared item and we only track them during name
@@ -1474,15 +1470,15 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{}", n),
-            SortRes::TyParam(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            SortRes::TyParam(def_id) => write!(f, "sortof({})", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
+                write!(f, "sortof({}::Self)", def_id_to_string(*trait_id))
             }
             SortRes::SelfAlias { alias_to } => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
+                write!(f, "sortof({}::Self)", def_id_to_string(*alias_to))
             }
             SortRes::User { name } => write!(f, "{name}"),
-            SortRes::Adt(def_id) => write!(f, "{}::Sort", pretty::def_id_to_string(*def_id)),
+            SortRes::Adt(def_id) => write!(f, "{}::Sort", def_id_to_string(*def_id)),
         }
     }
 }

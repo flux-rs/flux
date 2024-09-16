@@ -114,7 +114,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
             ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
             ItemKind::Const(.., body_id) => {
-                // The flux-rs macro puts defs as an outter attribute on a `const _: () = { }`. We
+                // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
                 self.specs
                     .flux_items_by_parent

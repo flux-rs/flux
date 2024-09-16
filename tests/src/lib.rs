@@ -1,7 +1,6 @@
 #![feature(register_tool)]
 use std::path::PathBuf;
 
-// CODESYNC(sysroot-env) we must use the same env var in flux-bin
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
 pub fn find_flux_path() -> PathBuf {

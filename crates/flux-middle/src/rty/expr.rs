@@ -1,36 +1,36 @@
 use std::{fmt, sync::OnceLock};
 
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
-pub use flux_fixpoint::Constant;
+use flux_rustc_bridge::{
+    const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
+    ty::{Const, ConstKind},
+    ToRustc,
+};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::{
     mir::Local,
-    ty::{ParamConst, TyCtxt},
+    ty::{ParamConst, ScalarInt, TyCtxt},
 };
 use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
-    Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, FuncSort,
+    GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
-    const_eval,
+    big_int::BigInt,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
-    },
-    rustc::{
-        ty::{Const, ConstKind},
-        ToRustc,
     },
 };
 
@@ -86,11 +86,9 @@ impl AliasReft {
     }
 }
 
-pub type Expr = Interned<ExprS>;
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct ExprS {
-    kind: ExprKind,
+pub struct Expr {
+    kind: Interned<ExprKind>,
     espan: Option<ESpan>,
 }
 
@@ -163,7 +161,7 @@ pub enum ExprKind {
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generaly, we need to partially evaluate expressions such that all abstractions in
+    ///    More generally, we need to partially evaluate expressions such that all abstractions in
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
@@ -238,7 +236,7 @@ pub enum HoleKind {
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
+/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -298,33 +296,34 @@ newtype_index! {
 }
 
 impl ExprKind {
-    pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
-        Interned::new(ExprS { kind: self, espan })
-    }
-
-    pub fn intern_at(self, espan: ESpan) -> Expr {
-        self.intern_at_opt(Some(espan))
-    }
+    // pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
+    //     Expr { kind: Interned::new(self), espan }
+    // }
 
     fn intern(self) -> Expr {
-        Interned::new(ExprS { kind: self, espan: None })
+        Expr { kind: Interned::new(self), espan: None }
     }
 }
 
 impl Expr {
-    pub fn at_base(self, base: Option<ESpan>) -> Expr {
-        let kind = self.kind();
-        if let Some(espan) = self.espan
-            && let Some(base) = base
-        {
-            kind.clone().intern_at(espan.with_base(base))
+    pub fn at_opt(self, espan: Option<ESpan>) -> Expr {
+        Expr { kind: self.kind, espan }
+    }
+
+    pub fn at(self, espan: ESpan) -> Expr {
+        self.at_opt(Some(espan))
+    }
+
+    pub fn at_base(self, base: ESpan) -> Expr {
+        if let Some(espan) = self.espan {
+            self.at(espan.with_base(base))
         } else {
             self
         }
     }
 
     pub fn span(&self) -> Option<ESpan> {
-        self.espan.as_ref().copied()
+        self.espan
     }
 
     pub fn tt() -> Expr {
@@ -509,8 +508,8 @@ impl Expr {
         Expr::adt(def_id, List::empty())
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern()
+    pub fn app(func: impl Into<Expr>, args: List<Expr>) -> Expr {
+        ExprKind::App(func.into(), args).intern()
     }
 
     pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
@@ -574,9 +573,9 @@ impl Expr {
     }
 
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
-    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+    /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
+        !matches!(self.kind(), ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -588,15 +587,14 @@ impl Expr {
 
     /// Whether the expression is *literally* the constant true.
     fn is_true(&self) -> bool {
-        matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+        matches!(self.kind(), ExprKind::Constant(Constant::Bool(true)))
     }
 
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
         match &c.kind {
             ConstKind::Param(param_const) => Expr::const_generic(*param_const),
             ConstKind::Value(ty, scalar) => {
-                let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
-                Expr::constant(val)
+                Expr::constant(Constant::from_scalar_int(tcx, *scalar, ty).unwrap())
             }
             // We should have normalized away the unevaluated constants
             ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
@@ -606,7 +604,7 @@ impl Expr {
     }
 
     pub fn is_binary_op(&self) -> bool {
-        matches!(self.kind, ExprKind::BinaryOp(..))
+        matches!(self.kind(), ExprKind::BinaryOp(..))
     }
 
     fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
@@ -638,29 +636,23 @@ impl Expr {
                     ExprKind::BinaryOp(op, e1, e2) => {
                         let e1 = e1.fold_with(self);
                         let e2 = e2.fold_with(self);
-                        let e1_span = e1.span();
-                        let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e1_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e1.span())
                             }
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                ExprKind::Constant(Constant::Bool(false)).intern_at_opt(e2_span)
+                                Expr::constant(Constant::Bool(false)).at_opt(e2.span())
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
-                                let e2_span = e2.span();
-                                match Expr::const_op(op, c1, c2) {
-                                    Some(c) => {
-                                        ExprKind::Constant(c).intern_at_opt(span.or(e2_span))
-                                    }
-                                    None => {
-                                        ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span)
-                                    }
+                                if let Some(c) = Expr::const_op(op, c1, c2) {
+                                    Expr::constant(c).at_opt(span.or(e2.span()))
+                                } else {
+                                    Expr::binary_op(op.clone(), e1, e2).at_opt(span)
                                 }
                             }
-                            _ => ExprKind::BinaryOp(op.clone(), e1, e2).intern_at_opt(span),
+                            _ => Expr::binary_op(op.clone(), e1, e2).at_opt(span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -671,10 +663,9 @@ impl Expr {
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                                ExprKind::BinaryOp(BinOp::Ne, e1.clone(), e2.clone())
-                                    .intern_at_opt(span)
+                                Expr::binary_op(BinOp::Ne, e1, e2).at_opt(span)
                             }
-                            _ => ExprKind::UnaryOp(UnOp::Not, e).intern_at_opt(span),
+                            _ => Expr::unary_op(UnOp::Not, e).at_opt(span),
                         }
                     }
                     _ => expr.super_fold_with(self),
@@ -707,7 +698,7 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
-    /// Wether this is an aggregate expression with no fields.
+    /// Whether this is an aggregate expression with no fields.
     pub fn is_unit(&self) -> bool {
         matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
     }
@@ -715,7 +706,7 @@ impl Expr {
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
-            .collect_vec();
+            .collect();
         let body = Expr::app(self, args);
         Lambda::with_sorts(body, inputs, output)
     }
@@ -885,10 +876,165 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS);
-impl_slice_internable!(Expr, KVar, u32, FieldIdx);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct Real(pub i128);
+
+impl liquid_fixpoint::FixpointFmt for Real {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 < 0 {
+            write!(f, "(- {}.0)", self.0.unsigned_abs())
+        } else {
+            write!(f, "{}.0", self.0)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum Constant {
+    Int(BigInt),
+    Real(Real),
+    Bool(bool),
+    Str(Symbol),
+}
+
+impl Constant {
+    pub const ZERO: Constant = Constant::Int(BigInt::ZERO);
+    pub const ONE: Constant = Constant::Int(BigInt::ONE);
+    pub const TRUE: Constant = Constant::Bool(true);
+
+    fn to_bool(self) -> Option<bool> {
+        match self {
+            Constant::Bool(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    fn to_int(self) -> Option<BigInt> {
+        match self {
+            Constant::Int(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    pub fn iff(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 == b2))
+    }
+
+    pub fn imp(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(!b1 || b2))
+    }
+
+    pub fn or(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 || b2))
+    }
+
+    pub fn and(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 && b2))
+    }
+
+    pub fn eq(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self == *other)
+    }
+
+    pub fn ne(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self != *other)
+    }
+
+    pub fn gt(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 > n2))
+    }
+
+    pub fn ge(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 >= n2))
+    }
+
+    pub fn from_scalar_int<'tcx, T>(tcx: TyCtxt<'tcx>, scalar: ScalarInt, t: &T) -> Option<Self>
+    where
+        T: ToRustc<'tcx, T = rustc_middle::ty::Ty<'tcx>>,
+    {
+        use rustc_middle::ty::TyKind;
+        let ty = t.to_rustc(tcx);
+        match ty.kind() {
+            TyKind::Int(int_ty) => Some(Constant::from(scalar_to_int(tcx, scalar, *int_ty))),
+            TyKind::Uint(uint_ty) => Some(Constant::from(scalar_to_uint(tcx, scalar, *uint_ty))),
+            TyKind::Bool => {
+                let b = scalar_to_bits(tcx, scalar, ty)?;
+                Some(Constant::Bool(b != 0))
+            }
+            _ => None,
+        }
+    }
+
+    /// See [`BigInt::int_min`]
+    pub fn int_min(bit_width: u32) -> Constant {
+        Constant::Int(BigInt::int_min(bit_width))
+    }
+
+    /// See [`BigInt::int_max`]
+    pub fn int_max(bit_width: u32) -> Constant {
+        Constant::Int(BigInt::int_max(bit_width))
+    }
+
+    /// See [`BigInt::uint_max`]
+    pub fn uint_max(bit_width: u32) -> Constant {
+        Constant::Int(BigInt::uint_max(bit_width))
+    }
+}
+
+impl From<i32> for Constant {
+    fn from(c: i32) -> Self {
+        Constant::Int(c.into())
+    }
+}
+
+impl From<usize> for Constant {
+    fn from(u: usize) -> Self {
+        Constant::Int(u.into())
+    }
+}
+
+impl From<u128> for Constant {
+    fn from(c: u128) -> Self {
+        Constant::Int(c.into())
+    }
+}
+
+impl From<i128> for Constant {
+    fn from(c: i128) -> Self {
+        Constant::Int(c.into())
+    }
+}
+
+impl From<bool> for Constant {
+    fn from(b: bool) -> Self {
+        Constant::Bool(b)
+    }
+}
+
+impl From<Symbol> for Constant {
+    fn from(s: Symbol) -> Self {
+        Constant::Str(s)
+    }
+}
+
+impl_internable!(ExprKind);
+impl_slice_internable!(Expr, KVar);
 
 mod pretty {
+    use flux_rustc_bridge::def_id_to_string;
+
     use super::*;
     use crate::pretty::*;
 
@@ -944,8 +1090,8 @@ mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!("{:?}", var),
                 ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
-                ExprKind::Constant(c) => w!("{}", ^c),
+                ExprKind::ConstDefId(did) => w!("{}", ^def_id_to_string(*did)),
+                ExprKind::Constant(c) => w!("{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
                         w!("({:?})", e1)?;
@@ -1028,6 +1174,18 @@ mod pretty {
                         w!("{:?}", expr.as_ref().skip_binder())
                     })
                 }
+            }
+        }
+    }
+
+    impl Pretty for Constant {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Constant::Int(i) => w!("{i}"),
+                Constant::Real(r) => w!("{}.0", ^r.0),
+                Constant::Bool(b) => w!("{b}"),
+                Constant::Str(sym) => w!("{sym}"),
             }
         }
     }

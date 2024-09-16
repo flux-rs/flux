@@ -130,7 +130,6 @@ enum Context {
 
 impl Context {
     fn new(args: &[String]) -> Context {
-        // CODESYNC(flux-cargo) Check whether we are being called from cargo-flux
         if env::var("FLUX_CARGO").is_ok() {
             let build_script_build =
                 arg_value(args, "--crate-name", |val| val == "build_script_build").is_some();

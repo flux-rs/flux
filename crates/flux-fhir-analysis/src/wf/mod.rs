@@ -190,7 +190,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         let genv = self.infcx.genv;
         let enum_id = ret.enum_id;
         let Ok(adt_sort_def) = genv.adt_sort_def_of(enum_id).emit(&self.errors) else { return };
-        let Ok(args) = rty::GenericArgs::identity_for_item(genv, enum_id).emit(&self.errors) else {
+        let Ok(args) = rty::GenericArg::identity_for_item(genv, enum_id).emit(&self.errors) else {
             return;
         };
         let expected = adt_sort_def.sort(&args);

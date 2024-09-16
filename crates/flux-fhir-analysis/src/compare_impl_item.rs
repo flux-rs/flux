@@ -1,5 +1,5 @@
 use flux_common::result::ResultExt;
-use flux_middle::{global_env::GlobalEnv, pretty};
+use flux_middle::{def_id_to_string, global_env::GlobalEnv};
 use rustc_hash::FxHashSet;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
@@ -25,7 +25,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
             return Err(genv.sess().emit_err(errors::MissingAssocReft::new(
                 span,
                 name,
-                pretty::def_id_to_string(trait_id),
+                def_id_to_string(trait_id),
             )));
         }
     }
@@ -43,7 +43,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
             return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
                 fhir_impl_assoc_reft.span,
                 name,
-                pretty::def_id_to_string(trait_id),
+                def_id_to_string(trait_id),
             )));
         }
         check_assoc_reft(genv, impl_id, trait_id, impl_assoc_reft.name)?;
@@ -76,7 +76,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,
-            pretty::def_id_to_string(trait_id),
+            def_id_to_string(trait_id),
         )));
     };
 
@@ -86,7 +86,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,
-            pretty::def_id_to_string(trait_id),
+            def_id_to_string(trait_id),
         )));
     };
     let trait_sort = trait_sort.instantiate(genv.tcx(), &impl_trait_ref.args, &[]);

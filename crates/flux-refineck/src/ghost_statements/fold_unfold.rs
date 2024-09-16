@@ -2,19 +2,15 @@ use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::GlobalEnv,
-    intern::List,
-    pretty::def_id_to_string,
-    queries::QueryResult,
-    rty,
-    rustc::{
-        mir::{
-            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic,
-            Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
-            TerminatorKind, VariantIdx, FIRST_VARIANT,
-        },
-        ty::{AdtDef, GenericArgs, Ty, TyKind},
+    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty, PlaceExt as _,
+};
+use flux_rustc_bridge::{
+    mir::{
+        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
+        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
+        FIRST_VARIANT,
     },
+    ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
 };
 use itertools::{repeat_n, Itertools};
 use rustc_data_structures::unord::UnordMap;
@@ -740,13 +736,13 @@ impl PlaceNode {
             | PlaceNode::Generator(_, _, fields)
             | PlaceNode::Tuple(_, fields) => fields,
         };
-        let mut all_leafs = true;
+        let mut all_leaves = true;
         for (i, node) in fields.iter().enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leafs &= node.collect_unfolds(place, stmts);
+            all_leaves &= node.collect_unfolds(place, stmts);
             place.projection.pop();
         }
-        if all_leafs {
+        if all_leaves {
             stmts.insert(GhostStatement::Unfold(place.clone()));
         }
         if let PlaceNode::Downcast(adt, ..) = self

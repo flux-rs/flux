@@ -18,7 +18,7 @@ static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 /// fashion. When entering a context data can be associated to that particular context. When a context
 /// is exited, all its evars are put in a list of pending contexts. No more evars can be generated
 /// for pending contexts, but they can still be unified. At any point, pending contexts can be solved,
-/// returning a solution for all of their evars or an error if some evar hasn't been unifed yet.
+/// returning a solution for all of their evars or an error if some evar hasn't been unified yet.
 #[derive(Debug)]
 pub struct EVarGen<T> {
     stack: FxIndexMap<EVarCxId, EVarCtxt<T>>,

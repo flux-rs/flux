@@ -14,18 +14,18 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
-    rustc::{
-        self,
-        mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-            Terminator, TerminatorKind, START_BLOCK,
-        },
-        ty,
+};
+use flux_rustc_bridge::{
+    self,
+    mir::{
+        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+        Terminator, TerminatorKind, START_BLOCK,
     },
+    ty::{self, GenericArgsExt as _},
 };
 use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
@@ -35,7 +35,6 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_index::bit_set::BitSet;
-use rustc_infer::infer::{BoundRegionConversionTime, NllRegionVariableOrigin};
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
@@ -220,19 +219,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let body = genv.mir(def_id).with_span(span)?;
         let generics = genv.generics_of(def_id).with_span(span)?;
 
-        // The regions we assign here are not relevant because we would map them to local regions
-        // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| {
-                rty::ReVar(
-                    infcx
-                        .region_infcx
-                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-                        .as_var(),
-                )
-            },
-            |sort, _| infcx.define_vars(sort),
-        );
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?;
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
 
@@ -557,10 +547,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
@@ -640,11 +627,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        // See comment for [`Checker::check_oblig_fn_trait_pred`]
-        let poly_sig = EarlyBinder(gen_pred.to_poly_fn_sig())
-            .instantiate_identity()
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-            .with_span(self.body.span())?;
         let def_id = gen_pred.def_id;
         let span = self.genv.tcx().def_span(def_id);
         let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
@@ -652,7 +634,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
             gen_pred.def_id.expect_local(),
             self.inherited.reborrow(),
-            poly_sig,
+            gen_pred.to_poly_fn_sig(),
         )
     }
 
@@ -662,28 +644,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         fn_trait_pred: FnTraitPredicate,
     ) -> Result {
-        if let Some(BaseTy::Closure(def_id, tys)) =
+        if let Some(BaseTy::Closure(closure_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
-            // The closure signature may contain region variables generated in the `InferCtxt` of the
-            // current function so we normalize it before passing it to `Checker::run`. After
-            // normalization, the signature could still contain region variables wich haven't been
-            // declared in the closure's `InferCtxt`, but this is fine because we would map them to
-            // local regions when assigning to locals. See [`TypeEnv::assign`]
-            //
-            // After writing this, I realize it may be better to erase regions before normalization.
-            // We should revisit this at some point.
-            let poly_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()))
-                .instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                .with_span(self.body.span())?;
-            let span = self.genv.tcx().def_span(def_id);
-            let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
+            let span = self.genv.tcx().def_span(closure_id);
+            let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
             Checker::run(
-                infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
-                def_id.expect_local(),
+                infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
+                closure_id.expect_local(),
                 self.inherited.reborrow(),
-                poly_sig,
+                fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
             )?;
         } else {
             // TODO: When we allow refining closure/fn at the surface level, we would need to do
@@ -1018,7 +988,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &rustc::ty::Ty) -> Ty {
+    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
         match null_op {
             mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
                 // We could try to get the layout of type to index this with the actual value, but
@@ -1096,9 +1066,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         kind: CastKind,
         from: &Ty,
-        to: &rustc::ty::Ty,
+        to: &ty::Ty,
     ) -> Result<Ty> {
-        use rustc::ty::TyKind as RustTy;
+        use ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::PointerExposeProvenance => {
                 match to.kind() {
@@ -1163,7 +1133,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
         src: &Ty,
-        dst: &rustc::ty::Ty,
+        dst: &ty::Ty,
     ) -> Result<Ty> {
         // Convert `ptr` to `&mut`
         let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
@@ -1179,8 +1149,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             src.clone()
         };
 
-        if let rustc::ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
-            && let rustc::ty::TyKind::Dynamic(..) = deref_ty.kind()
+        if let ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
+            && let ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
             return self
                 .genv
@@ -1191,7 +1161,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
         if let TyKind::Indexed(BaseTy::Ref(_, deref_ty, _), _) = src.kind()
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
-            && let rustc::ty::TyKind::Ref(re, _, mutbl) = dst.kind()
+            && let ty::TyKind::Ref(re, _, mutbl) = dst.kind()
         {
             let idx = Expr::from_const(self.genv.tcx(), arr_len);
             Ok(Ty::mk_ref(*re, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), *mutbl))
@@ -1660,7 +1630,7 @@ fn snapshot_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
     use flux_infer::infer::InferErr;
-    use flux_middle::{pretty, queries::QueryErr};
+    use flux_middle::{def_id_to_string, queries::QueryErr};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
@@ -1708,7 +1678,7 @@ pub(crate) mod errors {
                 CheckerErrKind::OpaqueStruct(def_id) => {
                     let mut diag =
                         dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
-                    diag.arg("struct", pretty::def_id_to_string(def_id));
+                    diag.arg("struct", def_id_to_string(def_id));
                     diag.code(E0999);
                     diag
                 }

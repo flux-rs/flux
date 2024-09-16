@@ -6,7 +6,7 @@ fn test00() {
     f(0);
 }
 
-// Existential nested with a constraint tpye
+// Existential nested with a constraint type
 fn test01() {
     #[flux::sig(fn({a:int. {i32[a] | a > 0}}) -> i32{v: v >= 10})]
     fn f(x: i32) -> i32 {

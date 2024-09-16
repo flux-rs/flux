@@ -8,21 +8,20 @@ use flux_common::{
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
-    span_bug,
+    span_bug, tracked_span_bug,
 };
 use flux_config as config;
 use flux_errors::Errors;
-use flux_fixpoint::FixpointResult;
 use flux_middle::{
-    const_eval,
+    big_int::BigInt,
+    def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
-    intern::List,
-    pretty,
     queries::QueryResult,
-    rty::{self, Constant, ESpan, Lambda},
+    rty::{self, BoundVariableKindsExt as _, ESpan, Lambda, List},
 };
 use itertools::Itertools;
+use liquid_fixpoint::FixpointResult;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -35,7 +34,11 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::rty::EarlyReftParam;
+    use flux_middle::{
+        big_int::BigInt,
+        rty::{EarlyReftParam, Real},
+    };
+    use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -44,7 +47,7 @@ pub mod fixpoint {
         pub struct KVid {}
     }
 
-    impl fmt::Display for KVid {
+    impl Identifier for KVid {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "k{}", self.as_u32())
         }
@@ -90,7 +93,7 @@ pub mod fixpoint {
         }
     }
 
-    impl fmt::Display for Var {
+    impl Identifier for Var {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
@@ -121,7 +124,7 @@ pub mod fixpoint {
         Tuple(usize),
     }
 
-    impl fmt::Display for DataSort {
+    impl Identifier for DataSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 DataSort::Tuple(arity) => {
@@ -131,10 +134,24 @@ pub mod fixpoint {
         }
     }
 
-    flux_fixpoint::declare_types! {
+    #[derive(Hash)]
+    pub struct SymStr(pub Symbol);
+
+    impl FixpointFmt for SymStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "\"{}\"", self.0)
+        }
+    }
+
+    liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
+
+        type Numeral = BigInt;
+        type Decimal = Real;
+        type String = SymStr;
+
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
@@ -202,14 +219,11 @@ impl SortEncodingCtxt {
     fn func_sort_to_fixpoint(&mut self, fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
         let params = fsort.params().len();
         let fsort = fsort.skip_binders();
+        let output = self.sort_to_fixpoint(fsort.output());
         fixpoint::Sort::mk_func(
             params,
-            fsort
-                .inputs()
-                .iter()
-                .map(|s| self.sort_to_fixpoint(s))
-                .collect_vec(),
-            self.sort_to_fixpoint(fsort.output()),
+            fsort.inputs().iter().map(|s| self.sort_to_fixpoint(s)),
+            output,
         )
     }
 
@@ -300,79 +314,30 @@ where
         }
     }
 
-    pub(crate) fn with_name_map<R>(
-        &mut self,
-        name: rty::Name,
-        f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
-    ) -> R {
-        let fresh = self.ecx.local_var_env.insert_fvar_map(name);
-        let r = f(self, fresh);
-        self.ecx.local_var_env.remove_fvar_map(name);
-        r
-    }
-
-    fn assume_const_val(
-        cstr: fixpoint::Constraint,
-        var: fixpoint::GlobalVar,
-        const_val: Constant,
-    ) -> fixpoint::Constraint {
-        let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
-        let e2 = fixpoint::Expr::Constant(const_val);
-        let pred = fixpoint::Pred::Expr(e1.eq(e2));
-        fixpoint::Constraint::ForAll(
-            fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
-            Box::new(cstr),
-        )
-    }
-
-    fn fixpoint_const_info(const_info: ConstInfo) -> fixpoint::ConstInfo {
-        fixpoint::ConstInfo {
-            name: fixpoint::Var::Global(const_info.name),
-            orig: Some(const_info.orig),
-            sort: const_info.sort,
-        }
-    }
-
     pub fn check(
         mut self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
     ) -> QueryResult<Vec<Tag>> {
+        // skip checking trivial constraints
         if !constraint.is_concrete() {
-            // skip checking trivial constraints
             self.ecx.errors.into_result()?;
             return Ok(vec![]);
         }
         let def_span = self.def_span();
 
-        let kvars = self
-            .kcx
-            .kvars
-            .into_iter_enumerated()
-            .map(|(kvid, kvar)| {
-                fixpoint::KVar::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
-            })
-            .collect_vec();
+        let kvars = self.kcx.into_fixpoint();
 
-        let mut constraint = constraint;
-        for const_info in self.ecx.const_map.values() {
-            if let Some(val) = const_info.val {
-                constraint = Self::assume_const_val(constraint, const_info.name, val);
-            }
-        }
+        let constraint = self.ecx.assume_const_values(constraint);
 
-        let qualifiers = self
-            .genv
-            .qualifiers_for(self.def_id)?
-            .map(|qual| self.ecx.qualifier_to_fixpoint(qual, &mut self.scx))
-            .try_collect()?;
+        let qualifiers = self.ecx.qualifiers_for(self.def_id, &mut self.scx)?;
 
         let mut constants = self
             .ecx
             .const_map
             .into_values()
-            .map(Self::fixpoint_const_info)
+            .map(ConstInfo::into_fixpoint)
             .collect_vec();
 
         for rel in fixpoint::BinRel::INEQUALITIES {
@@ -382,14 +347,14 @@ where
                 [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
                 fixpoint::Sort::Bool,
             );
-            constants.push(fixpoint::ConstInfo {
+            constants.push(fixpoint::ConstDecl {
                 name: fixpoint::Var::UIFRel(rel),
                 sort,
-                orig: None,
+                comment: None,
             });
         }
 
-        // Check if the encoding produced any errors
+        // We are done encoding. Check if there are any errors.
         self.ecx.errors.into_result()?;
 
         let task = fixpoint::Task {
@@ -407,18 +372,39 @@ where
 
         let task_key = self.genv.tcx().def_path_str(self.def_id);
 
-        match task.check_with_cache(task_key, cache) {
-            Ok(FixpointResult::Safe(_)) => Ok(vec![]),
-            Ok(FixpointResult::Unsafe(_, errors)) => {
+        match Self::run_task_with_cache(task, task_key, cache) {
+            FixpointResult::Safe(_) => Ok(vec![]),
+            FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
                     .collect_vec())
             }
-            Ok(FixpointResult::Crash(err)) => span_bug!(def_span, "fixpoint crash: {err:?}"),
-            Err(err) => span_bug!(def_span, "failed to run fixpoint: {err:?}"),
+            FixpointResult::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         }
+    }
+
+    fn run_task_with_cache(
+        task: fixpoint::Task,
+        key: String,
+        cache: &mut QueryCache,
+    ) -> FixpointResult<TagIdx> {
+        let hash = task.hash_with_default();
+        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
+            return FixpointResult::Safe(Default::default());
+        }
+
+        let result = task
+            .run()
+            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint {err:?}"));
+
+        if config::is_cache_enabled() {
+            if let FixpointResult::Safe(_) = result {
+                cache.insert(key, hash);
+            }
+        }
+        result
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
@@ -432,6 +418,17 @@ where
         })
     }
 
+    pub(crate) fn with_name_map<R>(
+        &mut self,
+        name: rty::Name,
+        f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
+    ) -> R {
+        let fresh = self.ecx.local_var_env.insert_fvar_map(name);
+        let r = f(self, fresh);
+        self.ecx.local_var_env.remove_fvar_map(name);
+        r
+    }
+
     pub(crate) fn sort_to_fixpoint(&mut self, sort: &rty::Sort) -> fixpoint::Sort {
         self.scx.sort_to_fixpoint(sort)
     }
@@ -443,7 +440,7 @@ where
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
     ///
-    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
+    /// [`fixpoint::Constraint`]: liquid_fixpoint::Constraint
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -500,9 +497,9 @@ where
     }
 
     /// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
-    /// predicate and a list of bindings produced by ANF-fing kvars.
+    /// predicate and a list of bindings produced by ANF-ing kvars.
     ///
-    /// [`fixpoint::Pred`]: flux_fixpoint::Pred
+    /// [`fixpoint::Pred`]: liquid_fixpoint::Pred
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
@@ -513,7 +510,7 @@ where
         Ok((bindings, fixpoint::Pred::And(preds)))
     }
 
-    /// Auxiliary function to avoid creating nested conjunctions
+    /// Auxiliary function to merge nested conjunctions in a single predicate
     fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
@@ -531,7 +528,7 @@ where
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
                 // because we are weakining the context, i.e., anything true without the assumption
-                // should remaing true after adding it. Note that this relies on the predicate
+                // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
                 preds.push(fixpoint::Pred::TRUE);
@@ -558,7 +555,7 @@ where
             .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
-        // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
+        // around it, we encode `$k()` as ($k 0), or more precisely `(forall ((x int) (= x 0)) ... ($k x)`
         // after ANF-ing.
         if all_args.is_empty() {
             let fresh = self.ecx.local_var_env.fresh_name();
@@ -568,7 +565,7 @@ where
                 sort: fixpoint::Sort::Int,
                 pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
-                    fixpoint::Expr::ZERO,
+                    fixpoint::Expr::int(BigInt::ZERO),
                 )),
             });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
@@ -591,12 +588,21 @@ where
     }
 }
 
+fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
+    match cst {
+        rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
+        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
+        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
+        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
+    }
+}
+
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
     orig: rty::KVid,
 }
 
-/// During encoding into fixpoint we generate multiple fxpoint kvars per kvar in flux. A
+/// During encoding into fixpoint we generate multiple fixpoint kvars per kvar in flux. A
 /// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
 #[derive(Default)]
 struct KVarEncodingCtxt {
@@ -644,10 +650,18 @@ impl KVarEncodingCtxt {
             }
         })
     }
+
+    fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
+        self.kvars
+            .into_iter_enumerated()
+            .map(|(kvid, kvar)| {
+                fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
+            })
+            .collect()
+    }
 }
 
-/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
+/// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
 struct LocalVarEnv {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
@@ -698,9 +712,19 @@ impl LocalVarEnv {
 
 struct ConstInfo {
     name: fixpoint::GlobalVar,
-    orig: String,
     sort: fixpoint::Sort,
-    val: Option<Constant>,
+    val: Option<rty::Constant>,
+    comment: String,
+}
+
+impl ConstInfo {
+    fn into_fixpoint(self) -> fixpoint::ConstDecl {
+        fixpoint::ConstDecl {
+            name: fixpoint::Var::Global(self.name),
+            sort: self.sort,
+            comment: Some(self.comment),
+        }
+    }
 }
 
 impl FixpointKVar {
@@ -711,7 +735,7 @@ impl FixpointKVar {
 
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
-    /// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
     /// unnecessary kvars.
     ///
     /// [holes]: rty::ExprKind::Hole
@@ -888,7 +912,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
+            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => {
@@ -1110,7 +1134,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok(e)
     }
 
-    /// Apply binary relation recursively over aggregate expessions
+    /// Apply binary relation recursively over aggregate expressions
     fn apply_bin_rel_rec(
         &mut self,
         sorts: &[rty::Sort],
@@ -1203,9 +1227,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     });
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: name.to_string(),
                     sort,
                     val: None,
+                    comment: format!("uif: {name}"),
                 }
             })
             .name
@@ -1229,12 +1253,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .ok()
                     .and_then(|val| {
                         let val = val.try_to_scalar_int()?;
-                        const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
+                        rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
                     });
 
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: pretty::def_id_to_string(def_id),
+                    comment: format!("rust const: {}", def_id_to_string(def_id)),
                     sort: fixpoint::Sort::Int,
                     val,
                 }
@@ -1254,11 +1278,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let orig = format!("{alias_reft:?}");
+                let comment = format!("alias reft: {alias_reft:?}");
                 let name = self.global_var_gen.fresh();
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
-                ConstInfo { name, orig, sort, val: None }
+                ConstInfo { name, comment, sort, val: None }
             })
             .name
     }
@@ -1275,12 +1299,42 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let orig = format!("{lam:?}");
+                let comment = format!("lambda: {lam:?}");
                 let name = self.global_var_gen.fresh();
                 let sort = scx.func_sort_to_fixpoint(&lam.sort().to_poly());
-                ConstInfo { name, orig, sort, val: None }
+                ConstInfo { name, comment, sort, val: None }
             })
             .name
+    }
+
+    fn assume_const_values(&self, mut constraint: fixpoint::Constraint) -> fixpoint::Constraint {
+        for const_info in self.const_map.values() {
+            if let Some(val) = const_info.val {
+                let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(const_info.name));
+                let e2 = fixpoint::Expr::Constant(const_to_fixpoint(val));
+                let pred = fixpoint::Pred::Expr(e1.eq(e2));
+                constraint = fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        pred,
+                    },
+                    Box::new(constraint),
+                );
+            }
+        }
+        constraint
+    }
+
+    fn qualifiers_for(
+        &mut self,
+        def_id: LocalDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::Qualifier>> {
+        self.genv
+            .qualifiers_for(def_id)?
+            .map(|qual| self.qualifier_to_fixpoint(qual, scx))
+            .try_collect()
     }
 
     fn qualifier_to_fixpoint(

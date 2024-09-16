@@ -16,9 +16,9 @@ use flux_middle::{
         fold::{BottomUpFolder, TypeFoldable},
         refining::Refiner,
     },
-    rustc::ty::{self, FieldIdx, VariantIdx},
     MaybeExternId,
 };
+use flux_rustc_bridge::ty::{self, FieldIdx, VariantIdx};
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
 use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
@@ -515,15 +515,10 @@ mod errors {
     use flux_common::span_bug;
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{
-        fhir,
-        global_env::GlobalEnv,
-        rty,
-        rustc::{
-            ty::{FieldIdx, VariantIdx},
-            ToRustc,
-        },
-        MaybeExternId,
+    use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+    use flux_rustc_bridge::{
+        ty::{FieldIdx, VariantIdx},
+        ToRustc,
     };
     use rustc_span::{Span, DUMMY_SP};
 

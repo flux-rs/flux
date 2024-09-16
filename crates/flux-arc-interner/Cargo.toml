@@ -1,0 +1,14 @@
+[package]
+edition.workspace = true
+name = "flux-arc-interner"
+version = "0.1.0"
+
+[dependencies]
+dashmap.workspace = true
+hashbrown.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.rust-analyzer]
+rustc_private = true
