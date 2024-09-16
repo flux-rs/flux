@@ -494,6 +494,22 @@ impl Sub {
         }
     }
 
+    fn btys_def_id_args(
+        &mut self,
+        infcx: &mut InferCtxt,
+        a_def_id: DefId,
+        a_args: &[GenericArg],
+        b_def_id: DefId,
+        b_args: &[GenericArg],
+    ) -> InferResult {
+        debug_assert_eq!(a_def_id, b_def_id);
+        debug_assert_eq!(a_args.len(), b_args.len());
+        let variances = infcx.genv.variances_of(a_def_id);
+        for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
+            self.generic_args(infcx, *variance, ty_a, ty_b)?;
+        }
+        Ok(())
+    }
     fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {
         // infcx.push_trace(TypeTrace::btys(a, b));
 
@@ -506,14 +522,11 @@ impl Sub {
                 debug_assert_eq!(uint_ty_a, uint_ty_b);
                 Ok(())
             }
-            (BaseTy::Adt(adt_a, args_a), BaseTy::Adt(adt_b, args_b)) => {
-                debug_assert_eq!(adt_a.did(), adt_b.did());
-                debug_assert_eq!(args_a.len(), args_b.len());
-                let variances = infcx.genv.variances_of(adt_a.did());
-                for (variance, ty_a, ty_b) in izip!(variances, args_a.iter(), args_b.iter()) {
-                    self.generic_args(infcx, *variance, ty_a, ty_b)?;
-                }
-                Ok(())
+            (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) => {
+                self.btys_def_id_args(infcx, a_adt.did(), a_args, b_adt.did(), b_args)
+            }
+            (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) => {
+                self.btys_def_id_args(infcx, *a_def_id, a_args, *b_def_id, b_args)
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);

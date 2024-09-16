@@ -721,6 +721,10 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_adt(lower_adt_def(tcx, *adt_def), args))
         }
+        rustc_ty::FnDef(def_id, args) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_fn_def(*def_id, args))
+        }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
         rustc_ty::Char => Ok(Ty::mk_char()),
@@ -776,6 +780,7 @@ pub(crate) fn lower_ty<'tcx>(
 
             Ok(Ty::mk_dynamic(exi_preds, region))
         }
+
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
