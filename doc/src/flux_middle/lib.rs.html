@@ -658,9 +658,9 @@
         SortCtor::<span class="kw-2">*</span>,
         SortParamKind,
     };
-    <span class="kw">let </span>param0 = ParamSort::from(<span class="number">0</span>);
-    <span class="kw">let </span>param1 = ParamSort::from(<span class="number">1</span>);
-    <span class="kw">let </span>bv_param0 = BvSize::Param(ParamSort::from(<span class="number">0</span>));
+    <span class="kw">let </span>param0 = ParamSort::from_u32(<span class="number">0</span>);
+    <span class="kw">let </span>param1 = ParamSort::from_u32(<span class="number">1</span>);
+    <span class="kw">let </span>bv_param0 = BvSize::Param(ParamSort::from_u32(<span class="number">0</span>));
     [
         <span class="comment">// String operations
         </span>TheoryFunc {

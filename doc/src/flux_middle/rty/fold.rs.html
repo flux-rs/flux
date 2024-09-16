@@ -1420,11 +1420,6 @@
 <a href="#1420" id="1420">1420</a>
 <a href="#1421" id="1421">1421</a>
 <a href="#1422" id="1422">1422</a>
-<a href="#1423" id="1423">1423</a>
-<a href="#1424" id="1424">1424</a>
-<a href="#1425" id="1425">1425</a>
-<a href="#1426" id="1426">1426</a>
-<a href="#1427" id="1427">1427</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -2267,10 +2262,7 @@
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>c = <span class="kw">match </span><span class="self">self </span>{
             Ensures::Type(path, ty) =&gt; {
-                <span class="kw">let </span>path_expr = path
-                    .to_expr()
-                    .try_fold_with(folder)<span class="question-mark">?
-                    </span>.normalize(<span class="kw-2">&amp;</span>Default::default());
+                <span class="kw">let </span>path_expr = path.to_expr().try_fold_with(folder)<span class="question-mark">?</span>;
                 Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         <span class="macro">bug!</span>(<span class="string">"invalid path `{path_expr:?}` produced when folding `{self:?}`"</span>,)
@@ -2344,8 +2336,7 @@
                     re.try_fold_with(folder)<span class="question-mark">?</span>,
                     path.to_expr()
                         .try_fold_with(folder)<span class="question-mark">?
-                        </span>.normalize(<span class="kw-2">&amp;</span>Default::default())
-                        .to_path()
+                        </span>.to_path()
                         .expect(<span class="string">"type folding produced an invalid path"</span>),
                     ty.try_fold_with(folder)<span class="question-mark">?</span>,
                 )
@@ -2359,8 +2350,7 @@
                     pk,
                     path.to_expr()
                         .try_fold_with(folder)<span class="question-mark">?
-                        </span>.normalize(<span class="kw-2">&amp;</span>Default::default())
-                        .to_path()
+                        </span>.to_path()
                         .expect(<span class="string">"type folding produced an invalid path"</span>),
                 )
             }

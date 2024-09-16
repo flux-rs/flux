@@ -623,7 +623,7 @@
             Sort::Str =&gt; <span class="macro">w!</span>(<span class="string">"str"</span>),
             Sort::BitVec(size) =&gt; <span class="macro">w!</span>(<span class="string">"bitvec({:?})"</span>, size),
             Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">"loc"</span>),
-            Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">"@{}"</span>, ^n.index),
+            Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">"@{}"</span>, ^n.index()),
             Sort::Func(sort) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, sort),
             Sort::Tuple(sorts) =&gt; {
                 <span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {

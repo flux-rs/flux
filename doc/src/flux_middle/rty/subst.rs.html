@@ -1135,14 +1135,14 @@
 
 <span class="kw">impl </span>SortSubstDelegate <span class="kw">for </span><span class="kw-2">&amp;</span>[SortArg] {
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; Sort {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>[var.index] {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>[var.index()] {
             SortArg::Sort(sort) =&gt; sort.clone(),
             SortArg::BvSize(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected bv size for sort param"</span>),
         }
     }
 
     <span class="kw">fn </span>bv_size_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; BvSize {
-        <span class="kw">match </span><span class="self">self</span>[var.index] {
+        <span class="kw">match </span><span class="self">self</span>[var.index()] {
             SortArg::BvSize(size) =&gt; size,
             SortArg::Sort(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected sort for bv size param"</span>),
         }
@@ -1151,7 +1151,7 @@
 
 <span class="kw">impl </span>SortSubstDelegate <span class="kw">for </span><span class="kw-2">&amp;</span>[Sort] {
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; Sort {
-        <span class="self">self</span>[var.index].clone()
+        <span class="self">self</span>[var.index()].clone()
     }
 
     <span class="kw">fn </span>bv_size_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, _var: ParamSort) -&gt; BvSize {

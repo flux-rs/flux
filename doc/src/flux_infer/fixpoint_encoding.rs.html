@@ -1578,7 +1578,7 @@
                 fixpoint::Sort::App(ctor, args)
             }
             rty::Sort::Func(sort) =&gt; <span class="self">self</span>.func_sort_to_fixpoint(sort),
-            rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index),
+            rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index()),
             rty::Sort::Err | rty::Sort::Infer(<span class="kw">_</span>) | rty::Sort::Loc =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected sort {sort:?}"</span>)
             }
