@@ -378,7 +378,7 @@ impl FnTraitPredicate {
         PolyFnSig::new(fn_sig, List::empty())
     }
 
-    pub fn closure_poly_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
         let mut vars = vec![];
 
         let closure_ty = Ty::closure(closure_id, tys);

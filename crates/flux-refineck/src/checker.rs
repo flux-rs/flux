@@ -659,19 +659,25 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         oblig_sig: Binder<rty::FnSig>,
         span: Span,
     ) -> Result {
+        let genv = self.genv;
+        let tcx = genv.tcx();
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
 
-        let oblig_sig = oblig_sig.replace_bound_vars(
-            |_| {
-                rty::ReVar(
-                    infcx
-                        .region_infcx
-                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
-                        .as_var(),
-                )
-            },
-            |sort, _| infcx.define_vars(sort),
-        );
+        // let oblig_sig = oblig_sig.replace_bound_vars(
+        //     |_| {
+        //         rty::ReVar(
+        //             infcx
+        //                 .region_infcx
+        //                 .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
+        //                 .as_var(),
+        //         )
+        //     },
+        //     |sort, _| infcx.define_vars(sort),
+        // );
+        let oblig_sig = oblig_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?;
 
         // 1. Unpack `T_g` input types
         let actuals = oblig_sig
@@ -684,13 +690,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx.push_scope();
         let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
         // Instantiate fn_def_sig and normalize it
+        // let fn_def_sig = fn_def_sig
+        //     .instantiate(self.genv.tcx(), generic_args, &refine_args)
+        //     .replace_bound_vars(
+        //         |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
+        //         |sort, mode| infcx.fresh_infer_var(sort, mode),
+        //     )
+        //     .normalize_projections(self.genv, infcx.region_infcx, infcx.def_id)
+        //     .with_span(span)?;
         let fn_def_sig = fn_def_sig
-            .instantiate(self.genv.tcx(), generic_args, &refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
-            .normalize_projections(self.genv, infcx.region_infcx, infcx.def_id)
+            .instantiate(tcx, &generic_args, &refine_args)
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
         let mut at = infcx.at(span);
@@ -756,7 +767,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(def_id, tys)) => {
+            Some(BaseTy::Closure(closure_id, tys)) => {
                 let span = self.genv.tcx().def_span(closure_id);
                 let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
                 Checker::run(
