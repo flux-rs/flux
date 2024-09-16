@@ -656,13 +656,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         )
     }
 
-    /// The function `check_oblig_fn_def` does a "function subtyping" check between
+    /// The function `check_oblig_fn_def` does a function subtyping check between
     /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
-    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled as
+    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
+    /// as akin to the code
     ///
     ///   T_f := (S1,...,Sn) -> S
     ///   T_g := (T1,...,Tn) -> T
     ///   T_f <: T_g
+    ///
     ///  fn g(x1:T1,...,xn:Tn) -> T {
     ///      f(x1,...,xn)
     ///  }
@@ -676,9 +678,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result {
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
-        // println!(
-        //     "TRACE: handle the function subtyping:\n   {fn_def_sig:?} \n   <:\n   {oblig_sig:?}"
-        // );
 
         let oblig_sig = oblig_sig.replace_bound_vars(
             |_| {
@@ -714,13 +713,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
+        // 3. INPUT subtyping (g-input <: f-input)
         // TODO: Check requires predicates (?)
         // for requires in fn_def_sig.requires() {
         //     at.check_pred(requires, ConstrReason::Call);
         // }
-        assert!(fn_def_sig.requires().is_empty());
-
-        // INPUT subtyping
+        assert!(fn_def_sig.requires().is_empty()); // TODO
         for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
             let (formal, pred) = formal.unconstr();
             at.check_pred(&pred, ConstrReason::Call);
@@ -746,7 +744,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
         //     .with_span(span)?;
 
-        // Replace evars
+        // 4. Plug in the EVAR solution / replace evars
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
         let output = fn_def_sig
@@ -754,17 +752,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        // OUTPUT subtyping (RJ: new `at` to avoid borrowing errors...!)
+        // 5. OUTPUT subtyping (f_out <: g_out)
+        // RJ: new `at` to avoid borrowing errors...!
         let mut at = infcx.at(span);
         let oblig_output = oblig_sig
             .output()
             .replace_bound_refts_with(|sort, mode, _| at.fresh_infer_var(sort, mode));
         at.subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
             .with_span(span)?;
-
-        // TODO: ensures?
-        assert!(output.ensures.is_empty());
-        assert!(oblig_output.ensures.is_empty());
+        assert!(output.ensures.is_empty()); // TODO
+        assert!(oblig_output.ensures.is_empty()); // TODO
         Ok(())
     }
 
