@@ -497,7 +497,7 @@ where
     T: TypeVisitable,
 {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.value.visit_with(visitor)
+        self.skip_binder_ref().visit_with(visitor)
     }
 }
 
@@ -515,7 +515,10 @@ where
     T: TypeFoldable,
 {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::new(self.value.try_fold_with(folder)?, self.vars.try_fold_with(folder)?))
+        Ok(Binder::new(
+            self.skip_binder_ref().try_fold_with(folder)?,
+            self.vars().try_fold_with(folder)?,
+        ))
     }
 }
 
