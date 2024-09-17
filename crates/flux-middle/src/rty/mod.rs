@@ -369,7 +369,7 @@ impl FnTraitPredicate {
 
         let fn_sig = FnSig::new(
             Safety::Safe,
-            abi::Abi::RustCall,
+            abi::Abi::Rust,
             List::empty(),
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
