@@ -1027,19 +1027,6 @@
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
 <a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a>
-<a href="#1041" id="1041">1041</a>
-<a href="#1042" id="1042">1042</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1079,10 +1066,6 @@
 
     <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
         sort.super_visit_with(<span class="self">self</span>)
-    }
-
-    <span class="kw">fn </span>visit_fvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _name: Name) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
-        ControlFlow::Continue(())
     }
 
     <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
@@ -1252,9 +1235,11 @@
         <span class="kw">struct </span>CollectFreeVars(FxHashSet&lt;Name&gt;);
 
         <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>CollectFreeVars {
-            <span class="kw">fn </span>visit_fvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Name) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
-                <span class="self">self</span>.<span class="number">0</span>.insert(name);
-                ControlFlow::Continue(())
+            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
+                <span class="kw">if let </span>ExprKind::Var(Var::Free(name)) = e.kind() {
+                    <span class="self">self</span>.<span class="number">0</span>.insert(<span class="kw-2">*</span>name);
+                }
+                e.super_visit_with(<span class="self">self</span>)
             }
         }
 
@@ -1879,7 +1864,7 @@
 <span class="kw">impl </span>TypeSuperVisitable <span class="kw">for </span>Expr {
     <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind() {
-            ExprKind::Var(var) =&gt; var.visit_with(visitor),
+            ExprKind::Var(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
             ExprKind::BinaryOp(<span class="kw">_</span>, e1, e2) =&gt; {
                 e1.visit_with(visitor)<span class="question-mark">?</span>;
                 e2.visit_with(visitor)
@@ -1909,17 +1894,6 @@
             | ExprKind::Local(<span class="kw">_</span>)
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
-        }
-    }
-}
-
-<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Var {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            Var::Free(name) =&gt; visitor.visit_fvar(<span class="kw-2">*</span>name),
-            Var::ConstGeneric(<span class="kw">_</span>) | Var::Bound(<span class="kw">_</span>, <span class="kw">_</span>) | Var::EarlyParam(<span class="kw">_</span>) | Var::EVar(<span class="kw">_</span>) =&gt; {
-                ControlFlow::Continue(())
-            }
         }
     }
 }
