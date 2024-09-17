@@ -9,4 +9,3 @@ fn inc(x: usize) -> usize {
 pub fn test_ok(c: Option<usize>) -> Option<usize> {
     c.map(inc)
 }
-
