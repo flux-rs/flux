@@ -492,6 +492,10 @@
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
 <a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
@@ -888,6 +892,10 @@
                 <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(adt_def.did())<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = <span class="self">self</span>.refine_generic_args(adt_def.did(), args)<span class="question-mark">?</span>;
                 rty::BaseTy::adt(adt_def, args)
+            }
+            ty::TyKind::FnDef(def_id, args) =&gt; {
+                <span class="kw">let </span>args = <span class="self">self</span>.refine_generic_args(<span class="kw-2">*</span>def_id, args)<span class="question-mark">?</span>;
+                rty::BaseTy::fn_def(<span class="kw-2">*</span>def_id, args)
             }
             ty::TyKind::Alias(alias_kind, alias_ty) =&gt; {
                 <span class="kw">let </span>kind = <span class="self">Self</span>::refine_alias_kind(alias_kind);

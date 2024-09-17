@@ -770,6 +770,14 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1174,6 +1182,14 @@
                         .collect(),
                 );
                 BaseTy::adt(adt_def.clone(), substs)
+            }
+            BaseTy::FnDef(def_id, args) =&gt; {
+                <span class="kw">let </span>args = List::from_vec(
+                    args.iter()
+                        .map(|arg| <span class="self">Self</span>::pack_generic_arg(scope, arg))
+                        .collect(),
+                );
+                BaseTy::fn_def(<span class="kw-2">*</span>def_id, args)
             }
             BaseTy::Tuple(tys) =&gt; {
                 <span class="kw">let </span>tys = tys

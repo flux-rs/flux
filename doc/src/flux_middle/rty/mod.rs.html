@@ -2256,6 +2256,30 @@
 <a href="#2256" id="2256">2256</a>
 <a href="#2257" id="2257">2257</a>
 <a href="#2258" id="2258">2258</a>
+<a href="#2259" id="2259">2259</a>
+<a href="#2260" id="2260">2260</a>
+<a href="#2261" id="2261">2261</a>
+<a href="#2262" id="2262">2262</a>
+<a href="#2263" id="2263">2263</a>
+<a href="#2264" id="2264">2264</a>
+<a href="#2265" id="2265">2265</a>
+<a href="#2266" id="2266">2266</a>
+<a href="#2267" id="2267">2267</a>
+<a href="#2268" id="2268">2268</a>
+<a href="#2269" id="2269">2269</a>
+<a href="#2270" id="2270">2270</a>
+<a href="#2271" id="2271">2271</a>
+<a href="#2272" id="2272">2272</a>
+<a href="#2273" id="2273">2273</a>
+<a href="#2274" id="2274">2274</a>
+<a href="#2275" id="2275">2275</a>
+<a href="#2276" id="2276">2276</a>
+<a href="#2277" id="2277">2277</a>
+<a href="#2278" id="2278">2278</a>
+<a href="#2279" id="2279">2279</a>
+<a href="#2280" id="2280">2280</a>
+<a href="#2281" id="2281">2281</a>
+<a href="#2282" id="2282">2282</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2638,6 +2662,20 @@
 }
 
 <span class="kw">impl </span>FnTraitPredicate {
+    <span class="kw">pub fn </span>fndef_poly_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PolyFnSig {
+        <span class="kw">let </span>inputs = <span class="self">self</span>.tupled_args.expect_tuple().iter().cloned().collect();
+
+        <span class="kw">let </span>fn_sig = FnSig::new(
+            Safety::Safe,
+            abi::Abi::Rust,
+            List::empty(),
+            inputs,
+            Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
+        );
+
+        PolyFnSig::new(fn_sig, List::empty())
+    }
+
     <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, closure_id: DefId, tys: List&lt;Ty&gt;) -&gt; PolyFnSig {
         <span class="kw">let </span><span class="kw-2">mut </span>vars = <span class="macro">vec!</span>[];
 
@@ -3520,6 +3558,7 @@
     RawPtr(Ty, Mutability),
     Ref(Region, Ty, Mutability),
     FnPtr(PolyFnSig),
+    FnDef(DefId, GenericArgs),
     Tuple(List&lt;Ty&gt;),
     Array(Ty, Const),
     Never,
@@ -3532,6 +3571,10 @@
 <span class="kw">impl </span>BaseTy {
     <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
         BaseTy::Adt(adt_def, args.into())
+    }
+
+    <span class="kw">pub fn </span>fn_def(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
+        BaseTy::FnDef(def_id, args.into())
     }
 
     <span class="kw">pub fn </span>from_primitive_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BaseTy&gt; {
@@ -3681,6 +3724,7 @@
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
             | BaseTy::FnPtr(..)
+            | BaseTy::FnDef(..)
             | BaseTy::Tuple(<span class="kw">_</span>)
             | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
@@ -3718,6 +3762,10 @@
                 <span class="kw">let </span>adt_def = tcx.adt_def(did);
                 <span class="kw">let </span>args = args.to_rustc(tcx);
                 ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::FnDef(def_id, args) =&gt; {
+                <span class="kw">let </span>args = args.to_rustc(tcx);
+                ty::Ty::new_fn_def(tcx, <span class="kw-2">*</span>def_id, args)
             }
             BaseTy::Float(f) =&gt; ty::Ty::new_float(tcx, <span class="kw-2">*</span>f),
             BaseTy::RawPtr(ty, mutbl) =&gt; ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),

@@ -523,6 +523,9 @@
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -942,6 +945,9 @@
                     <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, args))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
+            }
+            BaseTy::FnDef(def_id, args) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"FnDef({:?}[{:?}])"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, args))
             }
             BaseTy::Param(param) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^param),
             BaseTy::Float(float_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^float_ty.name_str()),

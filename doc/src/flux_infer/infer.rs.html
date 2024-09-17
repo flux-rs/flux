@@ -743,6 +743,10 @@
 <a href="#743" id="743">743</a>
 <a href="#744" id="744">744</a>
 <a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1239,20 +1243,24 @@
                 <span class="macro">debug_assert_eq!</span>(uint_ty_a, uint_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Adt(adt_a, args_a), BaseTy::Adt(adt_b, args_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(adt_a.did(), adt_b.did());
-                <span class="macro">debug_assert_eq!</span>(args_a.len(), args_b.len());
-                <span class="kw">let </span>variances = infcx.genv.variances_of(adt_a.did());
-                <span class="kw">for </span>(variance, ty_a, ty_b) <span class="kw">in </span><span class="macro">izip!</span>(variances, args_a.iter(), args_b.iter()) {
+            (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(a_adt.did(), b_adt.did());
+                <span class="macro">debug_assert_eq!</span>(a_args.len(), b_args.len());
+                <span class="kw">let </span>variances = infcx.genv.variances_of(a_adt.did());
+                <span class="kw">for </span>(variance, ty_a, ty_b) <span class="kw">in </span><span class="macro">izip!</span>(variances, a_args.iter(), b_args.iter()) {
                     <span class="self">self</span>.generic_args(infcx, <span class="kw-2">*</span>variance, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
+                <span class="prelude-val">Ok</span>(())
+            }
+            (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(a_def_id, b_def_id);
+                <span class="macro">assert_eq!</span>(a_args, b_args);
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(float_ty1, float_ty2);
                 <span class="prelude-val">Ok</span>(())
             }
-
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) =&gt; <span class="self">self</span>.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(<span class="kw">_</span>, ty_a, Mutability::Mut), BaseTy::Ref(<span class="kw">_</span>, ty_b, Mutability::Mut)) =&gt; {
                 <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;

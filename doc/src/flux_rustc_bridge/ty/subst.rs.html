@@ -140,6 +140,7 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::{Internable, List};
 
 <span class="kw">use super</span>::{
@@ -175,6 +176,7 @@
     <span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; Ty {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Adt(adt_def, args2) =&gt; Ty::mk_adt(adt_def.clone(), args2.subst(args)),
+            TyKind::FnDef(def_id, args2) =&gt; Ty::mk_fn_def(<span class="kw-2">*</span>def_id, args2.subst(args)),
             TyKind::Array(ty, len) =&gt; Ty::mk_array(ty.subst(args), len.clone()),
             TyKind::Ref(re, ty, mutbl) =&gt; Ty::mk_ref(<span class="kw-2">*</span>re, ty.subst(args), <span class="kw-2">*</span>mutbl),
             TyKind::Tuple(tys) =&gt; Ty::mk_tuple(tys.subst(args)),
