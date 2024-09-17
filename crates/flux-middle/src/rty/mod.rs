@@ -4,6 +4,7 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
+mod binder;
 pub mod canonicalize;
 pub mod evars;
 mod expr;
@@ -13,8 +14,9 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
 
+pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, EarlyBinder};
 pub use evars::{EVar, EVarGen};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
@@ -52,10 +54,7 @@ use rustc_target::spec::abi;
 pub use rustc_type_ir::{TyVid, INNERMOST};
 pub use SortInfer::*;
 
-use self::{
-    fold::TypeFoldable,
-    subst::{BoundVarReplacer, FnMutDelegate},
-};
+use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
     fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
@@ -848,146 +847,6 @@ pub struct VariantSig {
     pub idx: Expr,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
-pub enum BoundReftKind {
-    Annon,
-    Named(Symbol),
-}
-
-#[derive(
-    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
-)]
-pub enum BoundVariableKind {
-    Region(BoundRegionKind),
-    Refine(Sort, InferMode, BoundReftKind),
-}
-
-impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
-        if let BoundVariableKind::Refine(sort, mode, kind) = self {
-            (sort, *mode, *kind)
-        } else {
-            bug!("expected `BoundVariableKind::Refine`")
-        }
-    }
-
-    pub fn expect_sort(&self) -> &Sort {
-        self.expect_refine().0
-    }
-}
-
-#[extension(pub trait BoundVariableKindsExt)]
-impl List<BoundVariableKind> {
-    fn to_sort_list(&self) -> List<Sort> {
-        self.iter()
-            .map(|kind| {
-                match kind {
-                    BoundVariableKind::Region(_) => {
-                        bug!("`to_sort_list` called on bound variable list with non-refinements")
-                    }
-                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
-                }
-            })
-            .collect()
-    }
-
-    // We can't implement [`ToRustc`] because of coherence so we add it here
-    fn to_rustc<'tcx>(
-        &self,
-        tcx: TyCtxt<'tcx>,
-    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
-        tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
-            match kind {
-                BoundVariableKind::Region(brk) => {
-                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
-                }
-                BoundVariableKind::Refine(..) => None,
-            }
-        }))
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub struct Binder<T> {
-    vars: List<BoundVariableKind>,
-    value: T,
-}
-
-impl<T> Binder<T> {
-    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
-        Binder { vars, value }
-    }
-
-    pub fn dummy(value: T) -> Binder<T> {
-        Binder::new(value, List::empty())
-    }
-
-    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
-        let vars = sorts
-            .iter()
-            .cloned()
-            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
-            .collect();
-        Binder { vars, value }
-    }
-
-    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder::with_sorts(value, &[sort])
-    }
-
-    pub fn vars(&self) -> &List<BoundVariableKind> {
-        &self.vars
-    }
-
-    pub fn as_ref(&self) -> Binder<&T> {
-        Binder { vars: self.vars.clone(), value: &self.value }
-    }
-
-    pub fn skip_binder(self) -> T {
-        self.value
-    }
-
-    pub fn skip_binder_ref(&self) -> &T {
-        self.as_ref().skip_binder()
-    }
-
-    pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars, value }
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
-        Binder { vars: self.vars, value: f(self.value) }
-    }
-
-    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
-        Ok(Binder { vars: self.vars, value: f(self.value)? })
-    }
-
-    #[track_caller]
-    pub fn sort(&self) -> Sort {
-        match &self.vars[..] {
-            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
-            _ => bug!("expected single-sorted binder"),
-        }
-    }
-}
-
-impl<'tcx, V> ToRustc<'tcx> for Binder<V>
-where
-    V: ToRustc<'tcx, T: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>>,
-{
-    type T = rustc_middle::ty::Binder<'tcx, V::T>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        let vars = self.vars.to_rustc(tcx);
-        let value = self.value.to_rustc(tcx);
-        rustc_middle::ty::Binder::bind_with_vars(value, vars)
-    }
-}
-
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
-pub struct EarlyBinder<T>(pub T);
-
 pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
@@ -1042,8 +901,8 @@ pub type TyCtor = Binder<Ty>;
 
 impl TyCtor {
     pub fn to_ty(&self) -> Ty {
-        match &self.vars[..] {
-            [] => return self.value.shift_out_escaping(1),
+        match &self.vars()[..] {
+            [] => return self.skip_binder_ref().shift_out_escaping(1),
             [BoundVariableKind::Refine(sort, ..)] => {
                 if sort.is_unit() {
                     return self.replace_bound_reft(&Expr::unit());
@@ -1958,109 +1817,9 @@ impl RefinementGenerics {
     }
 }
 
-impl<T> EarlyBinder<T> {
-    pub fn as_ref(&self) -> EarlyBinder<&T> {
-        EarlyBinder(&self.0)
-    }
-
-    pub fn as_deref(&self) -> EarlyBinder<&T::Target>
-    where
-        T: std::ops::Deref,
-    {
-        EarlyBinder(self.0.deref())
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EarlyBinder<U> {
-        EarlyBinder(f(self.0))
-    }
-
-    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<EarlyBinder<U>, E> {
-        Ok(EarlyBinder(f(self.0)?))
-    }
-
-    pub fn skip_binder(self) -> T {
-        self.0
-    }
-
-    pub fn instantiate_identity(self) -> T {
-        self.0
-    }
-}
-
 impl EarlyBinder<GenericPredicates> {
     pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
         EarlyBinder(self.0.predicates.clone())
-    }
-}
-
-impl<T> Binder<T>
-where
-    T: TypeFoldable,
-{
-    pub fn replace_bound_vars(
-        &self,
-        mut replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
-    ) -> T {
-        let mut exprs = UnordMap::default();
-        let mut regions = UnordMap::default();
-        let delegate = FnMutDelegate::new(
-            |breft| {
-                exprs
-                    .entry(breft.var)
-                    .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
-                        replace_expr(sort, mode)
-                    })
-                    .clone()
-            },
-            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
-        );
-
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
-    }
-
-    pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
-        let delegate = FnMutDelegate::new(
-            |breft| exprs[breft.var.as_usize()].clone(),
-            |_| bug!("unexpected escaping region"),
-        );
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
-    }
-
-    pub fn replace_bound_reft(&self, expr: &Expr) -> T {
-        debug_assert!(matches!(&self.vars[..], [BoundVariableKind::Refine(..)]));
-        self.replace_bound_refts(slice::from_ref(expr))
-    }
-
-    pub fn replace_bound_refts_with(
-        &self,
-        mut f: impl FnMut(&Sort, InferMode, BoundReftKind) -> Expr,
-    ) -> T {
-        let exprs = self
-            .vars
-            .iter()
-            .map(|param| {
-                let (sort, mode, kind) = param.expect_refine();
-                f(sort, mode, kind)
-            })
-            .collect_vec();
-        self.replace_bound_refts(&exprs)
-    }
-}
-
-impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
-        self.0
-            .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::GenericArgsDelegate(args, tcx),
-                refine_args,
-            ))
-            .into_ok()
     }
 }
 
@@ -2296,7 +2055,7 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
 impl Binder<Expr> {
     /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
-        self.value.is_trivially_true()
+        self.skip_binder_ref().is_trivially_true()
     }
 }
 
@@ -2376,7 +2135,6 @@ impl_slice_internable!(
     Clause,
     PolyVariant,
     Invariant,
-    BoundVariableKind,
     RefineParam,
     AssocRefinement,
     SortParamKind,

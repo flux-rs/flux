@@ -37,11 +37,11 @@ where
 {
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        cx.with_bound_vars(&self.vars, || {
-            if !self.vars.is_empty() {
-                cx.fmt_bound_vars(true, "for<", &self.vars, "> ", f)?;
+        cx.with_bound_vars(self.vars(), || {
+            if !self.vars().is_empty() {
+                cx.fmt_bound_vars(true, "for<", self.vars(), "> ", f)?;
             }
-            w!("{:?}", &self.value)
+            w!("{:?}", self.skip_binder_ref())
         })
     }
 }
@@ -55,12 +55,12 @@ impl<T: Pretty> std::fmt::Debug for Binder<T> {
 impl Pretty for PolyFnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        let vars = &self.vars;
+        let vars = self.vars();
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
                 cx.fmt_bound_vars(true, "for<", vars, "> ", f)?;
             }
-            w!("{:?}", &self.value)
+            w!("{:?}", self.skip_binder_ref())
         })
     }
 }
@@ -193,12 +193,12 @@ impl Pretty for FnSig {
 impl Pretty for Binder<FnOutput> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        let vars = &self.vars;
+        let vars = self.vars();
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
                 cx.fmt_bound_vars(true, "exists<", vars, "> ", f)?;
             }
-            w!("{:?}", &self.value)
+            w!("{:?}", self.skip_binder_ref())
         })
     }
 }
@@ -253,13 +253,14 @@ impl Pretty for Ty {
                 }
                 Ok(())
             }
-            TyKind::Exists(Binder { vars, value: ty }) => {
+            TyKind::Exists(ty_ctor) => {
+                let vars = ty_ctor.vars();
                 cx.with_bound_vars(vars, || {
                     if cx.hide_refinements {
-                        w!("{:?}", ty)
+                        w!("{:?}", ty_ctor.skip_binder_ref())
                     } else {
                         cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                        w!("{:?}", ty)
+                        w!("{:?}", ty_ctor.skip_binder_ref())
                     }
                 })
             }
@@ -478,7 +479,7 @@ impl Pretty for GenericArg {
             GenericArg::Base(ctor) => {
                 cx.with_bound_vars(ctor.vars(), || {
                     cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
-                    w!("{:?}", &ctor.value)
+                    w!("{:?}", ctor.skip_binder_ref())
                 })
             }
             GenericArg::Lifetime(re) => w!("{:?}", re),
