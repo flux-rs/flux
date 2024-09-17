@@ -555,14 +555,14 @@ trait SortSubstDelegate {
 
 impl SortSubstDelegate for &[SortArg] {
     fn sort_for_param(&self, var: ParamSort) -> Sort {
-        match &self[var.index] {
+        match &self[var.index()] {
             SortArg::Sort(sort) => sort.clone(),
             SortArg::BvSize(_) => tracked_span_bug!("unexpected bv size for sort param"),
         }
     }
 
     fn bv_size_for_param(&self, var: ParamSort) -> BvSize {
-        match self[var.index] {
+        match self[var.index()] {
             SortArg::BvSize(size) => size,
             SortArg::Sort(_) => tracked_span_bug!("unexpected sort for bv size param"),
         }
@@ -571,7 +571,7 @@ impl SortSubstDelegate for &[SortArg] {
 
 impl SortSubstDelegate for &[Sort] {
     fn sort_for_param(&self, var: ParamSort) -> Sort {
-        self[var.index].clone()
+        self[var.index()].clone()
     }
 
     fn bv_size_for_param(&self, _var: ParamSort) -> BvSize {

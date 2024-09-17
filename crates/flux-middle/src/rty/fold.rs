@@ -15,12 +15,8 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialProjection,
-    ExistentialTraitRef, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg,
-    Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReBound, ReErased, Region, Sort, SortArg, SubsetTy,
-    TraitPredicate, TraitRef, Ty, TyKind,
+    BaseTy, Binder, Const, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate,
+    PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -41,10 +37,6 @@ pub trait TypeVisitor: Sized {
 
     fn visit_sort(&mut self, sort: &Sort) -> ControlFlow<Self::BreakTy> {
         sort.super_visit_with(self)
-    }
-
-    fn visit_fvar(&mut self, _name: Name) -> ControlFlow<Self::BreakTy> {
-        ControlFlow::Continue(())
     }
 
     fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
@@ -214,9 +206,11 @@ pub trait TypeVisitable: Sized {
         struct CollectFreeVars(FxHashSet<Name>);
 
         impl TypeVisitor for CollectFreeVars {
-            fn visit_fvar(&mut self, name: Name) -> ControlFlow<Self::BreakTy> {
-                self.0.insert(name);
-                ControlFlow::Continue(())
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::Free(name)) = e.kind() {
+                    self.0.insert(*name);
+                }
+                e.super_visit_with(self)
             }
         }
 
@@ -411,50 +405,6 @@ pub trait TypeSuperFoldable: TypeFoldable {
     }
 }
 
-impl TypeVisitable for Clause {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.kind.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for Clause {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Clause { kind: self.kind.try_fold_with(folder)? })
-    }
-}
-
-impl TypeVisitable for ClauseKind {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
-            ClauseKind::Trait(pred) => pred.visit_with(visitor),
-            ClauseKind::Projection(pred) => pred.visit_with(visitor),
-            ClauseKind::CoroutineOblig(pred) => pred.visit_with(visitor),
-            ClauseKind::TypeOutlives(pred) => pred.visit_with(visitor),
-            ClauseKind::ConstArgHasType(_const, ty) => ty.visit_with(visitor),
-        }
-    }
-}
-
-impl TypeFoldable for ClauseKind {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        match self {
-            ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
-            ClauseKind::Trait(pred) => Ok(ClauseKind::Trait(pred.try_fold_with(folder)?)),
-            ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
-            ClauseKind::CoroutineOblig(pred) => {
-                Ok(ClauseKind::CoroutineOblig(pred.try_fold_with(folder)?))
-            }
-            ClauseKind::TypeOutlives(pred) => {
-                Ok(ClauseKind::TypeOutlives(pred.try_fold_with(folder)?))
-            }
-            ClauseKind::ConstArgHasType(const_, ty) => {
-                Ok(ClauseKind::ConstArgHasType(const_.clone(), ty.try_fold_with(folder)?))
-            }
-        }
-    }
-}
-
 impl<T: TypeVisitable> TypeVisitable for OutlivesPredicate<T> {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.0.visit_with(visitor)?;
@@ -465,145 +415,6 @@ impl<T: TypeVisitable> TypeVisitable for OutlivesPredicate<T> {
 impl<T: TypeFoldable> TypeFoldable for OutlivesPredicate<T> {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(OutlivesPredicate(self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
-    }
-}
-
-impl TypeVisitable for TraitPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.trait_ref.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for TraitPredicate {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(TraitPredicate { trait_ref: self.trait_ref.try_fold_with(folder)? })
-    }
-}
-
-impl TypeVisitable for TraitRef {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for TraitRef {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(TraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
-    }
-}
-
-impl TypeVisitable for ExistentialTraitRef {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for ExistentialTraitRef {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(ExistentialTraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
-    }
-}
-
-impl TypeVisitable for ExistentialProjection {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)?;
-        self.term.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for ExistentialProjection {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(ExistentialProjection {
-            def_id: self.def_id,
-            args: self.args.try_fold_with(folder)?,
-            term: self.term.try_fold_with(folder)?,
-        })
-    }
-}
-
-impl TypeVisitable for ExistentialPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            ExistentialPredicate::Trait(trait_ref) => trait_ref.visit_with(visitor),
-            ExistentialPredicate::Projection(projection) => projection.visit_with(visitor),
-            ExistentialPredicate::AutoTrait(_) => ControlFlow::Continue(()),
-        }
-    }
-}
-
-impl TypeFoldable for ExistentialPredicate {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        match self {
-            ExistentialPredicate::Trait(trait_ref) => {
-                Ok(ExistentialPredicate::Trait(trait_ref.try_fold_with(folder)?))
-            }
-            ExistentialPredicate::Projection(projection) => {
-                Ok(ExistentialPredicate::Projection(projection.try_fold_with(folder)?))
-            }
-            ExistentialPredicate::AutoTrait(def_id) => Ok(ExistentialPredicate::AutoTrait(*def_id)),
-        }
-    }
-}
-
-impl TypeVisitable for CoroutineObligPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.upvar_tys.visit_with(visitor)?;
-        self.output.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for CoroutineObligPredicate {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(CoroutineObligPredicate {
-            def_id: self.def_id,
-            resume_ty: self.resume_ty.try_fold_with(folder)?,
-            upvar_tys: self.upvar_tys.try_fold_with(folder)?,
-            output: self.output.try_fold_with(folder)?,
-        })
-    }
-}
-
-impl TypeVisitable for ProjectionPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.projection_ty.visit_with(visitor)?;
-        self.term.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for ProjectionPredicate {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(ProjectionPredicate {
-            projection_ty: self.projection_ty.try_fold_with(folder)?,
-            term: self.term.try_fold_with(folder)?,
-        })
-    }
-}
-
-impl TypeVisitable for FnTraitPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.self_ty.visit_with(visitor)?;
-        self.tupled_args.visit_with(visitor)?;
-        self.output.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for FnTraitPredicate {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(FnTraitPredicate {
-            self_ty: self.self_ty.try_fold_with(folder)?,
-            tupled_args: self.tupled_args.try_fold_with(folder)?,
-            output: self.output.try_fold_with(folder)?,
-            kind: self.kind,
-        })
-    }
-}
-
-impl TypeVisitable for SortArg {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            SortArg::Sort(sort) => sort.visit_with(visitor),
-            SortArg::BvSize(_) => ControlFlow::Continue(()),
-        }
     }
 }
 
@@ -629,15 +440,6 @@ impl TypeSuperVisitable for Sort {
             | Sort::Var(_)
             | Sort::Infer(_)
             | Sort::Err => ControlFlow::Continue(()),
-        }
-    }
-}
-
-impl TypeFoldable for SortArg {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        match self {
-            SortArg::Sort(sort) => Ok(SortArg::Sort(sort.try_fold_with(folder)?)),
-            SortArg::BvSize(size) => Ok(SortArg::BvSize(*size)),
         }
     }
 }
@@ -681,18 +483,6 @@ impl TypeFoldable for PolyFuncSort {
     }
 }
 
-impl TypeVisitable for FuncSort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.inputs_and_output.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for FuncSort {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(FuncSort { inputs_and_output: self.inputs_and_output.try_fold_with(folder)? })
-    }
-}
-
 impl<T> TypeVisitable for Binder<T>
 where
     T: TypeVisitable,
@@ -707,7 +497,7 @@ where
     T: TypeVisitable,
 {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.value.visit_with(visitor)
+        self.skip_binder_ref().visit_with(visitor)
     }
 }
 
@@ -725,28 +515,10 @@ where
     T: TypeFoldable,
 {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::new(self.value.try_fold_with(folder)?, self.vars.try_fold_with(folder)?))
-    }
-}
-
-impl TypeVisitable for BoundVariableKind {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            BoundVariableKind::Region(_) => ControlFlow::Continue(()),
-            BoundVariableKind::Refine(sort, ..) => sort.visit_with(visitor),
-        }
-    }
-}
-
-impl TypeFoldable for BoundVariableKind {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let re = match self {
-            BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
-            BoundVariableKind::Refine(sort, mode, kind) => {
-                BoundVariableKind::Refine(sort.try_fold_with(folder)?, *mode, *kind)
-            }
-        };
-        Ok(re)
+        Ok(Binder::new(
+            self.skip_binder_ref().try_fold_with(folder)?,
+            self.vars().try_fold_with(folder)?,
+        ))
     }
 }
 
@@ -768,59 +540,9 @@ impl TypeFoldable for VariantSig {
     }
 }
 
-impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        if let Opaqueness::Transparent(t) = self {
-            t.visit_with(visitor)
-        } else {
-            ControlFlow::Continue(())
-        }
-    }
-}
-
-impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        self.as_ref().map(|t| t.try_fold_with(folder)).transpose()
-    }
-}
-
 impl<T: TypeVisitable> TypeVisitable for Vec<T> {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.iter().try_for_each(|t| t.visit_with(visitor))
-    }
-}
-
-impl TypeVisitable for FnSig {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.requires
-            .iter()
-            .try_for_each(|constr| constr.visit_with(visitor))?;
-        self.inputs
-            .iter()
-            .try_for_each(|arg| arg.visit_with(visitor))?;
-        self.output.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for FnSig {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let requires = self.requires.try_fold_with(folder)?;
-        let args = self.inputs.try_fold_with(folder)?;
-        let output = self.output.try_fold_with(folder)?;
-        Ok(FnSig::new(self.safety, self.abi, requires, args, output))
-    }
-}
-
-impl TypeVisitable for FnOutput {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.ret.visit_with(visitor)?;
-        self.ensures.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for FnOutput {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(FnOutput::new(self.ret.try_fold_with(folder)?, self.ensures.try_fold_with(folder)?))
     }
 }
 
@@ -840,10 +562,7 @@ impl TypeFoldable for Ensures {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let c = match self {
             Ensures::Type(path, ty) => {
-                let path_expr = path
-                    .to_expr()
-                    .try_fold_with(folder)?
-                    .normalize(&Default::default());
+                let path_expr = path.to_expr().try_fold_with(folder)?;
                 Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
@@ -854,12 +573,6 @@ impl TypeFoldable for Ensures {
             Ensures::Pred(e) => Ensures::Pred(e.try_fold_with(folder)?),
         };
         Ok(c)
-    }
-}
-
-impl TypeVisitable for AliasReft {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)
     }
 }
 
@@ -917,7 +630,6 @@ impl TypeSuperFoldable for Ty {
                     re.try_fold_with(folder)?,
                     path.to_expr()
                         .try_fold_with(folder)?
-                        .normalize(&Default::default())
                         .to_path()
                         .expect("type folding produced an invalid path"),
                     ty.try_fold_with(folder)?,
@@ -932,7 +644,6 @@ impl TypeSuperFoldable for Ty {
                     pk,
                     path.to_expr()
                         .try_fold_with(folder)?
-                        .normalize(&Default::default())
                         .to_path()
                         .expect("type folding produced an invalid path"),
                 )
@@ -965,12 +676,18 @@ impl TypeVisitable for Region {
     }
 }
 
+impl TypeFoldable for Region {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_region(self)
+    }
+}
+
 impl TypeSuperFoldable for Const {
     fn try_super_fold_with<F: FallibleTypeFolder>(
         &self,
         _folder: &mut F,
     ) -> Result<Self, F::Error> {
-        // FIXME(nilehmann) we are not folding the type in `ConstKind::Value` because is a rustc::ty::Ty
+        // FIXME(nilehmann) we are not folding the type in `ConstKind::Value` because it's a rustc::ty::Ty
         Ok(self.clone())
     }
 }
@@ -984,12 +701,6 @@ impl TypeVisitable for Const {
 impl TypeFoldable for Const {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         folder.try_fold_const(self)
-    }
-}
-
-impl TypeFoldable for Region {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        folder.try_fold_region(self)
     }
 }
 
@@ -1073,22 +784,6 @@ impl TypeSuperFoldable for BaseTy {
     }
 }
 
-impl TypeVisitable for AliasTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for AliasTy {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(AliasTy {
-            args: self.args.try_fold_with(folder)?,
-            def_id: self.def_id,
-            refine_args: self.refine_args.try_fold_with(folder)?,
-        })
-    }
-}
-
 impl TypeVisitable for SubsetTy {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.bty.visit_with(visitor)?;
@@ -1136,22 +831,6 @@ impl TypeFoldable for GenericArg {
     }
 }
 
-impl TypeVisitable for KVar {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.args.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for KVar {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(KVar {
-            kvid: self.kvid,
-            self_args: self.self_args,
-            args: self.args.try_fold_with(folder)?,
-        })
-    }
-}
-
 impl TypeVisitable for Expr {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_expr(self)
@@ -1161,7 +840,7 @@ impl TypeVisitable for Expr {
 impl TypeSuperVisitable for Expr {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self.kind() {
-            ExprKind::Var(var) => var.visit_with(visitor),
+            ExprKind::Var(_) => ControlFlow::Continue(()),
             ExprKind::BinaryOp(_, e1, e2) => {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
@@ -1192,41 +871,6 @@ impl TypeSuperVisitable for Expr {
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
         }
-    }
-}
-
-impl TypeVisitable for Lambda {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.body.visit_with(visitor)?;
-        self.output.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for Lambda {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Lambda {
-            body: self.body.try_fold_with(folder)?,
-            output: self.output.try_fold_with(folder)?,
-        })
-    }
-}
-
-impl TypeVisitable for Var {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            Var::Free(name) => visitor.visit_fvar(*name),
-            Var::ConstGeneric(_) | Var::Bound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => {
-                ControlFlow::Continue(())
-            }
-        }
-    }
-}
-
-impl TypeFoldable for AliasReft {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let trait_id = self.trait_id;
-        let args = self.args.try_fold_with(folder)?;
-        Ok(AliasReft { trait_id, name: self.name, args })
     }
 }
 
@@ -1283,68 +927,6 @@ impl TypeSuperFoldable for Expr {
     }
 }
 
-impl TypeVisitable for BinOp {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            BinOp::Gt(sort) | BinOp::Ge(sort) | BinOp::Lt(sort) | BinOp::Le(sort) => {
-                sort.visit_with(visitor)
-            }
-            BinOp::Iff
-            | BinOp::Imp
-            | BinOp::Or
-            | BinOp::And
-            | BinOp::Eq
-            | BinOp::Ne
-            | BinOp::Add
-            | BinOp::Sub
-            | BinOp::Mul
-            | BinOp::Div
-            | BinOp::Mod => ControlFlow::Continue(()),
-        }
-    }
-}
-
-impl TypeFoldable for BinOp {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let op = match self {
-            BinOp::Iff => BinOp::Iff,
-            BinOp::Imp => BinOp::Imp,
-            BinOp::Or => BinOp::Or,
-            BinOp::And => BinOp::And,
-            BinOp::Eq => BinOp::Eq,
-            BinOp::Ne => BinOp::Ne,
-            BinOp::Gt(sort) => BinOp::Gt(sort.try_fold_with(folder)?),
-            BinOp::Ge(sort) => BinOp::Ge(sort.try_fold_with(folder)?),
-            BinOp::Lt(sort) => BinOp::Lt(sort.try_fold_with(folder)?),
-            BinOp::Le(sort) => BinOp::Le(sort.try_fold_with(folder)?),
-            BinOp::Add => BinOp::Add,
-            BinOp::Sub => BinOp::Sub,
-            BinOp::Mul => BinOp::Mul,
-            BinOp::Div => BinOp::Div,
-            BinOp::Mod => BinOp::Mod,
-        };
-        Ok(op)
-    }
-}
-
-impl TypeVisitable for HoleKind {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            HoleKind::Pred => ControlFlow::Continue(()),
-            HoleKind::Expr(sort) => sort.visit_with(visitor),
-        }
-    }
-}
-
-impl TypeFoldable for HoleKind {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        match self {
-            HoleKind::Pred => Ok(HoleKind::Pred),
-            HoleKind::Expr(sort) => Ok(HoleKind::Expr(sort.try_fold_with(folder)?)),
-        }
-    }
-}
-
 impl<T> TypeVisitable for List<T>
 where
     T: TypeVisitable,
@@ -1362,35 +944,6 @@ where
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         self.iter().map(|t| t.try_fold_with(folder)).try_collect()
-    }
-}
-
-impl TypeVisitable for Qualifier {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.body.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for Qualifier {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Qualifier {
-            name: self.name,
-            body: self.body.try_fold_with(folder)?,
-            global: self.global,
-        })
-    }
-}
-
-impl TypeVisitable for Invariant {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.pred.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for Invariant {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let pred = self.pred.try_fold_with(folder)?;
-        Ok(Invariant { pred })
     }
 }
 
@@ -1426,4 +979,56 @@ where
         let ct = ct.super_fold_with(self);
         (self.ct_op)(ct)
     }
+}
+
+/// Used for types that are `Copy` and which **do not care arena
+/// allocated data** (i.e., don't need to be folded).
+macro_rules! TrivialTypeTraversalImpls {
+    ($($ty:ty,)+) => {
+        $(
+            impl $crate::rty::fold::TypeFoldable for $ty {
+                fn try_fold_with<F: $crate::rty::fold::FallibleTypeFolder>(
+                    &self,
+                    _: &mut F,
+                ) -> ::std::result::Result<Self, F::Error> {
+                    Ok(*self)
+                }
+
+                #[inline]
+                fn fold_with<F: $crate::rty::fold::TypeFolder>(
+                    &self,
+                    _: &mut F,
+                ) -> Self {
+                    *self
+                }
+            }
+
+            impl $crate::rty::fold::TypeVisitable for $ty {
+                #[inline]
+                fn visit_with<V: $crate::rty::fold::TypeVisitor>(
+                    &self,
+                    _: &mut V)
+                    -> ::core::ops::ControlFlow<V::BreakTy>
+                {
+                    ::core::ops::ControlFlow::Continue(())
+                }
+            }
+        )+
+    };
+}
+
+// For things that don't carry any arena-allocated data (and are copy...), just add them to this list.
+TrivialTypeTraversalImpls! {
+    bool,
+    usize,
+    crate::fhir::InferMode,
+    crate::rty::BoundReftKind,
+    crate::rty::BvSize,
+    crate::rty::KVid,
+    rustc_span::Symbol,
+    rustc_hir::def_id::DefId,
+    rustc_hir::Safety,
+    rustc_target::spec::abi::Abi,
+    rustc_type_ir::ClosureKind,
+    flux_rustc_bridge::ty::BoundRegionKind,
 }

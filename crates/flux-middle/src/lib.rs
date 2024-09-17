@@ -29,6 +29,8 @@ extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
+extern crate self as flux_middle;
+
 pub mod big_int;
 pub mod cstore;
 pub mod fhir;
@@ -81,9 +83,9 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
         SortCtor::*,
         SortParamKind,
     };
-    let param0 = ParamSort::from(0);
-    let param1 = ParamSort::from(1);
-    let bv_param0 = BvSize::Param(ParamSort::from(0));
+    let param0 = ParamSort::from_u32(0);
+    let param1 = ParamSort::from_u32(1);
+    let bv_param0 = BvSize::Param(ParamSort::from_u32(0));
     [
         // String operations
         TheoryFunc {
