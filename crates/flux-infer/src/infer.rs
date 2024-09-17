@@ -482,23 +482,6 @@ impl Sub {
         }
     }
 
-    fn btys_def_id_args(
-        &mut self,
-        infcx: &mut InferCtxt,
-        a_def_id: DefId,
-        a_args: &[GenericArg],
-        b_def_id: DefId,
-        b_args: &[GenericArg],
-    ) -> InferResult {
-        debug_assert_eq!(a_def_id, b_def_id);
-        debug_assert_eq!(a_args.len(), b_args.len());
-        let variances = infcx.genv.variances_of(a_def_id);
-        for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
-            self.generic_args(infcx, *variance, ty_a, ty_b)?;
-        }
-        Ok(())
-    }
-
     fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {
         // infcx.push_trace(TypeTrace::btys(a, b));
 
@@ -512,10 +495,15 @@ impl Sub {
                 Ok(())
             }
             (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) => {
-                self.btys_def_id_args(infcx, a_adt.did(), a_args, b_adt.did(), b_args)
+                debug_assert_eq!(a_adt.did(), b_adt.did());
+                debug_assert_eq!(a_args.len(), b_args.len());
+                let variances = infcx.genv.variances_of(a_adt.did());
+                for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
+                    self.generic_args(infcx, *variance, ty_a, ty_b)?;
+                }
+                Ok(())
             }
             (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) => {
-                // self.btys_def_id_args(infcx, *a_def_id, a_args, *b_def_id, b_args)
                 debug_assert_eq!(a_def_id, b_def_id);
                 assert_eq!(a_args, b_args);
                 Ok(())
@@ -524,7 +512,6 @@ impl Sub {
                 debug_assert_eq!(float_ty1, float_ty2);
                 Ok(())
             }
-
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
                 self.tys(infcx, ty_a, ty_b)?;
