@@ -505,8 +505,19 @@ impl Sub {
             }
             (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) => {
                 debug_assert_eq!(a_def_id, b_def_id);
-                assert_eq!(a_args, b_args);
+                debug_assert_eq!(a_args.len(), b_args.len());
+                for (arg_a, arg_b) in iter::zip(a_args, b_args) {
+                    match (arg_a, arg_b) {
+                        (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => {
+                            let bty_a = ty_a.as_bty_skipping_existentials();
+                            let bty_b = ty_b.as_bty_skipping_existentials();
+                            debug_assert_eq!(bty_a, bty_b)
+                        }
+                        (_, _) => debug_assert_eq!(arg_a, arg_b),
+                    }
+                }
                 Ok(())
+                // self.btys_def_id_args(infcx, *a_def_id, a_args, *b_def_id, b_args)
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);

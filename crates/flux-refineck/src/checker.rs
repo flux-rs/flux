@@ -425,6 +425,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let actuals = self.check_operands(infcx, env, terminator_span, args)?;
 
                 let (func_id, call_args) = resolved_call;
+
                 let fn_sig = self
                     .genv
                     .fn_sig(*func_id)
