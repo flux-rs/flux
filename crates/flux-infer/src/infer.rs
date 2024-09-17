@@ -550,6 +550,10 @@ impl Sub {
                 }
                 Ok(())
             }
+            (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
+                assert_eq!(sig_a, sig_b);
+                Ok(())
+            }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
