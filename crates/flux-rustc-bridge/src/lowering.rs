@@ -827,7 +827,7 @@ impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
                     return Err(UnsupportedReason {
                         descr: format!("unsupported bound variable {var:?}"),
                     });
-                } // >>>>>>> main:crates/flux-rustc-bridge/src/lowering.rs
+                }
             }
         }
         Ok(List::from_vec(vars))
