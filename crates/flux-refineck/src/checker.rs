@@ -656,7 +656,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: &DefId,
         generic_args: &[GenericArg],
-        oblig_sig: Binder<rty::FnSig>,
+        oblig_sig: rty::PolyFnSig,
         span: Span,
     ) -> Result {
         let mut infcx = infcx.at(span);
