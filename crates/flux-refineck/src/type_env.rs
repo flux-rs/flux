@@ -405,8 +405,7 @@ impl BasicBlockEnvShape {
             }
             BaseTy::FnDef(def_id, args) => {
                 let args = List::from_vec(
-                    args
-                        .iter()
+                    args.iter()
                         .map(|arg| Self::pack_generic_arg(scope, arg))
                         .collect(),
                 );

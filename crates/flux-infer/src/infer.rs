@@ -498,6 +498,7 @@ impl Sub {
         }
         Ok(())
     }
+
     fn btys(&mut self, infcx: &mut InferCtxt, a: &BaseTy, b: &BaseTy) -> InferResult {
         // infcx.push_trace(TypeTrace::btys(a, b));
 
@@ -514,7 +515,10 @@ impl Sub {
                 self.btys_def_id_args(infcx, a_adt.did(), a_args, b_adt.did(), b_args)
             }
             (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) => {
-                self.btys_def_id_args(infcx, *a_def_id, a_args, *b_def_id, b_args)
+                // self.btys_def_id_args(infcx, *a_def_id, a_args, *b_def_id, b_args)
+                debug_assert_eq!(a_def_id, b_def_id);
+                assert_eq!(a_args, b_args);
+                Ok(())
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
