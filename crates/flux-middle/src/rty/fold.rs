@@ -39,10 +39,6 @@ pub trait TypeVisitor: Sized {
         sort.super_visit_with(self)
     }
 
-    fn visit_fvar(&mut self, _name: Name) -> ControlFlow<Self::BreakTy> {
-        ControlFlow::Continue(())
-    }
-
     fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
         ty.super_visit_with(self)
     }
@@ -210,9 +206,11 @@ pub trait TypeVisitable: Sized {
         struct CollectFreeVars(FxHashSet<Name>);
 
         impl TypeVisitor for CollectFreeVars {
-            fn visit_fvar(&mut self, name: Name) -> ControlFlow<Self::BreakTy> {
-                self.0.insert(name);
-                ControlFlow::Continue(())
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::Free(name)) = e.kind() {
+                    self.0.insert(*name);
+                }
+                e.super_visit_with(self)
             }
         }
 
@@ -837,7 +835,7 @@ impl TypeVisitable for Expr {
 impl TypeSuperVisitable for Expr {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self.kind() {
-            ExprKind::Var(var) => var.visit_with(visitor),
+            ExprKind::Var(_) => ControlFlow::Continue(()),
             ExprKind::BinaryOp(_, e1, e2) => {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
@@ -867,17 +865,6 @@ impl TypeSuperVisitable for Expr {
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
-        }
-    }
-}
-
-impl TypeVisitable for Var {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            Var::Free(name) => visitor.visit_fvar(*name),
-            Var::ConstGeneric(_) | Var::Bound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => {
-                ControlFlow::Continue(())
-            }
         }
     }
 }

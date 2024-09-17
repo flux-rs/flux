@@ -832,7 +832,7 @@ impl Invariant {
         // annotation for a lambda and invariants cannot have lambdas. It remains to instantiate
         // variables in the sort of the binder itself, but since we are removing it, we can avoid
         // the explicit instantiation. Ultimately, this works because the expression we generate in
-        // fixpoint don't need sort annotations (sorts are re-inferred).
+        // fixpoint doesn't need sort annotations (sorts are re-inferred).
         self.pred.replace_bound_reft(idx)
     }
 }
