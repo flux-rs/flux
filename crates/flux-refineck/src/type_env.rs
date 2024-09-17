@@ -403,14 +403,14 @@ impl BasicBlockEnvShape {
                 );
                 BaseTy::adt(adt_def.clone(), substs)
             }
-            BaseTy::FnDef(def_id, substs) => {
-                let substs = List::from_vec(
-                    substs
+            BaseTy::FnDef(def_id, args) => {
+                let args = List::from_vec(
+                    args
                         .iter()
                         .map(|arg| Self::pack_generic_arg(scope, arg))
                         .collect(),
                 );
-                BaseTy::fn_def(*def_id, substs)
+                BaseTy::fn_def(*def_id, args)
             }
             BaseTy::Tuple(tys) => {
                 let tys = tys
