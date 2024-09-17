@@ -88,9 +88,11 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    // let trait_ref = tcx.erase_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    // let impl_source = selcx.infcx.fully_resolve(impl_source).ok()?;
     let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
 }
@@ -728,7 +730,13 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
                 let args = c.args.lower(tcx)?;
                 ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
             }
-            _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
+            // rustc_type_ir::ConstKind::Expr(e) => todo!(),
+            _ => {
+                return Err(UnsupportedReason::new(format!(
+                    "unsupported const {self:?} kind = {:?}",
+                    self.kind()
+                )))
+            }
         };
         Ok(Const { kind })
     }
@@ -929,10 +937,8 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::Region<'tcx> {
             }
             RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
             RegionKind::ReStatic => Ok(Region::ReStatic),
-            RegionKind::ReLateParam(_)
-            | RegionKind::RePlaceholder(_)
-            | RegionKind::ReError(_)
-            | RegionKind::ReErased => {
+            RegionKind::ReErased => Ok(Region::ReErased),
+            RegionKind::ReLateParam(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
                 Err(UnsupportedReason::new(format!("unsupported region `{self:?}`")))
             }
         }
