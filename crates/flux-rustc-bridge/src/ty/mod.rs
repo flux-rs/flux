@@ -189,6 +189,7 @@ pub enum TyKind {
     Uint(UintTy),
     Slice(Ty),
     FnPtr(PolyFnSig),
+    FnDef(DefId, GenericArgs),
     Closure(DefId, GenericArgs),
     Coroutine(DefId, GenericArgs),
     CoroutineWitness(DefId, GenericArgs),
@@ -663,6 +664,10 @@ impl Ty {
         TyKind::Closure(def_id, args.into()).intern()
     }
 
+    pub fn mk_fn_def(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::FnDef(def_id, args.into()).intern()
+    }
+
     pub fn mk_coroutine(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
         TyKind::Coroutine(def_id, args.into()).intern()
     }
@@ -788,6 +793,10 @@ impl<'tcx> ToRustc<'tcx> for Ty {
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
                 rustc_ty::TyKind::Adt(adt_def, args)
             }
+            TyKind::FnDef(def_id, args) => {
+                let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
+                rustc_ty::TyKind::FnDef(*def_id, args)
+            }
             TyKind::Array(ty, len) => {
                 let ty = ty.to_rustc(tcx);
                 let len = len.to_rustc(tcx);
@@ -912,6 +921,9 @@ impl fmt::Debug for Ty {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
+            }
+            TyKind::FnDef(def_id, args) => {
+                write!(f, "FnDef({:?}[{:?}])", def_id, args.iter().format(", "))
             }
             TyKind::Bool => write!(f, "bool"),
             TyKind::Str => write!(f, "str"),

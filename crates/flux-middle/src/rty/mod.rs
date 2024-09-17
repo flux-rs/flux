@@ -380,6 +380,20 @@ pub struct FnTraitPredicate {
 }
 
 impl FnTraitPredicate {
+    pub fn fndef_poly_sig(&self) -> PolyFnSig {
+        let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
+
+        let fn_sig = FnSig::new(
+            Safety::Safe,
+            abi::Abi::Rust,
+            List::empty(),
+            inputs,
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+        );
+
+        PolyFnSig::new(fn_sig, List::empty())
+    }
+
     pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
         let mut vars = vec![];
 
@@ -1262,6 +1276,7 @@ pub enum BaseTy {
     RawPtr(Ty, Mutability),
     Ref(Region, Ty, Mutability),
     FnPtr(PolyFnSig),
+    FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -1274,6 +1289,10 @@ pub enum BaseTy {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
         BaseTy::Adt(adt_def, args.into())
+    }
+
+    pub fn fn_def(def_id: DefId, args: impl Into<GenericArgs>) -> BaseTy {
+        BaseTy::FnDef(def_id, args.into())
     }
 
     pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
@@ -1423,6 +1442,7 @@ impl BaseTy {
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
             | BaseTy::FnPtr(..)
+            | BaseTy::FnDef(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
@@ -1460,6 +1480,10 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let adt_def = tcx.adt_def(did);
                 let args = args.to_rustc(tcx);
                 ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::FnDef(def_id, args) => {
+                let args = args.to_rustc(tcx);
+                ty::Ty::new_fn_def(tcx, *def_id, args)
             }
             BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
             BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),

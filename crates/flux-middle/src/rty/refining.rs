@@ -395,6 +395,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let args = self.refine_generic_args(adt_def.did(), args)?;
                 rty::BaseTy::adt(adt_def, args)
             }
+            ty::TyKind::FnDef(def_id, args) => {
+                let args = self.refine_generic_args(*def_id, args)?;
+                rty::BaseTy::fn_def(*def_id, args)
+            }
             ty::TyKind::Alias(alias_kind, alias_ty) => {
                 let kind = Self::refine_alias_kind(alias_kind);
                 let alias_ty = self.as_default().refine_alias_ty(alias_kind, alias_ty)?;

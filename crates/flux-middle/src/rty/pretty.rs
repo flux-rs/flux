@@ -418,6 +418,9 @@ impl Pretty for BaseTy {
                 }
                 Ok(())
             }
+            BaseTy::FnDef(def_id, args) => {
+                w!("FnDef({:?}[{:?}])", def_id, join!(", ", args))
+            }
             BaseTy::Param(param) => w!("{}", ^param),
             BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
             BaseTy::Slice(ty) => w!("[{:?}]", ty),
