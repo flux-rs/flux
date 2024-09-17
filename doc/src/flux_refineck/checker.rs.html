@@ -1835,6 +1835,8 @@
 <a href="#1835" id="1835">1835</a>
 <a href="#1836" id="1836">1836</a>
 <a href="#1837" id="1837">1837</a>
+<a href="#1838" id="1838">1838</a>
+<a href="#1839" id="1839">1839</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2564,13 +2566,15 @@
 
         <span class="comment">// 5. OUTPUT subtyping (f_out &lt;: g_out)
         // RJ: new `at` to avoid borrowing errors...!
-        // let mut at = infcx.at(span);
-        </span><span class="kw">let </span>oblig_output = oblig_sig
+        </span>infcx.push_scope();
+        <span class="kw">let </span>oblig_output = oblig_sig
             .output()
             .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
         infcx
             .subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>oblig_output.ret, ConstrReason::Ret)
             .with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
+        infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
         <span class="macro">assert!</span>(output.ensures.is_empty()); <span class="comment">// TODO
         </span><span class="macro">assert!</span>(oblig_output.ensures.is_empty()); <span class="comment">// TODO
         </span><span class="prelude-val">Ok</span>(())
