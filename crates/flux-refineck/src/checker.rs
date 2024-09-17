@@ -727,13 +727,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // 5. OUTPUT subtyping (f_out <: g_out)
         // RJ: new `at` to avoid borrowing errors...!
-        // let mut at = infcx.at(span);
+        infcx.push_scope();
         let oblig_output = oblig_sig
             .output()
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
         infcx
             .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
             .with_span(span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
+        infcx.replace_evars(&evars_sol);
         assert!(output.ensures.is_empty()); // TODO
         assert!(oblig_output.ensures.is_empty()); // TODO
         Ok(())
