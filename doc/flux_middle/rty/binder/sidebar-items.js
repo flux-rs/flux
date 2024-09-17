@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BoundReftKind","BoundVariableKind"],"struct":["Binder","EarlyBinder"],"trait":["BoundVariableKindsExt"],"type":["List"]};

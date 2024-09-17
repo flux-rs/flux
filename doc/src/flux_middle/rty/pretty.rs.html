@@ -522,6 +522,7 @@
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -561,11 +562,11 @@
 {
     default <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        cx.with_bound_vars(<span class="kw-2">&amp;</span><span class="self">self</span>.vars, || {
-            <span class="kw">if </span>!<span class="self">self</span>.vars.is_empty() {
-                cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
+        cx.with_bound_vars(<span class="self">self</span>.vars(), || {
+            <span class="kw">if </span>!<span class="self">self</span>.vars().is_empty() {
+                cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, <span class="self">self</span>.vars(), <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.skip_binder_ref())
         })
     }
 }
@@ -579,12 +580,12 @@
 <span class="kw">impl </span>Pretty <span class="kw">for </span>PolyFnSig {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="kw">let </span>vars = <span class="kw-2">&amp;</span><span class="self">self</span>.vars;
+        <span class="kw">let </span>vars = <span class="self">self</span>.vars();
         cx.with_bound_vars(vars, || {
             <span class="kw">if </span>!vars.is_empty() {
                 cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.skip_binder_ref())
         })
     }
 }
@@ -717,12 +718,12 @@
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Binder&lt;FnOutput&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="kw">let </span>vars = <span class="kw-2">&amp;</span><span class="self">self</span>.vars;
+        <span class="kw">let </span>vars = <span class="self">self</span>.vars();
         cx.with_bound_vars(vars, || {
             <span class="kw">if </span>!vars.is_empty() {
                 cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"exists&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.skip_binder_ref())
         })
     }
 }
@@ -777,13 +778,14 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            TyKind::Exists(Binder { vars, value: ty }) =&gt; {
+            TyKind::Exists(ty_ctor) =&gt; {
+                <span class="kw">let </span>vars = ty_ctor.vars();
                 cx.with_bound_vars(vars, || {
                     <span class="kw">if </span>cx.hide_refinements {
-                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty)
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty_ctor.skip_binder_ref())
                     } <span class="kw">else </span>{
                         cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"∃"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
-                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty)
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty_ctor.skip_binder_ref())
                     }
                 })
             }
@@ -1002,7 +1004,7 @@
             GenericArg::Base(ctor) =&gt; {
                 cx.with_bound_vars(ctor.vars(), || {
                     cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, ctor.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
-                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>ctor.value)
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ctor.skip_binder_ref())
                 })
             }
             GenericArg::Lifetime(re) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, re),

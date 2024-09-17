@@ -1027,6 +1027,9 @@
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
 <a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1526,7 +1529,7 @@
     </span>T: TypeVisitable,
 {
     <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-        <span class="self">self</span>.value.visit_with(visitor)
+        <span class="self">self</span>.skip_binder_ref().visit_with(visitor)
     }
 }
 
@@ -1544,7 +1547,10 @@
     </span>T: TypeFoldable,
 {
     <span class="kw">fn </span>try_super_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(Binder::new(<span class="self">self</span>.value.try_fold_with(folder)<span class="question-mark">?</span>, <span class="self">self</span>.vars.try_fold_with(folder)<span class="question-mark">?</span>))
+        <span class="prelude-val">Ok</span>(Binder::new(
+            <span class="self">self</span>.skip_binder_ref().try_fold_with(folder)<span class="question-mark">?</span>,
+            <span class="self">self</span>.vars().try_fold_with(folder)<span class="question-mark">?</span>,
+        ))
     }
 }
 
