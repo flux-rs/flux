@@ -762,8 +762,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let oblig_sig = EarlyBinder(fn_trait_pred.fndef_poly_sig())
-                    .instantiate_identity()
+                let oblig_sig = fn_trait_pred.fndef_poly_sig()
                     .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
                     .with_span(self.body.span())?;
                 self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, span)?;
