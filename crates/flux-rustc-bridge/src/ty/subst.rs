@@ -33,6 +33,7 @@ impl Subst for Ty {
     fn subst(&self, args: &[GenericArg]) -> Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args2) => Ty::mk_adt(adt_def.clone(), args2.subst(args)),
+            TyKind::FnDef(def_id, args2) => Ty::mk_fn_def(*def_id, args2.subst(args)),
             TyKind::Array(ty, len) => Ty::mk_array(ty.subst(args), len.clone()),
             TyKind::Ref(re, ty, mutbl) => Ty::mk_ref(*re, ty.subst(args), *mutbl),
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(args)),

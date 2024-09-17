@@ -494,20 +494,24 @@ impl Sub {
                 debug_assert_eq!(uint_ty_a, uint_ty_b);
                 Ok(())
             }
-            (BaseTy::Adt(adt_a, args_a), BaseTy::Adt(adt_b, args_b)) => {
-                debug_assert_eq!(adt_a.did(), adt_b.did());
-                debug_assert_eq!(args_a.len(), args_b.len());
-                let variances = infcx.genv.variances_of(adt_a.did());
-                for (variance, ty_a, ty_b) in izip!(variances, args_a.iter(), args_b.iter()) {
+            (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) => {
+                debug_assert_eq!(a_adt.did(), b_adt.did());
+                debug_assert_eq!(a_args.len(), b_args.len());
+                let variances = infcx.genv.variances_of(a_adt.did());
+                for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
                     self.generic_args(infcx, *variance, ty_a, ty_b)?;
                 }
+                Ok(())
+            }
+            (BaseTy::FnDef(a_def_id, a_args), BaseTy::FnDef(b_def_id, b_args)) => {
+                debug_assert_eq!(a_def_id, b_def_id);
+                assert_eq!(a_args, b_args);
                 Ok(())
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
                 Ok(())
             }
-
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
                 self.tys(infcx, ty_a, ty_b)?;

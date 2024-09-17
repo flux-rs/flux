@@ -514,7 +514,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(infcx, infcx.snapshot(), &obligations)
+        self.check_closure_clauses(infcx, infcx.snapshot(), &obligations, span)
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -616,7 +616,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => infcx.assume_pred(e),
             }
         }
-        self.check_closure_clauses(infcx, snapshot, &clauses)?;
+        self.check_closure_clauses(infcx, snapshot, &clauses, span)?;
 
         Ok(output.ret)
     }
@@ -638,27 +638,141 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         )
     }
 
+    /// The function `check_oblig_fn_def` does a function subtyping check between
+    /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
+    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
+    /// as akin to the code
+    ///
+    ///   T_f := (S1,...,Sn) -> S
+    ///   T_g := (T1,...,Tn) -> T
+    ///   T_f <: T_g
+    ///
+    ///  fn g(x1:T1,...,xn:Tn) -> T {
+    ///      f(x1,...,xn)
+    ///  }
+    /// TODO: copy rules from SLACK.
+    fn check_oblig_fn_def(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: &DefId,
+        generic_args: &[GenericArg],
+        oblig_sig: rty::PolyFnSig,
+        span: Span,
+    ) -> Result {
+        let mut infcx = infcx.at(span);
+        let genv = self.genv;
+        let tcx = genv.tcx();
+        let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
+
+        let oblig_sig = oblig_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?;
+
+        // 1. Unpack `T_g` input types
+        let actuals = oblig_sig
+            .inputs()
+            .iter()
+            .map(|ty| infcx.unpack(ty))
+            .collect_vec();
+
+        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+        infcx.push_scope();
+        let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
+        let fn_def_sig = fn_def_sig
+            .instantiate(tcx, generic_args, &refine_args)
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?;
+
+        // 3. INPUT subtyping (g-input <: f-input)
+        // TODO: Check requires predicates (?)
+        // for requires in fn_def_sig.requires() {
+        //     at.check_pred(requires, ConstrReason::Call);
+        // }
+        assert!(fn_def_sig.requires().is_empty()); // TODO
+        for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
+            let (formal, pred) = formal.unconstr();
+            infcx.check_pred(&pred, ConstrReason::Call);
+            // see: TODO(pack-closure)
+            match (actual.kind(), formal.kind()) {
+                (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
+                    bug!("Not yet handled: FnDef subtyping with Ptr");
+                }
+                _ => {
+                    infcx
+                        .subtyping(&actual, &formal, ConstrReason::Call)
+                        .with_span(span)?;
+                }
+            }
+        }
+
+        // // TODO: (RJ) this doesn't feel right to me... can one even *have* clauses here?
+        // let clauses = self
+        //     .genv
+        //     .predicates_of(*def_id)
+        //     .with_span(span)?
+        //     .predicates()
+        //     .instantiate(self.genv.tcx(), &generic_args, &refine_args);
+        // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
+        //     .with_span(span)?;
+
+        // 4. Plug in the EVAR solution / replace evars
+        let evars_sol = infcx.pop_scope().with_span(span)?;
+        infcx.replace_evars(&evars_sol);
+        let output = fn_def_sig
+            .output()
+            .replace_evars(&evars_sol)
+            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+
+        // 5. OUTPUT subtyping (f_out <: g_out)
+        // RJ: new `at` to avoid borrowing errors...!
+        // let mut at = infcx.at(span);
+        let oblig_output = oblig_sig
+            .output()
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+        infcx
+            .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+            .with_span(span)?;
+        assert!(output.ensures.is_empty()); // TODO
+        assert!(oblig_output.ensures.is_empty()); // TODO
+        Ok(())
+    }
+
     fn check_oblig_fn_trait_pred(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         snapshot: &Snapshot,
         fn_trait_pred: FnTraitPredicate,
+        span: Span,
     ) -> Result {
-        if let Some(BaseTy::Closure(closure_id, tys)) =
-            fn_trait_pred.self_ty.as_bty_skipping_existentials()
-        {
-            let span = self.genv.tcx().def_span(closure_id);
-            let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
-            Checker::run(
-                infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
-                closure_id.expect_local(),
-                self.inherited.reborrow(),
-                fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
-            )?;
-        } else {
-            // TODO: When we allow refining closure/fn at the surface level, we would need to do
-            // actual function subtyping here, but for now, we can skip as all the relevant types
-            // are unrefined. See issue-767.rs
+        let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
+        match self_ty {
+            Some(BaseTy::Closure(closure_id, tys)) => {
+                let span = self.genv.tcx().def_span(closure_id);
+                let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
+                Checker::run(
+                    infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
+                    closure_id.expect_local(),
+                    self.inherited.reborrow(),
+                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
+                )?;
+            }
+            Some(BaseTy::FnDef(def_id, args)) => {
+                // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
+                // and the (sub-type) corresponding to the signature of `def_id + args`.
+                // See `tests/neg/surface/fndef00.rs`
+                let oblig_sig = fn_trait_pred
+                    .fndef_poly_sig()
+                    .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                    .with_span(self.body.span())?;
+                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, span)?;
+            }
+            _ => {
+                // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
+                // but for now, we can skip as all the relevant types are unrefined.
+                // See issue-767.rs
+            }
         }
         Ok(())
     }
@@ -668,11 +782,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         snapshot: Snapshot,
         clauses: &[Clause],
+        span: Span,
     ) -> Result {
         for clause in clauses {
             match clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    self.check_oblig_fn_trait_pred(infcx, &snapshot, fn_trait_pred)?;
+                    self.check_oblig_fn_trait_pred(infcx, &snapshot, fn_trait_pred, span)?;
                 }
                 rty::ClauseKind::CoroutineOblig(gen_pred) => {
                     self.check_oblig_generator_pred(infcx, &snapshot, gen_pred)?;
