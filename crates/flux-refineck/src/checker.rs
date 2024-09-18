@@ -1778,6 +1778,7 @@ pub(crate) mod errors {
     }
 
     impl<'a> Diagnostic<'a> for CheckerError {
+        #[track_caller]
         fn into_diag(
             self,
             dcx: rustc_errors::DiagCtxtHandle<'a>,

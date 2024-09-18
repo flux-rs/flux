@@ -757,19 +757,17 @@ mod pretty {
         cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let mut f = with_padding(f);
         define_scoped!(cx, f);
         match children {
             [] => w!(" true"),
             [n] => {
                 if n.borrow().is_head() {
-                    w!(" ")?;
+                    w!(" {:?}", n)
                 } else {
-                    w!("\n")?;
+                    w!(with_padding(f), "\n{:?}", n)
                 }
-                w!("{:?}", n)
             }
-            _ => w!("\n{:?}", join!("\n", children)),
+            _ => w!(with_padding(f), "\n{:?}", join!("\n", children)),
         }
     }
 
