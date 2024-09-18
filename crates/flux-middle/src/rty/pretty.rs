@@ -475,9 +475,9 @@ impl Pretty for ValTree {
     }
 }
 impl Pretty for UnevaluatedConst {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
-        w!("UnevaluatedConst({:?})", self)
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        w!("UnevaluatedConst({:?}[...])", self.def)
     }
 }
 

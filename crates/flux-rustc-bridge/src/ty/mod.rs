@@ -312,7 +312,7 @@ pub struct UnevaluatedConst {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ValTree {
     Leaf(ScalarInt),
-    Branch(Vec<ValTree>),
+    Branch(List<ValTree>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -852,6 +852,7 @@ impl_slice_internable!(
     GenericParamDef,
     BoundVariableKind,
     Clause,
+    ValTree,
     Binder<ExistentialPredicate>,
 );
 
