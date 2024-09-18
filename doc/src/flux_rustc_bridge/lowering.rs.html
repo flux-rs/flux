@@ -1130,6 +1130,20 @@
 <a href="#1130" id="1130">1130</a>
 <a href="#1131" id="1131">1131</a>
 <a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -1220,10 +1234,12 @@
     param_env: ParamEnv&lt;<span class="lifetime">'tcx</span>&gt;,
     trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
-    <span class="kw">let </span>obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+    <span class="comment">// let trait_ref = tcx.erase_regions(trait_ref);
+    </span><span class="kw">let </span>obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     <span class="kw">let </span>impl_source = selcx.select(<span class="kw-2">&amp;</span>obligation).ok()<span class="question-mark">??</span>;
     <span class="kw">let </span>impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-    <span class="kw">let </span>ImplSource::UserDefined(impl_data) = impl_source <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
+    <span class="comment">// let impl_source = selcx.infcx.fully_resolve(impl_source).ok()?;
+    </span><span class="kw">let </span>ImplSource::UserDefined(impl_data) = impl_source <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
     <span class="prelude-val">Some</span>((impl_data.impl_def_id, impl_data.args))
 }
 
@@ -1844,6 +1860,20 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; Lower&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>rustc_ty::ValTree&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">type </span>R = <span class="kw">crate</span>::ty::ValTree;
+
+    <span class="kw">fn </span>lower(<span class="self">self</span>, _tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::R {
+        <span class="kw">match </span><span class="self">self </span>{
+            ValTree::Leaf(scalar_int) =&gt; <span class="kw">crate</span>::ty::ValTree::Leaf(scalar_int),
+            ValTree::Branch(trees) =&gt; {
+                <span class="kw">let </span>trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
+                <span class="kw">crate</span>::ty::ValTree::Branch(trees)
+            }
+        }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; Lower&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">type </span>R = <span class="prelude-ty">Result</span>&lt;Const, UnsupportedReason&gt;;
 
@@ -1852,8 +1882,8 @@
             rustc_type_ir::ConstKind::Param(param_const) =&gt; {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
-            rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) =&gt; {
-                ConstKind::Value(ty.lower(tcx)<span class="question-mark">?</span>, scalar_int)
+            rustc_type_ir::ConstKind::Value(ty, v) =&gt; {
+                ConstKind::Value(ty.lower(tcx)<span class="question-mark">?</span>, v.lower(tcx))
             }
             rustc_type_ir::ConstKind::Unevaluated(c) =&gt; {
                 <span class="comment">// TODO: raise unsupported if c.args is not empty?
@@ -2061,10 +2091,8 @@
             }
             RegionKind::ReEarlyParam(bregion) =&gt; <span class="prelude-val">Ok</span>(Region::ReEarlyParam(bregion)),
             RegionKind::ReStatic =&gt; <span class="prelude-val">Ok</span>(Region::ReStatic),
-            RegionKind::ReLateParam(<span class="kw">_</span>)
-            | RegionKind::RePlaceholder(<span class="kw">_</span>)
-            | RegionKind::ReError(<span class="kw">_</span>)
-            | RegionKind::ReErased =&gt; {
+            RegionKind::ReErased =&gt; <span class="prelude-val">Ok</span>(Region::ReErased),
+            RegionKind::ReLateParam(<span class="kw">_</span>) | RegionKind::RePlaceholder(<span class="kw">_</span>) | RegionKind::ReError(<span class="kw">_</span>) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported region `{self:?}`"</span>)))
             }
         }

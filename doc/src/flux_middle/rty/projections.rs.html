@@ -422,11 +422,6 @@
 <a href="#422" id="422">422</a>
 <a href="#423" id="423">423</a>
 <a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -442,8 +437,8 @@
 
 <span class="kw">use super</span>::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
@@ -726,15 +721,10 @@
     }
 
     <span class="kw">fn </span>try_fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: <span class="kw-2">&amp;</span>Const) -&gt; <span class="prelude-ty">Result</span>&lt;Const, <span class="self">Self</span>::Error&gt; {
-        <span class="kw">let </span>param_env = <span class="self">self</span>.rustc_param_env();
-        <span class="kw">let </span>rc = c.to_rustc(<span class="self">self</span>.tcx());
-        <span class="kw">if let </span><span class="prelude-val">Some</span>((ty, scalar_int)) = rc.try_eval_scalar_int(<span class="self">self</span>.tcx(), param_env)
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(ty) = ty.lower(<span class="self">self</span>.tcx())
-        {
-            <span class="prelude-val">Ok</span>(Const { kind: ConstKind::Value(ty, scalar_int) })
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(c.clone())
-        }
+        c.to_rustc(<span class="self">self</span>.tcx())
+            .normalize(<span class="self">self</span>.tcx(), <span class="self">self</span>.rustc_param_env())
+            .lower(<span class="self">self</span>.tcx())
+            .map_err(|e| QueryErr::unsupported(<span class="self">self</span>.def_id, e.into_err()))
     }
 }
 

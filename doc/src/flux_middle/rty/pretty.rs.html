@@ -526,10 +526,30 @@
 <a href="#526" id="526">526</a>
 <a href="#527" id="527">527</a>
 <a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
+<span class="kw">use </span>ty::{UnevaluatedConst, ValTree};
 
 <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
@@ -990,14 +1010,32 @@
     }
 }
 
+<span class="kw">impl </span>Pretty <span class="kw">for </span>ValTree {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(_cx, f);
+        <span class="kw">match </span><span class="self">self </span>{
+            ValTree::Leaf(v) =&gt; <span class="macro">w!</span>(<span class="string">"Leaf({v:?})"</span>),
+            ValTree::Branch(children) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"Branch([{:?}])"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, children))
+            }
+        }
+    }
+}
+<span class="kw">impl </span>Pretty <span class="kw">for </span>UnevaluatedConst {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(cx, f);
+        <span class="macro">w!</span>(<span class="string">"UnevaluatedConst({:?}[...])"</span>, <span class="self">self</span>.def)
+    }
+}
+
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Const {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             ConstKind::Param(p) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^p.name.as_str()),
-            ConstKind::Value(<span class="kw">_</span>, v) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^v),
+            ConstKind::Value(<span class="kw">_</span>, v) =&gt; <span class="macro">w!</span>(<span class="string">"{v:?}"</span>),
             ConstKind::Infer(infer_const) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^infer_const),
-            ConstKind::Unevaluated(_uneval_const) =&gt; <span class="macro">w!</span>(<span class="string">"TODO:UNEVALCONST"</span>),
+            ConstKind::Unevaluated(uneval_const) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, uneval_const),
         }
     }
 }

@@ -1296,7 +1296,7 @@
                         (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) =&gt; {
                             <span class="kw">let </span>bty_a = ty_a.as_bty_skipping_existentials();
                             <span class="kw">let </span>bty_b = ty_b.as_bty_skipping_existentials();
-                            <span class="macro">debug_assert_eq!</span>(bty_a, bty_b)
+                            <span class="macro">debug_assert_eq!</span>(bty_a, bty_b);
                         }
                         (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">debug_assert_eq!</span>(arg_a, arg_b),
                     }

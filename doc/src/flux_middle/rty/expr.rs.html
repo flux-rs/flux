@@ -1307,6 +1307,9 @@
 <a href="#1307" id="1307">1307</a>
 <a href="#1308" id="1308">1308</a>
 <a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
@@ -1314,7 +1317,7 @@
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    ty::{Const, ConstKind},
+    ty::{Const, ConstKind, ValTree},
     ToRustc,
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -1912,8 +1915,11 @@
     <span class="kw">pub fn </span>from_const(tcx: TyCtxt, c: <span class="kw-2">&amp;</span>Const) -&gt; Expr {
         <span class="kw">match </span><span class="kw-2">&amp;</span>c.kind {
             ConstKind::Param(param_const) =&gt; Expr::const_generic(<span class="kw-2">*</span>param_const),
-            ConstKind::Value(ty, scalar) =&gt; {
+            ConstKind::Value(ty, ValTree::Leaf(scalar)) =&gt; {
                 Expr::constant(Constant::from_scalar_int(tcx, <span class="kw-2">*</span>scalar, ty).unwrap())
+            }
+            ConstKind::Value(_ty, ValTree::Branch(<span class="kw">_</span>)) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">"todo: ValTree::Branch {c:?}"</span>)
             }
             <span class="comment">// We should have normalized away the unevaluated constants
             </span>ConstKind::Unevaluated(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Unevaluated`"</span>),
