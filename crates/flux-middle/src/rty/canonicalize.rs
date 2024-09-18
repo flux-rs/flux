@@ -119,7 +119,7 @@ impl Ty {
         if vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
         } else {
-            CanonicalTy::Exists(Binder::new(constr_ty, vars))
+            CanonicalTy::Exists(Binder::bind_with_vars(constr_ty, vars))
         }
     }
 }
@@ -169,7 +169,7 @@ impl CanonicalTy {
                         Expr::nu(),
                         Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
                     );
-                    Some(Binder::with_sort(constr, sort))
+                    Some(Binder::bind_with_sort(constr, sort))
                 } else {
                     None
                 }

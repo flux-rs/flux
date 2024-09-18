@@ -9,7 +9,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{BoundRegionKind, TyCtxt};
 use rustc_span::Symbol;
 
@@ -69,25 +69,20 @@ pub struct Binder<T> {
 }
 
 impl<T> Binder<T> {
-    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
+    pub fn bind_with_vars(value: T, vars: BoundVariableKinds) -> Binder<T> {
         Binder { vars, value }
     }
 
     pub fn dummy(value: T) -> Binder<T> {
-        Binder::new(value, List::empty())
+        Binder::bind_with_vars(value, List::empty())
     }
 
-    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
-        let vars = sorts
-            .iter()
-            .cloned()
-            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
-            .collect();
-        Binder { vars, value }
+    pub fn bind_with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
+        Binder::bind_with_vars(value, sorts.iter().cloned().map_into().collect())
     }
 
-    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder::with_sorts(value, &[sort])
+    pub fn bind_with_sort(value: T, sort: Sort) -> Binder<T> {
+        Binder::bind_with_sorts(value, &[sort])
     }
 
     pub fn vars(&self) -> &List<BoundVariableKind> {
@@ -194,7 +189,7 @@ where
     type T = rustc_middle::ty::Binder<'tcx, V::T>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        let vars = self.vars.to_rustc(tcx);
+        let vars = BoundVariableKind::to_rustc(&self.vars, tcx);
         let value = self.value.to_rustc(tcx);
         rustc_middle::ty::Binder::bind_with_vars(value, vars)
     }
@@ -220,31 +215,22 @@ impl BoundVariableKind {
     pub fn expect_sort(&self) -> &Sort {
         self.expect_refine().0
     }
-}
 
-#[extension(pub trait BoundVariableKindsExt)]
-impl List<BoundVariableKind> {
-    fn to_sort_list(&self) -> List<Sort> {
-        self.iter()
-            .map(|kind| {
-                match kind {
-                    BoundVariableKind::Region(_) => {
-                        tracked_span_bug!(
-                            "`to_sort_list` called on bound variable list with non-refinements"
-                        )
-                    }
-                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
-                }
-            })
-            .collect()
+    /// Returns `true` if the bound variable kind is [`Refine`].
+    ///
+    /// [`Refine`]: BoundVariableKind::Refine
+    #[must_use]
+    pub fn is_refine(&self) -> bool {
+        matches!(self, Self::Refine(..))
     }
 
-    // We can't implement [`ToRustc`] because of coherence so we add it here
+    // We can't implement [`ToRustc`] on [`List<BoundVariableKind>`] because of coherence so we add
+    // it here
     fn to_rustc<'tcx>(
-        &self,
+        vars: &[Self],
         tcx: TyCtxt<'tcx>,
     ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
-        tcx.mk_bound_variable_kinds_from_iter(self.iter().flat_map(|kind| {
+        tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
             match kind {
                 BoundVariableKind::Region(brk) => {
                     Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
@@ -254,6 +240,14 @@ impl List<BoundVariableKind> {
         }))
     }
 }
+
+impl From<Sort> for BoundVariableKind {
+    fn from(sort: Sort) -> Self {
+        Self::Refine(sort, InferMode::EVar, BoundReftKind::Annon)
+    }
+}
+
+pub type BoundVariableKinds = List<BoundVariableKind>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum BoundReftKind {

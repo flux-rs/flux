@@ -15,13 +15,14 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    BaseTy, Binder, Const, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate,
-    PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKinds, Const, Ensures, Expr, ExprKind, GenericArg, Name,
+    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
+    TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{expr::HoleKind, BoundVariableKindsExt, Var, VariantSig},
+    rty::{expr::HoleKind, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -253,15 +254,15 @@ pub trait TypeFoldable: TypeVisitable {
     ///
     /// [holes]: ExprKind::Hole
     /// [bound]: Binder
-    fn replace_holes(&self, f: impl FnMut(&[List<Sort>], HoleKind) -> Expr) -> Self {
-        struct ReplaceHoles<F>(F, Vec<List<Sort>>);
+    fn replace_holes(&self, f: impl FnMut(&[BoundVariableKinds], HoleKind) -> Expr) -> Self {
+        struct ReplaceHoles<F>(F, Vec<BoundVariableKinds>);
 
         impl<F> TypeFolder for ReplaceHoles<F>
         where
-            F: FnMut(&[List<Sort>], HoleKind) -> Expr,
+            F: FnMut(&[BoundVariableKinds], HoleKind) -> Expr,
         {
             fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.vars().to_sort_list());
+                self.1.push(t.vars().clone());
                 let t = t.super_fold_with(self);
                 self.1.pop();
                 t
@@ -515,7 +516,7 @@ where
     T: TypeFoldable,
 {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::new(
+        Ok(Binder::bind_with_vars(
             self.skip_binder_ref().try_fold_with(folder)?,
             self.vars().try_fold_with(folder)?,
         ))
