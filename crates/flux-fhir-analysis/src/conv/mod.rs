@@ -150,7 +150,7 @@ pub(crate) fn expand_type_alias(
 
     let ty = struct_compat::type_alias(genv, alias, &ty, def_id)?;
 
-    Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
+    Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(genv)?))
 }
 
 pub(crate) fn conv_generic_predicates(
@@ -310,7 +310,7 @@ pub(crate) fn conv_defn(
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, func.args)?);
         let expr = cx.conv_expr(&mut env, body)?;
-        let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)?);
+        let expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
         Ok(Some(rty::SpecFunc { name: func.name, expr }))
     } else {
         Ok(None)
@@ -326,7 +326,7 @@ pub(crate) fn conv_qualifier(
     let mut env = Env::new(genv, &[], wfckresults)?;
     env.push_layer(Layer::list(&cx, 0, qualifier.args)?);
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
-    let body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)?);
+    let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
@@ -356,7 +356,7 @@ pub(crate) fn conv_fn_sig(
         .cloned()
         .collect();
 
-    let poly_fn_sig = rty::PolyFnSig::new(fn_sig, vars);
+    let poly_fn_sig = rty::PolyFnSig::bind_with_vars(fn_sig, vars);
     let poly_fn_sig = struct_compat::fn_sig(genv, decl, &poly_fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(poly_fn_sig))
@@ -397,7 +397,7 @@ fn conv_assoc_reft_body(
     let expr = cx.conv_expr(&mut env, body)?;
     let inputs = env.pop_layer().into_bound_vars(genv)?;
     let output = conv_sort(genv, output, &mut bug_on_infer_sort)?;
-    Ok(rty::Lambda::with_vars(expr, inputs, output))
+    Ok(rty::Lambda::bind_with_vars(expr, inputs, output))
 }
 
 pub(crate) fn conv_ty(
@@ -407,7 +407,7 @@ pub(crate) fn conv_ty(
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv, &[], wfckresults)?;
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
-    Ok(rty::Binder::new(ty, List::empty()))
+    Ok(rty::Binder::bind_with_vars(ty, List::empty()))
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
@@ -495,7 +495,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
-        let poly_trait_ref = rty::Binder::new(
+        let poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
             List::from_vec(vars),
         );
@@ -639,7 +639,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let output = rty::FnOutput::new(ret, ensures);
 
         let vars = env.pop_layer().into_bound_vars(self.genv)?;
-        Ok(rty::Binder::new(output, vars))
+        Ok(rty::Binder::bind_with_vars(output, vars))
     }
 
     pub(crate) fn conv_enum_variants(
@@ -685,7 +685,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             idxs,
         );
 
-        Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)?))
+        Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(genv)?))
     }
 
     pub(crate) fn conv_struct_variant(
@@ -725,7 +725,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 fields,
                 idx,
             );
-            let variant = rty::Binder::new(variant, vars);
+            let variant = rty::Binder::bind_with_vars(variant, vars);
             let variants = struct_compat::variants(genv, &[variant], adt_def_id)?;
             Ok(rty::Opaqueness::Transparent(variants))
         } else {
@@ -766,7 +766,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             env.push_layer(Layer::list(self, 0, requires.params)?);
             let pred = self.conv_expr(env, &requires.pred)?;
             let sorts = env.pop_layer().into_bound_vars(self.genv)?;
-            Ok(rty::Expr::forall(rty::Binder::new(pred, sorts)))
+            Ok(rty::Expr::forall(rty::Binder::bind_with_vars(pred, sorts)))
         }
     }
 
@@ -831,7 +831,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 if sorts.is_empty() {
                     Ok(ty.shift_out_escaping(1))
                 } else {
-                    Ok(rty::Ty::exists(rty::Binder::new(ty, sorts)))
+                    Ok(rty::Ty::exists(rty::Binder::bind_with_vars(ty, sorts)))
                 }
             }
             fhir::TyKind::StrgRef(lft, loc, ty) => {
@@ -853,7 +853,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|param| self.param_as_bound_var(param))
                     .try_collect()?;
-                let poly_fn_sig = rty::Binder::new(fn_sig, vars);
+                let poly_fn_sig = rty::Binder::bind_with_vars(fn_sig, vars);
                 Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
             }
             fhir::TyKind::Tuple(tys) => {
@@ -955,10 +955,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let vars = bound_pred.vars().clone();
             match bound_pred.skip_binder() {
                 rty::ClauseKind::Trait(trait_pred) => {
-                    trait_bounds.push(rty::Binder::new(trait_pred.trait_ref, vars));
+                    trait_bounds.push(rty::Binder::bind_with_vars(trait_pred.trait_ref, vars));
                 }
                 rty::ClauseKind::Projection(proj) => {
-                    projection_bounds.push(rty::Binder::new(proj, vars));
+                    projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
                 rty::ClauseKind::TypeOutlives(_) => {}
                 rty::ClauseKind::FnTrait(..)
@@ -1074,7 +1074,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::BaseTyKind::Slice(ty) => {
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?).shift_in_escaping(1);
                 let sort = bty.sort();
-                Ok(rty::Ty::exists(rty::Binder::with_sort(
+                Ok(rty::Ty::exists(rty::Binder::bind_with_sort(
                     rty::Ty::indexed(bty, rty::Expr::nu()),
                     sort,
                 )))
@@ -1317,7 +1317,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         };
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
-        Ok(rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
+        Ok(rty::Binder::bind_with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
     }
 
     fn param_as_bound_var(
@@ -1588,7 +1588,7 @@ impl ConvCtxt<'_, '_, '_> {
                     .get(arg.fhir_id)
                     .unwrap_or_else(|| bug!("lambda without elaborated sort"))
                     .clone();
-                let lam = rty::Lambda::with_vars(pred, inputs, output);
+                let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) => {
@@ -1717,7 +1717,7 @@ impl ConvCtxt<'_, '_, '_> {
         env: &mut Env,
         invariant: &fhir::Expr,
     ) -> QueryResult<rty::Invariant> {
-        Ok(rty::Invariant::new(rty::Binder::new(
+        Ok(rty::Invariant::new(rty::Binder::bind_with_vars(
             self.conv_expr(env, invariant)?,
             env.top_layer().to_bound_vars(self.genv)?,
         )))

@@ -88,9 +88,11 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    // let trait_ref = tcx.erase_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    // let impl_source = selcx.infcx.fully_resolve(impl_source).ok()?;
     let ImplSource::UserDefined(impl_data) = impl_source else { return None };
     Some((impl_data.impl_def_id, impl_data.args))
 }
@@ -712,6 +714,20 @@ impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
     }
 }
 
+impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
+    type R = crate::ty::ValTree;
+
+    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
+        match self {
+            ValTree::Leaf(scalar_int) => crate::ty::ValTree::Leaf(scalar_int),
+            ValTree::Branch(trees) => {
+                let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
+                crate::ty::ValTree::Branch(trees)
+            }
+        }
+    }
+}
+
 impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
     type R = Result<Const, UnsupportedReason>;
 
@@ -720,8 +736,8 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Param(param_const) => {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
-            rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) => {
-                ConstKind::Value(ty.lower(tcx)?, scalar_int)
+            rustc_type_ir::ConstKind::Value(ty, v) => {
+                ConstKind::Value(ty.lower(tcx)?, v.lower(tcx))
             }
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
@@ -929,10 +945,8 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::Region<'tcx> {
             }
             RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
             RegionKind::ReStatic => Ok(Region::ReStatic),
-            RegionKind::ReLateParam(_)
-            | RegionKind::RePlaceholder(_)
-            | RegionKind::ReError(_)
-            | RegionKind::ReErased => {
+            RegionKind::ReErased => Ok(Region::ReErased),
+            RegionKind::ReLateParam(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
                 Err(UnsupportedReason::new(format!("unsupported region `{self:?}`")))
             }
         }

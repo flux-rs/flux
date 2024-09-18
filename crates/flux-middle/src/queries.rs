@@ -603,7 +603,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 let generics = genv.generics_of(generics_def_id)?;
                 let ty = genv.lower_type_of(def_id)?.skip_binder();
                 let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
-                Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
+                Ok(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
             }
         })
     }
@@ -756,6 +756,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
 }
 
 impl<'a> Diagnostic<'a> for QueryErrAt {
+    #[track_caller]
     fn into_diag(
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
@@ -763,42 +764,47 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
 
-        rustc_middle::ty::tls::with(|tcx| {
-            let mut diag = match self.err {
-                QueryErr::Unsupported { def_id, err, .. } => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::middle_query_unsupported_at);
-                    diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                    if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                        diag.span_note(def_ident_span, fluent::_subdiag::note);
+        rustc_middle::ty::tls::with_opt(
+            #[track_caller]
+            |tcx| {
+                let tcx = tcx.expect("no TyCtxt stored in tls");
+                let mut diag = match self.err {
+                    QueryErr::Unsupported { def_id, err, .. } => {
+                        let mut diag =
+                            dcx.struct_span_err(self.span, fluent::middle_query_unsupported_at);
+                        diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                        if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
+                            diag.span_note(def_ident_span, fluent::_subdiag::note);
+                        }
+                        diag.note(err.descr);
+                        diag
                     }
-                    diag.note(err.descr);
-                    diag
-                }
-                QueryErr::Ignored { def_id } => {
-                    let mut diag = dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
-                    diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                    diag.arg("name", def_id_to_string(def_id));
-                    diag.span_label(self.span, fluent::_subdiag::label);
-                    diag
-                }
-                QueryErr::InvalidAssocReft { .. } => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::middle_query_invalid_assoc_reft_at);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidGenericArg { .. }
-                | QueryErr::Emitted(_)
-                | QueryErr::Bug { .. } => {
-                    let mut diag = self.err.into_diag(dcx, level);
-                    diag.span(self.span);
-                    diag
-                }
-            };
-            diag.code(E0999);
-            diag
-        })
+                    QueryErr::Ignored { def_id } => {
+                        let mut diag =
+                            dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
+                        diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                        diag.arg("name", def_id_to_string(def_id));
+                        diag.span_label(self.span, fluent::_subdiag::label);
+                        diag
+                    }
+                    QueryErr::InvalidAssocReft { .. } => {
+                        let mut diag = dcx
+                            .struct_span_err(self.span, fluent::middle_query_invalid_assoc_reft_at);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidGenericArg { .. }
+                    | QueryErr::Emitted(_)
+                    | QueryErr::Bug { .. } => {
+                        let mut diag = self.err.into_diag(dcx, level);
+                        diag.span(self.span);
+                        diag
+                    }
+                };
+                diag.code(E0999);
+                diag
+            },
+        )
     }
 }
 

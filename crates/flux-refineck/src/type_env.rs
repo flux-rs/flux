@@ -15,9 +15,8 @@ use flux_middle::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, BoundVariableKindsExt as _, Expr, ExprKind, FnSig,
-        GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
-        Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
+        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -492,7 +491,7 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idx)
                 } else {
                     let ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sorts(ty, &sorts))
+                    Ty::exists(Binder::bind_with_sorts(ty, &sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -562,11 +561,7 @@ impl BasicBlockEnvShape {
                     // FIXME(nilehmann) we shouldn't special case predicates here. Instead, we
                     // should differentiate between generics and indices.
                     let fsort = sort.expect_func().expect_mono();
-                    Expr::abs(Lambda::with_sorts(
-                        Expr::hole(HoleKind::Pred),
-                        fsort.inputs(),
-                        fsort.output().clone(),
-                    ))
+                    Expr::abs(Lambda::bind_with_fsort(Expr::hole(HoleKind::Pred), fsort))
                 } else {
                     bound_sorts.push(sort.clone());
                     Expr::bvar(
@@ -625,7 +620,7 @@ impl BasicBlockEnvShape {
                     sty1.pred.clone()
                 };
                 let sort = bty.sort();
-                let ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
+                let ctor = Binder::bind_with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
                 GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(_re2)) => {
@@ -658,24 +653,22 @@ impl BasicBlockEnvShape {
             .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
-        let outer_sorts = vars.to_sort_list();
-
-        let kvar = kvar_gen.fresh(&[outer_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
+        let kvar = kvar_gen.fresh(&[vars.clone()], self.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
         // Replace remaining holes by fresh kvars
-        let mut kvar_gen = |sorts: &[_], kind| {
+        let mut kvar_gen = |binders: &[_], kind| {
             debug_assert_eq!(kind, HoleKind::Pred);
-            let sorts = std::iter::once(outer_sorts.clone())
-                .chain(sorts.iter().cloned())
+            let binders = std::iter::once(vars.clone())
+                .chain(binders.iter().cloned())
                 .collect_vec();
-            kvar_gen.fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
+            kvar_gen.fresh(&binders, self.scope.iter(), KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
         let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
 
-        BasicBlockEnv { data: Binder::new(data, vars), scope: self.scope }
+        BasicBlockEnv { data: Binder::bind_with_vars(data, vars), scope: self.scope }
     }
 }
 

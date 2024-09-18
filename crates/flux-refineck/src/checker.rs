@@ -1450,7 +1450,7 @@ fn instantiate_args_for_fun_call(
         } else {
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
-        Binder::with_sort(constr, sort)
+        Binder::bind_with_sort(constr, sort)
     });
     let default_refiner = Refiner::default(genv, caller_generics);
 
@@ -1778,6 +1778,7 @@ pub(crate) mod errors {
     }
 
     impl<'a> Diagnostic<'a> for CheckerError {
+        #[track_caller]
         fn into_diag(
             self,
             dcx: rustc_errors::DiagCtxtHandle<'a>,

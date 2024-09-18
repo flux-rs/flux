@@ -13,8 +13,8 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -297,15 +297,10 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
-        let param_env = self.rustc_param_env();
-        let rc = c.to_rustc(self.tcx());
-        if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
-            && let Ok(ty) = ty.lower(self.tcx())
-        {
-            Ok(Const { kind: ConstKind::Value(ty, scalar_int) })
-        } else {
-            Ok(c.clone())
-        }
+        c.to_rustc(self.tcx())
+            .normalize(self.tcx(), self.rustc_param_env())
+            .lower(self.tcx())
+            .map_err(|e| QueryErr::unsupported(self.def_id, e.into_err()))
     }
 }
 
@@ -374,7 +369,8 @@ impl TVarSubst {
             (BaseTy::Param(param_ty), _) => {
                 if !b.has_escaping_bvars() {
                     let sort = b.sort();
-                    let ctor = Binder::with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+                    let ctor =
+                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
                     self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
                 }
             }
