@@ -426,6 +426,7 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -802,7 +803,8 @@
             (BaseTy::Param(param_ty), <span class="kw">_</span>) =&gt; {
                 <span class="kw">if </span>!b.has_escaping_bvars() {
                     <span class="kw">let </span>sort = b.sort();
-                    <span class="kw">let </span>ctor = Binder::with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+                    <span class="kw">let </span>ctor =
+                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
                     <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
                 }
             }

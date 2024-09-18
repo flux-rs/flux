@@ -1032,6 +1032,7 @@
 <a href="#1032" id="1032">1032</a>
 <a href="#1033" id="1033">1033</a>
 <a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1049,13 +1050,14 @@
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    BaseTy, Binder, Const, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate,
-    PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKinds, Const, Ensures, Expr, ExprKind, GenericArg, Name,
+    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
+    TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{expr::HoleKind, BoundVariableKindsExt, Var, VariantSig},
+    rty::{expr::HoleKind, Var, VariantSig},
 };
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
@@ -1287,15 +1289,15 @@
     ///
     /// [holes]: ExprKind::Hole
     /// [bound]: Binder
-    </span><span class="kw">fn </span>replace_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], HoleKind) -&gt; Expr) -&gt; <span class="self">Self </span>{
-        <span class="kw">struct </span>ReplaceHoles&lt;F&gt;(F, Vec&lt;List&lt;Sort&gt;&gt;);
+    </span><span class="kw">fn </span>replace_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[BoundVariableKinds], HoleKind) -&gt; Expr) -&gt; <span class="self">Self </span>{
+        <span class="kw">struct </span>ReplaceHoles&lt;F&gt;(F, Vec&lt;BoundVariableKinds&gt;);
 
         <span class="kw">impl</span>&lt;F&gt; TypeFolder <span class="kw">for </span>ReplaceHoles&lt;F&gt;
         <span class="kw">where
-            </span>F: FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], HoleKind) -&gt; Expr,
+            </span>F: FnMut(<span class="kw-2">&amp;</span>[BoundVariableKinds], HoleKind) -&gt; Expr,
         {
             <span class="kw">fn </span>fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; Binder&lt;T&gt; {
-                <span class="self">self</span>.<span class="number">1</span>.push(t.vars().to_sort_list());
+                <span class="self">self</span>.<span class="number">1</span>.push(t.vars().clone());
                 <span class="kw">let </span>t = t.super_fold_with(<span class="self">self</span>);
                 <span class="self">self</span>.<span class="number">1</span>.pop();
                 t
@@ -1549,7 +1551,7 @@
     </span>T: TypeFoldable,
 {
     <span class="kw">fn </span>try_super_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(Binder::new(
+        <span class="prelude-val">Ok</span>(Binder::bind_with_vars(
             <span class="self">self</span>.skip_binder_ref().try_fold_with(folder)<span class="question-mark">?</span>,
             <span class="self">self</span>.vars().try_fold_with(folder)<span class="question-mark">?</span>,
         ))

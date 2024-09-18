@@ -3290,7 +3290,7 @@
         } <span class="kw">else </span>{
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
-        Binder::with_sort(constr, sort)
+        Binder::bind_with_sort(constr, sort)
     });
     <span class="kw">let </span>default_refiner = Refiner::default(genv, caller_generics);
 

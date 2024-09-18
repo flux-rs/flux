@@ -768,6 +768,10 @@
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -779,9 +783,9 @@
         <span class="self">self</span>,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
-        Var,
+        AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
+        Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant,
+        Sort, Ty, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
@@ -945,15 +949,19 @@
         <span class="kw">match </span>mode {
             InferMode::KVar =&gt; {
                 <span class="kw">let </span>fsort = sort.expect_func().expect_mono();
-                <span class="kw">let </span>inputs = List::from_slice(fsort.inputs());
-                <span class="kw">let </span>kvar = <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[inputs.clone()], KVarEncoding::Single);
-                Expr::abs(Lambda::with_sorts(kvar, <span class="kw-2">&amp;</span>inputs, fsort.output().clone()))
+                <span class="kw">let </span>vars = fsort.inputs().iter().cloned().map_into().collect();
+                <span class="kw">let </span>kvar = <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[vars], KVarEncoding::Single);
+                Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
             InferMode::EVar =&gt; <span class="self">self</span>.fresh_evars(sort),
         }
     }
 
-    <span class="kw">pub fn </span>fresh_infer_var_for_hole(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: HoleKind) -&gt; Expr {
+    <span class="kw">pub fn </span>fresh_infer_var_for_hole(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        binders: <span class="kw-2">&amp;</span>[BoundVariableKinds],
+        kind: HoleKind,
+    ) -&gt; Expr {
         <span class="kw">match </span>kind {
             HoleKind::Pred =&gt; <span class="self">self</span>.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) =&gt; {
@@ -964,11 +972,11 @@
     }
 
     <span class="doccomment">/// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
-    </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
+    </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[BoundVariableKinds], encoding: KVarEncoding) -&gt; Expr {
         <span class="kw">let </span>inner = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.inner.borrow_mut();
         inner
             .kvars
-            .fresh(sorts, inner.evars.current_data().iter(), encoding)
+            .fresh(binders, inner.evars.current_data().iter(), encoding)
     }
 
     <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
@@ -1349,90 +1357,90 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         variance: Variance,
-        arg1: <span class="kw-2">&amp;</span>GenericArg,
-        arg2: <span class="kw-2">&amp;</span>GenericArg,
+        a: <span class="kw-2">&amp;</span>GenericArg,
+        b: <span class="kw-2">&amp;</span>GenericArg,
     ) -&gt; InferResult {
-        <span class="kw">let </span>(ty1, ty2) = <span class="kw">match </span>(arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) =&gt; (ty1.clone(), ty2.clone()),
-            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(ctor1.sort(), ctor2.sort());
-                (ctor1.to_ty(), ctor2.to_ty())
+        <span class="kw">let </span>(ty_a, ty_b) = <span class="kw">match </span>(a, b) {
+            (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) =&gt; (ty_a.clone(), ty_b.clone()),
+            (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(ctor_a.sort(), ctor_b.sort());
+                (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
-            (GenericArg::Const(c1), GenericArg::Const(c2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(c1, c2);
+            (GenericArg::Const(cst_a), GenericArg::Const(cst_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(cst_a, cst_b);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}`"</span>))<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible generic args: `{a:?}` `{b:?}`"</span>))<span class="question-mark">?</span>,
         };
         <span class="kw">match </span>variance {
-            Variance::Covariant =&gt; <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2),
+            Variance::Covariant =&gt; <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_a, <span class="kw-2">&amp;</span>ty_b),
             Variance::Invariant =&gt; {
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty2, <span class="kw-2">&amp;</span>ty1)
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_a, <span class="kw-2">&amp;</span>ty_b)<span class="question-mark">?</span>;
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_b, <span class="kw-2">&amp;</span>ty_a)
             }
-            Variance::Contravariant =&gt; <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty2, <span class="kw-2">&amp;</span>ty1),
+            Variance::Contravariant =&gt; <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_b, <span class="kw-2">&amp;</span>ty_a),
             Variance::Bivariant =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
-    <span class="kw">fn </span>idxs_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
-        <span class="kw">if </span>e1 == e2 {
+    <span class="kw">fn </span>idxs_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Expr, b: <span class="kw-2">&amp;</span>Expr) {
+        <span class="kw">if </span>a == b {
             <span class="kw">return</span>;
         }
 
-        <span class="kw">match </span>(e1.kind(), e2.kind()) {
-            (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(kind1, kind2);
-                <span class="kw">for </span>(e1, e2) <span class="kw">in </span>iter::zip(flds1, flds2) {
-                    <span class="self">self</span>.idxs_eq(infcx, e1, e2);
+        <span class="kw">match </span>(a.kind(), b.kind()) {
+            (ExprKind::Aggregate(kind_a, flds_a), ExprKind::Aggregate(kind_b, flds_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(kind_a, kind_b);
+                <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(flds_a, flds_b) {
+                    <span class="self">self</span>.idxs_eq(infcx, a, b);
                 }
             }
-            (<span class="kw">_</span>, ExprKind::Aggregate(kind2, flds2)) =&gt; {
-                <span class="kw">for </span>(f, e2) <span class="kw">in </span>flds2.iter().enumerate() {
-                    <span class="kw">let </span>e1 = e1.proj_and_reduce(kind2.to_proj(f <span class="kw">as </span>u32));
-                    <span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>e1, e2);
+            (<span class="kw">_</span>, ExprKind::Aggregate(kind_b, flds_b)) =&gt; {
+                <span class="kw">for </span>(f, b) <span class="kw">in </span>flds_b.iter().enumerate() {
+                    <span class="kw">let </span>a = a.proj_and_reduce(kind_b.to_proj(f <span class="kw">as </span>u32));
+                    <span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>a, b);
                 }
             }
-            (ExprKind::Aggregate(kind1, flds1), <span class="kw">_</span>) =&gt; {
-                infcx.unify_exprs(e1, e2);
-                <span class="kw">for </span>(f, e1) <span class="kw">in </span>flds1.iter().enumerate() {
-                    <span class="kw">let </span>e2 = e2.proj_and_reduce(kind1.to_proj(f <span class="kw">as </span>u32));
-                    <span class="self">self</span>.idxs_eq(infcx, e1, <span class="kw-2">&amp;</span>e2);
+            (ExprKind::Aggregate(kind_a, flds_a), <span class="kw">_</span>) =&gt; {
+                infcx.unify_exprs(a, b);
+                <span class="kw">for </span>(f, a) <span class="kw">in </span>flds_a.iter().enumerate() {
+                    <span class="kw">let </span>b = b.proj_and_reduce(kind_a.to_proj(f <span class="kw">as </span>u32));
+                    <span class="self">self</span>.idxs_eq(infcx, a, <span class="kw-2">&amp;</span>b);
                 }
             }
-            (ExprKind::Abs(p1), ExprKind::Abs(p2)) =&gt; {
-                <span class="self">self</span>.abs_eq(infcx, p1, p2);
+            (ExprKind::Abs(lam_a), ExprKind::Abs(lam_b)) =&gt; {
+                <span class="self">self</span>.abs_eq(infcx, lam_a, lam_b);
             }
-            (<span class="kw">_</span>, ExprKind::Abs(p)) =&gt; {
-                <span class="self">self</span>.abs_eq(infcx, <span class="kw-2">&amp;</span>e1.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()), p);
+            (<span class="kw">_</span>, ExprKind::Abs(lam_b)) =&gt; {
+                <span class="self">self</span>.abs_eq(infcx, <span class="kw-2">&amp;</span>a.eta_expand_abs(lam_b.vars(), lam_b.output()), lam_b);
             }
-            (ExprKind::Abs(p), <span class="kw">_</span>) =&gt; {
-                infcx.unify_exprs(e1, e2);
-                <span class="self">self</span>.abs_eq(infcx, p, <span class="kw-2">&amp;</span>e2.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()));
+            (ExprKind::Abs(lam_a), <span class="kw">_</span>) =&gt; {
+                infcx.unify_exprs(a, b);
+                <span class="self">self</span>.abs_eq(infcx, lam_a, <span class="kw-2">&amp;</span>b.eta_expand_abs(lam_a.vars(), lam_a.output()));
             }
             (ExprKind::KVar(<span class="kw">_</span>), <span class="kw">_</span>) | (<span class="kw">_</span>, ExprKind::KVar(<span class="kw">_</span>)) =&gt; {
-                infcx.check_impl(e1, e2, <span class="self">self</span>.tag());
-                infcx.check_impl(e2, e1, <span class="self">self</span>.tag());
+                infcx.check_impl(a, b, <span class="self">self</span>.tag());
+                infcx.check_impl(b, a, <span class="self">self</span>.tag());
             }
             <span class="kw">_ </span>=&gt; {
-                infcx.unify_exprs(e1, e2);
-                <span class="kw">let </span>span = e2.span();
-                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, e1, e2).at_opt(span), <span class="self">self</span>.tag());
+                infcx.unify_exprs(a, b);
+                <span class="kw">let </span>span = b.span();
+                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, a, b).at_opt(span), <span class="self">self</span>.tag());
             }
         }
     }
 
-    <span class="kw">fn </span>abs_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, f1: <span class="kw-2">&amp;</span>Lambda, f2: <span class="kw-2">&amp;</span>Lambda) {
-        <span class="macro">debug_assert_eq!</span>(f1.inputs(), f2.inputs());
-        <span class="kw">let </span>vars = f1
-            .inputs()
+    <span class="kw">fn </span>abs_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Lambda, b: <span class="kw-2">&amp;</span>Lambda) {
+        <span class="macro">debug_assert_eq!</span>(a.vars().len(), b.vars().len());
+        <span class="kw">let </span>vars = a
+            .vars()
             .iter()
-            .map(|s| infcx.define_vars(s))
+            .map(|kind| infcx.define_vars(kind.expect_sort()))
             .collect_vec();
-        <span class="kw">let </span>e1 = f1.apply(<span class="kw-2">&amp;</span>vars);
-        <span class="kw">let </span>e2 = f2.apply(<span class="kw-2">&amp;</span>vars);
-        <span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2);
+        <span class="kw">let </span>body_a = a.apply(<span class="kw-2">&amp;</span>vars);
+        <span class="kw">let </span>body_b = b.apply(<span class="kw-2">&amp;</span>vars);
+        <span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>body_a, <span class="kw-2">&amp;</span>body_b);
     }
 
     <span class="kw">fn </span>handle_opaque_type(

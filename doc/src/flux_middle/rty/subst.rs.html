@@ -578,6 +578,29 @@
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -628,8 +651,9 @@
         <span class="kw">struct </span>Folder&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RegionSubst);
         <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Folder&lt;<span class="lifetime">'_</span>&gt; {
             <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-                <span class="kw">if let </span>ReVar(rvid) = re
-                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(region) = <span class="self">self</span>.<span class="number">0</span>.map.get(rvid)
+                <span class="comment">// FIXME the map should always contain a region
+                </span><span class="kw">if let </span>ReVar(rvid) = re
+                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(region) = <span class="self">self</span>.<span class="number">0</span>.map.get(<span class="kw-2">&amp;</span>rvid)
                 {
                     <span class="kw-2">*</span>region
                 } <span class="kw">else </span>{
@@ -638,6 +662,14 @@
             }
         }
         t.fold_with(<span class="kw-2">&amp;mut </span>Folder(<span class="self">self</span>))
+    }
+
+    <span class="kw">fn </span>infer_from_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>FnSig, b: <span class="kw-2">&amp;</span>ty::FnSig) {
+        <span class="macro">debug_assert_eq!</span>(a.inputs().len(), b.inputs().len());
+        <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(a.inputs(), b.inputs()) {
+            <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
+        }
+        <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>a.output().skip_binder_ref().ret, b.output());
     }
 
     <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>ty::Ty) {
@@ -665,24 +697,38 @@
 
     <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>ty::Ty) {
         <span class="kw">match </span>(a, ty.kind()) {
-            (BaseTy::Ref(re_a, ty_a, <span class="kw">_</span>), ty::TyKind::Ref(re_b, ty_b, <span class="kw">_</span>)) =&gt; {
+            (BaseTy::Adt(<span class="kw">_</span>, args_a), ty::TyKind::Adt(<span class="kw">_</span>, args_b)) =&gt; {
+                <span class="self">self</span>.infer_from_generic_args(args_a, args_b);
+            }
+            (BaseTy::Array(ty_a, <span class="kw">_</span>), ty::TyKind::Array(ty_b, <span class="kw">_</span>)) =&gt; {
+                <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
+            }
+            (BaseTy::Ref(re_a, ty_a, mutbl_a), ty::TyKind::Ref(re_b, ty_b, mutbl_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(mutbl_a, mutbl_b);
                 <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
                 <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
             }
-            (BaseTy::Adt(<span class="kw">_</span>, args_a), ty::TyKind::Adt(<span class="kw">_</span>, args_b)) =&gt; {
-                <span class="self">self</span>.infer_from_generic_args(args_a, args_b);
+            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(fields_a.len(), fields_b.len());
+                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(fields_a, fields_b) {
+                    <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
+                }
+            }
+            (BaseTy::Slice(ty_a), ty::TyKind::Slice(ty_b)) =&gt; {
+                <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
+            }
+            (BaseTy::FnPtr(poly_sig_a), ty::TyKind::FnPtr(poly_sig_b)) =&gt; {
+                <span class="self">self</span>.infer_from_fn_sig(poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
+            }
+            (BaseTy::RawPtr(ty_a, mutbl_a), ty::TyKind::RawPtr(ty_b, mutbl_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(mutbl_a, mutbl_b);
+                <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
             }
             (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(preds_a.len(), preds_b.len());
                 <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
                 <span class="kw">for </span>(pred_a, pred_b) <span class="kw">in </span>iter::zip(preds_a, preds_b) {
                     <span class="self">self</span>.infer_from_existential_pred(pred_a, pred_b);
-                }
-            }
-            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(fields_a.len(), fields_b.len());
-                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(fields_a, fields_b) {
-                    <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
                 }
             }
             <span class="kw">_ </span>=&gt; {}

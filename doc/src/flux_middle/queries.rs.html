@@ -1418,7 +1418,7 @@
                 <span class="kw">let </span>generics = genv.generics_of(generics_def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
                 <span class="kw">let </span>ty = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
+                <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
             }
         })
     }

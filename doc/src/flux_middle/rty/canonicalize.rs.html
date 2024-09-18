@@ -340,7 +340,7 @@
         <span class="kw">if </span>vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
         } <span class="kw">else </span>{
-            CanonicalTy::Exists(Binder::new(constr_ty, vars))
+            CanonicalTy::Exists(Binder::bind_with_vars(constr_ty, vars))
         }
     }
 }
@@ -390,7 +390,7 @@
                         Expr::nu(),
                         Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
                     );
-                    <span class="prelude-val">Some</span>(Binder::with_sort(constr, sort))
+                    <span class="prelude-val">Some</span>(Binder::bind_with_sort(constr, sort))
                 } <span class="kw">else </span>{
                     <span class="prelude-val">None
                 </span>}

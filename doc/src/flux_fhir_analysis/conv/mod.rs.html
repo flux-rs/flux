@@ -2309,7 +2309,7 @@
 
     <span class="kw">let </span>ty = struct_compat::type_alias(genv, alias, <span class="kw-2">&amp;</span>ty, def_id)<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
+    <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generic_predicates(
@@ -2469,7 +2469,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
         env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, func.args)<span class="question-mark">?</span>);
         <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
-        <span class="kw">let </span>expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
+        <span class="kw">let </span>expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::SpecFunc { name: func.name, expr }))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
@@ -2485,7 +2485,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
     env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, qualifier.args)<span class="question-mark">?</span>);
     <span class="kw">let </span>body = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
-    <span class="kw">let </span>body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
+    <span class="kw">let </span>body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
     <span class="prelude-val">Ok</span>(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
@@ -2515,7 +2515,7 @@
         .cloned()
         .collect();
 
-    <span class="kw">let </span>poly_fn_sig = rty::PolyFnSig::new(fn_sig, vars);
+    <span class="kw">let </span>poly_fn_sig = rty::PolyFnSig::bind_with_vars(fn_sig, vars);
     <span class="kw">let </span>poly_fn_sig = struct_compat::fn_sig(genv, decl, <span class="kw-2">&amp;</span>poly_fn_sig, def_id)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(poly_fn_sig))
@@ -2556,7 +2556,7 @@
     <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
     <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
     <span class="kw">let </span>output = conv_sort(genv, output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(rty::Lambda::with_vars(expr, inputs, output))
+    <span class="prelude-val">Ok</span>(rty::Lambda::bind_with_vars(expr, inputs, output))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_ty(
@@ -2566,7 +2566,7 @@
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
     <span class="kw">let </span>ty = ConvCtxt::new(genv, wfckresults).conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(rty::Binder::new(ty, List::empty()))
+    <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(ty, List::empty()))
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ConvCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -2654,7 +2654,7 @@
             .iter()
             .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
             .try_collect_vec()<span class="question-mark">?</span>;
-        <span class="kw">let </span>poly_trait_ref = rty::Binder::new(
+        <span class="kw">let </span>poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
             List::from_vec(vars),
         );
@@ -2798,7 +2798,7 @@
         <span class="kw">let </span>output = rty::FnOutput::new(ret, ensures);
 
         <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(rty::Binder::new(output, vars))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(output, vars))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_variants(
@@ -2844,7 +2844,7 @@
             idxs,
         );
 
-        <span class="prelude-val">Ok</span>(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_variant(
@@ -2884,7 +2884,7 @@
                 fields,
                 idx,
             );
-            <span class="kw">let </span>variant = rty::Binder::new(variant, vars);
+            <span class="kw">let </span>variant = rty::Binder::bind_with_vars(variant, vars);
             <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>[variant], adt_def_id)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(rty::Opaqueness::Transparent(variants))
         } <span class="kw">else </span>{
@@ -2925,7 +2925,7 @@
             env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, requires.params)<span class="question-mark">?</span>);
             <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>requires.pred)<span class="question-mark">?</span>;
             <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(rty::Expr::forall(rty::Binder::new(pred, sorts)))
+            <span class="prelude-val">Ok</span>(rty::Expr::forall(rty::Binder::bind_with_vars(pred, sorts)))
         }
     }
 
@@ -2990,7 +2990,7 @@
                 <span class="kw">if </span>sorts.is_empty() {
                     <span class="prelude-val">Ok</span>(ty.shift_out_escaping(<span class="number">1</span>))
                 } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(rty::Ty::exists(rty::Binder::new(ty, sorts)))
+                    <span class="prelude-val">Ok</span>(rty::Ty::exists(rty::Binder::bind_with_vars(ty, sorts)))
                 }
             }
             fhir::TyKind::StrgRef(lft, loc, ty) =&gt; {
@@ -3012,7 +3012,7 @@
                     .iter()
                     .map(|param| <span class="self">self</span>.param_as_bound_var(param))
                     .try_collect()<span class="question-mark">?</span>;
-                <span class="kw">let </span>poly_fn_sig = rty::Binder::new(fn_sig, vars);
+                <span class="kw">let </span>poly_fn_sig = rty::Binder::bind_with_vars(fn_sig, vars);
                 <span class="prelude-val">Ok</span>(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
             }
             fhir::TyKind::Tuple(tys) =&gt; {
@@ -3114,10 +3114,10 @@
             <span class="kw">let </span>vars = bound_pred.vars().clone();
             <span class="kw">match </span>bound_pred.skip_binder() {
                 rty::ClauseKind::Trait(trait_pred) =&gt; {
-                    trait_bounds.push(rty::Binder::new(trait_pred.trait_ref, vars));
+                    trait_bounds.push(rty::Binder::bind_with_vars(trait_pred.trait_ref, vars));
                 }
                 rty::ClauseKind::Projection(proj) =&gt; {
-                    projection_bounds.push(rty::Binder::new(proj, vars));
+                    projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
                 rty::ClauseKind::TypeOutlives(<span class="kw">_</span>) =&gt; {}
                 rty::ClauseKind::FnTrait(..)
@@ -3233,7 +3233,7 @@
             fhir::BaseTyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>bty = rty::BaseTy::Slice(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>).shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>sort = bty.sort();
-                <span class="prelude-val">Ok</span>(rty::Ty::exists(rty::Binder::with_sort(
+                <span class="prelude-val">Ok</span>(rty::Ty::exists(rty::Binder::bind_with_sort(
                     rty::Ty::indexed(bty, rty::Expr::nu()),
                     sort,
                 )))
@@ -3476,7 +3476,7 @@
         };
         <span class="kw">let </span>sort = bty.sort();
         <span class="kw">let </span>bty = bty.shift_in_escaping(<span class="number">1</span>);
-        <span class="prelude-val">Ok</span>(rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
     }
 
     <span class="kw">fn </span>param_as_bound_var(
@@ -3747,7 +3747,7 @@
                     .get(arg.fhir_id)
                     .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"lambda without elaborated sort"</span>))
                     .clone();
-                <span class="kw">let </span>lam = rty::Lambda::with_vars(pred, inputs, output);
+                <span class="kw">let </span>lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) =&gt; {
@@ -3876,7 +3876,7 @@
         env: <span class="kw-2">&amp;mut </span>Env,
         invariant: <span class="kw-2">&amp;</span>fhir::Expr,
     ) -&gt; QueryResult&lt;rty::Invariant&gt; {
-        <span class="prelude-val">Ok</span>(rty::Invariant::new(rty::Binder::new(
+        <span class="prelude-val">Ok</span>(rty::Invariant::new(rty::Binder::bind_with_vars(
             <span class="self">self</span>.conv_expr(env, invariant)<span class="question-mark">?</span>,
             env.top_layer().to_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>,
         )))

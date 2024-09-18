@@ -2280,6 +2280,7 @@
 <a href="#2280" id="2280">2280</a>
 <a href="#2281" id="2281">2281</a>
 <a href="#2282" id="2282">2282</a>
+<a href="#2283" id="2283">2283</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2298,7 +2299,7 @@
 <span class="kw">pub mod </span>subst;
 <span class="kw">use </span>std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
 
-<span class="kw">pub use </span>binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, EarlyBinder};
+<span class="kw">pub use </span>binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
 <span class="kw">pub use </span>expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
@@ -2670,10 +2671,10 @@
             abi::Abi::Rust,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::empty())
+        PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
     <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, closure_id: DefId, tys: List&lt;Ty&gt;) -&gt; PolyFnSig {
@@ -2708,10 +2709,10 @@
             abi::Abi::RustCall,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::from(vars))
+        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
     }
 }
 
@@ -3274,7 +3275,7 @@
     <span class="kw">pub fn </span>exists_with_constr(bty: BaseTy, pred: Expr) -&gt; Ty {
         <span class="kw">let </span>sort = bty.sort();
         <span class="kw">let </span>ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+        Ty::exists(Binder::bind_with_sort(Ty::constr(pred, ty), sort))
     }
 
     <span class="kw">pub fn </span>discr(adt_def: AdtDef, place: Place) -&gt; Ty {
@@ -3708,7 +3709,7 @@
         <span class="kw">if </span>sort.is_unit() {
             Ty::indexed(<span class="self">self</span>.clone(), Expr::unit())
         } <span class="kw">else </span>{
-            Ty::exists(Binder::with_sort(Ty::indexed(<span class="self">self</span>.clone(), Expr::nu()), sort))
+            Ty::exists(Binder::bind_with_sort(Ty::indexed(<span class="self">self</span>.clone(), Expr::nu()), sort))
         }
     }
 
@@ -3961,7 +3962,7 @@
             GenericParamDefKind::Base =&gt; {
                 <span class="comment">// λv. T[v]
                 </span><span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
-                GenericArg::Base(Binder::with_sort(
+                GenericArg::Base(Binder::bind_with_sort(
                     SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
                     Sort::Param(param_ty),
                 ))
@@ -4056,7 +4057,7 @@
 
 <span class="kw">impl </span>Clause {
     <span class="kw">pub fn </span>new(vars: <span class="kw">impl </span>Into&lt;List&lt;BoundVariableKind&gt;&gt;, kind: ClauseKind) -&gt; <span class="self">Self </span>{
-        Clause { kind: Binder::new(kind, vars.into()) }
+        Clause { kind: Binder::bind_with_vars(kind, vars.into()) }
     }
 
     <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Binder&lt;ClauseKind&gt; {
@@ -4084,9 +4085,10 @@
         <span class="kw">let </span>env_ty = Ty::coroutine(<span class="self">self</span>.def_id, resume_ty.clone(), <span class="self">self</span>.upvar_tys.clone());
 
         <span class="kw">let </span>inputs = List::from_arr([env_ty, resume_ty.clone()]);
-        <span class="kw">let </span>output = Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty());
+        <span class="kw">let </span>output =
+            Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty());
 
-        PolyFnSig::new(
+        PolyFnSig::bind_with_vars(
             FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
             List::from(vars),
         )
@@ -4320,7 +4322,7 @@
         <span class="self">self</span>.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 <span class="kw">let </span>ret = variant.ret().shift_in_escaping(<span class="number">1</span>);
-                <span class="kw">let </span>output = Binder::new(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
+                <span class="kw">let </span>output = Binder::bind_with_vars(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
                 FnSig::new(
                     Safety::Safe,
                     abi::Abi::Rust,
@@ -4367,7 +4369,7 @@
 
 <span class="kw">fn </span>uint_invariants(uint_ty: UintTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
     <span class="kw">static </span>DEFAULT: LazyLock&lt;[Invariant; <span class="number">1</span>]&gt; = LazyLock::new(|| {
-        [Invariant { pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
 
     <span class="kw">static </span>OVERFLOW: LazyLock&lt;UnordMap&lt;UintTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
@@ -4376,10 +4378,10 @@
             .map(|uint_ty| {
                 <span class="kw">let </span>invariants = [
                     Invariant {
-                        pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+                        pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::uint_max(uint_ty)),
                             Sort::Int,
                         ),
@@ -4405,13 +4407,13 @@
             .map(|int_ty| {
                 <span class="kw">let </span>invariants = [
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::ge(Expr::nu(), Expr::int_min(int_ty)),
                             Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::int_max(int_ty)),
                             Sort::Int,
                         ),

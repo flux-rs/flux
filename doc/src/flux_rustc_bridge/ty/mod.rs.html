@@ -1018,6 +1018,10 @@
 <a href="#1018" id="1018">1018</a>
 <a href="#1019" id="1019">1019</a>
 <a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1471,6 +1475,10 @@
     <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
         <span class="self">self</span>.<span class="number">0
     </span>}
+
+    <span class="kw">pub fn </span>skip_binder_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>T {
+        <span class="self">self</span>.as_ref().skip_binder()
+    }
 
     <span class="kw">pub fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Binder&lt;<span class="kw-2">&amp;</span>T&gt; {
         Binder(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="self">self</span>.<span class="number">1</span>.clone())

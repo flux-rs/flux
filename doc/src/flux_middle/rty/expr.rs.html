@@ -1300,7 +1300,14 @@
 <a href="#1300" id="1300">1300</a>
 <a href="#1301" id="1301">1301</a>
 <a href="#1302" id="1302">1302</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
@@ -1323,8 +1330,8 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, FuncSort,
-    GenericArgs, GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs,
+    GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
 };
 <span class="kw">use crate</span>::{
     big_int::BigInt,
@@ -1333,7 +1340,7 @@
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        SortCtor,
+        BoundVariableKind, SortCtor,
     },
 };
 
@@ -1346,28 +1353,35 @@
 }
 
 <span class="kw">impl </span>Lambda {
-    <span class="kw">pub fn </span>with_vars(body: Expr, inputs: List&lt;BoundVariableKind&gt;, output: Sort) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ body: Binder::new(body, inputs), output }
+    <span class="kw">pub fn </span>bind_with_vars(body: Expr, inputs: BoundVariableKinds, output: Sort) -&gt; <span class="self">Self </span>{
+        <span class="macro">debug_assert!</span>(inputs.iter().all(BoundVariableKind::is_refine));
+        <span class="self">Self </span>{ body: Binder::bind_with_vars(body, inputs), output }
     }
 
-    <span class="kw">pub fn </span>with_sorts(body: Expr, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ body: Binder::with_sorts(body, inputs), output }
+    <span class="kw">pub fn </span>bind_with_fsort(body: Expr, fsort: FuncSort) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ body: Binder::bind_with_sorts(body, fsort.inputs()), output: fsort.output().clone() }
     }
 
     <span class="kw">pub fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Expr]) -&gt; Expr {
         <span class="self">self</span>.body.replace_bound_refts(args)
     }
 
-    <span class="kw">pub fn </span>inputs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; List&lt;Sort&gt; {
-        <span class="self">self</span>.body.vars().to_sort_list()
+    <span class="kw">pub fn </span>vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BoundVariableKinds {
+        <span class="self">self</span>.body.vars()
     }
 
     <span class="kw">pub fn </span>output(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
         <span class="self">self</span>.output.clone()
     }
 
-    <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
-        FuncSort::new(<span class="self">self</span>.inputs().to_vec(), <span class="self">self</span>.output())
+    <span class="kw">pub fn </span>fsort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
+        <span class="kw">let </span>inputs_and_output = <span class="self">self
+            </span>.vars()
+            .iter()
+            .map(|kind| kind.expect_sort().clone())
+            .chain(iter::once(<span class="self">self</span>.output()))
+            .collect();
+        FuncSort { inputs_and_output }
     }
 }
 
@@ -2008,12 +2022,12 @@
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Aggregate(<span class="kw">_</span>, flds) <span class="kw">if </span>flds.is_empty())
     }
 
-    <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; Lambda {
+    <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>BoundVariableKinds, output: Sort) -&gt; Lambda {
         <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect();
         <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args);
-        Lambda::with_sorts(body, inputs, output)
+        Lambda::bind_with_vars(body, inputs.clone(), output)
     }
 
     <span class="kw">pub fn </span>fold_sort(sort: <span class="kw-2">&amp;</span>Sort, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort) -&gt; Expr) -&gt; Expr {

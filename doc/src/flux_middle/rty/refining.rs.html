@@ -496,6 +496,7 @@
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
 <a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
@@ -580,7 +581,7 @@
                     rty::Expr::nu(),
                     rty::Expr::hole(rty::HoleKind::Pred),
                 );
-                rty::Binder::with_sort(constr, sort)
+                rty::Binder::bind_with_sort(constr, sort)
             },
         }
     }
@@ -638,7 +639,7 @@
                 rty::ClauseKind::ConstArgHasType(const_.clone(), <span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>)
             }
         };
-        <span class="kw">let </span>kind = rty::Binder::new(kind, List::empty());
+        <span class="kw">let </span>kind = rty::Binder::bind_with_vars(kind, List::empty());
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Clause { kind }))
     }
 
@@ -747,7 +748,7 @@
             fields,
             rty::Expr::unit_adt(adt_def_id),
         );
-        <span class="prelude-val">Ok</span>(rty::Binder::new(value, List::empty()))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(value, List::empty()))
     }
 
     <span class="kw">pub fn </span>refine_binders&lt;S, T, F&gt;(
@@ -761,7 +762,7 @@
         <span class="kw">let </span>vars = refine_bound_variables(t.vars());
         <span class="kw">let </span>inner = t.as_ref().skip_binder();
         <span class="kw">let </span>inner = f(inner)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(rty::Binder::new(inner, vars))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(inner, vars))
     }
 
     <span class="kw">pub fn </span>refine_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>ty::PolyFnSig) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
@@ -772,7 +773,8 @@
                 .map(|ty| <span class="self">self</span>.refine_ty(ty))
                 .try_collect()<span class="question-mark">?</span>;
             <span class="kw">let </span>ret = <span class="self">self</span>.refine_ty(fn_sig.output())<span class="question-mark">?</span>.shift_in_escaping(<span class="number">1</span>);
-            <span class="kw">let </span>output = rty::Binder::new(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
+            <span class="kw">let </span>output =
+                rty::Binder::bind_with_vars(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
             <span class="prelude-val">Ok</span>(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
         })
     }
@@ -973,7 +975,7 @@
 
     <span class="kw">fn </span>into_ctor(<span class="self">self</span>) -&gt; rty::TyCtor {
         <span class="kw">match </span><span class="self">self </span>{
-            TyOrBase::Ty(ty) =&gt; rty::Binder::new(ty, List::empty()),
+            TyOrBase::Ty(ty) =&gt; rty::Binder::bind_with_vars(ty, List::empty()),
             TyOrBase::Base(ctor) =&gt; ctor.map(|ty| ty.to_ty()),
         }
     }
@@ -982,7 +984,7 @@
 <span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::SubsetTyCtor {
     <span class="kw">let </span>sort = bty.sort();
     <span class="kw">let </span>constr = rty::SubsetTy::trivial(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
-    rty::Binder::with_sort(constr, sort)
+    rty::Binder::bind_with_sort(constr, sort)
 }
 
 <span class="kw">pub fn </span>refine_bound_variables(vars: <span class="kw-2">&amp;</span>[ty::BoundVariableKind]) -&gt; List&lt;rty::BoundVariableKind&gt; {

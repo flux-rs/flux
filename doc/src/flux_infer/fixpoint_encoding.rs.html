@@ -1367,6 +1367,18 @@
 <a href="#1367" id="1367">1367</a>
 <a href="#1368" id="1368">1368</a>
 <a href="#1369" id="1369">1369</a>
+<a href="#1370" id="1370">1370</a>
+<a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1387,7 +1399,7 @@
     fhir::{<span class="self">self</span>, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{<span class="self">self</span>, BoundVariableKindsExt <span class="kw">as _</span>, ESpan, Lambda, List},
+    rty::{<span class="self">self</span>, BoundVariableKind, ESpan, Lambda, List},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>liquid_fixpoint::FixpointResult;
@@ -1845,11 +1857,11 @@
                 <span class="kw">let </span>cstr = <span class="self">self</span>.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag)<span class="question-mark">?</span>;
                 <span class="kw">let </span>vars = <span class="self">self</span>.ecx.local_var_env.pop_layer();
 
-                <span class="kw">let </span>bindings = iter::zip(vars, <span class="kw-2">&amp;</span>pred.vars().to_sort_list())
-                    .map(|(var, sort)| {
+                <span class="kw">let </span>bindings = iter::zip(vars, pred.vars())
+                    .map(|(var, kind)| {
                         fixpoint::Bind {
                             name: var.into(),
-                            sort: <span class="self">self</span>.scx.sort_to_fixpoint(sort),
+                            sort: <span class="self">self</span>.scx.sort_to_fixpoint(kind.expect_sort()),
                             pred: fixpoint::Pred::TRUE,
                         }
                     })
@@ -2124,9 +2136,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.kvars[kvid]
     }
 
-    <span class="doccomment">/// Generate a fresh [kvar] under several layers of [binders]. The variables bound in the last
-    /// layer (last element of the `binders` slice) are used as the self arguments. The rest of the
-    /// binders are appended to the `scope`.
+    <span class="doccomment">/// Generate a fresh [kvar] under several layers of [binders]. Each layer may contain any kind
+    /// of bound variable, but variables that are not of kind [`BoundVariableKind::Refine`] will
+    /// be filtered out.
+    ///
+    /// The variables bound in the last layer (last element of the `binders` slice) is expected to
+    /// have only [`BoundVariableKind::Refine`] and all its elements are used as the [self arguments].
+    /// The rest of the binders are appended to the `scope`.
     ///
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
@@ -2136,9 +2152,10 @@
     /// [binders]: rty::Binder
     /// [kvar]: rty::KVar
     /// [`InferCtxt::fresh_kvar`]: crate::infer::InferCtxt::fresh_kvar
+    /// [self arguments]: rty::KVar::self_args
     </span><span class="kw">pub fn </span>fresh(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>[List&lt;rty::Sort&gt;],
+        binders: <span class="kw-2">&amp;</span>[rty::BoundVariableKinds],
         scope: <span class="kw">impl </span>IntoIterator&lt;Item = (rty::Var, rty::Sort)&gt;,
         encoding: KVarEncoding,
     ) -&gt; rty::Expr {
@@ -2146,30 +2163,37 @@
             <span class="kw">return </span>rty::Expr::hole(rty::HoleKind::Pred);
         }
 
-        <span class="kw">if </span>binders.is_empty() {
+        <span class="kw">let </span>[.., last] = binders <span class="kw">else </span>{
             <span class="kw">return </span><span class="self">self</span>.fresh_inner(<span class="number">0</span>, [], encoding);
-        }
+        };
+
+        <span class="macro">debug_assert!</span>(last.iter().all(BoundVariableKind::is_refine));
         <span class="kw">let </span>args = itertools::chain(
-            binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
+            binders.iter().rev().enumerate().flat_map(|(level, vars)| {
                 <span class="kw">let </span>debruijn = DebruijnIndex::from_usize(level);
-                sorts.iter().cloned().enumerate().map(<span class="kw">move </span>|(idx, sort)| {
-                    <span class="kw">let </span>var = rty::BoundReft {
-                        var: BoundVar::from_usize(idx),
-                        kind: rty::BoundReftKind::Annon,
-                    };
-                    (rty::Var::Bound(debruijn, var), sort)
-                })
+                vars.iter()
+                    .cloned()
+                    .enumerate()
+                    .flat_map(<span class="kw">move </span>|(idx, var)| {
+                        <span class="kw">if let </span>rty::BoundVariableKind::Refine(sort, <span class="kw">_</span>, kind) = var {
+                            <span class="kw">let </span>br = rty::BoundReft { var: BoundVar::from_usize(idx), kind };
+                            <span class="prelude-val">Some</span>((rty::Var::Bound(debruijn, br), sort))
+                        } <span class="kw">else </span>{
+                            <span class="prelude-val">None
+                        </span>}
+                    })
             }),
             scope,
         );
-        <span class="self">self</span>.fresh_inner(binders.last().unwrap().len(), args, encoding)
+        <span class="self">self</span>.fresh_inner(last.len(), args, encoding)
     }
 
     <span class="kw">fn </span>fresh_inner&lt;A&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_args: usize, args: A, encoding: KVarEncoding) -&gt; rty::Expr
     <span class="kw">where
         </span>A: IntoIterator&lt;Item = (rty::Var, rty::Sort)&gt;,
     {
-        <span class="kw">let </span><span class="kw-2">mut </span>sorts = <span class="macro">vec!</span>[];
+        <span class="comment">// asset last one has things
+        </span><span class="kw">let </span><span class="kw-2">mut </span>sorts = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
 
         <span class="kw">let </span><span class="kw-2">mut </span>flattened_self_args = <span class="number">0</span>;
@@ -2670,7 +2694,7 @@
             .or_insert_with(|| {
                 <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"lambda: {lam:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
-                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.sort().to_poly());
+                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.fsort().to_poly());
                 ConstInfo { name, comment, sort, val: <span class="prelude-val">None </span>}
             })
             .name

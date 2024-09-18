@@ -771,13 +771,6 @@
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -795,9 +788,8 @@
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, BoundVariableKindsExt <span class="kw">as _</span>, Expr, ExprKind, FnSig,
-        GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
-        Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
+        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     PlaceExt <span class="kw">as _</span>,
 };
@@ -1272,7 +1264,7 @@
                     Ty::indexed(bty, idx)
                 } <span class="kw">else </span>{
                     <span class="kw">let </span>ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sorts(ty, <span class="kw-2">&amp;</span>sorts))
+                    Ty::exists(Binder::bind_with_sorts(ty, <span class="kw-2">&amp;</span>sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) =&gt; {
@@ -1342,11 +1334,7 @@
                     <span class="comment">// FIXME(nilehmann) we shouldn't special case predicates here. Instead, we
                     // should differentiate between generics and indices.
                     </span><span class="kw">let </span>fsort = sort.expect_func().expect_mono();
-                    Expr::abs(Lambda::with_sorts(
-                        Expr::hole(HoleKind::Pred),
-                        fsort.inputs(),
-                        fsort.output().clone(),
-                    ))
+                    Expr::abs(Lambda::bind_with_fsort(Expr::hole(HoleKind::Pred), fsort))
                 } <span class="kw">else </span>{
                     bound_sorts.push(sort.clone());
                     Expr::bvar(
@@ -1405,7 +1393,7 @@
                     sty1.pred.clone()
                 };
                 <span class="kw">let </span>sort = bty.sort();
-                <span class="kw">let </span>ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
+                <span class="kw">let </span>ctor = Binder::bind_with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
                 GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(_re2)) =&gt; {
@@ -1438,24 +1426,22 @@
             .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
-        <span class="kw">let </span>outer_sorts = vars.to_sort_list();
-
-        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[outer_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
+        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[vars.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
         <span class="comment">// Replace remaining holes by fresh kvars
-        </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
+        </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |binders: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
             <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
-            <span class="kw">let </span>sorts = std::iter::once(outer_sorts.clone())
-                .chain(sorts.iter().cloned())
+            <span class="kw">let </span>binders = std::iter::once(vars.clone())
+                .chain(binders.iter().cloned())
                 .collect_vec();
-            kvar_gen.fresh(<span class="kw-2">&amp;</span>sorts, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
+            kvar_gen.fresh(<span class="kw-2">&amp;</span>binders, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
 
         <span class="kw">let </span>data = BasicBlockEnvData { constrs: constrs.into(), bindings };
 
-        BasicBlockEnv { data: Binder::new(data, vars), scope: <span class="self">self</span>.scope }
+        BasicBlockEnv { data: Binder::bind_with_vars(data, vars), scope: <span class="self">self</span>.scope }
     }
 }
 
