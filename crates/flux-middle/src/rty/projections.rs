@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
-use flux_rustc_bridge::{lowering::Lower, ToRustc};
+use flux_rustc_bridge::{lowering::Lower, ty::ValTree, ToRustc};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -302,7 +302,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
             && let Ok(ty) = ty.lower(self.tcx())
         {
-            Ok(Const { kind: ConstKind::Value(ty, scalar_int) })
+            Ok(Const { kind: ConstKind::Value(ty, ValTree::Leaf(scalar_int)) })
         } else {
             Ok(c.clone())
         }

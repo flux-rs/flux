@@ -263,8 +263,24 @@ impl Const {
         Self {
             kind: ConstKind::Value(
                 Ty::mk_uint(UintTy::Usize),
-                ScalarInt::try_from_target_usize(v as u128, tcx).unwrap(),
+                ValTree::Leaf(ScalarInt::try_from_target_usize(v as u128, tcx).unwrap()),
             ),
+        }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for ValTree {
+    type T = rustc_middle::ty::ValTree<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::Leaf(*scalar),
+            ValTree::Branch(trees) => {
+                let trees = tcx
+                    .arena
+                    .alloc_from_iter(trees.iter().map(|tree| tree.to_rustc(tcx)));
+                rustc_middle::ty::ValTree::Branch(trees)
+            }
         }
     }
 }
@@ -275,11 +291,8 @@ impl<'tcx> ToRustc<'tcx> for Const {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
-            ConstKind::Value(ty, scalar_int) => {
-                rustc_ty::ConstKind::Value(
-                    ty.to_rustc(tcx),
-                    rustc_middle::ty::ValTree::Leaf(*scalar_int),
-                )
+            ConstKind::Value(ty, val) => {
+                rustc_ty::ConstKind::Value(ty.to_rustc(tcx), val.to_rustc(tcx))
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
             ConstKind::Unevaluated(uneval_const) => {
@@ -297,9 +310,15 @@ pub struct UnevaluatedConst {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ValTree {
+    Leaf(ScalarInt),
+    Branch(Vec<ValTree>),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
-    Value(Ty, ScalarInt),
+    Value(Ty, ValTree),
     Infer(InferConst),
     Unevaluated(UnevaluatedConst),
 }
@@ -985,13 +1004,22 @@ impl fmt::Debug for Ty {
     }
 }
 
+impl fmt::Debug for ValTree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            ValTree::Leaf(scalar_int) => write!(f, "Leaf({scalar_int})"),
+            ValTree::Branch(vec) => write!(f, "Branch([{:?}])", vec.iter().format(", ")),
+        }
+    }
+}
+
 impl fmt::Debug for Const {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             ConstKind::Param(p) => write!(f, "{}", p.name.as_str()),
-            ConstKind::Value(_, v) => write!(f, "{v}"),
+            ConstKind::Value(_, v) => write!(f, "{v:?}"),
             ConstKind::Infer(infer_const) => write!(f, "{infer_const:?}"),
-            ConstKind::Unevaluated(_uneval_const) => write!(f, "TODO:UNEVALCONST"),
+            ConstKind::Unevaluated(uneval_const) => write!(f, "{uneval_const:?}"),
         }
     }
 }

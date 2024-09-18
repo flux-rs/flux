@@ -714,6 +714,23 @@ impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
     }
 }
 
+impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
+    type R = Result<crate::ty::ValTree, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+        match self {
+            ValTree::Leaf(scalar_int) => Ok(crate::ty::ValTree::Leaf(scalar_int)),
+            ValTree::Branch(trees) => {
+                let trees = trees
+                    .into_iter()
+                    .map(|tree| tree.lower(tcx))
+                    .try_collect()?;
+                Ok(crate::ty::ValTree::Branch(trees))
+            }
+        }
+    }
+}
+
 impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
     type R = Result<Const, UnsupportedReason>;
 
@@ -722,15 +739,14 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Param(param_const) => {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
-            rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) => {
-                ConstKind::Value(ty.lower(tcx)?, scalar_int)
+            rustc_type_ir::ConstKind::Value(ty, v) => {
+                ConstKind::Value(ty.lower(tcx)?, v.lower(tcx)?)
             }
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
                 let args = c.args.lower(tcx)?;
                 ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
             }
-            // rustc_type_ir::ConstKind::Expr(e) => todo!(),
             _ => {
                 return Err(UnsupportedReason::new(format!(
                     "unsupported const {self:?} kind = {:?}",

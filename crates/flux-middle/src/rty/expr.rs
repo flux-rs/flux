@@ -5,7 +5,7 @@ use flux_common::bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    ty::{Const, ConstKind},
+    ty::{Const, ConstKind, ValTree},
     ToRustc,
 };
 use itertools::Itertools;
@@ -596,8 +596,11 @@ impl Expr {
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
         match &c.kind {
             ConstKind::Param(param_const) => Expr::const_generic(*param_const),
-            ConstKind::Value(ty, scalar) => {
+            ConstKind::Value(ty, ValTree::Leaf(scalar)) => {
                 Expr::constant(Constant::from_scalar_int(tcx, *scalar, ty).unwrap())
+            }
+            ConstKind::Value(_ty, ValTree::Branch(_)) => {
+                bug!("todo: ValTree::Branch {c:?}")
             }
             // We should have normalized away the unevaluated constants
             ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
