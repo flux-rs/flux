@@ -518,7 +518,7 @@ impl Sub {
                         (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => {
                             let bty_a = ty_a.as_bty_skipping_existentials();
                             let bty_b = ty_b.as_bty_skipping_existentials();
-                            debug_assert_eq!(bty_a, bty_b)
+                            debug_assert_eq!(bty_a, bty_b);
                         }
                         (_, _) => debug_assert_eq!(arg_a, arg_b),
                     }

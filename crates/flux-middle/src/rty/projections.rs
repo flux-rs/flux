@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
-use flux_rustc_bridge::{lowering::Lower, ty::ValTree, ToRustc};
+use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -13,8 +13,8 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -297,18 +297,10 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
-        let param_env = self.rustc_param_env();
-        let rc = c.to_rustc(self.tcx()).normalize(self.tcx(), param_env);
-        if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
-            && let Ok(ty) = ty.lower(self.tcx())
-        {
-            Ok(Const { kind: ConstKind::Value(ty, ValTree::Leaf(scalar_int)) })
-        } else {
-            let c = rc
-                .lower(self.tcx())
-                .map_err(|e| QueryErr::unsupported(self.def_id, e.into_err()))?;
-            Ok(c)
-        }
+        c.to_rustc(self.tcx())
+            .normalize(self.tcx(), self.rustc_param_env())
+            .lower(self.tcx())
+            .map_err(|e| QueryErr::unsupported(self.def_id, e.into_err()))
     }
 }
 
