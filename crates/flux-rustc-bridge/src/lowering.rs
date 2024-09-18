@@ -747,12 +747,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
                 let args = c.args.lower(tcx)?;
                 ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
             }
-            _ => {
-                return Err(UnsupportedReason::new(format!(
-                    "unsupported const {self:?} kind = {:?}",
-                    self.kind()
-                )))
-            }
+            _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
         };
         Ok(Const { kind })
     }
