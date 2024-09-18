@@ -2,6 +2,7 @@ use std::fmt;
 
 use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
+use ty::{UnevaluatedConst, ValTree};
 
 use super::*;
 use crate::pretty::*;
@@ -462,14 +463,32 @@ impl Pretty for BaseTy {
     }
 }
 
+impl Pretty for ValTree {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(_cx, f);
+        match self {
+            ValTree::Leaf(v) => w!("Leaf({v:?})"),
+            ValTree::Branch(children) => {
+                w!("Branch([{:?}])", join!(", ", children))
+            }
+        }
+    }
+}
+impl Pretty for UnevaluatedConst {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        w!("UnevaluatedConst({:?}[...])", self.def)
+    }
+}
+
 impl Pretty for Const {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(_cx, f);
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
-            ConstKind::Value(_, v) => w!("{}", ^v),
+            ConstKind::Value(_, v) => w!("{v:?}"),
             ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
-            ConstKind::Unevaluated(_uneval_const) => w!("TODO:UNEVALCONST"),
+            ConstKind::Unevaluated(uneval_const) => w!("{:?}", uneval_const),
         }
     }
 }
