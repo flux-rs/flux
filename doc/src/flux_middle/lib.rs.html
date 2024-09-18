@@ -577,6 +577,7 @@
 <a href="#577" id="577">577</a>
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 
 </span><span class="attr">#![feature(
@@ -627,7 +628,7 @@
 <span class="kw">pub use </span>flux_rustc_bridge::def_id_to_string;
 <span class="kw">use </span>flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
-    ty,
+    ty::{<span class="self">self</span>, GenericArgsExt},
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>global_env::GlobalEnv;
@@ -1152,7 +1153,8 @@
                 <span class="prelude-val">Ok</span>(ty.subst(args))
             }
             ty::TyKind::Tuple(tys) =&gt; <span class="prelude-val">Ok</span>(tys[f.index()].clone()),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"extracting field of non-tuple non-adt: {self:?}"</span>)),
+            ty::TyKind::Closure(<span class="kw">_</span>, args) =&gt; <span class="prelude-val">Ok</span>(args.as_closure().upvar_tys()[f.index()].clone()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"extracting field of non-tuple non-adt non-closure: {self:?}"</span>)),
         }
     }
 }

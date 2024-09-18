@@ -1837,6 +1837,7 @@
 <a href="#1837" id="1837">1837</a>
 <a href="#1838" id="1838">1838</a>
 <a href="#1839" id="1839">1839</a>
+<a href="#1840" id="1840">1840</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -3617,7 +3618,8 @@
     }
 
     <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>CheckerError {
-        <span class="kw">fn </span>into_diag(
+        <span class="attr">#[track_caller]
+        </span><span class="kw">fn </span>into_diag(
             <span class="self">self</span>,
             dcx: rustc_errors::DiagCtxtHandle&lt;<span class="lifetime">'a</span>&gt;,
             level: rustc_errors::Level,
