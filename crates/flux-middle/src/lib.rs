@@ -48,7 +48,7 @@ use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
-    ty,
+    ty::{self, GenericArgsExt},
 };
 use flux_syntax::surface::{self, NodeId};
 use global_env::GlobalEnv;
@@ -573,7 +573,8 @@ impl PlaceTy {
                 Ok(ty.subst(args))
             }
             ty::TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
-            _ => Err(query_bug!("extracting field of non-tuple non-adt: {self:?}")),
+            ty::TyKind::Closure(_, args) => Ok(args.as_closure().upvar_tys()[f.index()].clone()),
+            _ => Err(query_bug!("extracting field of non-tuple non-adt non-closure: {self:?}")),
         }
     }
 }
