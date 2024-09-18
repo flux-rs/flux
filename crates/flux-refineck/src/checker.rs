@@ -1450,7 +1450,7 @@ fn instantiate_args_for_fun_call(
         } else {
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
-        Binder::with_sort(constr, sort)
+        Binder::bind_with_sort(constr, sort)
     });
     let default_refiner = Refiner::default(genv, caller_generics);
 

@@ -9,9 +9,9 @@ use flux_middle::{
         self,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant, Sort, Ty, TyKind,
-        Var,
+        AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
+        Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant,
+        Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -175,15 +175,19 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func().expect_mono();
-                let inputs = List::from_slice(fsort.inputs());
-                let kvar = self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single);
-                Expr::abs(Lambda::with_sorts(kvar, &inputs, fsort.output().clone()))
+                let vars = fsort.inputs().iter().cloned().map_into().collect();
+                let kvar = self.fresh_kvar(&[vars], KVarEncoding::Single);
+                Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
     }
 
-    pub fn fresh_infer_var_for_hole(&mut self, binders: &[List<Sort>], kind: HoleKind) -> Expr {
+    pub fn fresh_infer_var_for_hole(
+        &mut self,
+        binders: &[BoundVariableKinds],
+        kind: HoleKind,
+    ) -> Expr {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) => {
@@ -194,11 +198,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
-    pub fn fresh_kvar(&self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
+    pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
         inner
             .kvars
-            .fresh(sorts, inner.evars.current_data().iter(), encoding)
+            .fresh(binders, inner.evars.current_data().iter(), encoding)
     }
 
     fn fresh_evars(&self, sort: &Sort) -> Expr {
@@ -579,90 +583,90 @@ impl Sub {
         &mut self,
         infcx: &mut InferCtxt,
         variance: Variance,
-        arg1: &GenericArg,
-        arg2: &GenericArg,
+        a: &GenericArg,
+        b: &GenericArg,
     ) -> InferResult {
-        let (ty1, ty2) = match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => (ty1.clone(), ty2.clone()),
-            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
-                debug_assert_eq!(ctor1.sort(), ctor2.sort());
-                (ctor1.to_ty(), ctor2.to_ty())
+        let (ty_a, ty_b) = match (a, b) {
+            (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
+            (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                debug_assert_eq!(ctor_a.sort(), ctor_b.sort());
+                (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
-            (GenericArg::Const(c1), GenericArg::Const(c2)) => {
-                debug_assert_eq!(c1, c2);
+            (GenericArg::Const(cst_a), GenericArg::Const(cst_b)) => {
+                debug_assert_eq!(cst_a, cst_b);
                 return Ok(());
             }
-            _ => Err(query_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}`"))?,
+            _ => Err(query_bug!("incompatible generic args: `{a:?}` `{b:?}`"))?,
         };
         match variance {
-            Variance::Covariant => self.tys(infcx, &ty1, &ty2),
+            Variance::Covariant => self.tys(infcx, &ty_a, &ty_b),
             Variance::Invariant => {
-                self.tys(infcx, &ty1, &ty2)?;
-                self.tys(infcx, &ty2, &ty1)
+                self.tys(infcx, &ty_a, &ty_b)?;
+                self.tys(infcx, &ty_b, &ty_a)
             }
-            Variance::Contravariant => self.tys(infcx, &ty2, &ty1),
+            Variance::Contravariant => self.tys(infcx, &ty_b, &ty_a),
             Variance::Bivariant => Ok(()),
         }
     }
 
-    fn idxs_eq(&mut self, infcx: &mut InferCtxt, e1: &Expr, e2: &Expr) {
-        if e1 == e2 {
+    fn idxs_eq(&mut self, infcx: &mut InferCtxt, a: &Expr, b: &Expr) {
+        if a == b {
             return;
         }
 
-        match (e1.kind(), e2.kind()) {
-            (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) => {
-                debug_assert_eq!(kind1, kind2);
-                for (e1, e2) in iter::zip(flds1, flds2) {
-                    self.idxs_eq(infcx, e1, e2);
+        match (a.kind(), b.kind()) {
+            (ExprKind::Aggregate(kind_a, flds_a), ExprKind::Aggregate(kind_b, flds_b)) => {
+                debug_assert_eq!(kind_a, kind_b);
+                for (a, b) in iter::zip(flds_a, flds_b) {
+                    self.idxs_eq(infcx, a, b);
                 }
             }
-            (_, ExprKind::Aggregate(kind2, flds2)) => {
-                for (f, e2) in flds2.iter().enumerate() {
-                    let e1 = e1.proj_and_reduce(kind2.to_proj(f as u32));
-                    self.idxs_eq(infcx, &e1, e2);
+            (_, ExprKind::Aggregate(kind_b, flds_b)) => {
+                for (f, b) in flds_b.iter().enumerate() {
+                    let a = a.proj_and_reduce(kind_b.to_proj(f as u32));
+                    self.idxs_eq(infcx, &a, b);
                 }
             }
-            (ExprKind::Aggregate(kind1, flds1), _) => {
-                infcx.unify_exprs(e1, e2);
-                for (f, e1) in flds1.iter().enumerate() {
-                    let e2 = e2.proj_and_reduce(kind1.to_proj(f as u32));
-                    self.idxs_eq(infcx, e1, &e2);
+            (ExprKind::Aggregate(kind_a, flds_a), _) => {
+                infcx.unify_exprs(a, b);
+                for (f, a) in flds_a.iter().enumerate() {
+                    let b = b.proj_and_reduce(kind_a.to_proj(f as u32));
+                    self.idxs_eq(infcx, a, &b);
                 }
             }
-            (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
-                self.abs_eq(infcx, p1, p2);
+            (ExprKind::Abs(lam_a), ExprKind::Abs(lam_b)) => {
+                self.abs_eq(infcx, lam_a, lam_b);
             }
-            (_, ExprKind::Abs(p)) => {
-                self.abs_eq(infcx, &e1.eta_expand_abs(&p.inputs(), p.output()), p);
+            (_, ExprKind::Abs(lam_b)) => {
+                self.abs_eq(infcx, &a.eta_expand_abs(lam_b.vars(), lam_b.output()), lam_b);
             }
-            (ExprKind::Abs(p), _) => {
-                infcx.unify_exprs(e1, e2);
-                self.abs_eq(infcx, p, &e2.eta_expand_abs(&p.inputs(), p.output()));
+            (ExprKind::Abs(lam_a), _) => {
+                infcx.unify_exprs(a, b);
+                self.abs_eq(infcx, lam_a, &b.eta_expand_abs(lam_a.vars(), lam_a.output()));
             }
             (ExprKind::KVar(_), _) | (_, ExprKind::KVar(_)) => {
-                infcx.check_impl(e1, e2, self.tag());
-                infcx.check_impl(e2, e1, self.tag());
+                infcx.check_impl(a, b, self.tag());
+                infcx.check_impl(b, a, self.tag());
             }
             _ => {
-                infcx.unify_exprs(e1, e2);
-                let span = e2.span();
-                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, e1, e2).at_opt(span), self.tag());
+                infcx.unify_exprs(a, b);
+                let span = b.span();
+                infcx.check_pred(Expr::binary_op(rty::BinOp::Eq, a, b).at_opt(span), self.tag());
             }
         }
     }
 
-    fn abs_eq(&mut self, infcx: &mut InferCtxt, f1: &Lambda, f2: &Lambda) {
-        debug_assert_eq!(f1.inputs(), f2.inputs());
-        let vars = f1
-            .inputs()
+    fn abs_eq(&mut self, infcx: &mut InferCtxt, a: &Lambda, b: &Lambda) {
+        debug_assert_eq!(a.vars().len(), b.vars().len());
+        let vars = a
+            .vars()
             .iter()
-            .map(|s| infcx.define_vars(s))
+            .map(|kind| infcx.define_vars(kind.expect_sort()))
             .collect_vec();
-        let e1 = f1.apply(&vars);
-        let e2 = f2.apply(&vars);
-        self.idxs_eq(infcx, &e1, &e2);
+        let body_a = a.apply(&vars);
+        let body_b = b.apply(&vars);
+        self.idxs_eq(infcx, &body_a, &body_b);
     }
 
     fn handle_opaque_type(

@@ -603,7 +603,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 let generics = genv.generics_of(generics_def_id)?;
                 let ty = genv.lower_type_of(def_id)?.skip_binder();
                 let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
-                Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
+                Ok(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
             }
         })
     }

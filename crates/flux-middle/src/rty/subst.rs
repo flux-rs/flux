@@ -60,6 +60,14 @@ impl RegionSubst {
         t.fold_with(&mut Folder(self))
     }
 
+    fn infer_from_fn_sig(&mut self, a: &FnSig, b: &ty::FnSig) {
+        debug_assert_eq!(a.inputs().len(), b.inputs().len());
+        for (ty_a, ty_b) in iter::zip(a.inputs(), b.inputs()) {
+            self.infer_from_ty(ty_a, ty_b);
+        }
+        self.infer_from_ty(&a.output().skip_binder_ref().ret, b.output());
+    }
+
     fn infer_from_ty(&mut self, a: &Ty, b: &ty::Ty) {
         match (a.kind(), b.kind()) {
             (TyKind::Exists(ty_a), _) => {
@@ -104,6 +112,9 @@ impl RegionSubst {
                 for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
                     self.infer_from_ty(ty_a, ty_b);
                 }
+            }
+            (BaseTy::FnPtr(poly_sig_a), ty::TyKind::FnPtr(poly_sig_b)) => {
+                self.infer_from_fn_sig(poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
             }
             _ => {}
         }

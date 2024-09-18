@@ -452,6 +452,10 @@ impl<T> Binder<T> {
         self.0
     }
 
+    pub fn skip_binder_ref(&self) -> &T {
+        self.as_ref().skip_binder()
+    }
+
     pub fn as_ref(&self) -> Binder<&T> {
         Binder(&self.0, self.1.clone())
     }

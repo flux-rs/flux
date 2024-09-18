@@ -16,7 +16,7 @@ pub mod refining;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
 
-pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, EarlyBinder};
+pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use evars::{EVar, EVarGen};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
@@ -388,10 +388,10 @@ impl FnTraitPredicate {
             abi::Abi::Rust,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::empty())
+        PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
     pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
@@ -426,10 +426,10 @@ impl FnTraitPredicate {
             abi::Abi::RustCall,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::from(vars))
+        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
     }
 }
 
@@ -992,7 +992,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+        Ty::exists(Binder::bind_with_sort(Ty::constr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -1426,7 +1426,7 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self.clone(), Expr::unit())
         } else {
-            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
+            Ty::exists(Binder::bind_with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
         }
     }
 
@@ -1679,7 +1679,7 @@ impl GenericArg {
             GenericParamDefKind::Base => {
                 // λv. T[v]
                 let param_ty = ParamTy { index: param.index, name: param.name };
-                GenericArg::Base(Binder::with_sort(
+                GenericArg::Base(Binder::bind_with_sort(
                     SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
                     Sort::Param(param_ty),
                 ))
@@ -1774,7 +1774,7 @@ impl GenericArgs {
 
 impl Clause {
     pub fn new(vars: impl Into<List<BoundVariableKind>>, kind: ClauseKind) -> Self {
-        Clause { kind: Binder::new(kind, vars.into()) }
+        Clause { kind: Binder::bind_with_vars(kind, vars.into()) }
     }
 
     pub fn kind(&self) -> Binder<ClauseKind> {
@@ -1802,9 +1802,10 @@ impl CoroutineObligPredicate {
         let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
 
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
-        let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
+        let output =
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(
+        PolyFnSig::bind_with_vars(
             FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
             List::from(vars),
         )
@@ -2038,7 +2039,7 @@ impl EarlyBinder<PolyVariant> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
-                let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
+                let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
                 FnSig::new(
                     Safety::Safe,
                     abi::Abi::Rust,
@@ -2085,7 +2086,7 @@ impl Binder<Expr> {
 
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant { pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
 
     static OVERFLOW: LazyLock<UnordMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
@@ -2094,10 +2095,10 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             .map(|uint_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+                        pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::uint_max(uint_ty)),
                             Sort::Int,
                         ),
@@ -2123,13 +2124,13 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             .map(|int_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::ge(Expr::nu(), Expr::int_min(int_ty)),
                             Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::int_max(int_ty)),
                             Sort::Int,
                         ),

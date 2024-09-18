@@ -374,7 +374,8 @@ impl TVarSubst {
             (BaseTy::Param(param_ty), _) => {
                 if !b.has_escaping_bvars() {
                     let sort = b.sort();
-                    let ctor = Binder::with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+                    let ctor =
+                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
                     self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
                 }
             }

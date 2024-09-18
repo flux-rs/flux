@@ -82,7 +82,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     rty::Expr::nu(),
                     rty::Expr::hole(rty::HoleKind::Pred),
                 );
-                rty::Binder::with_sort(constr, sort)
+                rty::Binder::bind_with_sort(constr, sort)
             },
         }
     }
@@ -140,7 +140,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::ClauseKind::ConstArgHasType(const_.clone(), self.as_default().refine_ty(ty)?)
             }
         };
-        let kind = rty::Binder::new(kind, List::empty());
+        let kind = rty::Binder::bind_with_vars(kind, List::empty());
         Ok(Some(rty::Clause { kind }))
     }
 
@@ -249,7 +249,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             fields,
             rty::Expr::unit_adt(adt_def_id),
         );
-        Ok(rty::Binder::new(value, List::empty()))
+        Ok(rty::Binder::bind_with_vars(value, List::empty()))
     }
 
     pub fn refine_binders<S, T, F>(
@@ -263,7 +263,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let vars = refine_bound_variables(t.vars());
         let inner = t.as_ref().skip_binder();
         let inner = f(inner)?;
-        Ok(rty::Binder::new(inner, vars))
+        Ok(rty::Binder::bind_with_vars(inner, vars))
     }
 
     pub fn refine_poly_fn_sig(&self, fn_sig: &ty::PolyFnSig) -> QueryResult<rty::PolyFnSig> {
@@ -274,7 +274,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 .map(|ty| self.refine_ty(ty))
                 .try_collect()?;
             let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-            let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+            let output =
+                rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
             Ok(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
         })
     }
@@ -475,7 +476,7 @@ impl TyOrBase {
 
     fn into_ctor(self) -> rty::TyCtor {
         match self {
-            TyOrBase::Ty(ty) => rty::Binder::new(ty, List::empty()),
+            TyOrBase::Ty(ty) => rty::Binder::bind_with_vars(ty, List::empty()),
             TyOrBase::Base(ctor) => ctor.map(|ty| ty.to_ty()),
         }
     }
@@ -484,7 +485,7 @@ impl TyOrBase {
 fn refine_default(bty: rty::BaseTy) -> rty::SubsetTyCtor {
     let sort = bty.sort();
     let constr = rty::SubsetTy::trivial(bty.shift_in_escaping(1), rty::Expr::nu());
-    rty::Binder::with_sort(constr, sort)
+    rty::Binder::bind_with_sort(constr, sort)
 }
 
 pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::BoundVariableKind> {
