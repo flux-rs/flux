@@ -1043,7 +1043,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?;
 
                 let args = refine_args_for_closure(genv, *did, args).with_span(stmt_span)?;
-                Ok(Ty::closure(*did, upvar_tys, &rty::List::from_vec(args)))
+                Ok(Ty::closure(*did, upvar_tys, &args))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1493,18 +1493,10 @@ fn refine_args_for_closure(
     genv: GlobalEnv,
     closure_id: DefId,
     args: &ty::GenericArgs,
-) -> QueryResult<Vec<rty::GenericArg>> {
+) -> QueryResult<rty::GenericArgs> {
     let closure_generics = genv.generics_of(closure_id)?;
     let refiner = Refiner::default(genv, &closure_generics);
-    let mut res = vec![];
-    for args in args.iter() {
-        let refined = match args {
-            ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(refiner.refine_ty(ty)?),
-            ty::GenericArg::Lifetime(re) => rty::GenericArg::Lifetime(*re),
-            ty::GenericArg::Const(c) => rty::GenericArg::Const(c.clone()),
-        };
-        res.push(refined);
-    }
+    let res = refiner.refine_generic_args_trivial(args)?;
     Ok(res)
 }
 

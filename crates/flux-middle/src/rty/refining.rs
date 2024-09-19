@@ -295,6 +295,23 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             .collect()
     }
 
+    pub fn refine_generic_args_trivial(
+        &self,
+        args: &ty::GenericArgs,
+    ) -> QueryResult<rty::GenericArgs> {
+        args.iter()
+            .map(|arg| self.refine_generic_arg_trivial(arg))
+            .collect()
+    }
+
+    fn refine_generic_arg_trivial(&self, arg: &ty::GenericArg) -> QueryResult<rty::GenericArg> {
+        match arg {
+            ty::GenericArg::Ty(ty) => Ok(rty::GenericArg::Ty(self.refine_ty(ty)?)),
+            ty::GenericArg::Lifetime(re) => Ok(rty::GenericArg::Lifetime(*re)),
+            ty::GenericArg::Const(ct) => Ok(rty::GenericArg::Const(ct.clone())),
+        }
+    }
+
     pub fn refine_generic_arg(
         &self,
         param: &rty::GenericParamDef,
@@ -358,7 +375,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     .iter()
                     .map(|ty| self.refine_ty(ty))
                     .try_collect()?;
-                rty::BaseTy::Closure(*did, upvar_tys, self.refine_generic_args(*did, args)?)
+                rty::BaseTy::Closure(*did, upvar_tys, self.refine_generic_args_trivial(args)?)
             }
             ty::TyKind::Coroutine(did, args) => {
                 let args = args.as_coroutine();
