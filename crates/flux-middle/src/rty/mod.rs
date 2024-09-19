@@ -1234,7 +1234,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => bug!(),
+            | TyKind::Blocked(_) => bug!("TODO: to_rustc for `{self:?}`"),
         }
     }
 }

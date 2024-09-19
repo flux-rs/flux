@@ -45,6 +45,23 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
+impl BoundVariableKind {
+    // We can't implement [`ToRustc`] on [`List<BoundVariableKind>`] because of coherence so we add
+    // it here
+    fn to_rustc<'tcx>(
+        vars: &[Self],
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+        tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
+            match kind {
+                BoundVariableKind::Region(brk) => {
+                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                }
+            }
+        }))
+    }
+}
+
 #[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
 pub struct GenericParamDef {
     pub def_id: DefId,
@@ -807,6 +824,69 @@ impl Ty {
     }
 }
 
+impl<'tcx, V> ToRustc<'tcx> for Binder<V>
+where
+    V: ToRustc<'tcx, T: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>>,
+{
+    type T = rustc_middle::ty::Binder<'tcx, V::T>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        let vars = BoundVariableKind::to_rustc(&self.vars(), tcx);
+        let value = self.skip_binder_ref().to_rustc(tcx);
+        rustc_middle::ty::Binder::bind_with_vars(value, vars)
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for FnSig {
+    type T = rustc_middle::ty::FnSig<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        tcx.mk_fn_sig(
+            self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
+            self.output().to_rustc(tcx),
+            false,
+            self.safety,
+            self.abi,
+        )
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for AliasTy {
+    type T = rustc_middle::ty::AliasTy<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
+    type T = rustc_middle::ty::ExistentialPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ExistentialPredicate::Trait(trait_ref) => {
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
+                };
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
+            }
+            ExistentialPredicate::Projection(projection) => {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) => {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(*def_id)
+            }
+        }
+    }
+}
+
 impl<'tcx> ToRustc<'tcx> for Ty {
     type T = rustc_middle::ty::Ty<'tcx>;
 
@@ -844,11 +924,22 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Slice(ty) => rustc_ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
             TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
             TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
-            TyKind::FnPtr(_)
-            | TyKind::Coroutine(_, _)
-            | TyKind::CoroutineWitness(_, _)
-            | TyKind::Alias(_, _)
-            | TyKind::Dynamic(_, _) => bug!("TODO: to_rustc"),
+            TyKind::FnPtr(poly_sig) => rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
+            TyKind::Alias(kind, alias_ty) => {
+                rustc_ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
+            TyKind::Dynamic(exi_preds, re) => {
+                let preds = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+
+                let preds = tcx.mk_poly_existential_predicates(&preds);
+                rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_ty::DynKind::Dyn)
+            }
+            TyKind::Coroutine(_, _) | TyKind::CoroutineWitness(_, _) => {
+                bug!("TODO: to_rustc for `{self:?}`")
+            }
         }
     }
 }
