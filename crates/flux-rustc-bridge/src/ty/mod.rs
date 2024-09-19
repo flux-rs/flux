@@ -811,49 +811,45 @@ impl<'tcx> ToRustc<'tcx> for Ty {
     type T = rustc_middle::ty::Ty<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        let kind = match self.kind() {
-            TyKind::Bool => rustc_ty::TyKind::Bool,
-            TyKind::Str => rustc_ty::TyKind::Str,
-            TyKind::Char => rustc_ty::TyKind::Char,
-            TyKind::Never => rustc_ty::TyKind::Never,
-            TyKind::Float(float_ty) => rustc_ty::TyKind::Float(*float_ty),
-            TyKind::Int(int_ty) => rustc_ty::TyKind::Int(*int_ty),
-            TyKind::Uint(uint_ty) => rustc_ty::TyKind::Uint(*uint_ty),
+        match self.kind() {
+            TyKind::Bool => tcx.types.bool,
+            TyKind::Str => tcx.types.str_,
+            TyKind::Char => tcx.types.char,
+            TyKind::Never => tcx.types.never,
+            TyKind::Float(float_ty) => rustc_ty::Ty::new_float(tcx, *float_ty),
+            TyKind::Int(int_ty) => rustc_ty::Ty::new_int(tcx, *int_ty),
+            TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
             TyKind::Adt(adt_def, args) => {
                 let adt_def = adt_def.to_rustc(tcx);
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::Adt(adt_def, args)
+                rustc_ty::Ty::new_adt(tcx, adt_def, args)
             }
             TyKind::FnDef(def_id, args) => {
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::FnDef(*def_id, args)
+                rustc_ty::Ty::new_fn_def(tcx, *def_id, args)
             }
             TyKind::Array(ty, len) => {
                 let ty = ty.to_rustc(tcx);
                 let len = len.to_rustc(tcx);
-                rustc_ty::TyKind::Array(ty, len)
+                rustc_ty::Ty::new_array_with_const_len(tcx, ty, len)
             }
-            TyKind::Param(pty) => {
-                let pty = rustc_ty::ParamTy::new(pty.index, pty.name);
-                rustc_ty::TyKind::Param(pty)
-            }
+            TyKind::Param(pty) => rustc_ty::Ty::new_param(tcx, pty.index, pty.name),
             TyKind::Ref(re, ty, mutbl) => {
-                rustc_ty::TyKind::Ref(re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+                rustc_ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
             }
             TyKind::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                rustc_ty::TyKind::Tuple(tcx.mk_type_list(&ts))
+                rustc_ty::Ty::new_tup(tcx, tcx.mk_type_list(&ts))
             }
-            TyKind::Slice(ty) => rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
-            TyKind::RawPtr(ty, mutbl) => rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), *mutbl),
+            TyKind::Slice(ty) => rustc_ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
+            TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             TyKind::FnPtr(_)
-            | TyKind::Closure(_, _)
             | TyKind::Coroutine(_, _)
             | TyKind::CoroutineWitness(_, _)
             | TyKind::Alias(_, _)
             | TyKind::Dynamic(_, _) => bug!("TODO: to_rustc"),
-        };
-        rustc_ty::Ty::new(tcx, kind)
+        }
     }
 }
 
