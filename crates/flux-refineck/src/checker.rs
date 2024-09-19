@@ -1042,8 +1042,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .try_collect_vec()
                     .with_span(stmt_span)?;
 
-                let args = refine_args_for_closure(genv, *did, args).with_span(stmt_span)?;
-                Ok(Ty::closure(*did, upvar_tys, &args))
+                Ok(Ty::closure(*did, upvar_tys, args))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1487,17 +1486,6 @@ fn instantiate_args_for_constructor(
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
-}
-
-fn refine_args_for_closure(
-    genv: GlobalEnv,
-    closure_id: DefId,
-    args: &ty::GenericArgs,
-) -> QueryResult<rty::GenericArgs> {
-    let closure_generics = genv.generics_of(closure_id)?;
-    let refiner = Refiner::default(genv, &closure_generics);
-    let res = refiner.refine_generic_args_trivial(args)?;
-    Ok(res)
 }
 
 fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {

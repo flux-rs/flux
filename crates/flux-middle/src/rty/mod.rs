@@ -398,7 +398,7 @@ impl FnTraitPredicate {
         &self,
         closure_id: DefId,
         tys: List<Ty>,
-        args: &GenericArgs,
+        args: &flux_rustc_bridge::ty::GenericArgs,
     ) -> PolyFnSig {
         let mut vars = vec![];
 
@@ -1090,7 +1090,11 @@ impl Ty {
         BaseTy::Array(ty, c).to_ty()
     }
 
-    pub fn closure(did: DefId, tys: impl Into<List<Ty>>, args: &GenericArgs) -> Ty {
+    pub fn closure(
+        did: DefId,
+        tys: impl Into<List<Ty>>,
+        args: &flux_rustc_bridge::ty::GenericArgs,
+    ) -> Ty {
         BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
@@ -1285,7 +1289,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, GenericArgs),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
