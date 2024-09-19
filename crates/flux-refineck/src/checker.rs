@@ -750,14 +750,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(closure_id, tys)) => {
+            Some(BaseTy::Closure(closure_id, tys, args)) => {
                 let span = self.genv.tcx().def_span(closure_id);
                 let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
                 Checker::run(
                     infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
                     closure_id.expect_local(),
                     self.inherited.reborrow(),
-                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
+                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
                 )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
@@ -1022,7 +1022,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let tys = self.check_operands(infcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
+            Rvalue::Aggregate(AggregateKind::Closure(did, args), operands) => {
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, operands)?
                     .into_iter()
@@ -1041,7 +1041,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                Ok(Ty::closure(*did, upvar_tys))
+
+                let args = refine_args_for_closure(genv, *did, args).with_span(stmt_span)?;
+                Ok(Ty::closure(*did, upvar_tys, &rty::List::from_vec(args)))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1485,6 +1487,25 @@ fn instantiate_args_for_constructor(
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
+}
+
+fn refine_args_for_closure(
+    genv: GlobalEnv,
+    closure_id: DefId,
+    args: &ty::GenericArgs,
+) -> QueryResult<Vec<rty::GenericArg>> {
+    let closure_generics = genv.generics_of(closure_id)?;
+    let refiner = Refiner::default(genv, &closure_generics);
+    let mut res = vec![];
+    for args in args.iter() {
+        let refined = match args {
+            ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(refiner.refine_ty(ty)?),
+            ty::GenericArg::Lifetime(re) => rty::GenericArg::Lifetime(*re),
+            ty::GenericArg::Const(c) => rty::GenericArg::Const(c.clone()),
+        };
+        res.push(refined);
+    }
+    Ok(res)
 }
 
 fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {

@@ -446,7 +446,7 @@ impl Pretty for BaseTy {
             }
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),
-            BaseTy::Closure(did, args) => {
+            BaseTy::Closure(did, args, _) => {
                 w!("Closure {:?}<{:?}>", did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) => {

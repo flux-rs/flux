@@ -352,13 +352,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     fn refine_ty_inner(&self, ty: &ty::Ty) -> QueryResult<TyOrBase> {
         let bty = match ty.kind() {
             ty::TyKind::Closure(did, args) => {
-                let args = args.as_closure();
-                let upvar_tys = args
+                let closure_args = args.as_closure();
+                let upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
                     .map(|ty| self.refine_ty(ty))
                     .try_collect()?;
-                rty::BaseTy::Closure(*did, upvar_tys)
+                rty::BaseTy::Closure(*did, upvar_tys, self.refine_generic_args(*did, args)?)
             }
             ty::TyKind::Coroutine(did, args) => {
                 let args = args.as_coroutine();

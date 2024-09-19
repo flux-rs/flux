@@ -394,10 +394,15 @@ impl FnTraitPredicate {
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
-    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+    pub fn to_poly_fn_sig(
+        &self,
+        closure_id: DefId,
+        tys: List<Ty>,
+        args: &GenericArgs,
+    ) -> PolyFnSig {
         let mut vars = vec![];
 
-        let closure_ty = Ty::closure(closure_id, tys);
+        let closure_ty = Ty::closure(closure_id, tys, args);
         let env_ty = match self.kind {
             ClosureKind::Fn => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -1085,8 +1090,8 @@ impl Ty {
         BaseTy::Array(ty, c).to_ty()
     }
 
-    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Closure(did, tys.into()).to_ty()
+    pub fn closure(did: DefId, tys: impl Into<List<Ty>>, args: &GenericArgs) -> Ty {
+        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
@@ -1280,7 +1285,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>, GenericArgs),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
@@ -1445,7 +1450,7 @@ impl BaseTy {
             | BaseTy::FnDef(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
+            | BaseTy::Closure(..)
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(_, _)
             | BaseTy::Never => Sort::unit(),
@@ -1501,7 +1506,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => {
+            BaseTy::Closure(did, _, args) => {
                 bug!()
             }
             BaseTy::Dynamic(exi_preds, re) => {
