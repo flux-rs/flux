@@ -1033,6 +1033,8 @@
 <a href="#1033" id="1033">1033</a>
 <a href="#1034" id="1034">1034</a>
 <a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1767,7 +1769,7 @@
             | BaseTy::Float(<span class="kw">_</span>)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never
             | BaseTy::Param(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
             BaseTy::Dynamic(exi_preds, <span class="kw">_</span>) =&gt; exi_preds.visit_with(visitor),
@@ -1804,7 +1806,9 @@
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never =&gt; <span class="self">self</span>.clone(),
-            BaseTy::Closure(did, args) =&gt; BaseTy::Closure(<span class="kw-2">*</span>did, args.try_fold_with(folder)<span class="question-mark">?</span>),
+            BaseTy::Closure(did, args, gen_args) =&gt; {
+                BaseTy::Closure(<span class="kw-2">*</span>did, args.try_fold_with(folder)<span class="question-mark">?</span>, gen_args.clone())
+            }
             BaseTy::Coroutine(did, resume_ty, args) =&gt; {
                 BaseTy::Coroutine(
                     <span class="kw-2">*</span>did,

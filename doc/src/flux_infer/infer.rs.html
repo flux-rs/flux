@@ -1338,7 +1338,7 @@
                 <span class="macro">assert_eq!</span>(preds_a.erase_regions(), preds_b.erase_regions());
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) <span class="kw">if </span>did1 == did2 =&gt; {
+            (BaseTy::Closure(did1, tys_a, <span class="kw">_</span>), BaseTy::Closure(did2, tys_b, <span class="kw">_</span>)) <span class="kw">if </span>did1 == did2 =&gt; {
                 <span class="macro">debug_assert_eq!</span>(tys_a.len(), tys_b.len());
                 <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
                     <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;

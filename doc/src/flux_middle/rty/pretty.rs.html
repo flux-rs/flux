@@ -993,7 +993,7 @@
             }
             BaseTy::Array(ty, c) =&gt; <span class="macro">w!</span>(<span class="string">"[{:?}; {:?}]"</span>, ty, ^c),
             BaseTy::Never =&gt; <span class="macro">w!</span>(<span class="string">"!"</span>),
-            BaseTy::Closure(did, args) =&gt; {
+            BaseTy::Closure(did, args, <span class="kw">_</span>) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"Closure {:?}&lt;{:?}&gt;"</span>, did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) =&gt; {

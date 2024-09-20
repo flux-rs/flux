@@ -851,13 +851,13 @@
     <span class="kw">fn </span>refine_ty_inner(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;TyOrBase&gt; {
         <span class="kw">let </span>bty = <span class="kw">match </span>ty.kind() {
             ty::TyKind::Closure(did, args) =&gt; {
-                <span class="kw">let </span>args = args.as_closure();
-                <span class="kw">let </span>upvar_tys = args
+                <span class="kw">let </span>closure_args = args.as_closure();
+                <span class="kw">let </span>upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
                     .map(|ty| <span class="self">self</span>.refine_ty(ty))
                     .try_collect()<span class="question-mark">?</span>;
-                rty::BaseTy::Closure(<span class="kw-2">*</span>did, upvar_tys)
+                rty::BaseTy::Closure(<span class="kw-2">*</span>did, upvar_tys, args.clone())
             }
             ty::TyKind::Coroutine(did, args) =&gt; {
                 <span class="kw">let </span>args = args.as_coroutine();

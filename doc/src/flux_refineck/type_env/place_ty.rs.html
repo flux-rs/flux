@@ -1150,7 +1150,7 @@
                 PlaceElem::Field(f) =&gt; {
                     <span class="kw">match </span>ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), <span class="kw">_</span>)
-                        | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields), <span class="kw">_</span>)
+                        | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields, <span class="kw">_</span>), <span class="kw">_</span>)
                         | TyKind::Indexed(BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>, fields), <span class="kw">_</span>)
                         | TyKind::Downcast(.., fields) =&gt; {
                             ty = fields[f.as_usize()].clone();
@@ -1205,7 +1205,7 @@
             <span class="kw">match </span>ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), <span class="kw">_</span>)
-                | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields), <span class="kw">_</span>)
+                | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields, <span class="kw">_</span>), <span class="kw">_</span>)
                 | TyKind::Indexed(BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>, fields), <span class="kw">_</span>) =&gt; {
                     ty = <span class="kw-2">&amp;</span>fields[f.as_usize()];
                 }
@@ -1257,7 +1257,7 @@
             <span class="kw">match </span>ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), <span class="kw">_</span>)
-                | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields), <span class="kw">_</span>)
+                | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields, <span class="kw">_</span>), <span class="kw">_</span>)
                 | TyKind::Indexed(BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>, fields), <span class="kw">_</span>) =&gt; {
                     <span class="kw">for </span>(idx, ty) <span class="kw">in </span>fields.iter().enumerate() {
                         proj.push(idx.into());
@@ -1486,10 +1486,10 @@
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 Ty::indexed(BaseTy::Tuple(fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) =&gt; {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>upvar_tys = upvar_tys.to_vec();
                 upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
-                Ty::indexed(BaseTy::Closure(<span class="kw-2">*</span>def_id, upvar_tys.into()), idx.clone())
+                Ty::indexed(BaseTy::Closure(<span class="kw-2">*</span>def_id, upvar_tys.into(), args.clone()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>upvar_tys = upvar_tys.to_vec();
@@ -1642,9 +1642,9 @@
                 <span class="kw">let </span>fields = <span class="self">self</span>.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) =&gt; {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) =&gt; {
                 <span class="kw">let </span>upvar_tys = <span class="self">self</span>.fold_field_at(upvar_tys, f);
-                Ty::indexed(BaseTy::Closure(<span class="kw-2">*</span>def_id, upvar_tys), idx.clone())
+                Ty::indexed(BaseTy::Closure(<span class="kw-2">*</span>def_id, upvar_tys, args.clone()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) =&gt; {
                 <span class="kw">let </span>upvar_tys = <span class="self">self</span>.fold_field_at(upvar_tys, f);

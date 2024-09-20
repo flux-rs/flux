@@ -2281,6 +2281,13 @@
 <a href="#2281" id="2281">2281</a>
 <a href="#2282" id="2282">2282</a>
 <a href="#2283" id="2283">2283</a>
+<a href="#2284" id="2284">2284</a>
+<a href="#2285" id="2285">2285</a>
+<a href="#2286" id="2286">2286</a>
+<a href="#2287" id="2287">2287</a>
+<a href="#2288" id="2288">2288</a>
+<a href="#2289" id="2289">2289</a>
+<a href="#2290" id="2290">2290</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2677,10 +2684,15 @@
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
-    <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, closure_id: DefId, tys: List&lt;Ty&gt;) -&gt; PolyFnSig {
+    <span class="kw">pub fn </span>to_poly_fn_sig(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        closure_id: DefId,
+        tys: List&lt;Ty&gt;,
+        args: <span class="kw-2">&amp;</span>flux_rustc_bridge::ty::GenericArgs,
+    ) -&gt; PolyFnSig {
         <span class="kw">let </span><span class="kw-2">mut </span>vars = <span class="macro">vec!</span>[];
 
-        <span class="kw">let </span>closure_ty = Ty::closure(closure_id, tys);
+        <span class="kw">let </span>closure_ty = Ty::closure(closure_id, tys, args);
         <span class="kw">let </span>env_ty = <span class="kw">match </span><span class="self">self</span>.kind {
             ClosureKind::Fn =&gt; {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -3368,8 +3380,12 @@
         BaseTy::Array(ty, c).to_ty()
     }
 
-    <span class="kw">pub fn </span>closure(did: DefId, tys: <span class="kw">impl </span>Into&lt;List&lt;Ty&gt;&gt;) -&gt; Ty {
-        BaseTy::Closure(did, tys.into()).to_ty()
+    <span class="kw">pub fn </span>closure(
+        did: DefId,
+        tys: <span class="kw">impl </span>Into&lt;List&lt;Ty&gt;&gt;,
+        args: <span class="kw-2">&amp;</span>flux_rustc_bridge::ty::GenericArgs,
+    ) -&gt; Ty {
+        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
     <span class="kw">pub fn </span>coroutine(did: DefId, resume_ty: Ty, upvar_tys: List&lt;Ty&gt;) -&gt; Ty {
@@ -3508,7 +3524,7 @@
             | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
+            | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"TODO: to_rustc for `{self:?}`"</span>),
         }
     }
 }
@@ -3563,7 +3579,7 @@
     Tuple(List&lt;Ty&gt;),
     Array(Ty, Const),
     Never,
-    Closure(DefId, <span class="comment">/* upvar_tys */ </span>List&lt;Ty&gt;),
+    Closure(DefId, <span class="comment">/* upvar_tys */ </span>List&lt;Ty&gt;, flux_rustc_bridge::ty::GenericArgs),
     Coroutine(DefId, <span class="comment">/*resume_ty: */ </span>Ty, <span class="comment">/* upvar_tys: */ </span>List&lt;Ty&gt;),
     Dynamic(List&lt;Binder&lt;ExistentialPredicate&gt;&gt;, Region),
     Param(ParamTy),
@@ -3728,7 +3744,7 @@
             | BaseTy::FnDef(..)
             | BaseTy::Tuple(<span class="kw">_</span>)
             | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::Closure(..)
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never =&gt; Sort::unit(),
@@ -3784,9 +3800,7 @@
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never =&gt; tcx.types.never,
-            BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>()
-            }
+            BaseTy::Closure(did, <span class="kw">_</span>, args) =&gt; ty::Ty::new_closure(tcx, <span class="kw-2">*</span>did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) =&gt; {
                 <span class="kw">let </span>preds: Vec&lt;<span class="kw">_</span>&gt; = exi_preds
                     .iter()

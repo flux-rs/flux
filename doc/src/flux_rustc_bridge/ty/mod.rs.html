@@ -1051,6 +1051,101 @@
 <a href="#1051" id="1051">1051</a>
 <a href="#1052" id="1052">1052</a>
 <a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1096,6 +1191,23 @@
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>BoundVariableKind {
     Region(BoundRegionKind),
+}
+
+<span class="kw">impl </span>BoundVariableKind {
+    <span class="comment">// We can't implement [`ToRustc`] on [`List&lt;BoundVariableKind&gt;`] because of coherence so we add
+    // it here
+    </span><span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+        vars: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::List&lt;rustc_middle::ty::BoundVariableKind&gt; {
+        tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
+            <span class="kw">match </span>kind {
+                BoundVariableKind::Region(brk) =&gt; {
+                    <span class="prelude-val">Some</span>(rustc_middle::ty::BoundVariableKind::Region(<span class="kw-2">*</span>brk))
+                }
+            }
+        }))
+    }
 }
 
 <span class="attr">#[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
@@ -1573,6 +1685,14 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>GenericArgs {
+    <span class="kw">type </span>T = rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        tcx.mk_args_from_iter(<span class="self">self</span>.iter().map(|arg| arg.to_rustc(tcx)))
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>GenericArg {
     <span class="kw">type </span>T = rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt;;
 
@@ -1852,53 +1972,123 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>, V&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Binder&lt;V&gt;
+<span class="kw">where
+    </span>V: ToRustc&lt;<span class="lifetime">'tcx</span>, T: rustc_middle::ty::TypeVisitable&lt;TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;,
+{
+    <span class="kw">type </span>T = rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, V::T&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        <span class="kw">let </span>vars = BoundVariableKind::to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>.vars(), tcx);
+        <span class="kw">let </span>value = <span class="self">self</span>.skip_binder_ref().to_rustc(tcx);
+        rustc_middle::ty::Binder::bind_with_vars(value, vars)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>FnSig {
+    <span class="kw">type </span>T = rustc_middle::ty::FnSig&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        tcx.mk_fn_sig(
+            <span class="self">self</span>.inputs().iter().map(|ty| ty.to_rustc(tcx)),
+            <span class="self">self</span>.output().to_rustc(tcx),
+            <span class="bool-val">false</span>,
+            <span class="self">self</span>.safety,
+            <span class="self">self</span>.abi,
+        )
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AliasTy {
+    <span class="kw">type </span>T = rustc_middle::ty::AliasTy&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        rustc_middle::ty::AliasTy::new(tcx, <span class="self">self</span>.def_id, <span class="self">self</span>.args.to_rustc(tcx))
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>ExistentialPredicate {
+    <span class="kw">type </span>T = rustc_middle::ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        <span class="kw">match </span><span class="self">self </span>{
+            ExistentialPredicate::Trait(trait_ref) =&gt; {
+                <span class="kw">let </span>trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
+                };
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
+            }
+            ExistentialPredicate::Projection(projection) =&gt; {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
+            }
+        }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Ty {
     <span class="kw">type </span>T = rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;;
 
     <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="self">self</span>.kind() {
-            TyKind::Bool =&gt; rustc_ty::TyKind::Bool,
-            TyKind::Str =&gt; rustc_ty::TyKind::Str,
-            TyKind::Char =&gt; rustc_ty::TyKind::Char,
-            TyKind::Never =&gt; rustc_ty::TyKind::Never,
-            TyKind::Float(float_ty) =&gt; rustc_ty::TyKind::Float(<span class="kw-2">*</span>float_ty),
-            TyKind::Int(int_ty) =&gt; rustc_ty::TyKind::Int(<span class="kw-2">*</span>int_ty),
-            TyKind::Uint(uint_ty) =&gt; rustc_ty::TyKind::Uint(<span class="kw-2">*</span>uint_ty),
+        <span class="kw">match </span><span class="self">self</span>.kind() {
+            TyKind::Bool =&gt; tcx.types.bool,
+            TyKind::Str =&gt; tcx.types.str_,
+            TyKind::Char =&gt; tcx.types.char,
+            TyKind::Never =&gt; tcx.types.never,
+            TyKind::Float(float_ty) =&gt; rustc_ty::Ty::new_float(tcx, <span class="kw-2">*</span>float_ty),
+            TyKind::Int(int_ty) =&gt; rustc_ty::Ty::new_int(tcx, <span class="kw-2">*</span>int_ty),
+            TyKind::Uint(uint_ty) =&gt; rustc_ty::Ty::new_uint(tcx, <span class="kw-2">*</span>uint_ty),
             TyKind::Adt(adt_def, args) =&gt; {
                 <span class="kw">let </span>adt_def = adt_def.to_rustc(tcx);
                 <span class="kw">let </span>args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::Adt(adt_def, args)
+                rustc_ty::Ty::new_adt(tcx, adt_def, args)
             }
             TyKind::FnDef(def_id, args) =&gt; {
                 <span class="kw">let </span>args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::FnDef(<span class="kw-2">*</span>def_id, args)
+                rustc_ty::Ty::new_fn_def(tcx, <span class="kw-2">*</span>def_id, args)
             }
             TyKind::Array(ty, len) =&gt; {
                 <span class="kw">let </span>ty = ty.to_rustc(tcx);
                 <span class="kw">let </span>len = len.to_rustc(tcx);
-                rustc_ty::TyKind::Array(ty, len)
+                rustc_ty::Ty::new_array_with_const_len(tcx, ty, len)
             }
-            TyKind::Param(pty) =&gt; {
-                <span class="kw">let </span>pty = rustc_ty::ParamTy::new(pty.index, pty.name);
-                rustc_ty::TyKind::Param(pty)
-            }
+            TyKind::Param(pty) =&gt; rustc_ty::Ty::new_param(tcx, pty.index, pty.name),
             TyKind::Ref(re, ty, mutbl) =&gt; {
-                rustc_ty::TyKind::Ref(re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
+                rustc_ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
             }
             TyKind::Tuple(tys) =&gt; {
                 <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                rustc_ty::TyKind::Tuple(tcx.mk_type_list(<span class="kw-2">&amp;</span>ts))
+                rustc_ty::Ty::new_tup(tcx, tcx.mk_type_list(<span class="kw-2">&amp;</span>ts))
             }
-            TyKind::Slice(ty) =&gt; rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
-            TyKind::RawPtr(ty, mutbl) =&gt; rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
-            TyKind::FnPtr(<span class="kw">_</span>)
-            | TyKind::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Alias(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"TODO: to_rustc"</span>),
-        };
-        rustc_ty::Ty::new(tcx, kind)
+            TyKind::Slice(ty) =&gt; rustc_ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            TyKind::RawPtr(ty, mutbl) =&gt; rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
+            TyKind::Closure(did, args) =&gt; rustc_ty::Ty::new_closure(tcx, <span class="kw-2">*</span>did, args.to_rustc(tcx)),
+            TyKind::FnPtr(poly_sig) =&gt; rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
+            TyKind::Alias(kind, alias_ty) =&gt; {
+                rustc_ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
+            TyKind::Dynamic(exi_preds, re) =&gt; {
+                <span class="kw">let </span>preds = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+
+                <span class="kw">let </span>preds = tcx.mk_poly_existential_predicates(<span class="kw-2">&amp;</span>preds);
+                rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_ty::DynKind::Dyn)
+            }
+            TyKind::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>) | TyKind::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">"TODO: to_rustc for `{self:?}`"</span>)
+            }
+        }
     }
 }
 
