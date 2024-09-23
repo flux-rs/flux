@@ -770,7 +770,6 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1141,11 +1140,11 @@
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) =&gt; {
-                <span class="macro">debug_assert!</span>(!scope.has_free_vars(substs));
+            TyKind::Downcast(adt, args, ty, variant, fields) =&gt; {
+                <span class="macro">debug_assert!</span>(!scope.has_free_vars(args));
                 <span class="macro">debug_assert!</span>(!scope.has_free_vars(ty));
                 <span class="kw">let </span>fields = fields.iter().map(|ty| <span class="self">Self</span>::pack_ty(scope, ty)).collect();
-                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields)
+                Ty::downcast(adt.clone(), args.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields)
             }
             TyKind::Blocked(ty) =&gt; Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             TyKind::Alias(..) =&gt; {
@@ -1166,14 +1165,13 @@
 
     <span class="kw">fn </span>pack_bty(scope: <span class="kw-2">&amp;</span>Scope, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
         <span class="kw">match </span>bty {
-            BaseTy::Adt(adt_def, substs) =&gt; {
-                <span class="kw">let </span>substs = List::from_vec(
-                    substs
-                        .iter()
+            BaseTy::Adt(adt_def, args) =&gt; {
+                <span class="kw">let </span>args = List::from_vec(
+                    args.iter()
                         .map(|arg| <span class="self">Self</span>::pack_generic_arg(scope, arg))
                         .collect(),
                 );
-                BaseTy::adt(adt_def.clone(), substs)
+                BaseTy::adt(adt_def.clone(), args)
             }
             BaseTy::FnDef(def_id, args) =&gt; {
                 <span class="kw">let </span>args = List::from_vec(
@@ -1277,18 +1275,18 @@
                 Ty::param(<span class="kw-2">*</span>param_ty1)
             }
             (
-                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
-                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
+                TyKind::Downcast(adt1, args1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, args2, ty2, variant2, fields2),
             ) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(adt1, adt2);
-                <span class="macro">debug_assert_eq!</span>(substs1, substs2);
+                <span class="macro">debug_assert_eq!</span>(args1, args2);
                 <span class="macro">debug_assert!</span>(ty1 == ty2 &amp;&amp; !<span class="self">self</span>.scope.has_free_vars(ty2));
                 <span class="macro">debug_assert_eq!</span>(variant1, variant2);
                 <span class="macro">debug_assert_eq!</span>(fields1.len(), fields2.len());
                 <span class="kw">let </span>fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| <span class="self">self</span>.join_ty(ty1, ty2))
                     .collect();
-                Ty::downcast(adt1.clone(), substs1.clone(), ty1.clone(), <span class="kw-2">*</span>variant1, fields)
+                Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), <span class="kw-2">*</span>variant1, fields)
             }
             (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(kind1, kind2);
@@ -1349,12 +1347,12 @@
 
     <span class="kw">fn </span>join_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, bty1: <span class="kw-2">&amp;</span>BaseTy, bty2: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
         <span class="kw">match </span>(bty1, bty2) {
-            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) =&gt; {
+            (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(def1.did(), def2.did());
-                <span class="kw">let </span>substs = iter::zip(substs1, substs2)
+                <span class="kw">let </span>args = iter::zip(args1, args2)
                     .map(|(arg1, arg2)| <span class="self">self</span>.join_generic_arg(arg1, arg2))
                     .collect();
-                BaseTy::adt(def1.clone(), List::from_vec(substs))
+                BaseTy::adt(def1.clone(), List::from_vec(args))
             }
             (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) =&gt; {
                 <span class="kw">let </span>fields = iter::zip(fields1, fields2)

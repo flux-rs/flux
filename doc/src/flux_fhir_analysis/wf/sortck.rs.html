@@ -752,6 +752,11 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -1455,7 +1460,12 @@
     <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
         <span class="kw">match </span>sort {
             rty::Sort::Infer(rty::SortVar(vid)) =&gt; {
-                <span class="self">self</span>.infcx
+                <span class="comment">// if `sort` is a sort variable, it can be resolved to an num/bit-vec variable,
+                // which can then be recursively resolved, hence the recursion. Note though that
+                // we prevent sort variables from unifying to other sort variables directly (though
+                // they may be embedded structurally), so this recursion should always be of very
+                // limited depth.
+                </span><span class="self">self</span>.infcx
                     .sort_unification_table
                     .probe_value(<span class="kw-2">*</span>vid)
                     .map(|sort| sort.fold_with(<span class="self">self</span>))
