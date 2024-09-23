@@ -701,6 +701,11 @@ impl TypeFolder for ShallowResolver<'_, '_, '_> {
     fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
         match sort {
             rty::Sort::Infer(rty::SortVar(vid)) => {
+                // if `sort` is a sort variable, it can be resolved to an num/bit-vec variable,
+                // which can then be recursively resolved, hence the recursion. Note though that
+                // we prevent sort variables from unifying to other sort variables directly (though
+                // they may be embedded structurally), so this recursion should always be of very
+                // limited depth.
                 self.infcx
                     .sort_unification_table
                     .probe_value(*vid)
