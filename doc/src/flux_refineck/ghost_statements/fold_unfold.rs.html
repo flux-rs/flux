@@ -873,24 +873,11 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty, PlaceExt <span class="kw">as _</span>,
+    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt <span class="kw">as _</span>,
 };
 <span class="kw">use </span>flux_rustc_bridge::{
     mir::{
@@ -898,7 +885,7 @@
         Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
         VariantIdx, FIRST_VARIANT,
     },
-    ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Ty, TyKind},
+    ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Mutability, Ty, TyKind},
 };
 <span class="kw">use </span>itertools::{repeat_n, Itertools};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -1023,7 +1010,6 @@
         analysis: <span class="kw-2">&amp;mut </span>FoldUnfoldAnalysis&lt;<span class="self">Self</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>Env,
         place: <span class="kw-2">&amp;</span>Place,
-        kind: ProjKind,
     ) -&gt; QueryResult;
 
     <span class="kw">fn </span>goto_join_point(
@@ -1054,11 +1040,6 @@
     Unfold(PlaceRef&lt;<span class="lifetime">'a</span>&gt;),
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>ProjKind {
-    Len,
-    Other,
-}
-
 <span class="kw">impl </span>Mode <span class="kw">for </span>Infer {
     <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = <span class="string">"infer"</span>;
 
@@ -1066,7 +1047,6 @@
         analysis: <span class="kw-2">&amp;mut </span>FoldUnfoldAnalysis&lt;<span class="self">Self</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>Env,
         place: <span class="kw-2">&amp;</span>Place,
-        <span class="kw">_</span>: ProjKind,
     ) -&gt; QueryResult {
         env.projection(analysis.genv, place)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
@@ -1097,7 +1077,6 @@
         analysis: <span class="kw-2">&amp;mut </span>FoldUnfoldAnalysis&lt;<span class="self">Self</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>Env,
         place: <span class="kw-2">&amp;</span>Place,
-        kind: ProjKind,
     ) -&gt; QueryResult {
         <span class="kw">match </span>env.projection(analysis.genv, place)<span class="question-mark">? </span>{
             ProjResult::None =&gt; {}
@@ -1110,14 +1089,14 @@
             }
             ProjResult::Unfold(place_ref) =&gt; {
                 <span class="macro">assert_eq!</span>(place_ref, place.as_ref());
-                <span class="kw">let </span>projection = <span class="kw">match </span>kind {
-                    ProjKind::Len =&gt; place.projection.clone(),
-                    ProjKind::Other =&gt; place.projection[..place.projection.len() - <span class="number">1</span>].to_vec(),
-                };
-                <span class="kw">let </span>place = Place::new(place.local, projection);
-                analysis
-                    .mode
-                    .insert_at(analysis.point, GhostStatement::Unfold(place));
+                <span class="kw">match </span>place_ref.last_projection() {
+                    <span class="prelude-val">Some</span>((base, PlaceElem::Deref | PlaceElem::Field(..))) =&gt; {
+                        analysis
+                            .mode
+                            .insert_at(analysis.point, GhostStatement::Unfold(base.to_place()));
+                    }
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"invalid projection for unfolding {place_ref:?}"</span>))<span class="question-mark">?</span>,
+                }
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1157,13 +1136,8 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = fn_sig {
             <span class="kw">let </span>fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             <span class="kw">for </span>(local, ty) <span class="kw">in </span>iter::zip(<span class="self">self</span>.body.args_iter(), fn_sig.inputs()) {
-                <span class="kw">if let </span>rty::TyKind::StrgRef(..) = ty.kind() {
-                    M::projection(
-                        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-                        <span class="kw-2">&amp;mut </span>env,
-                        <span class="kw-2">&amp;</span>Place::new(local, <span class="macro">vec!</span>[PlaceElem::Deref]),
-                        ProjKind::Other,
-                    )<span class="question-mark">?</span>;
+                <span class="kw">if let </span>rty::TyKind::StrgRef(..) | <span class="macro">rty::Ref!</span>(.., Mutability::Mut) = ty.kind() {
+                    M::projection(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>Place::new(local, <span class="macro">vec!</span>[PlaceElem::Deref]))<span class="question-mark">?</span>;
                 }
             }
         }
@@ -1205,11 +1179,11 @@
                     Rvalue::Ref(.., bk, place) =&gt; {
                         <span class="comment">// Fake borrows should not cause the place to fold
                         </span><span class="kw">if </span>!<span class="macro">matches!</span>(bk, BorrowKind::Fake(<span class="kw">_</span>)) {
-                            M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                            M::projection(<span class="self">self</span>, env, place)<span class="question-mark">?</span>;
                         }
                     }
                     Rvalue::RawPtr(<span class="kw">_</span>, place) =&gt; {
-                        M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                        M::projection(<span class="self">self</span>, env, place)<span class="question-mark">?</span>;
                     }
                     Rvalue::BinaryOp(<span class="kw">_</span>, op1, op2) =&gt; {
                         <span class="self">self</span>.operand(op1, env)<span class="question-mark">?</span>;
@@ -1221,10 +1195,10 @@
                         }
                     }
                     Rvalue::Len(place) =&gt; {
-                        M::projection(<span class="self">self</span>, env, place, ProjKind::Len)<span class="question-mark">?</span>;
+                        M::projection(<span class="self">self</span>, env, place)<span class="question-mark">?</span>;
                     }
                     Rvalue::Discriminant(discr) =&gt; {
-                        M::projection(<span class="self">self</span>, env, discr, ProjKind::Other)<span class="question-mark">?</span>;
+                        M::projection(<span class="self">self</span>, env, discr)<span class="question-mark">?</span>;
                         <span class="self">self</span>.discriminants.insert(place.clone(), discr.clone());
                     }
                     Rvalue::Repeat(op, <span class="kw">_</span>) =&gt; {
@@ -1232,7 +1206,7 @@
                     }
                     Rvalue::NullaryOp(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
                 }
-                M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                M::projection(<span class="self">self</span>, env, place)<span class="question-mark">?</span>;
             }
             StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) =&gt; {
                 <span class="self">self</span>.operand(op, env)<span class="question-mark">?</span>;
@@ -1249,7 +1223,7 @@
     <span class="kw">fn </span>operand(<span class="kw-2">&amp;mut </span><span class="self">self</span>, op: <span class="kw-2">&amp;</span>Operand, env: <span class="kw-2">&amp;mut </span>Env) -&gt; QueryResult {
         <span class="kw">match </span>op {
             Operand::Copy(place) | Operand::Move(place) =&gt; {
-                M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                M::projection(<span class="self">self</span>, env, place)<span class="question-mark">?</span>;
             }
             Operand::Constant(<span class="kw">_</span>) =&gt; {}
         }
@@ -1270,7 +1244,7 @@
                 <span class="kw">for </span>arg <span class="kw">in </span>args {
                     <span class="self">self</span>.operand(arg, <span class="kw-2">&amp;mut </span>env)<span class="question-mark">?</span>;
                 }
-                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, destination, ProjKind::Other)<span class="question-mark">?</span>;
+                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, destination)<span class="question-mark">?</span>;
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(target) = target {
                     successors.push((env, <span class="kw-2">*</span>target));
                 }
@@ -1278,7 +1252,7 @@
             TerminatorKind::SwitchInt { discr, targets } =&gt; {
                 <span class="kw">let </span>is_match = <span class="kw">match </span>discr {
                     Operand::Copy(place) | Operand::Move(place) =&gt; {
-                        M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                        M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, place)<span class="question-mark">?</span>;
                         <span class="self">self</span>.discriminants.remove(place)
                     }
                     Operand::Constant(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
@@ -1318,11 +1292,11 @@
                 successors.push((env, <span class="kw-2">*</span>target));
             }
             TerminatorKind::Yield { resume, resume_arg, .. } =&gt; {
-                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, resume_arg, ProjKind::Other)<span class="question-mark">?</span>;
+                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, resume_arg)<span class="question-mark">?</span>;
                 successors.push((env, <span class="kw-2">*</span>resume));
             }
             TerminatorKind::Drop { place, target, .. } =&gt; {
-                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, place, ProjKind::Other)<span class="question-mark">?</span>;
+                M::projection(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>env, place)<span class="question-mark">?</span>;
                 successors.push((env, <span class="kw-2">*</span>target));
             }
             TerminatorKind::Assert { cond, target, .. } =&gt; {
@@ -1737,7 +1711,7 @@
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PlaceNode {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            PlaceNode::Deref(<span class="kw">_</span>, node) =&gt; <span class="macro">write!</span>(f, <span class="string">"*({:?})"</span>, node),
+            PlaceNode::Deref(<span class="kw">_</span>, node) =&gt; <span class="macro">write!</span>(f, <span class="string">"*({node:?})"</span>),
             PlaceNode::Downcast(adt, args, variant, fields) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"{}"</span>, def_id_to_string(adt.did()))<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
