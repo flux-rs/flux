@@ -306,8 +306,16 @@ impl<'a> PlaceRef<'a> {
         Self { local: self.local, projection: &self.projection[..i] }
     }
 
-    pub fn to_place(&self) -> Place {
+    pub fn to_place(self) -> Place {
         Place { local: self.local, projection: self.projection.to_vec() }
+    }
+
+    pub fn last_projection(self) -> Option<(PlaceRef<'a>, PlaceElem)> {
+        if let [base @ .., elem] = self.projection {
+            Some((PlaceRef { local: self.local, projection: base }, *elem))
+        } else {
+            None
+        }
     }
 }
 

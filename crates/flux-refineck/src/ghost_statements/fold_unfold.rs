@@ -2,7 +2,7 @@ use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty, PlaceExt as _,
+    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt as _,
 };
 use flux_rustc_bridge::{
     mir::{
@@ -10,7 +10,7 @@ use flux_rustc_bridge::{
         Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
         VariantIdx, FIRST_VARIANT,
     },
-    ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
+    ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Mutability, Ty, TyKind},
 };
 use itertools::{repeat_n, Itertools};
 use rustc_data_structures::unord::UnordMap;
@@ -135,7 +135,6 @@ trait Mode: Sized {
         analysis: &mut FoldUnfoldAnalysis<Self>,
         env: &mut Env,
         place: &Place,
-        kind: ProjKind,
     ) -> QueryResult;
 
     fn goto_join_point(
@@ -166,11 +165,6 @@ enum ProjResult<'a> {
     Unfold(PlaceRef<'a>),
 }
 
-pub(crate) enum ProjKind {
-    Len,
-    Other,
-}
-
 impl Mode for Infer {
     const NAME: &'static str = "infer";
 
@@ -178,7 +172,6 @@ impl Mode for Infer {
         analysis: &mut FoldUnfoldAnalysis<Self>,
         env: &mut Env,
         place: &Place,
-        _: ProjKind,
     ) -> QueryResult {
         env.projection(analysis.genv, place)?;
         Ok(())
@@ -209,7 +202,6 @@ impl Mode for Elaboration<'_> {
         analysis: &mut FoldUnfoldAnalysis<Self>,
         env: &mut Env,
         place: &Place,
-        kind: ProjKind,
     ) -> QueryResult {
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
@@ -222,14 +214,14 @@ impl Mode for Elaboration<'_> {
             }
             ProjResult::Unfold(place_ref) => {
                 assert_eq!(place_ref, place.as_ref());
-                let projection = match kind {
-                    ProjKind::Len => place.projection.clone(),
-                    ProjKind::Other => place.projection[..place.projection.len() - 1].to_vec(),
-                };
-                let place = Place::new(place.local, projection);
-                analysis
-                    .mode
-                    .insert_at(analysis.point, GhostStatement::Unfold(place));
+                match place_ref.last_projection() {
+                    Some((base, PlaceElem::Deref | PlaceElem::Field(..))) => {
+                        analysis
+                            .mode
+                            .insert_at(analysis.point, GhostStatement::Unfold(base.to_place()));
+                    }
+                    _ => Err(query_bug!("invalid projection for unfolding {place_ref:?}"))?,
+                }
             }
         }
         Ok(())
@@ -269,13 +261,8 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
         if let Some(fn_sig) = fn_sig {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             for (local, ty) in iter::zip(self.body.args_iter(), fn_sig.inputs()) {
-                if let rty::TyKind::StrgRef(..) = ty.kind() {
-                    M::projection(
-                        &mut self,
-                        &mut env,
-                        &Place::new(local, vec![PlaceElem::Deref]),
-                        ProjKind::Other,
-                    )?;
+                if let rty::TyKind::StrgRef(..) | rty::Ref!(.., Mutability::Mut) = ty.kind() {
+                    M::projection(&mut self, &mut env, &Place::new(local, vec![PlaceElem::Deref]))?;
                 }
             }
         }
@@ -317,11 +304,11 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     Rvalue::Ref(.., bk, place) => {
                         // Fake borrows should not cause the place to fold
                         if !matches!(bk, BorrowKind::Fake(_)) {
-                            M::projection(self, env, place, ProjKind::Other)?;
+                            M::projection(self, env, place)?;
                         }
                     }
                     Rvalue::RawPtr(_, place) => {
-                        M::projection(self, env, place, ProjKind::Other)?;
+                        M::projection(self, env, place)?;
                     }
                     Rvalue::BinaryOp(_, op1, op2) => {
                         self.operand(op1, env)?;
@@ -333,10 +320,10 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                         }
                     }
                     Rvalue::Len(place) => {
-                        M::projection(self, env, place, ProjKind::Len)?;
+                        M::projection(self, env, place)?;
                     }
                     Rvalue::Discriminant(discr) => {
-                        M::projection(self, env, discr, ProjKind::Other)?;
+                        M::projection(self, env, discr)?;
                         self.discriminants.insert(place.clone(), discr.clone());
                     }
                     Rvalue::Repeat(op, _) => {
@@ -344,7 +331,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     }
                     Rvalue::NullaryOp(_, _) => {}
                 }
-                M::projection(self, env, place, ProjKind::Other)?;
+                M::projection(self, env, place)?;
             }
             StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
                 self.operand(op, env)?;
@@ -361,7 +348,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     fn operand(&mut self, op: &Operand, env: &mut Env) -> QueryResult {
         match op {
             Operand::Copy(place) | Operand::Move(place) => {
-                M::projection(self, env, place, ProjKind::Other)?;
+                M::projection(self, env, place)?;
             }
             Operand::Constant(_) => {}
         }
@@ -382,7 +369,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                 for arg in args {
                     self.operand(arg, &mut env)?;
                 }
-                M::projection(self, &mut env, destination, ProjKind::Other)?;
+                M::projection(self, &mut env, destination)?;
                 if let Some(target) = target {
                     successors.push((env, *target));
                 }
@@ -390,7 +377,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             TerminatorKind::SwitchInt { discr, targets } => {
                 let is_match = match discr {
                     Operand::Copy(place) | Operand::Move(place) => {
-                        M::projection(self, &mut env, place, ProjKind::Other)?;
+                        M::projection(self, &mut env, place)?;
                         self.discriminants.remove(place)
                     }
                     Operand::Constant(_) => None,
@@ -430,11 +417,11 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                 successors.push((env, *target));
             }
             TerminatorKind::Yield { resume, resume_arg, .. } => {
-                M::projection(self, &mut env, resume_arg, ProjKind::Other)?;
+                M::projection(self, &mut env, resume_arg)?;
                 successors.push((env, *resume));
             }
             TerminatorKind::Drop { place, target, .. } => {
-                M::projection(self, &mut env, place, ProjKind::Other)?;
+                M::projection(self, &mut env, place)?;
                 successors.push((env, *target));
             }
             TerminatorKind::Assert { cond, target, .. } => {
@@ -849,7 +836,7 @@ impl fmt::Debug for Env {
 impl fmt::Debug for PlaceNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PlaceNode::Deref(_, node) => write!(f, "*({:?})", node),
+            PlaceNode::Deref(_, node) => write!(f, "*({node:?})"),
             PlaceNode::Downcast(adt, args, variant, fields) => {
                 write!(f, "{}", def_id_to_string(adt.did()))?;
                 if !args.is_empty() {
