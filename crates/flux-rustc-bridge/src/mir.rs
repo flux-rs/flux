@@ -305,6 +305,10 @@ impl<'a> PlaceRef<'a> {
     pub fn truncate(self, i: usize) -> PlaceRef<'a> {
         Self { local: self.local, projection: &self.projection[..i] }
     }
+
+    pub fn to_place(&self) -> Place {
+        Place { local: self.local, projection: self.projection.to_vec() }
+    }
 }
 
 pub enum Constant {

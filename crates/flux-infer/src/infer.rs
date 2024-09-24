@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::bug;
+use flux_common::{bug, tracked_span_dbg_assert_eq};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -499,8 +499,8 @@ impl Sub {
                 Ok(())
             }
             (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) => {
-                debug_assert_eq!(a_adt.did(), b_adt.did());
-                debug_assert_eq!(a_args.len(), b_args.len());
+                tracked_span_dbg_assert_eq!(a_adt.did(), b_adt.did());
+                tracked_span_dbg_assert_eq!(a_args.len(), b_args.len());
                 let variances = infcx.genv.variances_of(a_adt.did());
                 for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
                     self.generic_args(infcx, *variance, ty_a, ty_b)?;

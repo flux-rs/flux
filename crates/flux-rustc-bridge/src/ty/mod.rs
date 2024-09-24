@@ -6,7 +6,7 @@ use std::fmt;
 
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use itertools::Itertools;
 use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
@@ -793,7 +793,7 @@ impl Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
             TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty.clone(),
-            _ => bug!("deref projection of non-dereferenceable ty `{self:?}`"),
+            _ => tracked_span_bug!("deref projection of non-dereferenceable ty `{self:?}`"),
         }
     }
 
