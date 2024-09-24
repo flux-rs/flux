@@ -108,6 +108,30 @@
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::Cell,
     fmt,
@@ -133,6 +157,30 @@
 }
 
 <span class="attr">#[macro_export]
+</span><span class="macro">macro_rules!</span> tracked_span_dbg_assert_eq {
+    ($(<span class="macro-nonterminal">$arg</span>:tt)<span class="kw-2">*</span>) =&gt; {
+        <span class="kw">if </span><span class="macro">core::cfg!</span>(debug_assertions) {
+            <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_assert_eq!</span>($(<span class="macro-nonterminal">$arg</span>)<span class="kw-2">*</span>);
+        }
+    };
+}
+
+<span class="attr">#[macro_export]
+</span><span class="macro">macro_rules!</span> tracked_span_assert_eq {
+    (<span class="macro-nonterminal">$left</span>:expr, <span class="macro-nonterminal">$right</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {
+        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$left</span>, <span class="kw-2">&amp;</span><span class="macro-nonterminal">$right</span>) {
+            (left_val, right_val) =&gt; {
+                <span class="kw">if </span>!(<span class="kw-2">*</span>left_val == <span class="kw-2">*</span>right_val) {
+                    <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_bug!</span>(
+                        <span class="string">"assertion `left == right` failed\n  left: {left_val:?}\n right: {right_val:?}"
+                    </span>)
+                }
+            }
+        }
+    };
+}
+
+<span class="attr">#[<span class="macro-nonterminal">macro_export</span>]
 </span><span class="macro">macro_rules!</span> tracked_span_bug {
     () =&gt; ( <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_bug!</span>(<span class="string">"impossible case reached"</span>) );
     (<span class="macro-nonterminal">$msg</span>:expr) =&gt; ({ <span class="macro-nonterminal">$crate::bug::tracked_span_bug_fmt</span>(<span class="macro">::std::format_args!</span>(<span class="macro-nonterminal">$msg</span>)) });

@@ -774,7 +774,7 @@
 <a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
-<span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_common::{bug, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -1273,8 +1273,8 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(a_adt.did(), b_adt.did());
-                <span class="macro">debug_assert_eq!</span>(a_args.len(), b_args.len());
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(a_adt.did(), b_adt.did());
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(a_args.len(), b_args.len());
                 <span class="kw">let </span>variances = infcx.genv.variances_of(a_adt.did());
                 <span class="kw">for </span>(variance, ty_a, ty_b) <span class="kw">in </span><span class="macro">izip!</span>(variances, a_args.iter(), b_args.iter()) {
                     <span class="self">self</span>.generic_args(infcx, <span class="kw-2">*</span>variance, ty_a, ty_b)<span class="question-mark">?</span>;
