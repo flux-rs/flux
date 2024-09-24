@@ -875,6 +875,17 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -884,8 +895,8 @@
 <span class="kw">use </span>flux_rustc_bridge::{
     mir::{
         BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
-        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
-        FIRST_VARIANT,
+        Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        VariantIdx, FIRST_VARIANT,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Ty, TyKind},
 };
@@ -930,40 +941,47 @@
         }
     }
 
-    <span class="kw">fn </span>projection(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;ProjResult&gt; {
-        <span class="kw">let </span>(node, unfolded) = <span class="self">self</span>.unfold(genv, place)<span class="question-mark">?</span>;
-        <span class="kw">if </span>unfolded {
-            <span class="prelude-val">Ok</span>(ProjResult::Unfold)
-        } <span class="kw">else if </span>node.fold() {
-            <span class="prelude-val">Ok</span>(ProjResult::Fold)
+    <span class="kw">fn </span>projection&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Place) -&gt; QueryResult&lt;ProjResult&lt;<span class="lifetime">'a</span>&gt;&gt; {
+        <span class="kw">let </span>(node, place, modified) = <span class="self">self</span>.ensure_unfolded(genv, place)<span class="question-mark">?</span>;
+        <span class="kw">if </span>modified {
+            <span class="prelude-val">Ok</span>(ProjResult::Unfold(place))
+        } <span class="kw">else if </span>node.ensure_folded() {
+            <span class="prelude-val">Ok</span>(ProjResult::Fold(place))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(ProjResult::None)
         }
     }
 
     <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place, variant_idx: VariantIdx) -&gt; QueryResult {
-        <span class="kw">let </span>(node, <span class="kw">_</span>) = <span class="self">self</span>.unfold(genv, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(node, ..) = <span class="self">self</span>.ensure_unfolded(genv, place)<span class="question-mark">?</span>;
         node.downcast(genv, variant_idx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
+    <span class="kw">fn </span>ensure_unfolded&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        genv: GlobalEnv,
+        place: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Place,
+    ) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, PlaceRef&lt;<span class="lifetime">'a</span>&gt;, Modified)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>node = <span class="kw-2">&amp;mut </span><span class="self">self</span>.map[place.local];
-        <span class="kw">let </span><span class="kw-2">mut </span>unfolded = <span class="bool-val">false</span>;
-        <span class="kw">for </span>elem <span class="kw">in </span><span class="kw-2">&amp;</span>place.projection {
-            <span class="kw">let </span>(n, u) = <span class="kw">match </span><span class="kw-2">*</span>elem {
+        <span class="kw">let </span><span class="kw-2">mut </span>modified = <span class="bool-val">false</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
+        <span class="kw">while </span>i &lt; place.projection.len() {
+            <span class="kw">let </span>elem = place.projection[i];
+            <span class="kw">let </span>(n, m) = <span class="kw">match </span>elem {
                 PlaceElem::Deref =&gt; node.deref(),
                 PlaceElem::Field(f) =&gt; node.field(genv, f)<span class="question-mark">?</span>,
                 PlaceElem::Downcast(<span class="kw">_</span>, idx) =&gt; node.downcast(genv, idx)<span class="question-mark">?</span>,
                 PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; <span class="kw">break</span>,
             };
             node = n;
-            unfolded |= u;
+            modified |= m;
+            i += <span class="number">1</span>;
         }
-        <span class="prelude-val">Ok</span>((node, unfolded))
+        <span class="prelude-val">Ok</span>((node, place.as_ref().truncate(i), modified))
     }
 
-    <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, <span class="kw-2">mut </span>other: Env) -&gt; QueryResult&lt;bool&gt; {
+    <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, <span class="kw-2">mut </span>other: Env) -&gt; QueryResult&lt;Modified&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>modified = <span class="bool-val">false</span>;
         <span class="kw">for </span>(local, node) <span class="kw">in </span><span class="self">self</span>.map.iter_enumerated_mut() {
             <span class="kw">let </span>(m, <span class="kw">_</span>) = node.join(genv, <span class="kw-2">&amp;mut </span>other.map[local], <span class="bool-val">false</span>)<span class="question-mark">?</span>;
@@ -984,6 +1002,8 @@
         }
     }
 }
+
+<span class="kw">type </span>Modified = bool;
 
 <span class="kw">struct </span>FoldUnfoldAnalysis&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -1028,10 +1048,10 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>ProjResult {
+</span><span class="kw">enum </span>ProjResult&lt;<span class="lifetime">'a</span>&gt; {
     <span class="prelude-val">None</span>,
-    Fold,
-    Unfold,
+    Fold(PlaceRef&lt;<span class="lifetime">'a</span>&gt;),
+    Unfold(PlaceRef&lt;<span class="lifetime">'a</span>&gt;),
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>ProjKind {
@@ -1081,13 +1101,15 @@
     ) -&gt; QueryResult {
         <span class="kw">match </span>env.projection(analysis.genv, place)<span class="question-mark">? </span>{
             ProjResult::None =&gt; {}
-            ProjResult::Fold =&gt; {
+            ProjResult::Fold(place_ref) =&gt; {
+                <span class="macro">assert_eq!</span>(place_ref, place.as_ref());
                 <span class="kw">let </span>place = place.clone();
                 analysis
                     .mode
                     .insert_at(analysis.point, GhostStatement::Fold(place));
             }
-            ProjResult::Unfold =&gt; {
+            ProjResult::Unfold(place_ref) =&gt; {
+                <span class="macro">assert_eq!</span>(place_ref, place.as_ref());
                 <span class="kw">let </span>projection = <span class="kw">match </span>kind {
                     ProjKind::Len =&gt; place.projection.clone(),
                     ProjKind::Other =&gt; place.projection[..place.projection.len() - <span class="number">1</span>].to_vec(),
@@ -1353,7 +1375,7 @@
 }
 
 <span class="kw">impl </span>PlaceNode {
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;mut </span>PlaceNode, bool) {
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;mut </span>PlaceNode, Modified) {
         <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Deref(<span class="kw">_</span>, node) =&gt; (node, <span class="bool-val">false</span>),
             PlaceNode::Ty(ty) =&gt; {
@@ -1369,7 +1391,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         genv: GlobalEnv,
         idx: VariantIdx,
-    ) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
+    ) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, Modified)&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Downcast(.., idx2, <span class="kw">_</span>) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(idx, <span class="kw-2">*</span>idx2);
@@ -1388,7 +1410,7 @@
         }
     }
 
-    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
+    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, Modified)&gt; {
         <span class="kw">let </span>(fields, unfolded) = <span class="self">self</span>.fields(genv)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((<span class="kw-2">&amp;mut </span>fields[f.as_usize()], unfolded))
     }
@@ -1451,7 +1473,7 @@
         }
     }
 
-    <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+    <span class="kw">fn </span>ensure_folded(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Modified {
         <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Deref(ty, <span class="kw">_</span>) =&gt; {
                 <span class="kw-2">*</span><span class="self">self </span>= PlaceNode::Ty(ty.clone());
