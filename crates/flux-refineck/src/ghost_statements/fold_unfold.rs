@@ -7,8 +7,8 @@ use flux_middle::{
 use flux_rustc_bridge::{
     mir::{
         BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
-        Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
-        FIRST_VARIANT,
+        Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        VariantIdx, FIRST_VARIANT,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Ty, TyKind},
 };
@@ -53,40 +53,47 @@ impl Env {
         }
     }
 
-    fn projection(&mut self, genv: GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
-        let (node, unfolded) = self.unfold(genv, place)?;
-        if unfolded {
-            Ok(ProjResult::Unfold)
-        } else if node.fold() {
-            Ok(ProjResult::Fold)
+    fn projection<'a>(&mut self, genv: GlobalEnv, place: &'a Place) -> QueryResult<ProjResult<'a>> {
+        let (node, place, modified) = self.ensure_unfolded(genv, place)?;
+        if modified {
+            Ok(ProjResult::Unfold(place))
+        } else if node.ensure_folded() {
+            Ok(ProjResult::Fold(place))
         } else {
             Ok(ProjResult::None)
         }
     }
 
     fn downcast(&mut self, genv: GlobalEnv, place: &Place, variant_idx: VariantIdx) -> QueryResult {
-        let (node, _) = self.unfold(genv, place)?;
+        let (node, ..) = self.ensure_unfolded(genv, place)?;
         node.downcast(genv, variant_idx)?;
         Ok(())
     }
 
-    fn unfold(&mut self, genv: GlobalEnv, place: &Place) -> QueryResult<(&mut PlaceNode, bool)> {
+    fn ensure_unfolded<'a>(
+        &mut self,
+        genv: GlobalEnv,
+        place: &'a Place,
+    ) -> QueryResult<(&mut PlaceNode, PlaceRef<'a>, Modified)> {
         let mut node = &mut self.map[place.local];
-        let mut unfolded = false;
-        for elem in &place.projection {
-            let (n, u) = match *elem {
+        let mut modified = false;
+        let mut i = 0;
+        while i < place.projection.len() {
+            let elem = place.projection[i];
+            let (n, m) = match elem {
                 PlaceElem::Deref => node.deref(),
                 PlaceElem::Field(f) => node.field(genv, f)?,
                 PlaceElem::Downcast(_, idx) => node.downcast(genv, idx)?,
                 PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => break,
             };
             node = n;
-            unfolded |= u;
+            modified |= m;
+            i += 1;
         }
-        Ok((node, unfolded))
+        Ok((node, place.as_ref().truncate(i), modified))
     }
 
-    fn join(&mut self, genv: GlobalEnv, mut other: Env) -> QueryResult<bool> {
+    fn join(&mut self, genv: GlobalEnv, mut other: Env) -> QueryResult<Modified> {
         let mut modified = false;
         for (local, node) in self.map.iter_enumerated_mut() {
             let (m, _) = node.join(genv, &mut other.map[local], false)?;
@@ -107,6 +114,8 @@ impl Env {
         }
     }
 }
+
+type Modified = bool;
 
 struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
@@ -151,10 +160,10 @@ impl Elaboration<'_> {
 }
 
 #[derive(Debug)]
-enum ProjResult {
+enum ProjResult<'a> {
     None,
-    Fold,
-    Unfold,
+    Fold(PlaceRef<'a>),
+    Unfold(PlaceRef<'a>),
 }
 
 pub(crate) enum ProjKind {
@@ -204,13 +213,15 @@ impl Mode for Elaboration<'_> {
     ) -> QueryResult {
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
-            ProjResult::Fold => {
+            ProjResult::Fold(place_ref) => {
+                assert_eq!(place_ref, place.as_ref());
                 let place = place.clone();
                 analysis
                     .mode
                     .insert_at(analysis.point, GhostStatement::Fold(place));
             }
-            ProjResult::Unfold => {
+            ProjResult::Unfold(place_ref) => {
+                assert_eq!(place_ref, place.as_ref());
                 let projection = match kind {
                     ProjKind::Len => place.projection.clone(),
                     ProjKind::Other => place.projection[..place.projection.len() - 1].to_vec(),
@@ -476,7 +487,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
 }
 
 impl PlaceNode {
-    fn deref(&mut self) -> (&mut PlaceNode, bool) {
+    fn deref(&mut self) -> (&mut PlaceNode, Modified) {
         match self {
             PlaceNode::Deref(_, node) => (node, false),
             PlaceNode::Ty(ty) => {
@@ -492,7 +503,7 @@ impl PlaceNode {
         &mut self,
         genv: GlobalEnv,
         idx: VariantIdx,
-    ) -> QueryResult<(&mut PlaceNode, bool)> {
+    ) -> QueryResult<(&mut PlaceNode, Modified)> {
         match self {
             PlaceNode::Downcast(.., idx2, _) => {
                 debug_assert_eq!(idx, *idx2);
@@ -511,7 +522,7 @@ impl PlaceNode {
         }
     }
 
-    fn field(&mut self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<(&mut PlaceNode, bool)> {
+    fn field(&mut self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<(&mut PlaceNode, Modified)> {
         let (fields, unfolded) = self.fields(genv)?;
         Ok((&mut fields[f.as_usize()], unfolded))
     }
@@ -574,7 +585,7 @@ impl PlaceNode {
         }
     }
 
-    fn fold(&mut self) -> bool {
+    fn ensure_folded(&mut self) -> Modified {
         match self {
             PlaceNode::Deref(ty, _) => {
                 *self = PlaceNode::Ty(ty.clone());
