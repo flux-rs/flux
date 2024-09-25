@@ -23,6 +23,30 @@ pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
 }
 
 #[macro_export]
+macro_rules! tracked_span_dbg_assert_eq {
+    ($($arg:tt)*) => {
+        if core::cfg!(debug_assertions) {
+            $crate::tracked_span_assert_eq!($($arg)*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! tracked_span_assert_eq {
+    ($left:expr, $right:expr $(,)?) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    $crate::tracked_span_bug!(
+                        "assertion `left == right` failed\n  left: {left_val:?}\n right: {right_val:?}"
+                    )
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! tracked_span_bug {
     () => ( $crate::tracked_span_bug!("impossible case reached") );
     ($msg:expr) => ({ $crate::bug::tracked_span_bug_fmt(::std::format_args!($msg)) });

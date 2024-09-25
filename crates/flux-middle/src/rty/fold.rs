@@ -732,7 +732,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(_, _)
+            | BaseTy::Closure(_, _, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
             BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
@@ -769,7 +769,9 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
-            BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
+            BaseTy::Closure(did, args, gen_args) => {
+                BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone())
+            }
             BaseTy::Coroutine(did, resume_ty, args) => {
                 BaseTy::Coroutine(
                     *did,

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::bug;
+use flux_common::{bug, tracked_span_dbg_assert_eq};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -499,8 +499,8 @@ impl Sub {
                 Ok(())
             }
             (BaseTy::Adt(a_adt, a_args), BaseTy::Adt(b_adt, b_args)) => {
-                debug_assert_eq!(a_adt.did(), b_adt.did());
-                debug_assert_eq!(a_args.len(), b_args.len());
+                tracked_span_dbg_assert_eq!(a_adt.did(), b_adt.did());
+                tracked_span_dbg_assert_eq!(a_args.len(), b_args.len());
                 let variances = infcx.genv.variances_of(a_adt.did());
                 for (variance, ty_a, ty_b) in izip!(variances, a_args.iter(), b_args.iter()) {
                     self.generic_args(infcx, *variance, ty_a, ty_b)?;
@@ -564,7 +564,7 @@ impl Sub {
                 assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
             }
-            (BaseTy::Closure(did1, tys_a), BaseTy::Closure(did2, tys_b)) if did1 == did2 => {
+            (BaseTy::Closure(did1, tys_a, _), BaseTy::Closure(did2, tys_b, _)) if did1 == did2 => {
                 debug_assert_eq!(tys_a.len(), tys_b.len());
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;

@@ -368,11 +368,11 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) => {
-                debug_assert!(!scope.has_free_vars(substs));
+            TyKind::Downcast(adt, args, ty, variant, fields) => {
+                debug_assert!(!scope.has_free_vars(args));
                 debug_assert!(!scope.has_free_vars(ty));
                 let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
-                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields)
             }
             TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             TyKind::Alias(..) => {
@@ -393,14 +393,13 @@ impl BasicBlockEnvShape {
 
     fn pack_bty(scope: &Scope, bty: &BaseTy) -> BaseTy {
         match bty {
-            BaseTy::Adt(adt_def, substs) => {
-                let substs = List::from_vec(
-                    substs
-                        .iter()
+            BaseTy::Adt(adt_def, args) => {
+                let args = List::from_vec(
+                    args.iter()
                         .map(|arg| Self::pack_generic_arg(scope, arg))
                         .collect(),
                 );
-                BaseTy::adt(adt_def.clone(), substs)
+                BaseTy::adt(adt_def.clone(), args)
             }
             BaseTy::FnDef(def_id, args) => {
                 let args = List::from_vec(
@@ -504,18 +503,18 @@ impl BasicBlockEnvShape {
                 Ty::param(*param_ty1)
             }
             (
-                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
-                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
+                TyKind::Downcast(adt1, args1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, args2, ty2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
-                debug_assert_eq!(substs1, substs2);
+                debug_assert_eq!(args1, args2);
                 debug_assert!(ty1 == ty2 && !self.scope.has_free_vars(ty2));
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 let fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
-                Ty::downcast(adt1.clone(), substs1.clone(), ty1.clone(), *variant1, fields)
+                Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
             (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) => {
                 debug_assert_eq!(kind1, kind2);
@@ -576,12 +575,12 @@ impl BasicBlockEnvShape {
 
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
-            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
+            (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) => {
                 debug_assert_eq!(def1.did(), def2.did());
-                let substs = iter::zip(substs1, substs2)
+                let args = iter::zip(args1, args2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
-                BaseTy::adt(def1.clone(), List::from_vec(substs))
+                BaseTy::adt(def1.clone(), List::from_vec(args))
             }
             (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) => {
                 let fields = iter::zip(fields1, fields2)

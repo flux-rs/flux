@@ -271,6 +271,10 @@ impl Place {
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
     }
+
+    pub fn as_ref(&self) -> PlaceRef {
+        PlaceRef { local: self.local, projection: &self.projection[..] }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -289,6 +293,30 @@ pub enum PlaceElem {
         /// array.
         from_end: bool,
     },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PlaceRef<'a> {
+    pub local: Local,
+    pub projection: &'a [PlaceElem],
+}
+
+impl<'a> PlaceRef<'a> {
+    pub fn truncate(self, i: usize) -> PlaceRef<'a> {
+        Self { local: self.local, projection: &self.projection[..i] }
+    }
+
+    pub fn to_place(self) -> Place {
+        Place { local: self.local, projection: self.projection.to_vec() }
+    }
+
+    pub fn last_projection(self) -> Option<(PlaceRef<'a>, PlaceElem)> {
+        if let [base @ .., elem] = self.projection {
+            Some((PlaceRef { local: self.local, projection: base }, *elem))
+        } else {
+            None
+        }
+    }
 }
 
 pub enum Constant {
@@ -544,9 +572,15 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
 
 impl fmt::Debug for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.as_ref())
+    }
+}
+
+impl fmt::Debug for PlaceRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut p = format!("{:?}", self.local);
         let mut need_parens = false;
-        for elem in &self.projection {
+        for elem in self.projection {
             match elem {
                 PlaceElem::Field(f) => {
                     if need_parens {

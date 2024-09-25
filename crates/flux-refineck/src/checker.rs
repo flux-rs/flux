@@ -750,14 +750,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(closure_id, tys)) => {
+            Some(BaseTy::Closure(closure_id, tys, args)) => {
                 let span = self.genv.tcx().def_span(closure_id);
                 let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
                 Checker::run(
                     infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
                     closure_id.expect_local(),
                     self.inherited.reborrow(),
-                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
+                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
                 )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
@@ -1022,7 +1022,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let tys = self.check_operands(infcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
+            Rvalue::Aggregate(AggregateKind::Closure(did, args), operands) => {
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, operands)?
                     .into_iter()
@@ -1041,7 +1041,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                Ok(Ty::closure(*did, upvar_tys))
+
+                Ok(Ty::closure(*did, upvar_tys, args))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();

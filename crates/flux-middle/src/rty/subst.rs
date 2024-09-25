@@ -50,7 +50,7 @@ impl RegionSubst {
             fn fold_region(&mut self, re: &Region) -> Region {
                 // FIXME the map should always contain a region
                 if let ReVar(rvid) = re
-                    && let Some(region) = self.0.map.get(&rvid)
+                    && let Some(region) = self.0.map.get(rvid)
                 {
                     *region
                 } else {
