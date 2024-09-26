@@ -12,7 +12,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{ParamConst, TyCtxt, Variance},
+    ty::{TyCtxt, Variance},
 };
 pub use rustc_span::{symbol::Ident, Symbol};
 
@@ -328,13 +328,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let parent = self.tcx().parent(def_id);
         let generics = self.tcx().generics_of(parent);
         generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
-    }
-
-    pub fn def_id_to_param_const(&self, def_id: LocalDefId) -> ParamConst {
-        ParamConst {
-            index: self.def_id_to_param_index(def_id.to_def_id()),
-            name: self.tcx().hir().ty_param_name(def_id),
-        }
     }
 
     pub fn refine_default(
