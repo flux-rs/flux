@@ -13,6 +13,7 @@ struct MyInt(#[field(i32[n])] i32);
 
 #[assoc(fn eq_rel(lhs: MyInt, rhs: MyInt) -> bool { lhs == rhs })]
 impl PartialEq for MyInt {
+    #[sig(fn(&Self[@lhs], &MyInt[@rhs]) -> bool[<MyInt as PartialEq<MyInt>>::eq_rel(lhs, rhs)])]
     fn eq(&self, other: &MyInt) -> bool {
         self.0 == other.0
     }

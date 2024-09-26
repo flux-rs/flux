@@ -446,12 +446,8 @@ fn variants_of(
     Ok(variants)
 }
 
-fn fn_sig(
-    genv: GlobalEnv,
-    orig_def_id: LocalDefId,
-) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let def_id = genv.maybe_extern_id(orig_def_id);
-
+fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+    let def_id = genv.maybe_extern_id(def_id);
     let fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let defns = genv.spec_func_defns()?;
