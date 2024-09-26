@@ -2288,6 +2288,32 @@
 <a href="#2288" id="2288">2288</a>
 <a href="#2289" id="2289">2289</a>
 <a href="#2290" id="2290">2290</a>
+<a href="#2291" id="2291">2291</a>
+<a href="#2292" id="2292">2292</a>
+<a href="#2293" id="2293">2293</a>
+<a href="#2294" id="2294">2294</a>
+<a href="#2295" id="2295">2295</a>
+<a href="#2296" id="2296">2296</a>
+<a href="#2297" id="2297">2297</a>
+<a href="#2298" id="2298">2298</a>
+<a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
+<a href="#2303" id="2303">2303</a>
+<a href="#2304" id="2304">2304</a>
+<a href="#2305" id="2305">2305</a>
+<a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3716,6 +3742,7 @@
             BaseTy::Adt(adt_def, <span class="kw">_</span>) =&gt; adt_def.invariants(),
             BaseTy::Uint(uint_ty) =&gt; uint_invariants(<span class="kw-2">*</span>uint_ty, overflow_checking),
             BaseTy::Int(int_ty) =&gt; int_invariants(<span class="kw-2">*</span>int_ty, overflow_checking),
+            BaseTy::Slice(<span class="kw">_</span>) =&gt; slice_invariants(overflow_checking),
             <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
         }
     }
@@ -4378,6 +4405,31 @@
     <span class="doccomment">/// See [`Expr::is_trivially_true`]
     </span><span class="kw">pub fn </span>is_trivially_true(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.skip_binder_ref().is_trivially_true()
+    }
+}
+
+<span class="doccomment">/// returns the same invariants as for `usize` which is the length of a slice
+</span><span class="kw">fn </span>slice_invariants(overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
+    <span class="kw">static </span>DEFAULT: LazyLock&lt;[Invariant; <span class="number">1</span>]&gt; = LazyLock::new(|| {
+        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+    });
+    <span class="kw">static </span>OVERFLOW: LazyLock&lt;[Invariant; <span class="number">2</span>]&gt; = LazyLock::new(|| {
+        [
+            Invariant {
+                pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
+                    Sort::Int,
+                ),
+            },
+        ]
+    });
+    <span class="kw">if </span>overflow_checking {
+        <span class="kw-2">&amp;*</span>OVERFLOW
+    } <span class="kw">else </span>{
+        <span class="kw-2">&amp;*</span>DEFAULT
     }
 }
 
