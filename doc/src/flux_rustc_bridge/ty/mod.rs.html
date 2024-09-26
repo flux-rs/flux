@@ -1979,7 +1979,7 @@
     <span class="kw">type </span>T = rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, V::T&gt;;
 
     <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
-        <span class="kw">let </span>vars = BoundVariableKind::to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>.vars(), tcx);
+        <span class="kw">let </span>vars = BoundVariableKind::to_rustc(<span class="self">self</span>.vars(), tcx);
         <span class="kw">let </span>value = <span class="self">self</span>.skip_binder_ref().to_rustc(tcx);
         rustc_middle::ty::Binder::bind_with_vars(value, vars)
     }

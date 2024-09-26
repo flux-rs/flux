@@ -813,6 +813,19 @@
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -1328,31 +1341,42 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assoc_refinements_of(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        def_id: DefId,
+        orig_def_id: DefId,
     ) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
-        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinements_of, def_id, || {
-            <span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinements_of, orig_def_id, || {
+            <span class="kw">let </span>def_id = lookup_extern(genv, orig_def_id).unwrap_or(orig_def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
-                (<span class="self">self</span>.providers.assoc_refinements_of)(genv, local_id)
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(assocs) = genv.cstore().assoc_refinements_of(def_id) {
+                <span class="comment">// case 1: def_id is local-def-id so forward to the "local" provider (def_id == orig_def_id)
+                // case 2: def_id is local-def-id but a "wrapper" for an external def_id (def_id != orig_def_id)
+                </span>(<span class="self">self</span>.providers.assoc_refinements_of)(genv, local_id)
+            } <span class="kw">else
+            </span><span class="comment">// case 3: def_id is an external def_id for which we have an annotation in the cstore
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(assocs) = genv.cstore().assoc_refinements_of(def_id) {
                 assocs
             } <span class="kw">else </span>{
-                <span class="prelude-val">Ok</span>(rty::AssocRefinements::default())
+                <span class="comment">// case 4: def_id is an external def_id for which (a) we have no wrapper in the current crate, (b) we have no annotation in the cstore
+                </span><span class="prelude-val">Ok</span>(rty::AssocRefinements::default())
             }
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assoc_refinement_def(
+    <span class="comment">// NOTE: query
+    // 1. def_id is a "local" def_id so
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assoc_refinement_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        impl_id: DefId,
+        impl_id_orig: DefId,
         name: Symbol,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
-        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinement_def, (impl_id, name), || {
-            <span class="kw">let </span>impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinement_def, (impl_id_orig, name), || {
+            <span class="kw">let </span>impl_id = lookup_extern(genv, impl_id_orig).unwrap_or(impl_id_orig);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
-                (<span class="self">self</span>.providers.assoc_refinement_def)(genv, local_id, name)
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
+                <span class="comment">// case 1: impl_id is local-def-id so forward to the "local" provider (impl_id == impl_id_orig)
+                // case 2: impl_id is local-def-id but a "wrapper" for an external def_id (impl_id != impl_id_orig)
+                </span>(<span class="self">self</span>.providers.assoc_refinement_def)(genv, local_id, name)
+            } <span class="kw">else
+            </span><span class="comment">// case 3: external def_id for which we have an annotation in the cstore
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
                 lam
             } <span class="kw">else </span>{
                 <span class="macro">bug!</span>(<span class="string">"TODO: implement for external crates"</span>)
@@ -1363,11 +1387,11 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>default_assoc_refinement_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        trait_id: DefId,
+        trait_id_orig: DefId,
         name: Symbol,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
-        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.default_assoc_refinement_def, (trait_id, name), || {
-            <span class="kw">let </span>trait_id = lookup_extern(genv, trait_id).unwrap_or(trait_id);
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.default_assoc_refinement_def, (trait_id_orig, name), || {
+            <span class="kw">let </span>trait_id = lookup_extern(genv, trait_id_orig).unwrap_or(trait_id_orig);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = trait_id.as_local() {
                 (<span class="self">self</span>.providers.default_assoc_refinement_def)(genv, local_id, name)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv
@@ -1376,7 +1400,9 @@
             {
                 lam
             } <span class="kw">else </span>{
-                <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"TODO: implement for external crates"</span>))
+                <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                    <span class="string">"TODO: (cannot do!) implement for external crates : {trait_id:?} / {name:?}"
+                </span>))
             }
         })
     }

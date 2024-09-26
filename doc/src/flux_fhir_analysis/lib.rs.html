@@ -540,6 +540,7 @@
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
 <a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -706,14 +707,15 @@
     genv: GlobalEnv,
     local_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
-    <span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(local_id)<span class="question-mark">?</span>.kind {
+    <span class="kw">let </span>local_id = genv.maybe_extern_id(local_id);
+    <span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(local_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
             trait_
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
                     rty::AssocRefinement {
-                        container_def_id: local_id.to_def_id(),
+                        container_def_id: local_id.resolved_id(),
                         name: assoc_reft.name,
                     }
                 })
@@ -725,13 +727,13 @@
                 .iter()
                 .map(|assoc_reft| {
                     rty::AssocRefinement {
-                        container_def_id: local_id.to_def_id(),
+                        container_def_id: local_id.resolved_id(),
                         name: assoc_reft.name,
                     }
                 })
                 .collect()
         }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id.resolved_id(), <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
     };
     <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
 }

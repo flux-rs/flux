@@ -774,7 +774,7 @@
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
-<span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
@@ -1366,11 +1366,11 @@
                 BaseTy::Ref(<span class="kw-2">*</span>r1, <span class="self">self</span>.join_ty(ty1, ty2), <span class="kw-2">*</span>mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(len1, len2);
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(len1, len2);
                 BaseTy::Array(<span class="self">self</span>.join_ty(ty1, ty2), len1.clone())
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">debug_assert_eq!</span>(bty1, bty2);
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(bty1, bty2);
                 bty1.clone()
             }
         }
