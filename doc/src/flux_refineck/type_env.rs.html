@@ -770,6 +770,7 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1369,6 +1370,7 @@
                 <span class="macro">tracked_span_dbg_assert_eq!</span>(len1, len2);
                 BaseTy::Array(<span class="self">self</span>.join_ty(ty1, ty2), len1.clone())
             }
+            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) =&gt; BaseTy::Slice(<span class="self">self</span>.join_ty(ty1, ty2)),
             <span class="kw">_ </span>=&gt; {
                 <span class="macro">tracked_span_dbg_assert_eq!</span>(bty1, bty2);
                 bty1.clone()

@@ -132,6 +132,9 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::Cell,
     fmt,
@@ -149,6 +152,9 @@
 
 <span class="kw">pub fn </span>track_span&lt;R&gt;(span: Span, f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {
     TRACKED_SPAN.with(|cell| {
+        <span class="kw">if </span>span.is_dummy() {
+            <span class="kw">return </span>f();
+        }
         <span class="kw">let </span>old = cell.replace(<span class="prelude-val">Some</span>(span));
         <span class="kw">let </span>r = f();
         cell.set(old);
