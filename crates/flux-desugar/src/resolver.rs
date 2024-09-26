@@ -8,7 +8,7 @@ use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
     global_env::GlobalEnv,
-    ResolverOutput, Specs,
+    MaybeExternId, ResolverOutput, Specs,
 };
 use flux_syntax::surface::{self, visit::Visitor as _, Ident};
 use hir::{def::DefKind, ItemId, ItemKind, OwnerId};
@@ -178,7 +178,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.ribs[ns].pop();
     }
 
-    fn define_generics(&mut self, generics: &hir::Generics) {
+    fn define_generics(&mut self, def_id: MaybeExternId<OwnerId>) {
+        // FIXME(nilehmann) should we use resolved_id?
+        let generics = self
+            .genv
+            .hir()
+            .get_generics(def_id.local_id().def_id)
+            .unwrap();
         for param in generics.params {
             let def_kind = self.genv.tcx().def_kind(param.def_id);
             if let ParamName::Plain(name) = param.name
@@ -209,21 +215,21 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_trait(&mut self, owner_id: OwnerId) -> Result {
-        let trait_ = &self.specs.traits[&owner_id];
+    fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let trait_ = &self.specs.traits[&owner_id.local_id()];
         RefinementResolver::resolve_trait(self, trait_)
     }
 
-    fn resolve_impl(&mut self, owner_id: OwnerId) -> Result {
-        let impl_ = &self.specs.impls[&owner_id];
+    fn resolve_impl(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let impl_ = &self.specs.impls[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
         RefinementResolver::resolve_impl(self, impl_)
     }
 
-    fn resolve_type_alias(&mut self, owner_id: OwnerId) -> Result {
-        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
+    fn resolve_type_alias(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id.local_id()] {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })?;
@@ -232,24 +238,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn resolve_struct_def(&mut self, owner_id: OwnerId) -> Result {
-        let struct_def = &self.specs.structs[&owner_id];
+    fn resolve_struct_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let struct_def = &self.specs.structs[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })?;
         RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
-    fn resolve_enum_def(&mut self, owner_id: OwnerId) -> Result {
-        let enum_def = &self.specs.enums[&owner_id];
+    fn resolve_enum_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let enum_def = &self.specs.enums[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
         RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
-    fn resolve_fn_sig(&mut self, owner_id: OwnerId) -> Result {
-        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
+    fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id.local_id()].fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
@@ -350,7 +356,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             self.define_flux_global_items();
         }
 
-        // But we resolved names in them as if they were defined in their containing module
+        // But we resolve names in them as if they were defined in their containing module
         self.resolve_flux_items(hir_id.expect_owner());
 
         hir::intravisit::walk_mod(self, module, hir_id);
@@ -384,70 +390,74 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         if self.genv.is_dummy(item.owner_id.def_id) {
             return;
         }
+        let def_id = self
+            .genv
+            .maybe_extern_id(item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
         self.push_rib(ValueNS, RibKind::Normal);
 
         match item.kind {
-            ItemKind::Trait(_, _, generics, ..) => {
-                self.define_generics(generics);
+            ItemKind::Trait(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    // FIXME(nilehmann) should we use resolved_id?
+                    hir::def::Res::SelfTyParam { trait_: def_id.local_id().to_def_id() },
                     TypeNS,
                 );
-                self.resolve_trait(item.owner_id).collect_err(&mut self.err);
+                self.resolve_trait(def_id).collect_err(&mut self.err);
             }
             ItemKind::Impl(impl_) => {
-                self.define_generics(impl_.generics);
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        // FIXME(nilehmann) should we use resolved_id?
+                        alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
                     TypeNS,
                 );
-                self.resolve_impl(item.owner_id).collect_err(&mut self.err);
+                self.resolve_impl(def_id).collect_err(&mut self.err);
             }
-            ItemKind::TyAlias(_, generics) => {
-                self.define_generics(generics);
-                self.resolve_type_alias(item.owner_id)
-                    .collect_err(&mut self.err);
+            ItemKind::TyAlias(..) => {
+                self.define_generics(def_id);
+                self.resolve_type_alias(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Enum(.., generics) => {
-                self.define_generics(generics);
+            ItemKind::Enum(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        // FIXME(nilehmann) should we use resolved_id?
+                        alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
                     TypeNS,
                 );
-                self.resolve_enum_def(item.owner_id)
-                    .collect_err(&mut self.err);
+                self.resolve_enum_def(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Struct(.., generics) => {
-                self.define_generics(generics);
+            ItemKind::Struct(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        // FIXME(nilehmann) should we use resolved_id?
+                        alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
                     TypeNS,
                 );
-                self.resolve_struct_def(item.owner_id)
-                    .collect_err(&mut self.err);
+                self.resolve_struct_def(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Fn(_, generics, _) => {
-                self.define_generics(generics);
-                self.resolve_fn_sig(item.owner_id)
-                    .collect_err(&mut self.err);
+            ItemKind::Fn(..) => {
+                self.define_generics(def_id);
+                self.resolve_fn_sig(def_id).collect_err(&mut self.err);
             }
             _ => {}
         }
@@ -459,22 +469,30 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
+        let def_id = self
+            .genv
+            .maybe_extern_id(impl_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(impl_item.generics);
+        self.define_generics(def_id);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            self.resolve_fn_sig(impl_item.owner_id)
-                .collect_err(&mut self.err);
+            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
+        let def_id = self
+            .genv
+            .maybe_extern_id(trait_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(trait_item.generics);
+        self.define_generics(def_id);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            self.resolve_fn_sig(trait_item.owner_id)
-                .collect_err(&mut self.err);
+            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
@@ -569,7 +587,7 @@ struct ItemResolver<'a, 'genv, 'tcx> {
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn run(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        owner_id: OwnerId,
+        owner_id: MaybeExternId<OwnerId>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
         let mut item_resolver = ItemResolver::new(resolver, owner_id)?;
@@ -577,10 +595,13 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         item_resolver.errors.into_result()
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, owner_id: OwnerId) -> Result<Self> {
+    fn new(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: MaybeExternId<OwnerId>,
+    ) -> Result<Self> {
         let tcx = resolver.genv.tcx();
         let sess = resolver.genv.sess();
-        let opaque = match tcx.hir_owner_node(owner_id) {
+        let opaque = match tcx.hir_owner_node(owner_id.local_id()) {
             hir::OwnerNode::Item(item) => OpaqueTypeCollector::collect_item(sess, item)?,
             hir::OwnerNode::ImplItem(impl_item) => {
                 OpaqueTypeCollector::collect_impl_item(sess, impl_item)?
