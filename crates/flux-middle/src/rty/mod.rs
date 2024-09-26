@@ -43,10 +43,10 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{ParamConst, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};

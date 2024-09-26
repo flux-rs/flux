@@ -1230,24 +1230,24 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Lifetime::Resolved(res) => res,
         };
         let tcx = self.genv.tcx();
-        let lifetime_name = |def_id| tcx.hir().name(tcx.local_def_id_to_hir_id(def_id));
+        let lifetime_name = |def_id| tcx.item_name(def_id);
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
                 let index = self.genv.def_id_to_param_index(def_id);
-                let name = lifetime_name(def_id.expect_local());
+                let name = lifetime_name(def_id);
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
-                let name = lifetime_name(def_id.expect_local());
+                let name = lifetime_name(def_id);
                 let kind = rty::BoundRegionKind::BrNamed(def_id, name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
-                let name = lifetime_name(id.expect_local());
+                let name = lifetime_name(id);
                 let bound_region = rty::BoundRegionKind::BrNamed(id, name);
                 rty::ReLateParam(rty::LateParamRegion { scope, bound_region })
             }
@@ -1259,11 +1259,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match cst.kind {
             fhir::ConstArgKind::Lit(lit) => rty::Const::from_usize(self.genv.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) => {
-                rty::Const {
-                    kind: rty::ConstKind::Param(
-                        self.genv.def_id_to_param_const(def_id.expect_local()),
-                    ),
-                }
+                rty::Const { kind: rty::ConstKind::Param(def_id_to_param_const(self.genv, def_id)) }
             }
             fhir::ConstArgKind::Infer => {
                 rty::Const {
@@ -1612,10 +1608,7 @@ impl ConvCtxt<'_, '_, '_> {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
                     ExprRes::ConstGeneric(def_id) => {
-                        rty::Expr::const_generic(
-                            self.genv.def_id_to_param_const(def_id.expect_local()),
-                        )
-                        .at(espan)
+                        rty::Expr::const_generic(def_id_to_param_const(self.genv, def_id)).at(espan)
                     }
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
@@ -2017,15 +2010,22 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 }
 
 fn def_id_to_param_ty(genv: GlobalEnv, def_id: DefId) -> rty::ParamTy {
+    rty::ParamTy { index: genv.def_id_to_param_index(def_id), name: ty_param_name(genv, def_id) }
+}
+
+fn def_id_to_param_const(genv: GlobalEnv, def_id: DefId) -> rty::ParamConst {
+    rty::ParamConst { index: genv.def_id_to_param_index(def_id), name: ty_param_name(genv, def_id) }
+}
+
+fn ty_param_name(genv: GlobalEnv, def_id: DefId) -> Symbol {
     let def_kind = genv.tcx().def_kind(def_id);
-    let name = match def_kind {
+    match def_kind {
         DefKind::Trait | DefKind::TraitAlias => kw::SelfUpper,
         DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam => {
             genv.tcx().item_name(def_id)
         }
         _ => bug!("ty_param_name: {:?} is a {:?} not a type parameter", def_id, def_kind),
-    };
-    rty::ParamTy { index: genv.def_id_to_param_index(def_id), name }
+    }
 }
 
 mod errors {
