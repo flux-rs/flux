@@ -308,6 +308,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             )?;
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
+                println!("TRACE: {span:?} {:?}", span.is_dummy());
                 let successors =
                     self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, infcx, env);
