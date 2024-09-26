@@ -25,8 +25,8 @@ trait Iterator {
 
 #[extern_spec(std::slice)]
 #[flux::generics(T as base)]
-#[flux::assoc(fn done(x: Iter<T>) -> bool { x.idx >= x.len })]
-#[flux::assoc(fn step(x: Iter<T>, y: Iter<T>) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
+#[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
+#[flux::assoc(fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
 impl<'a, T> Iterator for Iter<'a, T> {
     #[flux::sig(fn(self: &strg Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len] ensures self: Iter<T>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
     fn next(&mut self) -> Option<&'a T>;

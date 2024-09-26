@@ -212,21 +212,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
         let impl_id = self.resolve_maybe_extern_id(impl_id);
 
-        let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
-
-        let trait_ref = self.lower_trait_ref(poly_trait_ref.skip_binder())?;
+        let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
+        let trait_ref = trait_ref.skip_binder();
+        let trait_ref = trait_ref
+            .lower(self.tcx())
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
         let impl_generics = self.generics_of(impl_id)?;
         let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
-    }
-
-    pub fn lower_trait_ref(
-        self,
-        trait_ref: rustc_middle::ty::TraitRef<'tcx>,
-    ) -> QueryResult<ty::TraitRef> {
-        trait_ref
-            .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
     pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
@@ -253,9 +246,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn assoc_refinements_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::AssocRefinements> {
-        self.inner.queries.assoc_refinements_of(self, def_id.into())
+        self.inner
+            .queries
+            .assoc_refinements_of(self, def_id.into_query_param())
     }
 
     pub fn default_assoc_refinement_def(
@@ -278,20 +273,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn sort_of_assoc_reft(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         self.inner
             .queries
-            .sort_of_assoc_reft(self, def_id.into(), name)
+            .sort_of_assoc_reft(self, def_id.into_query_param(), name)
     }
 
     pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
-    pub fn type_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
-        self.inner.queries.type_of(self, def_id.into())
+    pub fn type_of(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+        self.inner.queries.type_of(self, def_id.into_query_param())
     }
 
     pub fn fn_sig(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
@@ -300,9 +298,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variants_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        self.inner.queries.variants_of(self, def_id.into())
+        self.inner
+            .queries
+            .variants_of(self, def_id.into_query_param())
     }
 
     pub fn variant_sig(
