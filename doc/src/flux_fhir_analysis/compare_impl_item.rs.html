@@ -156,19 +156,14 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
-<span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv};
+<span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_span::{
-    def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Symbol,
-};
+<span class="kw">use </span>rustc_span::{def_id::DefId, ErrorGuaranteed, Symbol};
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub fn </span>check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -&gt; <span class="prelude-ty">Result </span>{
-    <span class="kw">let </span>trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
+<span class="kw">pub fn </span>check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">let </span>trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
 
     <span class="kw">let </span>impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
     <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
@@ -195,7 +190,7 @@
         <span class="kw">if </span>trait_assoc_refts.find(name).is_none() {
             <span class="kw">let </span>fhir_impl_assoc_reft = genv
                 .map()
-                .expect_item(impl_id)
+                .expect_item(impl_id.local_id())
                 .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
                 </span>.expect_impl()
                 .find_assoc_reft(name)
@@ -212,14 +207,15 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name: Symbol) -&gt; <span class="prelude-ty">Result </span>{
-    <span class="kw">let </span>fake_impl_id = genv
-        .get_local_id_for_extern(impl_id.to_def_id())
-        .unwrap_or(impl_id);
-
+<span class="kw">fn </span>check_assoc_reft(
+    genv: GlobalEnv,
+    impl_id: MaybeExternId,
+    trait_id: DefId,
+    name: Symbol,
+) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span>impl_span = genv
         .map()
-        .expect_item(fake_impl_id)
+        .expect_item(impl_id.local_id())
         .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
         </span>.expect_impl()
         .find_assoc_reft(name)
@@ -227,7 +223,7 @@
         .span;
 
     <span class="kw">let </span>impl_trait_ref = genv
-        .impl_trait_ref(impl_id.to_def_id())
+        .impl_trait_ref(impl_id.resolved_id())
         .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
         </span>.unwrap()
         .instantiate_identity();

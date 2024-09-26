@@ -789,21 +789,14 @@
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::TraitRef&gt;&gt;&gt; {
         <span class="kw">let </span>impl_id = <span class="self">self</span>.resolve_maybe_extern_id(impl_id);
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-
-        <span class="kw">let </span>trait_ref = <span class="self">self</span>.lower_trait_ref(poly_trait_ref.skip_binder())<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+        <span class="kw">let </span>trait_ref = trait_ref.skip_binder();
+        <span class="kw">let </span>trait_ref = trait_ref
+            .lower(<span class="self">self</span>.tcx())
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?</span>;
         <span class="kw">let </span>impl_generics = <span class="self">self</span>.generics_of(impl_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, <span class="kw-2">&amp;</span>impl_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
-    }
-
-    <span class="kw">pub fn </span>lower_trait_ref(
-        <span class="self">self</span>,
-        trait_ref: rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; QueryResult&lt;ty::TraitRef&gt; {
-        trait_ref
-            .lower(<span class="self">self</span>.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
     <span class="kw">pub fn </span>generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
@@ -830,9 +823,11 @@
 
     <span class="kw">pub fn </span>assoc_refinements_of(
         <span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
-        <span class="self">self</span>.inner.queries.assoc_refinements_of(<span class="self">self</span>, def_id.into())
+        <span class="self">self</span>.inner
+            .queries
+            .assoc_refinements_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>default_assoc_refinement_def(
@@ -855,20 +850,23 @@
 
     <span class="kw">pub fn </span>sort_of_assoc_reft(
         <span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
         name: Symbol,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt; {
         <span class="self">self</span>.inner
             .queries
-            .sort_of_assoc_reft(<span class="self">self</span>, def_id.into(), name)
+            .sort_of_assoc_reft(<span class="self">self</span>, def_id.into_query_param(), name)
     }
 
     <span class="kw">pub fn </span>item_bounds(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
         <span class="self">self</span>.inner.queries.item_bounds(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>type_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
-        <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>type_of(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+        <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>fn_sig(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
@@ -877,9 +875,11 @@
 
     <span class="kw">pub fn </span>variants_of(
         <span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-        <span class="self">self</span>.inner.queries.variants_of(<span class="self">self</span>, def_id.into())
+        <span class="self">self</span>.inner
+            .queries
+            .variants_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>variant_sig(

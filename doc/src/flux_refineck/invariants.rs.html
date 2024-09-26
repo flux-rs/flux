@@ -85,7 +85,6 @@
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
@@ -94,8 +93,7 @@
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
-<span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty};
-<span class="kw">use </span>rustc_hir::def_id::LocalDefId;
+<span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 <span class="kw">use </span>rustc_span::{Span, DUMMY_SP};
 
 <span class="kw">use </span><span class="kw">crate</span>::CheckerConfig;
@@ -103,7 +101,7 @@
 <span class="kw">pub fn </span>check_invariants(
     genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>QueryCache,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
     adt_def: <span class="kw-2">&amp;</span>rty::AdtDef,
     checker_config: CheckerConfig,
@@ -121,13 +119,13 @@
 <span class="kw">fn </span>check_invariant(
     genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>QueryCache,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     adt_def: <span class="kw-2">&amp;</span>rty::AdtDef,
     span: Span,
     invariant: <span class="kw-2">&amp;</span>rty::Invariant,
     checker_config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(genv, def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(genv, def_id.local_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">for </span>variant_idx <span class="kw">in </span>adt_def.variants().indices() {
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
@@ -146,9 +144,9 @@
         <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant.idx);
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarGen::dummy());
+    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id.local_id(), KVarGen::dummy());
     <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.local_id(), <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }
 
     <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;

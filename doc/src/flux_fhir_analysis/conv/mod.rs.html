@@ -2157,6 +2157,7 @@
 <a href="#2157" id="2157">2157</a>
 <a href="#2158" id="2158">2158</a>
 <a href="#2159" id="2159">2159</a>
+<a href="#2160" id="2160">2160</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2174,7 +2175,7 @@
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
         <span class="self">self</span>,
@@ -2184,7 +2185,7 @@
     },
     MaybeExternId,
 };
-<span class="kw">use </span>flux_rustc_bridge::ToRustc;
+<span class="kw">use </span>flux_rustc_bridge::{lowering::Lower, ToRustc};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
@@ -2274,7 +2275,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_adt_sort_def(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     refined_by: <span class="kw-2">&amp;</span>fhir::RefinedBy,
 ) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
     <span class="kw">let </span>params = refined_by
@@ -2289,8 +2290,7 @@
             <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>))
         })
         .try_collect_vec()<span class="question-mark">?</span>;
-    <span class="kw">let </span>def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
-    <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, params, fields))
+    <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expand_type_alias(
@@ -3310,7 +3310,9 @@
 
         <span class="kw">let </span>trait_ref = {
             <span class="kw">let </span>generics = <span class="self">self</span>.generics_of_owner()<span class="question-mark">?</span>;
-            <span class="kw">let </span>trait_ref = <span class="self">self</span>.genv.lower_trait_ref(trait_ref)<span class="question-mark">?</span>;
+            <span class="kw">let </span>trait_ref = trait_ref
+                .lower(tcx)
+                .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?</span>;
             Refiner::default(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?
         </span>};
 
