@@ -6,8 +6,7 @@ use flux_infer::{
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
-use flux_middle::{fhir, global_env::GlobalEnv, rty};
-use rustc_hir::def_id::LocalDefId;
+use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::CheckerConfig;
@@ -15,7 +14,7 @@ use crate::CheckerConfig;
 pub fn check_invariants(
     genv: GlobalEnv,
     cache: &mut QueryCache,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
     checker_config: CheckerConfig,
@@ -33,13 +32,13 @@ pub fn check_invariants(
 fn check_invariant(
     genv: GlobalEnv,
     cache: &mut QueryCache,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     adt_def: &rty::AdtDef,
     span: Span,
     invariant: &rty::Invariant,
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
-    let mut refine_tree = RefineTree::new(genv, def_id).emit(&genv)?;
+    let mut refine_tree = RefineTree::new(genv, def_id.local_id()).emit(&genv)?;
 
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = refine_tree.refine_ctxt_at_root();
@@ -58,9 +57,9 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::dummy());
+    let mut fcx = FixpointCtxt::new(genv, def_id.local_id(), KVarGen::dummy());
     if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.local_id(), "fluxc", &refine_tree).unwrap();
     }
 
     let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;

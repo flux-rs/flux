@@ -15,7 +15,7 @@ use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
         self,
@@ -25,7 +25,7 @@ use flux_middle::{
     },
     MaybeExternId,
 };
-use flux_rustc_bridge::ToRustc;
+use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
@@ -115,7 +115,7 @@ enum LookupResultKind<'a> {
 
 pub(crate) fn conv_adt_sort_def(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
     refined_by: &fhir::RefinedBy,
 ) -> QueryResult<rty::AdtSortDef> {
     let params = refined_by
@@ -130,8 +130,7 @@ pub(crate) fn conv_adt_sort_def(
             Ok((*name, conv_sort(genv, sort, &mut bug_on_infer_sort)?))
         })
         .try_collect_vec()?;
-    let def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
-    Ok(rty::AdtSortDef::new(def_id, params, fields))
+    Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
 }
 
 pub(crate) fn expand_type_alias(
@@ -1151,7 +1150,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let trait_ref = {
             let generics = self.generics_of_owner()?;
-            let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
+            let trait_ref = trait_ref
+                .lower(tcx)
+                .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
             Refiner::default(self.genv, &generics).refine_trait_ref(&trait_ref)?
         };
 

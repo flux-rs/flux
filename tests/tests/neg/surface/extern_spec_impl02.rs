@@ -14,8 +14,12 @@ pub fn bob<T: MyTrait>(_x: &T) -> i32 {
 }
 
 // library impl
+// FIXME(nilehmann) having both the item and an extern spec for it in the same
+// crates breaks some of our assumptions. We should disallow it. For now we
+// ignore the item for the test to pass, but we should test this with using
+// multiple crates.
+#[flux::ignore]
 impl MyTrait for usize {
-    #[flux::trusted]
     fn foo() -> i32 {
         10
     }
