@@ -2333,10 +2333,10 @@
 <span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem, Safety};
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt};
+<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 <span class="kw">use </span>rustc_span::{sym, symbol::kw, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};

@@ -560,13 +560,6 @@
 <a href="#560" id="560">560</a>
 <a href="#561" id="561">561</a>
 <a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -581,7 +574,7 @@
 };
 <span class="kw">use </span>rustc_middle::{
     query::IntoQueryParam,
-    ty::{ParamConst, TyCtxt, Variance},
+    ty::{TyCtxt, Variance},
 };
 <span class="kw">pub use </span>rustc_span::{symbol::Ident, Symbol};
 
@@ -897,13 +890,6 @@
         <span class="kw">let </span>parent = <span class="self">self</span>.tcx().parent(def_id);
         <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(parent);
         generics.param_def_id_to_index(<span class="self">self</span>.tcx(), def_id).unwrap()
-    }
-
-    <span class="kw">pub fn </span>def_id_to_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; ParamConst {
-        ParamConst {
-            index: <span class="self">self</span>.def_id_to_param_index(def_id.to_def_id()),
-            name: <span class="self">self</span>.tcx().hir().ty_param_name(def_id),
-        }
     }
 
     <span class="kw">pub fn </span>refine_default(
