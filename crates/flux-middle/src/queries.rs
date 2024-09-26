@@ -7,7 +7,7 @@ use flux_arc_interner::List;
 use flux_errors::{ErrorGuaranteed, E0999};
 use flux_rustc_bridge::{
     self, def_id_to_string,
-    lowering::{self, Lower, UnsupportedErr, UnsupportedReason},
+    lowering::{self, Lower, UnsupportedErr},
     mir, ty,
 };
 use itertools::Itertools;
@@ -341,8 +341,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let ty = genv.tcx().type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
                 ty.lower(genv.tcx())
-                    .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(def_id, err))?,
+                    .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
             ))
         })
     }
@@ -357,8 +356,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             Ok(ty::EarlyBinder(
                 fn_sig
                     .lower(genv.tcx())
-                    .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(def_id, err))?,
+                    .map_err(|err| QueryErr::unsupported(def_id, err.into_err()))?,
             ))
         })
     }
@@ -373,8 +371,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             genv.tcx()
                 .late_bound_vars(hir_id)
                 .lower(genv.tcx())
-                .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
+                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err.into_err()))
         })
     }
 
