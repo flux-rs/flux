@@ -1,5 +1,5 @@
 //! "Lift" HIR types into  FHIR types.
-//!
+
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use hir::OwnerId;
@@ -12,7 +12,7 @@ use super::{FhirId, FluxOwnerId};
 use crate::{
     fhir::{self},
     global_env::GlobalEnv,
-    try_alloc_slice,
+    try_alloc_slice, MaybeExternId,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -21,13 +21,13 @@ pub struct LiftCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-    owner: OwnerId,
+    owner: MaybeExternId<OwnerId>,
 }
 
 impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        owner: OwnerId,
+        owner: MaybeExternId<OwnerId>,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
     ) -> Self {
@@ -36,20 +36,19 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn with_new_owner<'b>(
         &'b mut self,
-        owner: OwnerId,
+        owner: MaybeExternId<OwnerId>,
         local_id_gen: &'b IndexGen<fhir::ItemLocalId>,
     ) -> LiftCtxt<'b, 'genv, 'tcx> {
         LiftCtxt::new(self.genv, owner, local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
     pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>> {
-        let generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+        let generics = self.genv.hir().get_generics(self.local_id()).unwrap();
         self.lift_generics_inner(generics)
     }
 
     pub fn lift_refined_by<'fhir>(&self) -> fhir::RefinedBy<'fhir> {
-        let def_id = self.owner.def_id;
-        let item = self.genv.hir().expect_item(def_id);
+        let item = self.genv.hir().expect_item(self.local_id());
         match item.kind {
             hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
                 fhir::RefinedBy::trivial()
@@ -145,8 +144,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     fn lift_opaque_ty(&mut self) -> Result<fhir::Item<'genv>> {
-        let hir::ItemKind::OpaqueTy(opaque_ty) =
-            self.genv.hir().expect_item(self.owner.def_id).kind
+        let hir::ItemKind::OpaqueTy(opaque_ty) = self.genv.hir().expect_item(self.local_id()).kind
         else {
             bug!("expected opaque type")
         };
@@ -156,19 +154,11 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
         let opaque_ty = fhir::OpaqueTy { bounds };
-        Ok(fhir::Item {
-            generics,
-            kind: fhir::ItemKind::OpaqueTy(opaque_ty),
-            owner_id: self
-                .genv
-                .maybe_extern_id(self.owner.def_id)
-                .map(|def_id| OwnerId { def_id }),
-        })
+        Ok(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: self.owner })
     }
 
     pub fn lift_fn_header(&mut self) -> FnHeader {
-        let def_id = self.owner.def_id;
-        let hir_id = self.genv.tcx().local_def_id_to_hir_id(def_id);
+        let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         self.genv
             .hir()
             .fn_sig_by_hir_id(hir_id)
@@ -177,8 +167,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_fn_decl(&mut self) -> Result<fhir::FnDecl<'genv>> {
-        let def_id = self.owner.def_id;
-        let hir_id = self.genv.tcx().local_def_id_to_hir_id(def_id);
+        let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         let fn_sig = self
             .genv
             .hir()
@@ -212,7 +201,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_type_alias(&mut self) -> Result<fhir::Item<'genv>> {
-        let item = self.genv.hir().expect_item(self.owner.def_id);
+        let item = self.genv.hir().expect_item(self.local_id());
         let hir::ItemKind::TyAlias(ty, _) = item.kind else {
             bug!("expected type alias");
         };
@@ -227,14 +216,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             span: item.span,
             lifted: true,
         };
-        Ok(fhir::Item {
-            generics,
-            kind: fhir::ItemKind::TyAlias(ty_alias),
-            owner_id: self
-                .genv
-                .maybe_extern_id(self.owner.def_id)
-                .map(|def_id| OwnerId { def_id }),
-        })
+        Ok(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner })
     }
 
     pub fn lift_field_def_id(&mut self, def_id: LocalDefId) -> Result<fhir::FieldDef<'genv>> {
@@ -256,7 +238,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> Result<fhir::VariantDef<'genv>> {
-        let item = self.genv.hir().expect_item(self.owner.def_id);
+        let item = self.genv.hir().expect_item(self.local_id());
         let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
 
         let fields = try_alloc_slice!(self.genv, variant.data.fields(), |field| {
@@ -276,7 +258,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
-        let item = self.genv.hir().expect_item(self.owner.def_id);
+        let item = self.genv.hir().expect_item(self.local_id());
         let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
         self.lift_variant_ret_inner(generics)
     }
@@ -284,7 +266,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_variant_ret_inner(&mut self, generics: &hir::Generics) -> fhir::VariantRet<'genv> {
         let kind = fhir::RefineArgKind::Record(&[]);
         fhir::VariantRet {
-            enum_id: self.genv.resolve_maybe_extern_id(self.owner.to_def_id()),
+            enum_id: self.owner.resolved_id(),
             idx: fhir::RefineArg {
                 kind,
                 fhir_id: self.next_fhir_id(),
@@ -328,7 +310,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
                 let opaque_ty = self
-                    .with_new_owner(item_id.owner_id, &IndexGen::new())
+                    .with_new_owner(MaybeExternId::Local(item_id.owner_id), &IndexGen::new())
                     .lift_opaque_ty()?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
@@ -385,11 +367,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             .map(fhir::Lifetime::Resolved)
             .ok_or_else(|| {
                 let note = format!("cannot resolve lifetime: `{lft:?}`");
-                self.genv.sess().emit_err(errors::UnsupportedHir::new(
-                    self.genv.tcx(),
-                    self.owner,
-                    &note,
-                ))
+                self.emit_unsupported::<!>(&note).into_err()
             })
     }
 
@@ -525,16 +503,25 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+        FhirId {
+            owner: FluxOwnerId::Rust(self.owner.local_id()),
+            local_id: self.local_id_gen.fresh(),
+        }
+    }
+
+    fn local_id(&self) -> LocalDefId {
+        self.owner.local_id().def_id
     }
 }
 
 pub mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_hir::def_id::DefId;
+    use rustc_hir::OwnerId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::Span;
+
+    use crate::MaybeExternId;
 
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_hir, code = E0999)]
@@ -548,12 +535,12 @@ pub mod errors {
     }
 
     impl<'a> UnsupportedHir<'a> {
-        pub fn new(tcx: TyCtxt, def_id: impl Into<DefId>, note: &'a str) -> Self {
-            let def_id = def_id.into();
+        pub fn new(tcx: TyCtxt, def_id: MaybeExternId<OwnerId>, note: &'a str) -> Self {
+            let local_id = def_id.local_id().def_id;
             let span = tcx
-                .def_ident_span(def_id)
-                .unwrap_or_else(|| tcx.def_span(def_id));
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
+                .def_ident_span(local_id)
+                .unwrap_or_else(|| tcx.def_span(local_id));
+            let def_kind = tcx.def_descr(local_id.to_def_id());
             Self { span, def_kind, note }
         }
     }

@@ -137,12 +137,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'genv, 'tcx> {
-        LiftCtxt::new(
-            self.genv,
-            self.owner.local_id(),
-            &self.local_id_gen,
-            self.opaque_tys.as_deref_mut(),
-        )
+        LiftCtxt::new(self.genv, self.owner, &self.local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
     pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
