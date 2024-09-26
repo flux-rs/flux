@@ -415,7 +415,7 @@ pub struct ResolverOutput {
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
-/// This enum serves as a type-level reminder that local ids can refer to extern specs. The
+/// This enum serves as a type-level reminder that local ids can wrap an extern specs. The
 /// abstraction is not infallible, so one should still be careful and decide in each situation
 /// whether to use the [_local id_] or the [_resolved id_]. Although the construction of
 /// [`MaybeExternId`] is not encapsulated, it is recommended to use [`GlobalEnv::maybe_extern_id`]
@@ -431,8 +431,8 @@ pub struct ResolverOutput {
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),
-    /// An id for an external spec. The `Id` is the local id of item holding the extern spec. The
-    /// `Defid` is the resolved id for the external item.
+    /// An id wrapping an external spec. The `Id` is the local id of item holding the extern spec. The
+    /// `DefId` is the resolved id for the external item.
     Extern(Id, DefId),
 }
 

@@ -210,8 +210,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         impl_id: DefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let impl_id = self.resolve_maybe_extern_id(impl_id);
-
         let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
@@ -378,12 +376,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter_map(move |local_def_id| self.maybe_extern_id(local_def_id).as_extern())
     }
 
-    /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
-    pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
-        let Some(local_id) = def_id.as_local() else { return def_id };
-        self.maybe_extern_id(local_id).resolved_id()
-    }
-
     pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {
         self.collect_specs()
             .local_id_to_extern_id
@@ -395,7 +387,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// If `extern_def_id` is an extern spec return the corresponding local id.
-    pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
+    pub(crate) fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
         self.collect_specs()
             .extern_id_to_local_id
             .get(&extern_def_id)

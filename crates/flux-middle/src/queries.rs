@@ -4,7 +4,6 @@ use std::{
 };
 
 use flux_arc_interner::List;
-use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
 use flux_rustc_bridge::{
     self, def_id_to_string,
@@ -28,6 +27,7 @@ use crate::{
         self,
         refining::{self, Refiner},
     },
+    MaybeExternId,
 };
 
 type Cache<K, V> = RefCell<UnordMap<K, V>>;
@@ -363,6 +363,21 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    pub(crate) fn lower_late_bound_vars(
+        &self,
+        genv: GlobalEnv,
+        def_id: LocalDefId,
+    ) -> QueryResult<List<ty::BoundVariableKind>> {
+        run_with_cache(&self.lower_late_bound_vars, def_id, || {
+            let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
+            genv.tcx()
+                .late_bound_vars(hir_id)
+                .lower(genv.tcx())
+                .map_err(UnsupportedReason::into_err)
+                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
+        })
+    }
+
     pub(crate) fn spec_func_defns(&self, genv: GlobalEnv) -> QueryResult<&rty::SpecFuncDefns> {
         self.defns
             .get_or_init(|| (self.providers.spec_func_defns)(genv))
@@ -391,15 +406,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
-            let extern_id = lookup_extern(genv, def_id);
-            let def_id = extern_id.unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.adt_sort_def_of)(genv, local_id)
-            } else if let Some(adt_sort_def) = genv.cstore().adt_sort_def(def_id) {
-                adt_sort_def
-            } else {
-                Ok(rty::AdtSortDef::new(def_id, vec![], vec![]))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.adt_sort_def_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().adt_sort_def(def_id),
+                |def_id| Ok(rty::AdtSortDef::new(def_id, vec![], vec![])),
+            )
         })
     }
 
@@ -413,33 +426,28 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
-            let extern_id = lookup_extern(genv, def_id);
-            let def_id = extern_id.unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.adt_def)(genv, local_id)
-            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                adt_def
-            } else {
-                let adt_def = if let Some(extern_id) = extern_id {
-                    genv.tcx().adt_def(extern_id).lower(genv.tcx())
-                } else {
-                    genv.tcx().adt_def(def_id).lower(genv.tcx())
-                };
-                Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.adt_def)(genv, def_id.local_id()),
+                |def_id| genv.cstore().adt_def(def_id),
+                |def_id| {
+                    let adt_def = genv.tcx().adt_def(def_id).lower(genv.tcx());
+                    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, vec![], false))
+                },
+            )
         })
     }
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.generics_of)(genv, local_id)
-            } else if let Some(generics) = genv.cstore().generics_of(def_id) {
-                generics
-            } else {
-                refining::refine_generics(&genv.lower_generics_of(def_id))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.generics_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().generics_of(def_id),
+                |def_id| refining::refine_generics(&genv.lower_generics_of(def_id)),
+            )
         })
     }
 
@@ -449,15 +457,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::RefinementGenerics> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.refinement_generics_of)(genv, local_id)
-            } else if let Some(refinement_generics) = genv.cstore().refinement_generics_of(def_id) {
-                refinement_generics
-            } else {
-                let parent = genv.tcx().generics_of(def_id).parent;
-                Ok(rty::RefinementGenerics { parent, parent_count: 0, params: List::empty() })
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.refinement_generics_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().refinement_generics_of(def_id),
+                |def_id| {
+                    let parent = genv.tcx().generics_of(def_id).parent;
+                    Ok(rty::RefinementGenerics { parent, parent_count: 0, params: List::empty() })
+                },
+            )
         })
     }
 
@@ -467,25 +476,25 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         run_with_cache(&self.item_bounds, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.item_bounds)(genv, def_id.local_id()),
+                |def_id| genv.cstore().item_bounds(def_id),
+                |def_id| {
+                    let clauses = genv
+                        .tcx()
+                        .item_bounds(def_id)
+                        .skip_binder()
+                        .lower(genv.tcx())
+                        .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.item_bounds)(genv, local_id)
-            } else if let Some(bounds) = genv.cstore().item_bounds(def_id) {
-                bounds
-            } else {
-                let clauses = genv
-                    .tcx()
-                    .item_bounds(def_id)
-                    .skip_binder()
-                    .lower(genv.tcx())
-                    .map_err(|err| QueryErr::unsupported(def_id, err))?;
+                    let clauses = Refiner::default(genv, &genv.generics_of(def_id)?)
+                        .refine_clauses(&clauses)?;
 
-                let clauses =
-                    Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;
-
-                Ok(rty::EarlyBinder(clauses))
-            }
+                    Ok(rty::EarlyBinder(clauses))
+                },
+            )
         })
     }
 
@@ -495,87 +504,83 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
-
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.predicates_of)(genv, local_id)
-            } else if let Some(predicates) = genv.cstore().predicates_of(def_id) {
-                predicates
-            } else {
-                let predicates = genv.lower_predicates_of(def_id)?;
-                let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
-                    .refine_generic_predicates(&predicates)?;
-                Ok(rty::EarlyBinder(predicates))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.predicates_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().predicates_of(def_id),
+                |def_id| {
+                    let predicates = genv.lower_predicates_of(def_id)?;
+                    let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
+                        .refine_generic_predicates(&predicates)?;
+                    Ok(rty::EarlyBinder(predicates))
+                },
+            )
         })
     }
 
     pub(crate) fn assoc_refinements_of(
         &self,
         genv: GlobalEnv,
-        orig_def_id: DefId,
+        def_id: DefId,
     ) -> QueryResult<rty::AssocRefinements> {
-        run_with_cache(&self.assoc_refinements_of, orig_def_id, || {
-            let def_id = lookup_extern(genv, orig_def_id).unwrap_or(orig_def_id);
-            if let Some(local_id) = def_id.as_local() {
-                // case 1: def_id is local-def-id so forward to the "local" provider (def_id == orig_def_id)
-                // case 2: def_id is local-def-id but a "wrapper" for an external def_id (def_id != orig_def_id)
-                (self.providers.assoc_refinements_of)(genv, local_id)
-            } else
-            // case 3: def_id is an external def_id for which we have an annotation in the cstore
-            if let Some(assocs) = genv.cstore().assoc_refinements_of(def_id) {
-                assocs
-            } else {
-                // case 4: def_id is an external def_id for which (a) we have no wrapper in the current crate, (b) we have no annotation in the cstore
-                Ok(rty::AssocRefinements::default())
-            }
+        run_with_cache(&self.assoc_refinements_of, def_id, || {
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.assoc_refinements_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().assoc_refinements_of(def_id),
+                |_| Ok(rty::AssocRefinements::default()),
+            )
         })
     }
 
-    // NOTE: query
-    // 1. def_id is a "local" def_id so
     pub(crate) fn assoc_refinement_def(
         &self,
         genv: GlobalEnv,
-        impl_id_orig: DefId,
+        impl_id: DefId,
         name: Symbol,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-        run_with_cache(&self.assoc_refinement_def, (impl_id_orig, name), || {
-            let impl_id = lookup_extern(genv, impl_id_orig).unwrap_or(impl_id_orig);
-            if let Some(local_id) = impl_id.as_local() {
-                // case 1: impl_id is local-def-id so forward to the "local" provider (impl_id == impl_id_orig)
-                // case 2: impl_id is local-def-id but a "wrapper" for an external def_id (impl_id != impl_id_orig)
-                (self.providers.assoc_refinement_def)(genv, local_id, name)
-            } else
-            // case 3: external def_id for which we have an annotation in the cstore
-            if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
-                lam
-            } else {
-                bug!("TODO: implement for external crates")
-            }
+        run_with_cache(&self.assoc_refinement_def, (impl_id, name), || {
+            dispatch_query(
+                genv,
+                impl_id,
+                |impl_id| (self.providers.assoc_refinement_def)(genv, impl_id.local_id(), name),
+                |impl_id| genv.cstore().assoc_refinements_def((impl_id, name)),
+                |impl_id| {
+                    Err(query_bug!(
+                        impl_id,
+                        "cannot generate default associate refinement for extern impl"
+                    ))
+                },
+            )
         })
     }
 
     pub(crate) fn default_assoc_refinement_def(
         &self,
         genv: GlobalEnv,
-        trait_id_orig: DefId,
+        trait_id: DefId,
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-        run_with_cache(&self.default_assoc_refinement_def, (trait_id_orig, name), || {
-            let trait_id = lookup_extern(genv, trait_id_orig).unwrap_or(trait_id_orig);
-            if let Some(local_id) = trait_id.as_local() {
-                (self.providers.default_assoc_refinement_def)(genv, local_id, name)
-            } else if let Some(lam) = genv
-                .cstore()
-                .default_assoc_refinements_def((trait_id, name))
-            {
-                lam
-            } else {
-                Err(query_bug!(
-                    "TODO: (cannot do!) implement for external crates : {trait_id:?} / {name:?}"
-                ))
-            }
+        run_with_cache(&self.default_assoc_refinement_def, (trait_id, name), || {
+            dispatch_query(
+                genv,
+                trait_id,
+                |trait_id| {
+                    (self.providers.default_assoc_refinement_def)(genv, trait_id.local_id(), name)
+                },
+                |trait_id| {
+                    genv.cstore()
+                        .default_assoc_refinements_def((trait_id, name))
+                },
+                |trait_id| {
+                    Err(query_bug!(
+                        trait_id,
+                        "cannot generate default assoc refinement for extern trait"
+                    ))
+                },
+            )
         })
     }
 
@@ -586,14 +591,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         run_with_cache(&self.sort_of_assoc_reft, (def_id, name), || {
-            let impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
-            if let Some(local_id) = impl_id.as_local() {
-                (self.providers.sort_of_assoc_reft)(genv, local_id, name)
-            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft((def_id, name)) {
-                sort
-            } else {
-                bug!("TODO: implement for external crates")
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.sort_of_assoc_reft)(genv, def_id.local_id(), name),
+                |def_id| genv.cstore().sort_of_assoc_reft((def_id, name)),
+                |def_id| {
+                    Err(query_bug!(
+                        def_id,
+                        "cannot generate default sort for assoc refinement in extern crate"
+                    ))
+                },
+            )
         })
     }
 
@@ -603,21 +612,23 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         run_with_cache(&self.type_of, def_id, || {
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.type_of)(genv, local_id)
-            } else if let Some(ty) = genv.cstore().type_of(def_id) {
-                ty
-            } else {
-                // If we're given a type parameter, provide the generics of the parent container.
-                let generics_def_id = match genv.def_kind(def_id) {
-                    DefKind::TyParam => genv.tcx().parent(def_id),
-                    _ => def_id,
-                };
-                let generics = genv.generics_of(generics_def_id)?;
-                let ty = genv.lower_type_of(def_id)?.skip_binder();
-                let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
-                Ok(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.type_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().type_of(def_id),
+                |def_id| {
+                    // If we're given a type parameter, provide the generics of the parent container.
+                    let generics_def_id = match genv.def_kind(def_id) {
+                        DefKind::TyParam => genv.tcx().parent(def_id),
+                        _ => def_id,
+                    };
+                    let generics = genv.generics_of(generics_def_id)?;
+                    let ty = genv.lower_type_of(def_id)?.skip_binder();
+                    let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
+                    Ok(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
+                },
+            )
         })
     }
 
@@ -627,27 +638,25 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
-            let (def_id, _is_extern) = match lookup_extern(genv, def_id) {
-                Some(def_id) => (def_id, true),
-                None => (def_id, false),
-            };
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.variants_of)(genv, local_id)
-            } else if let Some(variants) = genv.cstore().variants(def_id) {
-                variants.map(|variants| variants.map(|variants| variants.map(List::from)))
-            } else {
-                let variants = genv
-                    .tcx()
-                    .adt_def(def_id)
-                    .variants()
-                    .indices()
-                    .map(|variant_idx| {
-                        Refiner::default(genv, &genv.generics_of(def_id)?)
-                            .refine_variant_def(def_id, variant_idx)
-                    })
-                    .try_collect()?;
-                Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))
-            }
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.variants_of)(genv, def_id.local_id()),
+                |def_id| genv.cstore().variants(def_id),
+                |def_id| {
+                    let variants = genv
+                        .tcx()
+                        .adt_def(def_id)
+                        .variants()
+                        .indices()
+                        .map(|variant_idx| {
+                            Refiner::default(genv, &genv.generics_of(def_id)?)
+                                .refine_variant_def(def_id, variant_idx)
+                        })
+                        .try_collect()?;
+                    Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))
+                },
+            )
         })
     }
 
@@ -657,39 +666,79 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.fn_sig)(genv, local_id)
-            } else if let Some(fn_sig) = genv.cstore().fn_sig(def_id) {
-                fn_sig
-            } else {
-                let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
-                let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
-                    .refine_poly_fn_sig(&fn_sig)?;
-                Ok(rty::EarlyBinder(fn_sig))
-            }
-        })
-    }
-
-    pub(crate) fn lower_late_bound_vars(
-        &self,
-        genv: GlobalEnv,
-        def_id: LocalDefId,
-    ) -> QueryResult<List<ty::BoundVariableKind>> {
-        run_with_cache(&self.lower_late_bound_vars, def_id, || {
-            let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
-            genv.tcx()
-                .late_bound_vars(hir_id)
-                .lower(genv.tcx())
-                .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.fn_sig)(genv, def_id.local_id()),
+                |def_id| genv.cstore().fn_sig(def_id),
+                |def_id| {
+                    let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
+                    let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
+                        .refine_poly_fn_sig(&fn_sig)?;
+                    Ok(rty::EarlyBinder(fn_sig))
+                },
+            )
         })
     }
 }
 
-fn lookup_extern(genv: GlobalEnv, extern_def_id: DefId) -> Option<DefId> {
-    genv.get_local_id_for_extern(extern_def_id)
-        .map(LocalDefId::to_def_id)
+/// [Resolve] the `def_id` and *dispatch* it to a provider (`local`, `external`, or `default`).
+///
+/// [Resolve]: resolve_id
+fn dispatch_query<R>(
+    genv: GlobalEnv,
+    def_id: DefId,
+    local: impl FnOnce(MaybeExternId) -> R,
+    external: impl FnOnce(DefId) -> Option<R>,
+    default: impl FnOnce(DefId) -> R,
+) -> R {
+    match resolve_id(genv, def_id) {
+        ResolvedDefId::Local(local_id) => {
+            // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
+            local(MaybeExternId::Local(local_id))
+        }
+        ResolvedDefId::ExternSpec(local_id, def_id) => {
+            // Case 2: `def_id` is a `LocalDefId` wrapping an extern spec, so we also
+            // forward it to the local provider
+            local(MaybeExternId::Extern(local_id, def_id))
+        }
+        ResolvedDefId::Extern(def_id) if let Some(v) = external(def_id) => {
+            // Case 3: `def_id` is an external `def_id` for which we have an annotation in the
+            // *external provider*
+            v
+        }
+        ResolvedDefId::Extern(def_id) => {
+            // Case 4: If none of the above, we generate a default annotation
+            default(def_id)
+        }
+    }
+}
+
+/// Normally, a [`DefId`] is either local or external, and [`DefId::as_local`] can be used to
+/// distinguish between the two. However, extern specs introduce a third case: a local definition
+/// wrapping an extern spec. This enum is used to differentiate between the three cases.
+///
+/// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
+/// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
+enum ResolvedDefId {
+    /// A local definition. Corresponds to [`MaybeExternId::Local`].
+    Local(LocalDefId),
+    /// A local definition wrapping an extern spec. The `LocalDefId` is for the local item,
+    /// and the `DefId` is the resolved id for the external spec. Corresponds to
+    /// [`MaybeExternId::Extern`].
+    ExternSpec(LocalDefId, DefId),
+    /// An external definition with no corresponding (local) extern spec.
+    Extern(DefId),
+}
+
+fn resolve_id(genv: GlobalEnv, def_id: DefId) -> ResolvedDefId {
+    if let Some(local_id) = genv.get_local_id_for_extern(def_id) {
+        ResolvedDefId::ExternSpec(local_id, def_id)
+    } else if let Some(local_id) = def_id.as_local() {
+        ResolvedDefId::Local(local_id)
+    } else {
+        ResolvedDefId::Extern(def_id)
+    }
 }
 
 fn run_with_cache<K, V>(cache: &Cache<K, V>, key: K, f: impl FnOnce() -> V) -> V
