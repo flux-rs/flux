@@ -778,6 +778,27 @@
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
@@ -788,7 +809,7 @@
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, Res},
     global_env::GlobalEnv,
-    ResolverOutput, Specs,
+    MaybeExternId, ResolverOutput, Specs,
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident};
 <span class="kw">use </span>hir::{def::DefKind, ItemId, ItemKind, OwnerId};
@@ -958,7 +979,13 @@
         <span class="self">self</span>.ribs[ns].pop();
     }
 
-    <span class="kw">fn </span>define_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) {
+    <span class="kw">fn </span>define_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: MaybeExternId&lt;OwnerId&gt;) {
+        <span class="comment">// FIXME(nilehmann) should we use resolved_id?
+        </span><span class="kw">let </span>generics = <span class="self">self
+            </span>.genv
+            .hir()
+            .get_generics(def_id.local_id().def_id)
+            .unwrap();
         <span class="kw">for </span>param <span class="kw">in </span>generics.params {
             <span class="kw">let </span>def_kind = <span class="self">self</span>.genv.tcx().def_kind(param.def_id);
             <span class="kw">if let </span>ParamName::Plain(name) = param.name
@@ -989,21 +1016,21 @@
         }
     }
 
-    <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>trait_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.traits[<span class="kw-2">&amp;</span>owner_id];
+    <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>trait_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.traits[<span class="kw-2">&amp;</span>owner_id.local_id()];
         RefinementResolver::resolve_trait(<span class="self">self</span>, trait_)
     }
 
-    <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>impl_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.impls[<span class="kw-2">&amp;</span>owner_id];
+    <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>impl_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.impls[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })<span class="question-mark">?</span>;
         RefinementResolver::resolve_impl(<span class="self">self</span>, impl_)
     }
 
-    <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ty_alias) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.ty_aliases[<span class="kw-2">&amp;</span>owner_id] {
+    <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ty_alias) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.ty_aliases[<span class="kw-2">&amp;</span>owner_id.local_id()] {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })<span class="question-mark">?</span>;
@@ -1012,24 +1039,24 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>resolve_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>struct_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.structs[<span class="kw-2">&amp;</span>owner_id];
+    <span class="kw">fn </span>resolve_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>struct_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.structs[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })<span class="question-mark">?</span>;
         RefinementResolver::resolve_struct_def(<span class="self">self</span>, struct_def)
     }
 
-    <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>enum_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.enums[<span class="kw-2">&amp;</span>owner_id];
+    <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>enum_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.enums[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })<span class="question-mark">?</span>;
         RefinementResolver::resolve_enum_def(<span class="self">self</span>, enum_def)
     }
 
-    <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id].fn_sig {
+    <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id.local_id()].fn_sig {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })<span class="question-mark">?</span>;
@@ -1130,7 +1157,7 @@
             <span class="self">self</span>.define_flux_global_items();
         }
 
-        <span class="comment">// But we resolved names in them as if they were defined in their containing module
+        <span class="comment">// But we resolve names in them as if they were defined in their containing module
         </span><span class="self">self</span>.resolve_flux_items(hir_id.expect_owner());
 
         hir::intravisit::walk_mod(<span class="self">self</span>, module, hir_id);
@@ -1164,70 +1191,74 @@
         <span class="kw">if </span><span class="self">self</span>.genv.is_dummy(item.owner_id.def_id) {
             <span class="kw">return</span>;
         }
+        <span class="kw">let </span>def_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
 
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
         <span class="self">self</span>.push_rib(ValueNS, RibKind::Normal);
 
         <span class="kw">match </span>item.kind {
-            ItemKind::Trait(<span class="kw">_</span>, <span class="kw">_</span>, generics, ..) =&gt; {
-                <span class="self">self</span>.define_generics(generics);
+            ItemKind::Trait(..) =&gt; {
+                <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    <span class="comment">// FIXME(nilehmann) should we use resolved_id?
+                    </span>hir::def::Res::SelfTyParam { trait_: def_id.local_id().to_def_id() },
                     TypeNS,
                 );
-                <span class="self">self</span>.resolve_trait(item.owner_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+                <span class="self">self</span>.resolve_trait(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             ItemKind::Impl(impl_) =&gt; {
-                <span class="self">self</span>.define_generics(impl_.generics);
+                <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        <span class="comment">// FIXME(nilehmann) should we use resolved_id?
+                        </span>alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
                     TypeNS,
                 );
-                <span class="self">self</span>.resolve_impl(item.owner_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+                <span class="self">self</span>.resolve_impl(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::TyAlias(<span class="kw">_</span>, generics) =&gt; {
-                <span class="self">self</span>.define_generics(generics);
-                <span class="self">self</span>.resolve_type_alias(item.owner_id)
-                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+            ItemKind::TyAlias(..) =&gt; {
+                <span class="self">self</span>.define_generics(def_id);
+                <span class="self">self</span>.resolve_type_alias(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::Enum(.., generics) =&gt; {
-                <span class="self">self</span>.define_generics(generics);
+            ItemKind::Enum(..) =&gt; {
+                <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        <span class="comment">// FIXME(nilehmann) should we use resolved_id?
+                        </span>alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: <span class="bool-val">false</span>,
                     },
                     TypeNS,
                 );
-                <span class="self">self</span>.resolve_enum_def(item.owner_id)
-                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+                <span class="self">self</span>.resolve_enum_def(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::Struct(.., generics) =&gt; {
-                <span class="self">self</span>.define_generics(generics);
+            ItemKind::Struct(..) =&gt; {
+                <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        <span class="comment">// FIXME(nilehmann) should we use resolved_id?
+                        </span>alias_to: def_id.local_id().to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: <span class="bool-val">false</span>,
                     },
                     TypeNS,
                 );
-                <span class="self">self</span>.resolve_struct_def(item.owner_id)
-                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+                <span class="self">self</span>.resolve_struct_def(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::Fn(<span class="kw">_</span>, generics, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.define_generics(generics);
-                <span class="self">self</span>.resolve_fn_sig(item.owner_id)
-                    .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+            ItemKind::Fn(..) =&gt; {
+                <span class="self">self</span>.define_generics(def_id);
+                <span class="self">self</span>.resolve_fn_sig(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
             <span class="kw">_ </span>=&gt; {}
         }
@@ -1239,22 +1270,30 @@
     }
 
     <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="kw">let </span>def_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(impl_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
-        <span class="self">self</span>.define_generics(impl_item.generics);
+        <span class="self">self</span>.define_generics(def_id);
         <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
-            <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id)
-                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+            <span class="self">self</span>.resolve_fn_sig(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
         }
         hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
         <span class="self">self</span>.pop_rib(TypeNS);
     }
 
     <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="kw">let </span>def_id = <span class="self">self
+            </span>.genv
+            .maybe_extern_id(trait_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         <span class="self">self</span>.push_rib(TypeNS, RibKind::Normal);
-        <span class="self">self</span>.define_generics(trait_item.generics);
+        <span class="self">self</span>.define_generics(def_id);
         <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
-            <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id)
-                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
+            <span class="self">self</span>.resolve_fn_sig(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
         }
         hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
         <span class="self">self</span>.pop_rib(TypeNS);
@@ -1349,7 +1388,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ItemResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>run(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        owner_id: OwnerId,
+        owner_id: MaybeExternId&lt;OwnerId&gt;,
         f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ItemResolver),
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>item_resolver = ItemResolver::new(resolver, owner_id)<span class="question-mark">?</span>;
@@ -1357,10 +1396,13 @@
         item_resolver.errors.into_result()
     }
 
-    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>new(
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        owner_id: MaybeExternId&lt;OwnerId&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>tcx = resolver.genv.tcx();
         <span class="kw">let </span>sess = resolver.genv.sess();
-        <span class="kw">let </span>opaque = <span class="kw">match </span>tcx.hir_owner_node(owner_id) {
+        <span class="kw">let </span>opaque = <span class="kw">match </span>tcx.hir_owner_node(owner_id.local_id()) {
             hir::OwnerNode::Item(item) =&gt; OpaqueTypeCollector::collect_item(sess, item)<span class="question-mark">?</span>,
             hir::OwnerNode::ImplItem(impl_item) =&gt; {
                 OpaqueTypeCollector::collect_impl_item(sess, impl_item)<span class="question-mark">?
