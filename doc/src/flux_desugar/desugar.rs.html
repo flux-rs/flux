@@ -1560,11 +1560,6 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1704,12 +1699,7 @@
     }
 
     <span class="kw">fn </span>as_lift_cx&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="kw-2">mut </span><span class="self">self</span>) -&gt; LiftCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        LiftCtxt::new(
-            <span class="self">self</span>.genv,
-            <span class="self">self</span>.owner.local_id(),
-            <span class="kw-2">&amp;</span><span class="self">self</span>.local_id_gen,
-            <span class="self">self</span>.opaque_tys.as_deref_mut(),
-        )
+        LiftCtxt::new(<span class="self">self</span>.genv, <span class="self">self</span>.owner, <span class="kw-2">&amp;</span><span class="self">self</span>.local_id_gen, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_: <span class="kw-2">&amp;</span>surface::Trait) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
