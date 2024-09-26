@@ -567,14 +567,6 @@
 <a href="#567" id="567">567</a>
 <a href="#568" id="568">568</a>
 <a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -787,8 +779,6 @@
         <span class="self">self</span>,
         impl_id: DefId,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::TraitRef&gt;&gt;&gt; {
-        <span class="kw">let </span>impl_id = <span class="self">self</span>.resolve_maybe_extern_id(impl_id);
-
         <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
         <span class="kw">let </span>trait_ref = trait_ref.skip_binder();
         <span class="kw">let </span>trait_ref = trait_ref
@@ -955,12 +945,6 @@
             .filter_map(<span class="kw">move </span>|local_def_id| <span class="self">self</span>.maybe_extern_id(local_def_id).as_extern())
     }
 
-    <span class="doccomment">/// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
-    </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
-        <span class="self">self</span>.maybe_extern_id(local_id).resolved_id()
-    }
-
     <span class="kw">pub fn </span>maybe_extern_id(<span class="self">self</span>, local_id: LocalDefId) -&gt; MaybeExternId {
         <span class="self">self</span>.collect_specs()
             .local_id_to_extern_id
@@ -972,7 +956,7 @@
     }
 
     <span class="doccomment">/// If `extern_def_id` is an extern spec return the corresponding local id.
-    </span><span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
         <span class="self">self</span>.collect_specs()
             .extern_id_to_local_id
             .get(<span class="kw-2">&amp;</span>extern_def_id)

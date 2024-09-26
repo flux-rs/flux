@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["QueryErr"],"fn":["lookup_extern","run_with_cache"],"macro":["empty_query"],"struct":["Providers","Queries","QueryErrAt"],"type":["Cache","QueryResult"]};
+window.SIDEBAR_ITEMS = {"enum":["QueryErr","ResolvedDefId"],"fn":["dispatch_query","resolve_id","run_with_cache"],"macro":["empty_query"],"struct":["Providers","Queries","QueryErrAt"],"type":["Cache","QueryResult"]};
