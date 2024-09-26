@@ -520,13 +520,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 // case 1: def_id is local-def-id so forward to the "local" provider (def_id == orig_def_id)
                 // case 2: def_id is local-def-id but a "wrapper" for an external def_id (def_id != orig_def_id)
-                let res = (self.providers.assoc_refinements_of)(genv, local_id);
-                res
+                (self.providers.assoc_refinements_of)(genv, local_id)
             } else
             // case 3: def_id is an external def_id for which we have an annotation in the cstore
             if let Some(assocs) = genv.cstore().assoc_refinements_of(def_id) {
-                let res = assocs;
-                res
+                assocs
             } else {
                 // case 4: def_id is an external def_id for which (a) we have no wrapper in the current crate, (b) we have no annotation in the cstore
                 Ok(rty::AssocRefinements::default())
@@ -574,9 +572,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             {
                 lam
             } else {
-                panic!(
-                    "TODO: (cannot do!) implement for external crates : {trait_id:?} / {name:?}"
-                );
                 Err(query_bug!(
                     "TODO: (cannot do!) implement for external crates : {trait_id:?} / {name:?}"
                 ))

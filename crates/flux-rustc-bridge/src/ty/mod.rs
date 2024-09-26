@@ -831,7 +831,7 @@ where
     type T = rustc_middle::ty::Binder<'tcx, V::T>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        let vars = BoundVariableKind::to_rustc(&self.vars(), tcx);
+        let vars = BoundVariableKind::to_rustc(self.vars(), tcx);
         let value = self.skip_binder_ref().to_rustc(tcx);
         rustc_middle::ty::Binder::bind_with_vars(value, vars)
     }
