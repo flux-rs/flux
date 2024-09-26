@@ -2,7 +2,7 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
+use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
@@ -594,11 +594,11 @@ impl BasicBlockEnvShape {
                 BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
+                tracked_span_dbg_assert_eq!(len1, len2);
                 BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
             _ => {
-                debug_assert_eq!(bty1, bty2);
+                tracked_span_dbg_assert_eq!(bty1, bty2);
                 bty1.clone()
             }
         }

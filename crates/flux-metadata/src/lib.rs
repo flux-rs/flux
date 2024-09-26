@@ -159,6 +159,7 @@ impl CStore {
         merge_extern_table!(self, tcx, predicates_of, extern_tables);
         merge_extern_table!(self, tcx, item_bounds, extern_tables);
         merge_extern_table!(self, tcx, assoc_refinements_of, extern_tables);
+        merge_extern_table!(self, tcx, default_assoc_refinements_def, extern_tables);
         merge_extern_table!(self, tcx, assoc_refinements_def, extern_tables);
         merge_extern_table!(self, tcx, sort_of_assoc_reft, extern_tables);
         merge_extern_table!(self, tcx, fn_sig, extern_tables);

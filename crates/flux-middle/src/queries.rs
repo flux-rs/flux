@@ -513,31 +513,42 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn assoc_refinements_of(
         &self,
         genv: GlobalEnv,
-        def_id: DefId,
+        orig_def_id: DefId,
     ) -> QueryResult<rty::AssocRefinements> {
-        run_with_cache(&self.assoc_refinements_of, def_id, || {
-            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
+        run_with_cache(&self.assoc_refinements_of, orig_def_id, || {
+            let def_id = lookup_extern(genv, orig_def_id).unwrap_or(orig_def_id);
             if let Some(local_id) = def_id.as_local() {
+                // case 1: def_id is local-def-id so forward to the "local" provider (def_id == orig_def_id)
+                // case 2: def_id is local-def-id but a "wrapper" for an external def_id (def_id != orig_def_id)
                 (self.providers.assoc_refinements_of)(genv, local_id)
-            } else if let Some(assocs) = genv.cstore().assoc_refinements_of(def_id) {
+            } else
+            // case 3: def_id is an external def_id for which we have an annotation in the cstore
+            if let Some(assocs) = genv.cstore().assoc_refinements_of(def_id) {
                 assocs
             } else {
+                // case 4: def_id is an external def_id for which (a) we have no wrapper in the current crate, (b) we have no annotation in the cstore
                 Ok(rty::AssocRefinements::default())
             }
         })
     }
 
+    // NOTE: query
+    // 1. def_id is a "local" def_id so
     pub(crate) fn assoc_refinement_def(
         &self,
         genv: GlobalEnv,
-        impl_id: DefId,
+        impl_id_orig: DefId,
         name: Symbol,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-        run_with_cache(&self.assoc_refinement_def, (impl_id, name), || {
-            let impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
+        run_with_cache(&self.assoc_refinement_def, (impl_id_orig, name), || {
+            let impl_id = lookup_extern(genv, impl_id_orig).unwrap_or(impl_id_orig);
             if let Some(local_id) = impl_id.as_local() {
+                // case 1: impl_id is local-def-id so forward to the "local" provider (impl_id == impl_id_orig)
+                // case 2: impl_id is local-def-id but a "wrapper" for an external def_id (impl_id != impl_id_orig)
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
-            } else if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
+            } else
+            // case 3: external def_id for which we have an annotation in the cstore
+            if let Some(lam) = genv.cstore().assoc_refinements_def((impl_id, name)) {
                 lam
             } else {
                 bug!("TODO: implement for external crates")
@@ -548,11 +559,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn default_assoc_refinement_def(
         &self,
         genv: GlobalEnv,
-        trait_id: DefId,
+        trait_id_orig: DefId,
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-        run_with_cache(&self.default_assoc_refinement_def, (trait_id, name), || {
-            let trait_id = lookup_extern(genv, trait_id).unwrap_or(trait_id);
+        run_with_cache(&self.default_assoc_refinement_def, (trait_id_orig, name), || {
+            let trait_id = lookup_extern(genv, trait_id_orig).unwrap_or(trait_id_orig);
             if let Some(local_id) = trait_id.as_local() {
                 (self.providers.default_assoc_refinement_def)(genv, local_id, name)
             } else if let Some(lam) = genv
@@ -561,7 +572,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             {
                 lam
             } else {
-                Err(query_bug!("TODO: implement for external crates"))
+                Err(query_bug!(
+                    "TODO: (cannot do!) implement for external crates : {trait_id:?} / {name:?}"
+                ))
             }
         })
     }
