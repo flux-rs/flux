@@ -597,6 +597,7 @@ impl BasicBlockEnvShape {
                 tracked_span_dbg_assert_eq!(len1, len2);
                 BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
+            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => BaseTy::Slice(self.join_ty(ty1, ty2)),
             _ => {
                 tracked_span_dbg_assert_eq!(bty1, bty2);
                 bty1.clone()

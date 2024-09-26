@@ -15,6 +15,9 @@ thread_local! {
 
 pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
     TRACKED_SPAN.with(|cell| {
+        if span.is_dummy() {
+            return f();
+        }
         let old = cell.replace(Some(span));
         let r = f();
         cell.set(old);
