@@ -30,16 +30,10 @@ use flux_middle::{
     rty,
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
-use rustc_hir::{
-    def::DefKind,
-    def_id::{LocalDefId, LOCAL_CRATE},
-};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
-use rustc_session::{
-    config::{OutFileName, OutputType},
-    utils::CanonicalizedPath,
-};
+use rustc_session::config::OutFileName;
 use rustc_span::{
     def_id::{CrateNum, DefId, DefIndex},
     Symbol,
@@ -379,6 +373,8 @@ pub fn filename_for_metadata(tcx: TyCtxt) -> OutFileName {
 }
 
 fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<PathBuf> {
+    // Since we only save metadata when `--emit=metadata` is passed, we also only load flux metadata
+    // when the crate source is a `.rmeta` file.
     tcx.used_crate_source(crate_num)
         .rmeta
         .as_ref()

@@ -18,7 +18,10 @@ fn config() -> Config {
 
 fn test_runner(_: &[&()]) {
     let mut config = config().tempdir();
+
     let mut rustc_flags = default_rustc_flags();
+
+    // Pass `--emit=metadata` to make sure we emit a `.fluxmeta` file
     rustc_flags.extend(["--emit=metadata".to_string()]);
 
     config.target_rustcflags = Some(rustc_flags.join(" "));
@@ -27,7 +30,7 @@ fn test_runner(_: &[&()]) {
     config.clean_rlib();
     config.strict_headers = true;
 
-    // Enable full compilation so that we generate artifacts when annotating tests with `@aux-build`
+    // Force full compilation to make sure we generate artifacts when annotating tests with `@aux-build`
     env::set_var(FLUX_FULL_COMPILATION, "1");
     env::set_var(FLUX_SYSROOT, config.rustc_path.parent().unwrap());
 
