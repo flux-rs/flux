@@ -278,12 +278,6 @@ impl ToTokens for ExternItemImpl {
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
 
-        if let Some((not, path, for_)) = &self.trait_ {
-            not.to_tokens(tokens);
-            path.to_tokens(tokens);
-            for_.to_tokens(tokens);
-        }
-
         self.dummy_ident.to_tokens(tokens);
         ty_generics.to_tokens(tokens);
 

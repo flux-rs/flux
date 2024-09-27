@@ -70,5 +70,5 @@ driver_mismatched_generics =
     invalid extern spec for {$def_descr}
     .label = generic parameters don't match the external {$def_descr}
     .extern_def_label = external {$def_descr} found here
-    .note = extern specs must exactly match an external definition, including the list of generic parameters
+    .note = extern specs must exactly match the external definition, including the list of generic parameters and their names
 
