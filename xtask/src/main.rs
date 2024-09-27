@@ -117,7 +117,7 @@ fn run_inner(
     prepare(sh)?;
     let flux_path = find_flux_path();
     let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
-    let mut rustc_flags = tests::rustc_flags();
+    let mut rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
     cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;

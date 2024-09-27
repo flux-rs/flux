@@ -118,11 +118,20 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
 }
 
 fn save_metadata(genv: GlobalEnv) {
+    // let tcx = genv.tcx();
+    // if output_filenames.single_output_file
+    //     .sess
+    //     .opts
+    //     .output_types
+    //     .contains_key(&OutputType::Metadata)
+    // {
+    //     let path = flux_metadata::filename_for_metadata(tcx);
+    //     flux_metadata::encode_metadata(genv, path.as_path());
+    // }
     let tcx = genv.tcx();
     if tcx
-        .sess
-        .opts
-        .output_types
+        .output_filenames(())
+        .outputs
         .contains_key(&OutputType::Metadata)
     {
         let path = flux_metadata::filename_for_metadata(tcx);

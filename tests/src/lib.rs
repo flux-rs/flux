@@ -10,7 +10,7 @@ pub fn find_flux_path() -> PathBuf {
 }
 
 /// Rustc flags to pass Flux when running tests
-pub fn rustc_flags() -> Vec<String> {
+pub fn default_rustc_flags() -> Vec<String> {
     vec!["--crate-type=rlib".to_string(), "--edition=2021".to_string()]
 }
 

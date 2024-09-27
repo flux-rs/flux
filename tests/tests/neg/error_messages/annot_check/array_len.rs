@@ -6,7 +6,6 @@ pub fn array00() -> [i32; 2] {
 }
 
 #[flux::sig(fn() -> [i32{v : v > 0}; 2])]
-pub fn array01() -> [i32; 1 + 1] {
-    //~ ERROR unsupported
+pub fn array01() -> [i32; 1 + 1] { //~ ERROR unsupported
     [10, 11]
 }

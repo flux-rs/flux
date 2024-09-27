@@ -30,7 +30,10 @@ use flux_middle::{
     rty,
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{LocalDefId, LOCAL_CRATE},
+};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{
@@ -124,7 +127,7 @@ pub struct Tables<K: Eq + Hash> {
 impl CStore {
     pub fn load(tcx: TyCtxt, sess: &FluxSession) -> Self {
         let mut cstore = CStore::default();
-        for crate_num in tcx.crates(()) {
+        for crate_num in tcx.used_crates(()) {
             let Some(path) = flux_metadata_extern_location(tcx, *crate_num) else { continue };
             let Some(meta) = decode_crate_metadata(tcx, sess, path.as_path()) else { continue };
             cstore.local_tables.insert(*crate_num, meta.local_tables);
@@ -376,18 +379,10 @@ pub fn filename_for_metadata(tcx: TyCtxt) -> OutFileName {
 }
 
 fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<PathBuf> {
-    let crate_name = tcx.crate_name(crate_num);
-    let path = tcx
-        .sess
-        .opts
-        .externs
-        .get(crate_name.as_str())?
-        .files()
-        .into_iter()
-        .flatten()
-        .map(CanonicalizedPath::canonicalized)
-        .find(|path| path.extension().unwrap_or_default() == OutputType::Metadata.extension())?;
-    Some(path.with_extension("fluxmeta"))
+    tcx.used_crate_source(crate_num)
+        .rmeta
+        .as_ref()
+        .map(|(path, _)| path.with_extension("fluxmeta"))
 }
 
 // Tags for encoding Symbol's
