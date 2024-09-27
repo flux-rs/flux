@@ -27,7 +27,7 @@ pub(crate) fn transform_extern_spec(
         ExternItem::Struct(item_struct) => extern_struct_to_tokens(mod_use, item_struct),
         ExternItem::Enum(item_enum) => extern_enum_to_tokens(mod_use, item_enum),
         ExternItem::Trait(item_trait) => extern_trait_to_tokens(span, mod_use, item_trait),
-        ExternItem::Fn(extern_fn) => extern_fn_to_tokens(mod_use, extern_fn),
+        ExternItem::Fn(extern_fn) => extern_fn_to_tokens(span, mod_use, extern_fn),
         ExternItem::Impl(extern_item_impl) => {
             extern_impl_to_tokens(span, mod_use, extern_item_impl)
         }
@@ -35,11 +35,12 @@ pub(crate) fn transform_extern_spec(
 }
 
 fn extern_fn_to_tokens(
+    span: Span,
     mod_use: Option<UseWildcard>,
     mut extern_fn: ExternFn,
 ) -> syn::Result<TokenStream> {
     extern_fn.prepare(&FnCtxt::Free, true);
-    Ok(quote! {
+    Ok(quote_spanned! {span=>
         #[allow(unused, dead_code, non_camel_case_types)]
         #[flux_tool::extern_spec]
         const _: () = {

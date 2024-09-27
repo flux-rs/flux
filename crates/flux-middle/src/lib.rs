@@ -6,6 +6,7 @@
     closure_track_caller,
     if_let_guard,
     let_chains,
+    map_try_insert,
     min_specialization,
     never_type,
     precise_capturing,
@@ -388,14 +389,42 @@ pub struct Specs {
 }
 
 impl Specs {
-    pub fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) {
-        self.extern_id_to_local_id.insert(extern_id, local_id);
+    pub fn insert_extern_spec_id_mapping(
+        &mut self,
+        local_id: LocalDefId,
+        extern_id: DefId,
+    ) -> Result<(), ExternSpecMappingErr> {
+        if let Some(local) = extern_id.as_local() {
+            return Err(ExternSpecMappingErr::IsLocal(local));
+        }
+        if let Err(err) = self.extern_id_to_local_id.try_insert(extern_id, local_id) {
+            return Err(ExternSpecMappingErr::Dup(*err.entry.get()));
+        }
         self.local_id_to_extern_id.insert(local_id, extern_id);
+        Ok(())
     }
 
     pub fn insert_dummy(&mut self, owner_id: OwnerId) {
         self.dummy_extern.insert(owner_id.def_id);
     }
+}
+
+/// Represents errors that can occur when inserting a mapping between a `LocalDefId` and a `DefId`
+/// for an extern spec.
+pub enum ExternSpecMappingErr {
+    /// Indicates that the extern `DefId` being inserted is actually local. Returns the extern id as
+    /// a `LocalDefId`.
+    IsLocal(LocalDefId),
+
+    /// Indicates that there is an existing extern spec for the given extern id. Returns the existing
+    /// `LocalDefId` that maps to the extern id.
+    ///
+    /// NOTE: This currently only considers extern specs defined in the local crate. There could still
+    /// be duplicates if an extern spec is imported from an external crate. In such cases, the local
+    /// extern spec takes precedence. Probably, we should at least warn about this, but it's a bit
+    /// tricky because we need to look at the crate metadata which we don't currently have while
+    /// collecting specs.
+    Dup(LocalDefId),
 }
 
 #[derive(Default)]
@@ -431,8 +460,8 @@ pub struct ResolverOutput {
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),
-    /// An id wrapping an external spec. The `Id` is the local id of item holding the extern spec. The
-    /// `DefId` is the resolved id for the external item.
+    /// A local id wrapping an external spec. The `Id` is the local id of a definition holding the
+    /// extern spec. The `DefId` is the resolved id for the external definition.
     Extern(Id, DefId),
 }
 
@@ -485,7 +514,7 @@ impl<Id> MaybeExternId<Id> {
 
 impl<Id: Into<DefId>> MaybeExternId<Id> {
     /// Returns the [`DefId`] this id _truly_ corresponds to, i.e, returns the [`DefId`] of the
-    /// extern item if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
+    /// extern definition if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
     ///
     /// [`Local`]: MaybeExternId::Local
     /// [`Extern`]: MaybeExternId::Extern

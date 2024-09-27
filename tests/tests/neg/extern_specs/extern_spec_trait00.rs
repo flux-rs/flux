@@ -1,25 +1,14 @@
+//@aux-build:extern_spec_trait00_aux.rs
+
+extern crate extern_spec_trait00_aux;
+
+use extern_spec_trait00_aux::MyTrait;
 use flux_rs::extern_spec;
 
-// the "existing" trait
-pub trait MyTrait {
-    fn method(&self) -> Self;
-}
-
-// the "extern" spec
 #[extern_spec]
 #[flux::generics(Self as base)]
 #[flux::assoc(fn f(self: Self) -> bool)]
 trait MyTrait {}
-
-// // the "generated" wrapper trait
-// #[flux::extern_spec]
-// #[flux::generics(Self as base)]
-// #[flux::assoc(fn f(self: Self) -> bool)]
-// trait __FluxExternTraitMyTrait: MyTrait {}
-
-// -----------------------------------------------------------------------------------
-// client code
-// -----------------------------------------------------------------------------------
 
 #[flux::trusted]
 #[flux::sig(fn<T as base>(&T{v: <T as MyTrait>::f(v)}) -> T{v: <T as MyTrait>::f(v)})]

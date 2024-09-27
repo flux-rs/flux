@@ -56,3 +56,12 @@ driver_item_not_in_trait =
     invalid extern spec for trait
     .label = `{$name}` is not defined in extern trait
     .note = extern trait defined here
+
+driver_extern_spec_for_local_def =
+    cannot add extern specs to local definition
+    .note = `{$name}` defined here in the same crate
+
+driver_dup_extern_spec =
+    multiple extern specs for `{$name}`
+    .label = extern spec for `{$name}` redefined here
+    .note = previous extern spec for `{$name}` defined here

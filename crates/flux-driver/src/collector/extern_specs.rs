@@ -1,8 +1,12 @@
+use flux_middle::ExternSpecMappingErr;
 use flux_rustc_bridge::lowering;
 use rustc_hir as hir;
-use rustc_hir::{def_id::DefId, BodyId, OwnerId};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    BodyId, OwnerId,
+};
 use rustc_middle::ty::TyCtxt;
-use rustc_span::ErrorGuaranteed;
+use rustc_span::{ErrorGuaranteed, Span};
 
 use super::{FluxAttrs, SpecCollector};
 
@@ -62,9 +66,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_fn_spec(item.owner_id, attrs)?;
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item.owner_id.def_id, extern_id);
+        self.insert_extern_id(item.owner_id.def_id, extern_id)?;
 
         Ok(())
     }
@@ -79,9 +81,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.specs.insert_dummy(dummy_struct.owner_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
-        self.inner
-            .specs
-            .insert_extern_id(struct_id.def_id, extern_id);
+        self.insert_extern_id(struct_id.def_id, extern_id)?;
 
         self.inner.collect_struct_def(struct_id, attrs, variant)?;
 
@@ -98,7 +98,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.specs.insert_dummy(dummy_struct.owner_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
-        self.inner.specs.insert_extern_id(enum_id.def_id, extern_id);
+        self.insert_extern_id(enum_id.def_id, extern_id)?;
 
         self.inner.collect_enum_def(enum_id, attrs, enum_def)?;
 
@@ -141,9 +141,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
 
         if let Some(extern_impl_id) = extern_impl_id {
-            self.inner
-                .specs
-                .insert_extern_id(impl_id.def_id, extern_impl_id);
+            self.insert_extern_id(impl_id.def_id, extern_impl_id)?;
         }
 
         Ok(())
@@ -159,9 +157,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_fn_spec(item_id, attrs)?;
 
         let extern_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item_id.def_id, extern_item.item_id);
+        self.insert_extern_id(item_id.def_id, extern_item.item_id)?;
 
         Ok(extern_item)
     }
@@ -176,9 +172,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_trait(trait_id, attrs)?;
 
         let extern_trait_id = self.extract_extern_id_from_trait(bounds)?;
-        self.inner
-            .specs
-            .insert_extern_id(trait_id.def_id, extern_trait_id);
+        self.insert_extern_id(trait_id.def_id, extern_trait_id)?;
 
         for item in items {
             let item_id = item.id.owner_id.def_id;
@@ -203,9 +197,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_fn_spec(item_id, attrs)?;
 
         let extern_fn_id = self.extract_extern_id_from_trait_fn(extern_trait_id, item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item.id.owner_id.def_id, extern_fn_id);
+        self.insert_extern_id(item.id.owner_id.def_id, extern_fn_id)?;
 
         Ok(())
     }
@@ -342,6 +334,30 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
+    fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) -> Result {
+        self.inner
+            .specs
+            .insert_extern_spec_id_mapping(local_id, extern_id)
+            .map_err(|err| {
+                match err {
+                    ExternSpecMappingErr::IsLocal(extern_id_local) => {
+                        self.inner.errors.emit(errors::ExternSpecForLocalDef {
+                            span: ident_or_def_span(self.tcx(), local_id),
+                            local_def_span: ident_or_def_span(self.tcx(), extern_id_local),
+                            name: self.tcx().def_path_str(extern_id),
+                        })
+                    }
+                    ExternSpecMappingErr::Dup(previous_extern_spec) => {
+                        self.inner.errors.emit(errors::DupExternSpec {
+                            span: ident_or_def_span(self.tcx(), local_id),
+                            previous_span: ident_or_def_span(self.tcx(), previous_extern_spec),
+                            name: self.tcx().def_path_str(extern_id),
+                        })
+                    }
+                }
+            })
+    }
+
     #[track_caller]
     fn malformed(&self) -> ErrorGuaranteed {
         self.inner
@@ -358,10 +374,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
         self.inner.errors.emit(errors::ItemNotInTraitImpl {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_impl_span: tcx.def_span(extern_impl_id),
         })
@@ -374,10 +387,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
         self.inner.errors.emit(errors::InvalidItemInInherentImpl {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_item_span: tcx.def_span(extern_id),
         })
@@ -406,10 +416,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
         self.inner.errors.emit(errors::ItemNotInTrait {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_trait_span: tcx.def_span(extern_trait_id),
         })
@@ -418,6 +425,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn tcx(&self) -> TyCtxt<'tcx> {
         self.inner.tcx
     }
+}
+
+fn ident_or_def_span(tcx: TyCtxt, def_id: impl Into<DefId>) -> Span {
+    let def_id = def_id.into();
+    tcx.def_ident_span(def_id)
+        .unwrap_or_else(|| tcx.def_span(def_id))
 }
 
 mod errors {
@@ -485,5 +498,26 @@ mod errors {
         pub name: String,
         #[note]
         pub extern_trait_span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_extern_spec_for_local_def, code = E0999)]
+    pub(super) struct ExternSpecForLocalDef {
+        #[primary_span]
+        pub span: Span,
+        #[note]
+        pub local_def_span: Span,
+        pub name: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_dup_extern_spec, code = E0999)]
+    pub(super) struct DupExternSpec {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        #[note]
+        pub previous_span: Span,
+        pub name: String,
     }
 }
