@@ -83,9 +83,16 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
         self.insert_extern_id(struct_id.def_id, extern_id)?;
 
+        self.check_generics(struct_id, extern_id);
+
         self.inner.collect_struct_def(struct_id, attrs, variant)?;
 
         Ok(())
+    }
+
+    fn check_generics(&mut self, local_id: OwnerId, extern_id: DefId) {
+        println!("{:#?}", self.tcx().generics_of(local_id));
+        println!("{:#?}", self.tcx().generics_of(extern_id));
     }
 
     fn collect_extern_enum(
@@ -275,8 +282,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             {
                 Ok(callee_id)
             } else {
-                // I can't figure out how to trigger this with generated with the extern spec
-                // macro that type checks but leaving it here as a precaution.
+                // I can't figure out how to trigger this via code generated with the extern spec
+                // macro that also type checks but leaving it here as a precaution.
                 Err(self.item_not_in_trait(item.id.owner_id, callee_id, trait_id))
             }
         } else {
