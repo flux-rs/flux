@@ -578,6 +578,35 @@
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 
 </span><span class="attr">#![feature(
@@ -586,6 +615,7 @@
     closure_track_caller,
     if_let_guard,
     let_chains,
+    map_try_insert,
     min_specialization,
     never_type,
     precise_capturing,
@@ -968,14 +998,42 @@
 }
 
 <span class="kw">impl </span>Specs {
-    <span class="kw">pub fn </span>insert_extern_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: LocalDefId, extern_id: DefId) {
-        <span class="self">self</span>.extern_id_to_local_id.insert(extern_id, local_id);
+    <span class="kw">pub fn </span>insert_extern_spec_id_mapping(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        local_id: LocalDefId,
+        extern_id: DefId,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExternSpecMappingErr&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(local) = extern_id.as_local() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ExternSpecMappingErr::IsLocal(local));
+        }
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.extern_id_to_local_id.try_insert(extern_id, local_id) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ExternSpecMappingErr::Dup(<span class="kw-2">*</span>err.entry.get()));
+        }
         <span class="self">self</span>.local_id_to_extern_id.insert(local_id, extern_id);
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">pub fn </span>insert_dummy(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) {
         <span class="self">self</span>.dummy_extern.insert(owner_id.def_id);
     }
+}
+
+<span class="doccomment">/// Represents errors that can occur when inserting a mapping between a `LocalDefId` and a `DefId`
+/// for an extern spec.
+</span><span class="kw">pub enum </span>ExternSpecMappingErr {
+    <span class="doccomment">/// Indicates that the extern `DefId` being inserted is actually local. Returns the extern id as
+    /// a `LocalDefId`.
+    </span>IsLocal(LocalDefId),
+
+    <span class="doccomment">/// Indicates that there is an existing extern spec for the given extern id. Returns the existing
+    /// `LocalDefId` that maps to the extern id.
+    ///
+    /// NOTE: This currently only considers extern specs defined in the local crate. There could still
+    /// be duplicates if an extern spec is imported from an external crate. In such cases, the local
+    /// extern spec takes precedence. Probably, we should at least warn about this, but it's a bit
+    /// tricky because we need to look at the crate metadata which we don't currently have while
+    /// collecting specs.
+    </span>Dup(LocalDefId),
 }
 
 <span class="attr">#[derive(Default)]
@@ -1011,8 +1069,8 @@
 </span><span class="kw">pub enum </span>MaybeExternId&lt;Id = LocalDefId&gt; {
     <span class="doccomment">/// An id for a local spec.
     </span>Local(Id),
-    <span class="doccomment">/// An id wrapping an external spec. The `Id` is the local id of item holding the extern spec. The
-    /// `DefId` is the resolved id for the external item.
+    <span class="doccomment">/// A local id wrapping an external spec. The `Id` is the local id of a definition holding the
+    /// extern spec. The `DefId` is the resolved id for the external definition.
     </span>Extern(Id, DefId),
 }
 
@@ -1065,7 +1123,7 @@
 
 <span class="kw">impl</span>&lt;Id: Into&lt;DefId&gt;&gt; MaybeExternId&lt;Id&gt; {
     <span class="doccomment">/// Returns the [`DefId`] this id _truly_ corresponds to, i.e, returns the [`DefId`] of the
-    /// extern item if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
+    /// extern definition if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
     ///
     /// [`Local`]: MaybeExternId::Local
     /// [`Extern`]: MaybeExternId::Extern

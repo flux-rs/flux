@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["errors"],"struct":["ExternImplItem","ExternSpecCollector"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["ident_or_def_span"],"mod":["errors"],"struct":["ExternImplItem","ExternSpecCollector"],"type":["Result"]};

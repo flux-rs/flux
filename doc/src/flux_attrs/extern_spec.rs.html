@@ -665,6 +665,7 @@
 <a href="#665" id="665">665</a>
 <a href="#666" id="666">666</a>
 <a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
 <span class="kw">use </span>proc_macro2::{Span, TokenStream};
@@ -694,7 +695,7 @@
         ExternItem::Struct(item_struct) =&gt; extern_struct_to_tokens(mod_use, item_struct),
         ExternItem::Enum(item_enum) =&gt; extern_enum_to_tokens(mod_use, item_enum),
         ExternItem::Trait(item_trait) =&gt; extern_trait_to_tokens(span, mod_use, item_trait),
-        ExternItem::Fn(extern_fn) =&gt; extern_fn_to_tokens(mod_use, extern_fn),
+        ExternItem::Fn(extern_fn) =&gt; extern_fn_to_tokens(span, mod_use, extern_fn),
         ExternItem::Impl(extern_item_impl) =&gt; {
             extern_impl_to_tokens(span, mod_use, extern_item_impl)
         }
@@ -702,11 +703,12 @@
 }
 
 <span class="kw">fn </span>extern_fn_to_tokens(
+    span: Span,
     mod_use: <span class="prelude-ty">Option</span>&lt;UseWildcard&gt;,
     <span class="kw-2">mut </span>extern_fn: ExternFn,
 ) -&gt; syn::Result&lt;TokenStream&gt; {
     extern_fn.prepare(<span class="kw-2">&amp;</span>FnCtxt::Free, <span class="bool-val">true</span>);
-    <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
+    <span class="prelude-val">Ok</span>(<span class="macro">quote_spanned!</span> {span=&gt;
         <span class="attr">#[allow(unused, dead_code, non_camel_case_types)]
         #[flux_tool::extern_spec]
         </span><span class="kw">const _</span>: () = {
