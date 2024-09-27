@@ -328,7 +328,7 @@
     prepare(sh)<span class="question-mark">?</span>;
     <span class="kw">let </span>flux_path = find_flux_path();
     <span class="kw">let </span>_env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
-    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::rustc_flags();
+    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
     <span class="macro">cmd!</span>(sh, <span class="string">"{flux_path} {rustc_flags...} {input}"</span>).run()<span class="question-mark">?</span>;

@@ -260,6 +260,9 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -336,7 +339,7 @@
             <span class="kw">let </span>arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, <span class="kw-2">&amp;</span>sess, Box::new(cstore), <span class="kw-2">&amp;</span>arena, providers, |genv| {
                 <span class="kw">if </span>check_crate(genv).is_ok() {
-                    save_metadata(genv);
+                    encode_and_save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -379,12 +382,15 @@
     }
 }
 
-<span class="kw">fn </span>save_metadata(genv: GlobalEnv) {
-    <span class="kw">let </span>tcx = genv.tcx();
+<span class="kw">fn </span>encode_and_save_metadata(genv: GlobalEnv) {
+    <span class="comment">// We only save metadata when invoked with `--emit=metadata`. If this is the case, we can save
+    // the `.fluxmeta` file in the same location as the `.rmetadata` file. This is enough for `cargo flux`
+    // as it wraps `cargo check` which always passes `--emit=metadata`. We also explicitly pass
+    // `--emit=metadata` when running tests.
+    </span><span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">if </span>tcx
-        .sess
-        .opts
-        .output_types
+        .output_filenames(())
+        .outputs
         .contains_key(<span class="kw-2">&amp;</span>OutputType::Metadata)
     {
         <span class="kw">let </span>path = flux_metadata::filename_for_metadata(tcx);

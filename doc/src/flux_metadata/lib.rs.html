@@ -405,15 +405,6 @@
 <a href="#405" id="405">405</a>
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -449,10 +440,7 @@
 <span class="kw">use </span>rustc_hir::{def::DefKind, def_id::LocalDefId};
 <span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_session::{
-    config::{OutFileName, OutputType},
-    utils::CanonicalizedPath,
-};
+<span class="kw">use </span>rustc_session::config::OutFileName;
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefId, DefIndex},
     Symbol,
@@ -540,7 +528,7 @@
 <span class="kw">impl </span>CStore {
     <span class="kw">pub fn </span>load(tcx: TyCtxt, sess: <span class="kw-2">&amp;</span>FluxSession) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>cstore = CStore::default();
-        <span class="kw">for </span>crate_num <span class="kw">in </span>tcx.crates(()) {
+        <span class="kw">for </span>crate_num <span class="kw">in </span>tcx.used_crates(()) {
             <span class="kw">let </span><span class="prelude-val">Some</span>(path) = flux_metadata_extern_location(tcx, <span class="kw-2">*</span>crate_num) <span class="kw">else </span>{ <span class="kw">continue </span>};
             <span class="kw">let </span><span class="prelude-val">Some</span>(meta) = decode_crate_metadata(tcx, sess, path.as_path()) <span class="kw">else </span>{ <span class="kw">continue </span>};
             cstore.local_tables.insert(<span class="kw-2">*</span>crate_num, meta.local_tables);
@@ -792,18 +780,12 @@
 }
 
 <span class="kw">fn </span>flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
-    <span class="kw">let </span>crate_name = tcx.crate_name(crate_num);
-    <span class="kw">let </span>path = tcx
-        .sess
-        .opts
-        .externs
-        .get(crate_name.as_str())<span class="question-mark">?
-        </span>.files()
-        .into_iter()
-        .flatten()
-        .map(CanonicalizedPath::canonicalized)
-        .find(|path| path.extension().unwrap_or_default() == OutputType::Metadata.extension())<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(path.with_extension(<span class="string">"fluxmeta"</span>))
+    <span class="comment">// Since we only save metadata when `--emit=metadata` is passed, we also only load flux metadata
+    // when the crate source is a `.rmeta` file.
+    </span>tcx.used_crate_source(crate_num)
+        .rmeta
+        .as_ref()
+        .map(|(path, <span class="kw">_</span>)| path.with_extension(<span class="string">"fluxmeta"</span>))
 }
 
 <span class="comment">// Tags for encoding Symbol's

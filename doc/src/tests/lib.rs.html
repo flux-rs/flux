@@ -27,10 +27,12 @@
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(register_tool)]
 </span><span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">pub const </span>FLUX_SYSROOT: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_SYSROOT"</span>;
+<span class="kw">pub const </span>FLUX_FULL_COMPILATION: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_FULL_COMPILATION"</span>;
 
 <span class="kw">pub fn </span>find_flux_path() -&gt; PathBuf {
     <span class="kw">let </span>executable_name = <span class="kw">if </span><span class="macro">cfg!</span>(windows) { <span class="string">"rustc-flux.exe" </span>} <span class="kw">else </span>{ <span class="string">"rustc-flux" </span>};
@@ -38,7 +40,7 @@
 }
 
 <span class="doccomment">/// Rustc flags to pass Flux when running tests
-</span><span class="kw">pub fn </span>rustc_flags() -&gt; Vec&lt;String&gt; {
+</span><span class="kw">pub fn </span>default_rustc_flags() -&gt; Vec&lt;String&gt; {
     <span class="macro">vec!</span>[<span class="string">"--crate-type=rlib"</span>.to_string(), <span class="string">"--edition=2021"</span>.to_string()]
 }
 
