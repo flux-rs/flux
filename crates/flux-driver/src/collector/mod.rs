@@ -22,7 +22,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     self as hir,
     def::DefKind,
-    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
+    def_id::{LocalDefId, CRATE_DEF_ID},
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
 };
 use rustc_middle::ty::TyCtxt;
