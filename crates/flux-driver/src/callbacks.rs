@@ -74,7 +74,7 @@ impl FluxCallbacks {
             let arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
                 if check_crate(genv).is_ok() {
-                    save_metadata(genv);
+                    encode_and_save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -117,12 +117,15 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
     }
 }
 
-fn save_metadata(genv: GlobalEnv) {
+fn encode_and_save_metadata(genv: GlobalEnv) {
+    // We only save metadata when invoked with `--emit=metadata`. If this is the case, we can save
+    // the `.fluxmeta` file in the same location as the `.rmetadata` file. This is enough for `cargo flux`
+    // as it wraps `cargo check` which always passes `--emit=metadata`. We also explicitly pass
+    // `--emit=metadata` when running tests.
     let tcx = genv.tcx();
     if tcx
-        .sess
-        .opts
-        .output_types
+        .output_filenames(())
+        .outputs
         .contains_key(&OutputType::Metadata)
     {
         let path = flux_metadata::filename_for_metadata(tcx);

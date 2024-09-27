@@ -11,7 +11,7 @@ test = false
 [dev-dependencies]
 itertools.workspace = true
 
-compiletest_rs = "0.10"
+compiletest_rs = { version = "0.11", features = ["tmp"] }
 
 [package.metadata.rust-analyzer]
 rustc_private = true

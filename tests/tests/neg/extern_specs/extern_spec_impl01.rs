@@ -1,26 +1,10 @@
+//@aux-build:extern_spec_impl01_aux.rs
+
+extern crate extern_spec_impl01_aux;
+
+use extern_spec_impl01_aux::{MyTrait, OtherTrait};
 use flux_rs::extern_spec;
 
-pub trait MyTrait {
-    fn foo() -> i32;
-}
-
-pub trait OtherTrait {
-    fn foo() -> i32;
-}
-
-// "existing" impl
-impl<T> MyTrait for Vec<T> {
-    fn foo() -> i32 {
-        10
-    }
-}
-impl<T> OtherTrait for Vec<T> {
-    fn foo() -> i32 {
-        10
-    }
-}
-
-// "extern" impl
 #[extern_spec]
 impl<T> MyTrait for Vec<T> {
     #[flux::sig(fn() -> i32[10])]
