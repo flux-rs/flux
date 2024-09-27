@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
+pub const FLUX_FULL_COMPILATION: &str = "FLUX_FULL_COMPILATION";
 
 pub fn find_flux_path() -> PathBuf {
     let executable_name = if cfg!(windows) { "rustc-flux.exe" } else { "rustc-flux" };

@@ -124,8 +124,19 @@ impl FluxMetadata {
 
 /// The context in which `flux-driver` is being called.
 enum Context {
-    CargoFlux { build_script_build: bool, metadata: Option<FluxMetadata> },
-    RustcFlux,
+    /// Called from `cargo-flux`
+    CargoFlux {
+        /// Whether the driver was invoked with `--crate-name build_script_build`. Passed from
+        /// cargo when executing `build.rs`.
+        build_script_build: bool,
+        /// Metadata in the `Cargo.toml` manifest
+        metadata: Option<FluxMetadata>,
+    },
+    /// Called from `rustc-flux`
+    RustcFlux {
+        /// Whether full compilation if forced via `FLUX_FULL_COMPILATION`
+        force_full_compilation: bool,
+    },
 }
 
 impl Context {
@@ -135,7 +146,8 @@ impl Context {
                 arg_value(args, "--crate-name", |val| val == "build_script_build").is_some();
             Context::CargoFlux { build_script_build, metadata: FluxMetadata::read() }
         } else {
-            Context::RustcFlux
+            let force_full_compilation = env_var_is("FLUX_FULL_COMPILATION", "1");
+            Context::RustcFlux { force_full_compilation }
         }
     }
 
@@ -144,23 +156,33 @@ impl Context {
             Context::CargoFlux { build_script_build, metadata: manifest } => {
                 *build_script_build || manifest.is_none()
             }
-            Context::RustcFlux => false,
+            Context::RustcFlux { .. } => false,
         }
     }
 
     /// Whether the target crate should be verified. We verify a crate if we are being called from
-    /// rustc-flux on a single file or if flux is enabled in the manifest.
+    /// `rustc-flux` on a single file or if Flux is explicitly enabled in the manifest.
     fn verify(&self) -> bool {
         match self {
             Context::CargoFlux { metadata: Some(FluxMetadata { enabled }), .. } => *enabled,
             Context::CargoFlux { metadata: None, .. } => false,
-            Context::RustcFlux => true,
+            Context::RustcFlux { .. } => true,
         }
     }
 
-    /// When called from cargo we do a full compilation to generate artifacts needed for proc macro
-    /// dependencies.
+    /// Whether to do a full compilation, i.e., continue after verification to generate artifacts.
+    /// We always do a full compilation when called from `cargo-flux`. When called from `rustc-flux`
+    /// we stop after verification so we don't generate artifacts unless full compilation is forced
+    /// via an environment variable.
     fn full_compilation(&self) -> bool {
-        matches!(self, Context::CargoFlux { .. })
+        matches!(
+            self,
+            Context::CargoFlux { .. } | Context::RustcFlux { force_full_compilation: true }
+        )
     }
+}
+
+fn env_var_is(name: &str, test: &str) -> bool {
+    let Ok(val) = env::var(name) else { return false };
+    val == test
 }

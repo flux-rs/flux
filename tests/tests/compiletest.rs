@@ -5,7 +5,7 @@ use std::{env, path::PathBuf};
 
 use compiletest_rs::{common::Mode, Config};
 use itertools::Itertools;
-use tests::{find_flux_path, rustc_flags, FLUX_SYSROOT};
+use tests::{find_flux_path, rustc_flags, FLUX_FULL_COMPILATION, FLUX_SYSROOT};
 
 fn config() -> Config {
     let bless = env::args().any(|arg| arg == "--bless");
@@ -17,11 +17,21 @@ fn config() -> Config {
 }
 
 fn test_runner(_: &[&()]) {
-    let mut config = config();
+    let mut config = config().tempdir();
 
     config.target_rustcflags = Some(rustc_flags().join(" "));
 
+    config.clean_rmeta();
+    config.clean_rlib();
+    config.strict_headers = true;
+
+    // Enable full compilation such that we generate artifacts when annotating tests with `@aux-build`
+    env::set_var(FLUX_FULL_COMPILATION, "1");
     env::set_var(FLUX_SYSROOT, config.rustc_path.parent().unwrap());
+
+    // config.mode = Mode::Ui;
+    // config.src_base = PathBuf::from("tests/asdf");
+    // compiletest_rs::run_tests(&config);
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
     if path.exists() {
@@ -36,5 +46,4 @@ fn test_runner(_: &[&()]) {
         config.src_base = path;
         compiletest_rs::run_tests(&config);
     }
-    config.clean_rmeta();
 }
