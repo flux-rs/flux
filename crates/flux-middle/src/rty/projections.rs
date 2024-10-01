@@ -169,7 +169,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         // e.g. given `i32 : Trait1<Assoc=T1>` we
         //      - `normalize_projection_ty` on `<i32 as Trait1>::Assoc` to get `bool`
         //      - unify `T1` with `bool`
-        for p in projection_preds.iter() {
+        for p in projection_preds {
             let obligation = &p.projection_ty;
             let (_, ty) = self.normalize_projection_ty(obligation)?;
             subst.tys(&p.term, &ty);
