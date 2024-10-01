@@ -137,7 +137,47 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok((true, ty))
     }
 
-    fn confirm_candidate(&self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
+    // See issue-808.rs for an example of what this function is for.
+    fn resolve_projection_predicates(
+        &mut self,
+        subst: &mut TVarSubst,
+        impl_def_id: DefId,
+    ) -> QueryResult {
+        // 1. make a partial substitution with the "known" generic arguments e.g.
+        //   Given [T1 ->?, T2 -> i32] make a substitution [T1 -> T1, T2 -> i32]
+        let known_args = subst.as_generic_args(&self.genv, self.genv.generics_of(impl_def_id)?)?;
+
+        // 2. instantiate the generic_predicates of `impl_def_id` with the known_args
+        // e.g. given a predicate `T2 : Trait1<Assoc=T1>` and known_args [T1 -> T1, T2 -> i32]
+        //      we get `i32 : Trait1<Assoc=T1>`
+        let projection_preds: FxHashSet<_> = self
+            .genv
+            .predicates_of(impl_def_id)?
+            .map(|generic_predicates| generic_predicates.predicates)
+            .instantiate(self.tcx(), &known_args, &[])
+            .iter()
+            .filter_map(|pred| {
+                if let ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
+                    Some(pred.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // 3. recursively solve each of the projection predicates and unify result with the predicate's term
+        // e.g. given `i32 : Trait1<Assoc=T1>` we
+        //      - `normalize_projection_ty` on `<i32 as Trait1>::Assoc` to get `bool`
+        //      - unify `T1` with `bool`
+        for p in projection_preds.iter() {
+            let obligation = &p.projection_ty;
+            let (_, ty) = self.normalize_projection_ty(obligation)?;
+            subst.tys(&p.term, &ty);
+        }
+        Ok(())
+    }
+
+    fn confirm_candidate(&mut self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
         match candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) => {
@@ -160,30 +200,12 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 let generics = self.tcx().generics_of(impl_def_id);
 
                 let mut subst = TVarSubst::new(generics);
-                // println!("TRACE: confirm_candidate (0) oblig={obligation:?}, cand={candidate:?}, preds={preds:?}");
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
-                    // println!("TRACE: confirm_candidate (1) subst: a={a:?}, b={b:?}");
                     subst.generic_args(a, b);
                 }
-                // println!("TRACE: confirm_candidate (2) oblig={obligation:?}, cand={candidate:?} subst={subst:?}");
 
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
-                let mut projection_preds: FxHashSet<_> = self
-                    .genv
-                    .predicates_of(impl_def_id)?
-                    .instantiate_identity()
-                    .predicates
-                    .iter()
-                    .filter_map(|pred| {
-                        if let ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
-                            Some(pred.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                self.solve_projection_predicates(&mut subst, &mut projection_preds)?;
+                self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
                 let args = subst.finish(self.tcx(), generics);
 
@@ -204,47 +226,6 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .to_ty())
             }
         }
-    }
-
-    // find a projection predicate that can be solved because the lhs is defined in subst e.g.
-    //      T2 : Trait1<Assoc1 = T1>
-    // can be solved if `subst` defines `T2`
-    fn find_projection_predicate_candidate(
-        &self,
-        subst: &TVarSubst,
-        projection_preds: &mut FxHashSet<ProjectionPredicate>,
-    ) -> Option<ProjectionPredicate> {
-        let res = projection_preds
-            .iter()
-            .find(|pp| todo!("issue-808-1"))
-            .map(|p| p.clone());
-
-        if let Some(ref pp) = res {
-            projection_preds.remove(&pp);
-        }
-        res
-    }
-
-    // Given (1) a projection predicate like `T2 : Trait1<Assoc=T1>` and (2) a solution for `T2` e.g. `i32`, we want to
-    //   1. (Recursively) compute the projection `<i32 as Trait1>::Assoc
-    //   2. Unify the result of (1) with `T1` in subst.
-    fn solve_projection_predicate(
-        &self,
-        subst: &mut TVarSubst,
-        projection_pred: ProjectionPredicate,
-    ) -> QueryResult {
-        todo!("ISSUE-808-2")
-    }
-
-    fn solve_projection_predicates(
-        &self,
-        subst: &mut TVarSubst,
-        projection_preds: &mut FxHashSet<ProjectionPredicate>,
-    ) -> QueryResult {
-        while let Some(p) = self.find_projection_predicate_candidate(subst, projection_preds) {
-            self.solve_projection_predicate(subst, p)?;
-        }
-        Ok(())
     }
 
     fn assemble_candidates_from_param_env(
@@ -383,6 +364,25 @@ struct TVarSubst {
 impl TVarSubst {
     fn new(generics: &rustc_middle::ty::Generics) -> Self {
         Self { args: vec![None; generics.count()] }
+    }
+
+    fn as_generic_args(
+        &self,
+        genv: &GlobalEnv,
+        generics: crate::rty::Generics,
+    ) -> QueryResult<Vec<GenericArg>> {
+        self.args
+            .iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                if let Some(arg) = arg {
+                    Ok(arg.clone())
+                } else {
+                    let param = generics.param_at(idx, *genv)?;
+                    Ok(GenericArg::from_param_def(&param))
+                }
+            })
+            .collect()
     }
 
     fn finish<'tcx>(
