@@ -3,7 +3,7 @@ trait Trait1 {
 }
 
 impl Trait1 for i32 {
-    type Assoc1 = i32;
+    type Assoc1 = bool;
 }
 
 trait Trait2 {
@@ -11,7 +11,7 @@ trait Trait2 {
 }
 
 struct S<T> {
-    f: T,
+    fld: T,
 }
 
 impl<T1, T2> Trait2 for S<T2>

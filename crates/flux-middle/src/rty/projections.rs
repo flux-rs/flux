@@ -3,6 +3,7 @@ use std::iter;
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -145,9 +146,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 // and the id of a rust impl block
                 //     impl<T, A: Allocator> Iterator for IntoIter<T, A>
 
-                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                // 1. MATCH the self type of the rust impl block and the flux self type of the obligation
                 //    to infer a substitution
-                //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
+                //        IntoIter<{v. i32[v] | v > 0}, Global> MATCH IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
                 let impl_trait_ref = self
@@ -159,12 +160,34 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 let generics = self.tcx().generics_of(impl_def_id);
 
                 let mut subst = TVarSubst::new(generics);
+                // println!("TRACE: confirm_candidate (0) oblig={obligation:?}, cand={candidate:?}, preds={preds:?}");
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
+                    // println!("TRACE: confirm_candidate (1) subst: a={a:?}, b={b:?}");
                     subst.generic_args(a, b);
                 }
+                // println!("TRACE: confirm_candidate (2) oblig={obligation:?}, cand={candidate:?} subst={subst:?}");
+
+                // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
+                let mut projection_preds: FxHashSet<_> = self
+                    .genv
+                    .predicates_of(impl_def_id)?
+                    .instantiate_identity()
+                    .predicates
+                    .iter()
+                    .filter_map(|pred| {
+                        if let ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
+                            Some(pred.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                self.solve_projection_predicates(&mut subst, &mut projection_preds)?;
+
                 let args = subst.finish(self.tcx(), generics);
 
-                // 2. Get the associated type in the impl block and apply the substitution to it
+                // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
                     .tcx()
                     .associated_items(impl_def_id)
@@ -181,6 +204,47 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .to_ty())
             }
         }
+    }
+
+    // find a projection predicate that can be solved because the lhs is defined in subst e.g.
+    //      T2 : Trait1<Assoc1 = T1>
+    // can be solved if `subst` defines `T2`
+    fn find_projection_predicate_candidate(
+        &self,
+        subst: &TVarSubst,
+        projection_preds: &mut FxHashSet<ProjectionPredicate>,
+    ) -> Option<ProjectionPredicate> {
+        let res = projection_preds
+            .iter()
+            .find(|pp| todo!("issue-808-1"))
+            .map(|p| p.clone());
+
+        if let Some(ref pp) = res {
+            projection_preds.remove(&pp);
+        }
+        res
+    }
+
+    // Given (1) a projection predicate like `T2 : Trait1<Assoc=T1>` and (2) a solution for `T2` e.g. `i32`, we want to
+    //   1. (Recursively) compute the projection `<i32 as Trait1>::Assoc
+    //   2. Unify the result of (1) with `T1` in subst.
+    fn solve_projection_predicate(
+        &self,
+        subst: &mut TVarSubst,
+        projection_pred: ProjectionPredicate,
+    ) -> QueryResult {
+        todo!("ISSUE-808-2")
+    }
+
+    fn solve_projection_predicates(
+        &self,
+        subst: &mut TVarSubst,
+        projection_preds: &mut FxHashSet<ProjectionPredicate>,
+    ) -> QueryResult {
+        while let Some(p) = self.find_projection_predicate_candidate(subst, projection_preds) {
+            self.solve_projection_predicate(subst, p)?;
+        }
+        Ok(())
     }
 
     fn assemble_candidates_from_param_env(
