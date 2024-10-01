@@ -118,10 +118,9 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
 }
 
 fn encode_and_save_metadata(genv: GlobalEnv) {
-    // We only save metadata when invoked with `--emit=metadata`. If this is the case, we can save
-    // the `.fluxmeta` file in the same location as the `.rmetadata` file. This is enough for `cargo flux`
-    // as it wraps `cargo check` which always passes `--emit=metadata`. We also explicitly pass
-    // `--emit=metadata` when running tests.
+    // We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
+    // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which
+    // wraps `cargo check` and always passes `--emit=metadata`. Tests also explicitly pass this flag.
     let tcx = genv.tcx();
     if tcx
         .output_filenames(())
