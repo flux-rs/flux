@@ -258,7 +258,7 @@ impl PlacesTree {
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
-        self.map.remove(loc).unwrap()
+        self.map.remove(loc).unwrap_or_else(|| tracked_span_bug!())
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> {
@@ -475,7 +475,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unfold_strg_ref(&mut self, path: &Path, ty: &Ty) {
-        let loc = path.to_loc().unwrap();
+        let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
         let kind = match loc {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
@@ -870,7 +870,7 @@ fn fold(
 ) -> CheckerResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
-            let loc = path.to_loc().unwrap();
+            let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
             let binding = bindings.remove(&loc);
             let LocKind::Box(alloc) = binding.kind else {
                 tracked_span_bug!("box pointer to non-box loc");

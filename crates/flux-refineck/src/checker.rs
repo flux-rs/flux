@@ -876,7 +876,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         if remaining.len() == 1 {
-            let (_, variant_idx) = remaining.into_iter().next().unwrap();
+            let (_, variant_idx) = remaining
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| tracked_span_bug!());
             successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
         } else {
             successors.push((targets.otherwise(), Guard::None));
@@ -996,7 +999,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
                 // HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
-                let (adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
+                let (adt_def, ..) = ty
+                    .as_bty_skipping_existentials()
+                    .unwrap_or_else(|| tracked_span_bug!())
+                    .expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
@@ -1614,7 +1620,7 @@ impl Mode for ShapeMode {
             Entry::Vacant(entry) => {
                 let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
                     .scope()
-                    .unwrap();
+                    .unwrap_or_else(|| tracked_span_bug!());
                 entry.insert(env.into_infer(scope).with_span(terminator_span)?);
                 true
             }
@@ -1659,7 +1665,12 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        debug_assert_eq!(
+            &ck.snapshot_at_dominator(target)
+                .scope()
+                .unwrap_or_else(|| tracked_span_bug!()),
+            bb_env.scope()
+        );
 
         dbg::refine_goto!(target, infcx, env, bb_env);
 
@@ -1741,8 +1752,13 @@ fn snapshot_at_dominator<'a>(
     snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
     bb: BasicBlock,
 ) -> &'a Snapshot {
-    let dominator = body.dominators().immediate_dominator(bb).unwrap();
-    snapshots[dominator].as_ref().unwrap()
+    let dominator = body
+        .dominators()
+        .immediate_dominator(bb)
+        .unwrap_or_else(|| tracked_span_bug!());
+    snapshots[dominator]
+        .as_ref()
+        .unwrap_or_else(|| tracked_span_bug!())
 }
 
 pub(crate) mod errors {

@@ -19,6 +19,7 @@
 //! needs to be inferred.
 use std::{collections::VecDeque, fmt, iter, ops::Range};
 
+use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -205,7 +206,7 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             for (local, ty) in iter::zip(body.args_iter(), fn_sig.inputs()) {
                 if let rty::TyKind::Ptr(_, path) = ty.kind() {
-                    let loc = FlatSet::Elem(path.to_loc().unwrap());
+                    let loc = FlatSet::Elem(path.to_loc().unwrap_or_else(|| tracked_span_bug!()));
                     state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);
                 } else {
                     state.flood(mir::PlaceRef { local, projection: &[] }, self.map);
@@ -300,7 +301,11 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         for (place_idx, old_value) in &mut self.before_state {
             let new_value = state.get_idx(*place_idx, self.map);
             if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, &new_value) {
-                let place = self.tracked_places.get(place_idx).unwrap().clone();
+                let place = self
+                    .tracked_places
+                    .get(place_idx)
+                    .unwrap_or_else(|| tracked_span_bug!())
+                    .clone();
                 self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
             }
             *old_value = new_value;
@@ -322,7 +327,11 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
             for (place_idx, old_value) in &self.before_state {
                 let new_value = target_state.get_idx(*place_idx, self.map);
                 if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
-                    let place = self.tracked_places.get(place_idx).unwrap().clone();
+                    let place = self
+                        .tracked_places
+                        .get(place_idx)
+                        .unwrap_or_else(|| tracked_span_bug!())
+                        .clone();
                     self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
                 }
             }
@@ -553,7 +562,9 @@ impl Map {
         }
 
         for child in self.children(root) {
-            let elem = self.places[child].proj_elem.unwrap();
+            let elem = self.places[child]
+                .proj_elem
+                .unwrap_or_else(|| tracked_span_bug!());
             projection.push(elem);
             self.for_each_tracked_place_rec(child, projection, f);
             projection.pop();
@@ -749,7 +760,9 @@ impl State {
         }
         for target_child in map.children(target) {
             // Try to find corresponding child and recurse. Reasoning is similar as above.
-            let projection = map.places[target_child].proj_elem.unwrap();
+            let projection = map.places[target_child]
+                .proj_elem
+                .unwrap_or_else(|| tracked_span_bug!());
             if let Some(source_child) = map.projections.get(&(source, projection)) {
                 self.insert_place_idx(target_child, *source_child, map);
             }
@@ -820,7 +833,9 @@ fn debug_with_context_rec<V: fmt::Debug + Eq>(
     }
 
     for child in map.children(place) {
-        let info_elem = map.places[child].proj_elem.unwrap();
+        let info_elem = map.places[child]
+            .proj_elem
+            .unwrap_or_else(|| tracked_span_bug!());
         let child_place_str = format!("{}.{}", place_str, info_elem.index());
         debug_with_context_rec(child, &child_place_str, new, old, map, f)?;
     }

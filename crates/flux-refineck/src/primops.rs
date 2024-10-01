@@ -46,7 +46,8 @@ struct RuleTable<Op: Eq + Hash, const N: usize> {
 
 impl<Op: Eq + Hash, const N: usize> RuleTable<Op, N> {
     fn match_inputs(&self, op: &Op, inputs: [(BaseTy, Expr); N]) -> MatchedRule {
-        (self.rules[op])(&inputs).unwrap_or_else(|| tracked_span_bug!("no primop rule for {inputs:?}"))
+        (self.rules[op])(&inputs)
+            .unwrap_or_else(|| tracked_span_bug!("no primop rule for {inputs:?}"))
     }
 }
 
@@ -115,24 +116,18 @@ static OVERFLOW_BIN_OPS: LazyLock<RuleTable<mir::BinOp, 2>> = LazyLock::new(|| {
 static DEFAULT_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|| {
     use mir::UnOp::*;
     RuleTable {
-        rules: [
-            (Neg, mk_neg_rules(false)),
-            (Not, mk_not_rules())
-        ]
-        .into_iter()
-        .collect(),
+        rules: [(Neg, mk_neg_rules(false)), (Not, mk_not_rules())]
+            .into_iter()
+            .collect(),
     }
 });
 
 static OVERFLOW_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|| {
     use mir::UnOp::*;
     RuleTable {
-        rules: [
-            (Neg, mk_neg_rules(true)),
-            (Not, mk_not_rules())
-        ]
-        .into_iter()
-        .collect(),
+        rules: [(Neg, mk_neg_rules(true)), (Not, mk_not_rules())]
+            .into_iter()
+            .collect(),
     }
 });
 
