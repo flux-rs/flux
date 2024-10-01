@@ -137,7 +137,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok((true, ty))
     }
 
-    // See issue-808.rs for an example of what this function is for.
+    // See issue-829.rs for an example of what this function is for.
     fn resolve_projection_predicates(
         &mut self,
         subst: &mut TVarSubst,
