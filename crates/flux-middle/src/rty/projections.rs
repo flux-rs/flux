@@ -13,8 +13,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
-    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    subst::{GenericsSubstDelegate, GenericsSubstFolder},
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -136,7 +137,65 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok((true, ty))
     }
 
-    fn confirm_candidate(&self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
+    fn find_resolved_predicates(
+        &self,
+        subst: &mut TVarSubst,
+        preds: Vec<EarlyBinder<ProjectionPredicate>>,
+    ) -> (Vec<ProjectionPredicate>, Vec<EarlyBinder<ProjectionPredicate>>) {
+        let mut resolved = vec![];
+        let mut unresolved = vec![];
+        for pred in preds {
+            let term = pred.clone().skip_binder().term;
+            let alias_ty = pred.clone().map(|p| p.projection_ty);
+            match subst.instantiate_partial(alias_ty) {
+                Some(projection_ty) => {
+                    let pred = ProjectionPredicate { projection_ty, term };
+                    resolved.push(pred);
+                }
+                None => unresolved.push(pred.clone()),
+            }
+        }
+        (resolved, unresolved)
+    }
+
+    // See issue-829*.rs for an example of what this function is for.
+    fn resolve_projection_predicates(
+        &mut self,
+        subst: &mut TVarSubst,
+        impl_def_id: DefId,
+    ) -> QueryResult {
+        let mut projection_preds: Vec<_> = self
+            .genv
+            .predicates_of(impl_def_id)?
+            .skip_binder()
+            .predicates
+            .iter()
+            .filter_map(|pred| {
+                if let ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
+                    Some(EarlyBinder(pred.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        while !projection_preds.is_empty() {
+            let (resolved, unresolved) = self.find_resolved_predicates(subst, projection_preds);
+
+            if resolved.is_empty() {
+                break; // failed: there is some unresolved projection pred!
+            }
+            for p in resolved {
+                let obligation = &p.projection_ty;
+                let (_, ty) = self.normalize_projection_ty(obligation)?;
+                subst.tys(&p.term, &ty);
+            }
+            projection_preds = unresolved;
+        }
+        Ok(())
+    }
+
+    fn confirm_candidate(&mut self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
         match candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) => {
@@ -145,9 +204,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 // and the id of a rust impl block
                 //     impl<T, A: Allocator> Iterator for IntoIter<T, A>
 
-                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                // 1. MATCH the self type of the rust impl block and the flux self type of the obligation
                 //    to infer a substitution
-                //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
+                //        IntoIter<{v. i32[v] | v > 0}, Global> MATCH IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
                 let impl_trait_ref = self
@@ -162,9 +221,13 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                     subst.generic_args(a, b);
                 }
+
+                // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
+                self.resolve_projection_predicates(&mut subst, impl_def_id)?;
+
                 let args = subst.finish(self.tcx(), generics);
 
-                // 2. Get the associated type in the impl block and apply the substitution to it
+                // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
                     .tcx()
                     .associated_items(impl_def_id)
@@ -316,9 +379,49 @@ struct TVarSubst {
     args: Vec<Option<GenericArg>>,
 }
 
+impl GenericsSubstDelegate for &TVarSubst {
+    type Error = ();
+
+    fn ty_for_param(&mut self, param_ty: rustc_middle::ty::ParamTy) -> Result<Ty, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Ty(ty))) => Ok(ty.clone()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
+    }
+
+    fn sort_for_param(
+        &mut self,
+        _param_ty: rustc_middle::ty::ParamTy,
+    ) -> Result<super::Sort, Self::Error> {
+        tracked_span_bug!()
+    }
+
+    fn ctor_for_param(&mut self, _param_ty: rustc_middle::ty::ParamTy) -> super::SubsetTyCtor {
+        tracked_span_bug!()
+    }
+
+    fn region_for_param(&mut self, _ebr: rustc_middle::ty::EarlyParamRegion) -> Region {
+        tracked_span_bug!()
+    }
+
+    fn expr_for_param_const(&self, _param_const: rustc_middle::ty::ParamConst) -> Expr {
+        tracked_span_bug!()
+    }
+
+    fn const_for_param(&mut self, _param: &Const) -> Const {
+        tracked_span_bug!()
+    }
+}
+
 impl TVarSubst {
     fn new(generics: &rustc_middle::ty::Generics) -> Self {
         Self { args: vec![None; generics.count()] }
+    }
+
+    fn instantiate_partial<T: TypeFoldable>(&mut self, pred: EarlyBinder<T>) -> Option<T> {
+        let mut folder = GenericsSubstFolder::new(&*self, &[]);
+        pred.skip_binder().try_fold_with(&mut folder).ok()
     }
 
     fn finish<'tcx>(

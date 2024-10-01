@@ -334,7 +334,7 @@ pub trait GenericsSubstDelegate {
     type Error = !;
 
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
@@ -358,9 +358,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         }
     }
 
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(GenericArg::Ty(ty)) => Ok(ty.clone()),
             Some(arg) => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
             None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
         }
@@ -433,7 +433,7 @@ where
         (self.sort_for_param)(param_ty)
     }
 
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, E> {
         bug!("unexpected type param {param_ty:?}");
     }
 
@@ -497,7 +497,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, D::Error> {
         match ty.kind() {
-            TyKind::Param(param_ty) => Ok(self.delegate.ty_for_param(*param_ty)),
+            TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 let idx = idx.try_fold_with(self)?;
                 Ok(self
