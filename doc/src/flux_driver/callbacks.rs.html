@@ -262,7 +262,6 @@
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
 <a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -383,10 +382,9 @@
 }
 
 <span class="kw">fn </span>encode_and_save_metadata(genv: GlobalEnv) {
-    <span class="comment">// We only save metadata when invoked with `--emit=metadata`. If this is the case, we can save
-    // the `.fluxmeta` file in the same location as the `.rmetadata` file. This is enough for `cargo flux`
-    // as it wraps `cargo check` which always passes `--emit=metadata`. We also explicitly pass
-    // `--emit=metadata` when running tests.
+    <span class="comment">// We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
+    // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which
+    // wraps `cargo check` and always passes `--emit=metadata`. Tests also explicitly pass this flag.
     </span><span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">if </span>tcx
         .output_filenames(())

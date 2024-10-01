@@ -521,14 +521,71 @@
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_middle::ExternSpecMappingErr;
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+
+<span class="kw">use </span>flux_middle::ExternSpecMappingErr;
 <span class="kw">use </span>flux_rustc_bridge::lowering;
+<span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::{
     def_id::{DefId, LocalDefId},
     BodyId, OwnerId,
 };
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
+<span class="kw">use </span>rustc_middle::ty::{<span class="self">self</span>, TyCtxt};
 <span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span};
 
 <span class="kw">use super</span>::{FluxAttrs, SpecCollector};
@@ -605,6 +662,7 @@
 
         <span class="kw">let </span>extern_id = <span class="self">self</span>.extract_extern_id_from_struct(dummy_struct).unwrap();
         <span class="self">self</span>.insert_extern_id(struct_id.def_id, extern_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(struct_id, extern_id)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.inner.collect_struct_def(struct_id, attrs, variant)<span class="question-mark">?</span>;
 
@@ -622,6 +680,7 @@
 
         <span class="kw">let </span>extern_id = <span class="self">self</span>.extract_extern_id_from_struct(dummy_struct).unwrap();
         <span class="self">self</span>.insert_extern_id(enum_id.def_id, extern_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(enum_id, extern_id)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.inner.collect_enum_def(enum_id, attrs, enum_def)<span class="question-mark">?</span>;
 
@@ -664,6 +723,7 @@
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_impl_id) = extern_impl_id {
+            <span class="self">self</span>.check_generics(impl_id, extern_impl_id)<span class="question-mark">?</span>;
             <span class="self">self</span>.insert_extern_id(impl_id.def_id, extern_impl_id)<span class="question-mark">?</span>;
         }
 
@@ -679,10 +739,11 @@
         <span class="kw">let </span>item_id = item.id.owner_id;
         <span class="self">self</span>.inner.collect_fn_spec(item_id, attrs)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>extern_item = <span class="self">self</span>.extract_extern_id_from_impl_fn(impl_of_trait, item)<span class="question-mark">?</span>;
-        <span class="self">self</span>.insert_extern_id(item_id.def_id, extern_item.item_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>extern_impl_item = <span class="self">self</span>.extract_extern_id_from_impl_fn(impl_of_trait, item)<span class="question-mark">?</span>;
+        <span class="self">self</span>.insert_extern_id(item_id.def_id, extern_impl_item.item_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(item_id, extern_impl_item.item_id)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(extern_item)
+        <span class="prelude-val">Ok</span>(extern_impl_item)
     }
 
     <span class="kw">fn </span>collect_extern_trait(
@@ -696,6 +757,7 @@
 
         <span class="kw">let </span>extern_trait_id = <span class="self">self</span>.extract_extern_id_from_trait(bounds)<span class="question-mark">?</span>;
         <span class="self">self</span>.insert_extern_id(trait_id.def_id, extern_trait_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(trait_id, extern_trait_id)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>item <span class="kw">in </span>items {
             <span class="kw">let </span>item_id = item.id.owner_id.def_id;
@@ -721,6 +783,7 @@
 
         <span class="kw">let </span>extern_fn_id = <span class="self">self</span>.extract_extern_id_from_trait_fn(extern_trait_id, item)<span class="question-mark">?</span>;
         <span class="self">self</span>.insert_extern_id(item.id.owner_id.def_id, extern_fn_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(item_id, extern_fn_id)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -798,8 +861,8 @@
             {
                 <span class="prelude-val">Ok</span>(callee_id)
             } <span class="kw">else </span>{
-                <span class="comment">// I can't figure out how to trigger this with generated with the extern spec
-                // macro that type checks but leaving it here as a precaution.
+                <span class="comment">// I can't figure out how to trigger this via code generated with the extern spec
+                // macro that also type checks but leaving it here as a precaution.
                 </span><span class="prelude-val">Err</span>(<span class="self">self</span>.item_not_in_trait(item.id.owner_id, callee_id, trait_id))
             }
         } <span class="kw">else </span>{
@@ -864,14 +927,14 @@
             .map_err(|err| {
                 <span class="kw">match </span>err {
                     ExternSpecMappingErr::IsLocal(extern_id_local) =&gt; {
-                        <span class="self">self</span>.inner.errors.emit(errors::ExternSpecForLocalDef {
+                        <span class="self">self</span>.emit(errors::ExternSpecForLocalDef {
                             span: ident_or_def_span(<span class="self">self</span>.tcx(), local_id),
                             local_def_span: ident_or_def_span(<span class="self">self</span>.tcx(), extern_id_local),
                             name: <span class="self">self</span>.tcx().def_path_str(extern_id),
                         })
                     }
                     ExternSpecMappingErr::Dup(previous_extern_spec) =&gt; {
-                        <span class="self">self</span>.inner.errors.emit(errors::DupExternSpec {
+                        <span class="self">self</span>.emit(errors::DupExternSpec {
                             span: ident_or_def_span(<span class="self">self</span>.tcx(), local_id),
                             previous_span: ident_or_def_span(<span class="self">self</span>.tcx(), previous_extern_spec),
                             name: <span class="self">self</span>.tcx().def_path_str(extern_id),
@@ -881,11 +944,29 @@
             })
     }
 
+    <span class="kw">fn </span>check_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: OwnerId, extern_id: DefId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+        <span class="kw">let </span>local_params = <span class="kw-2">&amp;</span>tcx.generics_of(local_id).own_params;
+        <span class="kw">let </span>extern_params = <span class="kw-2">&amp;</span>tcx.generics_of(extern_id).own_params;
+
+        <span class="kw">let </span>mismatch = local_params.len() != extern_params.len()
+            || iter::zip(local_params, extern_params).any(|(a, b)| !cmp_generic_param_def(a, b));
+        <span class="kw">if </span>mismatch {
+            <span class="kw">let </span>local_hir_generics = tcx.hir().get_generics(local_id.def_id).unwrap();
+            <span class="kw">let </span>span = local_hir_generics.span;
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::MismatchedGenerics {
+                span,
+                extern_def: tcx.def_span(extern_id),
+                def_descr: tcx.def_descr(extern_id),
+            }));
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>malformed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.inner
-            .errors
-            .emit(errors::MalformedExternSpec::new(<span class="self">self</span>.block.span))
+        <span class="self">self</span>.emit(errors::MalformedExternSpec::new(<span class="self">self</span>.block.span))
     }
 
     <span class="attr">#[track_caller]
@@ -896,7 +977,7 @@
         extern_impl_id: DefId,
     ) -&gt; ErrorGuaranteed {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-        <span class="self">self</span>.inner.errors.emit(errors::ItemNotInTraitImpl {
+        <span class="self">self</span>.emit(errors::ItemNotInTraitImpl {
             span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_impl_span: tcx.def_span(extern_impl_id),
@@ -909,7 +990,7 @@
         extern_id: DefId,
     ) -&gt; ErrorGuaranteed {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-        <span class="self">self</span>.inner.errors.emit(errors::InvalidItemInInherentImpl {
+        <span class="self">self</span>.emit(errors::InvalidItemInInherentImpl {
             span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_item_span: tcx.def_span(extern_id),
@@ -918,16 +999,12 @@
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>invalid_impl_block(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.inner
-            .errors
-            .emit(errors::InvalidImplBlock { span: <span class="self">self</span>.block.span })
+        <span class="self">self</span>.emit(errors::InvalidImplBlock { span: <span class="self">self</span>.block.span })
     }
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>cannot_resolve_trait_impl(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.inner
-            .errors
-            .emit(errors::CannotResolveTraitImpl { span: <span class="self">self</span>.block.span })
+        <span class="self">self</span>.emit(errors::CannotResolveTraitImpl { span: <span class="self">self</span>.block.span })
     }
 
     <span class="attr">#[track_caller]
@@ -938,15 +1015,34 @@
         extern_trait_id: DefId,
     ) -&gt; ErrorGuaranteed {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-        <span class="self">self</span>.inner.errors.emit(errors::ItemNotInTrait {
+        <span class="self">self</span>.emit(errors::ItemNotInTrait {
             span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_trait_span: tcx.def_span(extern_trait_id),
         })
     }
 
+    <span class="kw">fn </span>emit&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'b</span>&gt;) -&gt; ErrorGuaranteed {
+        <span class="self">self</span>.inner.errors.emit(err)
+    }
+
     <span class="kw">fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.inner.tcx
+    }
+}
+
+<span class="kw">fn </span>cmp_generic_param_def(a: <span class="kw-2">&amp;</span>ty::GenericParamDef, b: <span class="kw-2">&amp;</span>ty::GenericParamDef) -&gt; bool {
+    <span class="kw">if </span>a.name != b.name {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+    <span class="kw">if </span>a.index != b.index {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+    <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
+        (ty::GenericParamDefKind::Lifetime, ty::GenericParamDefKind::Lifetime)
+        | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
+        | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. }) =&gt; <span class="bool-val">true</span>,
+        <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
     }
 }
 
@@ -1042,6 +1138,18 @@
         <span class="attr">#[note]
         </span><span class="kw">pub </span>previous_span: Span,
         <span class="kw">pub </span>name: String,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(driver_mismatched_generics, code = E0999)]
+    #[note]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MismatchedGenerics {
+        <span class="attr">#[primary_span]
+        #[label]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="attr">#[label(driver_extern_def_label)]
+        </span><span class="kw">pub </span>extern_def: Span,
+        <span class="kw">pub </span>def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 }
 </code></pre></div></section></main></body></html>
