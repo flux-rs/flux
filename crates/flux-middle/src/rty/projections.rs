@@ -3,7 +3,6 @@ use std::iter;
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
-use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -14,8 +13,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
-    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    subst::{GenericsSubstDelegate, GenericsSubstFolder},
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -137,42 +137,60 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok((true, ty))
     }
 
-    // See issue-829.rs for an example of what this function is for.
+    fn find_resolved_predicates(
+        &self,
+        subst: &mut TVarSubst,
+        preds: Vec<EarlyBinder<ProjectionPredicate>>,
+    ) -> (Vec<ProjectionPredicate>, Vec<EarlyBinder<ProjectionPredicate>>) {
+        let mut resolved = vec![];
+        let mut unresolved = vec![];
+        for pred in preds {
+            let term = pred.clone().skip_binder().term;
+            let alias_ty = pred.clone().map(|p| p.projection_ty);
+            match subst.instantiate_partial(alias_ty) {
+                Some(projection_ty) => {
+                    let pred = ProjectionPredicate { projection_ty, term };
+                    resolved.push(pred);
+                }
+                None => unresolved.push(pred.clone()),
+            }
+        }
+        (resolved, unresolved)
+    }
+
+    // See issue-829*.rs for an example of what this function is for.
     fn resolve_projection_predicates(
         &mut self,
         subst: &mut TVarSubst,
         impl_def_id: DefId,
     ) -> QueryResult {
-        // 1. make a partial substitution with the "known" generic arguments e.g.
-        //   Given [T1 ->?, T2 -> i32] make a substitution [T1 -> T1, T2 -> i32]
-        let known_args = subst.as_generic_args(&self.genv, self.genv.generics_of(impl_def_id)?)?;
-
-        // 2. instantiate the generic_predicates of `impl_def_id` with the known_args
-        // e.g. given a predicate `T2 : Trait1<Assoc=T1>` and known_args [T1 -> T1, T2 -> i32]
-        //      we get `i32 : Trait1<Assoc=T1>`
-        let projection_preds: FxHashSet<_> = self
+        let mut projection_preds: Vec<_> = self
             .genv
             .predicates_of(impl_def_id)?
-            .map(|generic_predicates| generic_predicates.predicates)
-            .instantiate(self.tcx(), &known_args, &[])
+            .skip_binder()
+            .predicates
             .iter()
             .filter_map(|pred| {
                 if let ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
-                    Some(pred.clone())
+                    Some(EarlyBinder(pred.clone()))
                 } else {
                     None
                 }
             })
             .collect();
 
-        // 3. recursively solve each of the projection predicates and unify result with the predicate's term
-        // e.g. given `i32 : Trait1<Assoc=T1>` we
-        //      - `normalize_projection_ty` on `<i32 as Trait1>::Assoc` to get `bool`
-        //      - unify `T1` with `bool`
-        for p in projection_preds {
-            let obligation = &p.projection_ty;
-            let (_, ty) = self.normalize_projection_ty(obligation)?;
-            subst.tys(&p.term, &ty);
+        while !projection_preds.is_empty() {
+            let (resolved, unresolved) = self.find_resolved_predicates(subst, projection_preds);
+
+            if resolved.is_empty() {
+                break; // failed: there is some unresolved projection pred!
+            }
+            for p in resolved {
+                let obligation = &p.projection_ty;
+                let (_, ty) = self.normalize_projection_ty(obligation)?;
+                subst.tys(&p.term, &ty);
+            }
+            projection_preds = unresolved;
         }
         Ok(())
     }
@@ -361,28 +379,49 @@ struct TVarSubst {
     args: Vec<Option<GenericArg>>,
 }
 
+impl GenericsSubstDelegate for &TVarSubst {
+    type Error = ();
+
+    fn ty_for_param(&mut self, param_ty: rustc_middle::ty::ParamTy) -> Result<Ty, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Ty(ty))) => Ok(ty.clone()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
+    }
+
+    fn sort_for_param(
+        &mut self,
+        _param_ty: rustc_middle::ty::ParamTy,
+    ) -> Result<super::Sort, Self::Error> {
+        todo!()
+    }
+
+    fn ctor_for_param(&mut self, _param_ty: rustc_middle::ty::ParamTy) -> super::SubsetTyCtor {
+        todo!()
+    }
+
+    fn region_for_param(&mut self, _ebr: rustc_middle::ty::EarlyParamRegion) -> Region {
+        todo!()
+    }
+
+    fn expr_for_param_const(&self, _param_const: rustc_middle::ty::ParamConst) -> Expr {
+        todo!()
+    }
+
+    fn const_for_param(&mut self, _param: &Const) -> Const {
+        todo!()
+    }
+}
+
 impl TVarSubst {
     fn new(generics: &rustc_middle::ty::Generics) -> Self {
         Self { args: vec![None; generics.count()] }
     }
 
-    fn as_generic_args(
-        &self,
-        genv: &GlobalEnv,
-        generics: crate::rty::Generics,
-    ) -> QueryResult<Vec<GenericArg>> {
-        self.args
-            .iter()
-            .enumerate()
-            .map(|(idx, arg)| {
-                if let Some(arg) = arg {
-                    Ok(arg.clone())
-                } else {
-                    let param = generics.param_at(idx, *genv)?;
-                    Ok(GenericArg::from_param_def(&param))
-                }
-            })
-            .collect()
+    fn instantiate_partial<T: TypeFoldable>(&mut self, pred: EarlyBinder<T>) -> Option<T> {
+        let mut folder = GenericsSubstFolder::new(&*self, &[]);
+        pred.skip_binder().try_fold_with(&mut folder).ok()
     }
 
     fn finish<'tcx>(
