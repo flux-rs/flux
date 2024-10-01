@@ -394,7 +394,7 @@ impl GenericsSubstDelegate for &TVarSubst {
         &mut self,
         _param_ty: rustc_middle::ty::ParamTy,
     ) -> Result<super::Sort, Self::Error> {
-        todo!()
+        tracked_span_bug!()
     }
 
     fn ctor_for_param(&mut self, _param_ty: rustc_middle::ty::ParamTy) -> super::SubsetTyCtor {
