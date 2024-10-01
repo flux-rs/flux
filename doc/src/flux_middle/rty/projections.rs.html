@@ -422,6 +422,109 @@
 <a href="#422" id="422">422</a>
 <a href="#423" id="423">423</a>
 <a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -437,8 +540,9 @@
 
 <span class="kw">use super</span>::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
-    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    subst::{GenericsSubstDelegate, GenericsSubstFolder},
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
@@ -560,7 +664,65 @@
         <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, ty))
     }
 
-    <span class="kw">fn </span>confirm_candidate(<span class="kw-2">&amp;</span><span class="self">self</span>, candidate: Candidate, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+    <span class="kw">fn </span>find_resolved_predicates(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        subst: <span class="kw-2">&amp;mut </span>TVarSubst,
+        preds: Vec&lt;EarlyBinder&lt;ProjectionPredicate&gt;&gt;,
+    ) -&gt; (Vec&lt;ProjectionPredicate&gt;, Vec&lt;EarlyBinder&lt;ProjectionPredicate&gt;&gt;) {
+        <span class="kw">let </span><span class="kw-2">mut </span>resolved = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>unresolved = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>pred <span class="kw">in </span>preds {
+            <span class="kw">let </span>term = pred.clone().skip_binder().term;
+            <span class="kw">let </span>alias_ty = pred.clone().map(|p| p.projection_ty);
+            <span class="kw">match </span>subst.instantiate_partial(alias_ty) {
+                <span class="prelude-val">Some</span>(projection_ty) =&gt; {
+                    <span class="kw">let </span>pred = ProjectionPredicate { projection_ty, term };
+                    resolved.push(pred);
+                }
+                <span class="prelude-val">None </span>=&gt; unresolved.push(pred.clone()),
+            }
+        }
+        (resolved, unresolved)
+    }
+
+    <span class="comment">// See issue-829*.rs for an example of what this function is for.
+    </span><span class="kw">fn </span>resolve_projection_predicates(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        subst: <span class="kw-2">&amp;mut </span>TVarSubst,
+        impl_def_id: DefId,
+    ) -&gt; QueryResult {
+        <span class="kw">let </span><span class="kw-2">mut </span>projection_preds: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
+            </span>.genv
+            .predicates_of(impl_def_id)<span class="question-mark">?
+            </span>.skip_binder()
+            .predicates
+            .iter()
+            .filter_map(|pred| {
+                <span class="kw">if let </span>ClauseKind::Projection(pred) = pred.kind_skipping_binder() {
+                    <span class="prelude-val">Some</span>(EarlyBinder(pred.clone()))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            })
+            .collect();
+
+        <span class="kw">while </span>!projection_preds.is_empty() {
+            <span class="kw">let </span>(resolved, unresolved) = <span class="self">self</span>.find_resolved_predicates(subst, projection_preds);
+
+            <span class="kw">if </span>resolved.is_empty() {
+                <span class="kw">break</span>; <span class="comment">// failed: there is some unresolved projection pred!
+            </span>}
+            <span class="kw">for </span>p <span class="kw">in </span>resolved {
+                <span class="kw">let </span>obligation = <span class="kw-2">&amp;</span>p.projection_ty;
+                <span class="kw">let </span>(<span class="kw">_</span>, ty) = <span class="self">self</span>.normalize_projection_ty(obligation)<span class="question-mark">?</span>;
+                subst.tys(<span class="kw-2">&amp;</span>p.term, <span class="kw-2">&amp;</span>ty);
+            }
+            projection_preds = unresolved;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>confirm_candidate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, candidate: Candidate, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
         <span class="kw">match </span>candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) =&gt; <span class="prelude-val">Ok</span>(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) =&gt; {
@@ -569,9 +731,9 @@
                 // and the id of a rust impl block
                 //     impl&lt;T, A: Allocator&gt; Iterator for IntoIter&lt;T, A&gt;
 
-                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                // 1. MATCH the self type of the rust impl block and the flux self type of the obligation
                 //    to infer a substitution
-                //        IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; against IntoIter&lt;T, A&gt;
+                //        IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; MATCH IntoIter&lt;T, A&gt;
                 //            =&gt; {T -&gt; {v. i32[v] | v &gt; 0}, A -&gt; Global}
 
                 </span><span class="kw">let </span>impl_trait_ref = <span class="self">self
@@ -586,9 +748,13 @@
                 <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>obligation.args) {
                     subst.generic_args(a, b);
                 }
+
+                <span class="comment">// 2. Gather the ProjectionPredicates and solve them see issue-808.rs
+                </span><span class="self">self</span>.resolve_projection_predicates(<span class="kw-2">&amp;mut </span>subst, impl_def_id)<span class="question-mark">?</span>;
+
                 <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics);
 
-                <span class="comment">// 2. Get the associated type in the impl block and apply the substitution to it
+                <span class="comment">// 3. Get the associated type in the impl block and apply the substitution to it
                 </span><span class="kw">let </span>assoc_type_id = <span class="self">self
                     </span>.tcx()
                     .associated_items(impl_def_id)
@@ -740,9 +906,49 @@
     args: Vec&lt;<span class="prelude-ty">Option</span>&lt;GenericArg&gt;&gt;,
 }
 
+<span class="kw">impl </span>GenericsSubstDelegate <span class="kw">for </span><span class="kw-2">&amp;</span>TVarSubst {
+    <span class="kw">type </span>Error = ();
+
+    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: rustc_middle::ty::ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">match </span><span class="self">self</span>.args.get(param_ty.index <span class="kw">as </span>usize) {
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(GenericArg::Ty(ty))) =&gt; <span class="prelude-val">Ok</span>(ty.clone()),
+            <span class="prelude-val">Some</span>(<span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(()),
+            arg =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected type for generic parameter, found `{arg:?}`"</span>),
+        }
+    }
+
+    <span class="kw">fn </span>sort_for_param(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _param_ty: rustc_middle::ty::ParamTy,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">super</span>::Sort, <span class="self">Self</span>::Error&gt; {
+        <span class="macro">tracked_span_bug!</span>()
+    }
+
+    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _param_ty: rustc_middle::ty::ParamTy) -&gt; <span class="kw">super</span>::SubsetTyCtor {
+        <span class="macro">tracked_span_bug!</span>()
+    }
+
+    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ebr: rustc_middle::ty::EarlyParamRegion) -&gt; Region {
+        <span class="macro">tracked_span_bug!</span>()
+    }
+
+    <span class="kw">fn </span>expr_for_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, _param_const: rustc_middle::ty::ParamConst) -&gt; Expr {
+        <span class="macro">tracked_span_bug!</span>()
+    }
+
+    <span class="kw">fn </span>const_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _param: <span class="kw-2">&amp;</span>Const) -&gt; Const {
+        <span class="macro">tracked_span_bug!</span>()
+    }
+}
+
 <span class="kw">impl </span>TVarSubst {
     <span class="kw">fn </span>new(generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] }
+    }
+
+    <span class="kw">fn </span>instantiate_partial&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: EarlyBinder&lt;T&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>folder = GenericsSubstFolder::new(<span class="kw-2">&amp;*</span><span class="self">self</span>, <span class="kw-2">&amp;</span>[]);
+        pred.skip_binder().try_fold_with(<span class="kw-2">&amp;mut </span>folder).ok()
     }
 
     <span class="kw">fn </span>finish&lt;<span class="lifetime">'tcx</span>&gt;(

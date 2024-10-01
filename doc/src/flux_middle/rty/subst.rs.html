@@ -937,7 +937,7 @@
     <span class="kw">type </span>Error = !;
 
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt;;
-    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty;
+    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt;;
     <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor;
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region;
     <span class="kw">fn </span>expr_for_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, param_const: ParamConst) -&gt; Expr;
@@ -961,9 +961,9 @@
         }
     }
 
-    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty {
+    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, !&gt; {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::Ty(ty)) =&gt; ty.clone(),
+            <span class="prelude-val">Some</span>(GenericArg::Ty(ty)) =&gt; <span class="prelude-val">Ok</span>(ty.clone()),
             <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected type for generic parameter, found `{arg:?}`"</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"type parameter out of range {param_ty:?}"</span>),
         }
@@ -1036,7 +1036,7 @@
         (<span class="self">self</span>.sort_for_param)(param_ty)
     }
 
-    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty {
+    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, E&gt; {
         <span class="macro">bug!</span>(<span class="string">"unexpected type param {param_ty:?}"</span>);
     }
 
@@ -1100,7 +1100,7 @@
 
     <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, D::Error&gt; {
         <span class="kw">match </span>ty.kind() {
-            TyKind::Param(param_ty) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.ty_for_param(<span class="kw-2">*</span>param_ty)),
+            TyKind::Param(param_ty) =&gt; <span class="self">self</span>.delegate.ty_for_param(<span class="kw-2">*</span>param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) =&gt; {
                 <span class="kw">let </span>idx = idx.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="self">self
