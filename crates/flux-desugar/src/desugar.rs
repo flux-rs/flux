@@ -245,7 +245,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     return Err(self.emit_err(errors::UnresolvedGenericParam::new(param.name)));
                 };
 
-                // The default type is wrong for extern specs
                 let maybe_extern = self.genv.maybe_extern_id(def_id);
                 let kind = match &param.kind {
                     surface::GenericParamKind::Type => {

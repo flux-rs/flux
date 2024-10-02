@@ -167,7 +167,7 @@ impl CanonicalTy {
                     let constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
+                        Expr::and(&constr.pred, Expr::eq(Expr::nu(), idx)),
                     );
                     Some(Binder::bind_with_sort(constr, sort))
                 } else {

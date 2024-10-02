@@ -435,6 +435,9 @@ impl BasicBlockEnvShape {
                 debug_assert!(!scope.has_free_vars(bty));
                 bty.clone()
             }
+            BaseTy::Infer(..) => {
+                tracked_span_bug!("unexpected infer type")
+            }
         }
     }
 

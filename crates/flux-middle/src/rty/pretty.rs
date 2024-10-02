@@ -316,8 +316,8 @@ impl Pretty for Ty {
                     join!(", ", &alias_ty.refine_args)
                 )
             }
-            TyKind::Infer(_) => {
-                w!("□")
+            TyKind::Infer(ty_vid) => {
+                w!("{ty_vid:?}")
             }
         }
     }
@@ -458,6 +458,9 @@ impl Pretty for BaseTy {
             }
             BaseTy::Dynamic(preds, re) => {
                 w!("dyn {:?} + {:?}", join!(" + ", preds), re)
+            }
+            BaseTy::Infer(ty_vid) => {
+                w!("{ty_vid:?}")
             }
         }
     }

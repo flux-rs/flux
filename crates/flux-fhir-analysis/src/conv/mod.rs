@@ -1445,14 +1445,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
     fn ty_to_base_generic(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
-        let ctor = ty
-            .shallow_canonicalize()
-            .to_subset_ty_ctor()
-            .ok_or_else(|| {
-                self.genv
-                    .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(span))
-            })?;
+        let ctor = if ty == &rty::Ty::trait_object_dummy_self() {
+            rty::SubsetTyCtor::trait_object_dummy_self()
+        } else {
+            ty.shallow_canonicalize()
+                .to_subset_ty_ctor()
+                .ok_or_else(|| {
+                    self.genv
+                        .sess()
+                        .emit_err(errors::InvalidBaseInstance::new(span))
+                })?
+        };
         Ok(rty::GenericArg::Base(ctor))
     }
 
