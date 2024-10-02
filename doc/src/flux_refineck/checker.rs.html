@@ -1839,6 +1839,22 @@
 <a href="#1839" id="1839">1839</a>
 <a href="#1840" id="1840">1840</a>
 <a href="#1841" id="1841">1841</a>
+<a href="#1842" id="1842">1842</a>
+<a href="#1843" id="1843">1843</a>
+<a href="#1844" id="1844">1844</a>
+<a href="#1845" id="1845">1845</a>
+<a href="#1846" id="1846">1846</a>
+<a href="#1847" id="1847">1847</a>
+<a href="#1848" id="1848">1848</a>
+<a href="#1849" id="1849">1849</a>
+<a href="#1850" id="1850">1850</a>
+<a href="#1851" id="1851">1851</a>
+<a href="#1852" id="1852">1852</a>
+<a href="#1853" id="1853">1853</a>
+<a href="#1854" id="1854">1854</a>
+<a href="#1855" id="1855">1855</a>
+<a href="#1856" id="1856">1856</a>
+<a href="#1857" id="1857">1857</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2717,7 +2733,10 @@
         }
 
         <span class="kw">if </span>remaining.len() == <span class="number">1 </span>{
-            <span class="kw">let </span>(<span class="kw">_</span>, variant_idx) = remaining.into_iter().next().unwrap();
+            <span class="kw">let </span>(<span class="kw">_</span>, variant_idx) = remaining
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
             successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
         } <span class="kw">else </span>{
             successors.push((targets.otherwise(), Guard::None));
@@ -2837,7 +2856,10 @@
                     .lookup_place(<span class="kw-2">&amp;mut </span>infcx.at(stmt_span), place)
                     .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="comment">// HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
-                </span><span class="kw">let </span>(adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
+                </span><span class="kw">let </span>(adt_def, ..) = ty
+                    .as_bty_skipping_existentials()
+                    .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
+                    .expect_adt();
                 <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
@@ -3455,7 +3477,7 @@
             Entry::Vacant(entry) =&gt; {
                 <span class="kw">let </span>scope = snapshot_at_dominator(ck.body, <span class="kw-2">&amp;</span>ck.snapshots, target)
                     .scope()
-                    .unwrap();
+                    .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
                 entry.insert(env.into_infer(scope).with_span(terminator_span)<span class="question-mark">?</span>);
                 <span class="bool-val">true
             </span>}
@@ -3500,7 +3522,12 @@
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
         <span class="kw">let </span>bb_env = <span class="kw-2">&amp;</span>ck.inherited.mode.bb_envs[<span class="kw-2">&amp;</span>ck.def_id][<span class="kw-2">&amp;</span>target];
-        <span class="macro">debug_assert_eq!</span>(<span class="kw-2">&amp;</span>ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        <span class="macro">debug_assert_eq!</span>(
+            <span class="kw-2">&amp;</span>ck.snapshot_at_dominator(target)
+                .scope()
+                .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>()),
+            bb_env.scope()
+        );
 
         <span class="macro">dbg::refine_goto!</span>(target, infcx, env, bb_env);
 
@@ -3582,8 +3609,13 @@
     snapshots: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Snapshot&gt;&gt;,
     bb: BasicBlock,
 ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Snapshot {
-    <span class="kw">let </span>dominator = body.dominators().immediate_dominator(bb).unwrap();
-    snapshots[dominator].as_ref().unwrap()
+    <span class="kw">let </span>dominator = body
+        .dominators()
+        .immediate_dominator(bb)
+        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
+    snapshots[dominator]
+        .as_ref()
+        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {

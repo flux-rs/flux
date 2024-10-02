@@ -1239,7 +1239,7 @@
     }
 
     <span class="kw">fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) -&gt; Binding {
-        <span class="self">self</span>.map.remove(loc).unwrap()
+        <span class="self">self</span>.map.remove(loc).unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span>Loc, <span class="kw-2">&amp;</span>Binding)&gt; {
@@ -1456,7 +1456,7 @@
     }
 
     <span class="kw">fn </span>unfold_strg_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, ty: <span class="kw-2">&amp;</span>Ty) {
-        <span class="kw">let </span>loc = path.to_loc().unwrap();
+        <span class="kw">let </span>loc = path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
         <span class="kw">let </span>kind = <span class="kw">match </span>loc {
             Loc::Local(<span class="kw">_</span>) =&gt; LocKind::Local,
             Loc::Var(<span class="kw">_</span>) =&gt; LocKind::Universal,
@@ -1851,7 +1851,7 @@
 ) -&gt; CheckerResult&lt;Ty&gt; {
     <span class="kw">match </span>ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) =&gt; {
-            <span class="kw">let </span>loc = path.to_loc().unwrap();
+            <span class="kw">let </span>loc = path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
             <span class="kw">let </span>binding = bindings.remove(<span class="kw-2">&amp;</span>loc);
             <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);

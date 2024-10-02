@@ -841,6 +841,21 @@
 <a href="#841" id="841">841</a>
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
@@ -862,6 +877,7 @@
 //! needs to be inferred.
 </span><span class="kw">use </span>std::{collections::VecDeque, fmt, iter, ops::Range};
 
+<span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -1048,7 +1064,7 @@
             <span class="kw">let </span>fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
             <span class="kw">for </span>(local, ty) <span class="kw">in </span>iter::zip(body.args_iter(), fn_sig.inputs()) {
                 <span class="kw">if let </span>rty::TyKind::Ptr(<span class="kw">_</span>, path) = ty.kind() {
-                    <span class="kw">let </span>loc = FlatSet::Elem(path.to_loc().unwrap());
+                    <span class="kw">let </span>loc = FlatSet::Elem(path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>()));
                     state.flood_with(mir::PlaceRef { local, projection: <span class="kw-2">&amp;</span>[] }, <span class="self">self</span>.map, loc);
                 } <span class="kw">else </span>{
                     state.flood(mir::PlaceRef { local, projection: <span class="kw-2">&amp;</span>[] }, <span class="self">self</span>.map);
@@ -1143,7 +1159,11 @@
         <span class="kw">for </span>(place_idx, old_value) <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.before_state {
             <span class="kw">let </span>new_value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
             <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, <span class="kw-2">&amp;</span>new_value) {
-                <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
+                <span class="kw">let </span>place = <span class="self">self
+                    </span>.tracked_places
+                    .get(place_idx)
+                    .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
+                    .clone();
                 <span class="self">self</span>.stmts.insert_at(point, GhostStatement::PtrToRef(place));
             }
             <span class="kw-2">*</span>old_value = new_value;
@@ -1165,7 +1185,11 @@
             <span class="kw">for </span>(place_idx, old_value) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.before_state {
                 <span class="kw">let </span>new_value = target_state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
                 <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, new_value) {
-                    <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
+                    <span class="kw">let </span>place = <span class="self">self
+                        </span>.tracked_places
+                        .get(place_idx)
+                        .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>())
+                        .clone();
                     <span class="self">self</span>.stmts.insert_at(point, GhostStatement::PtrToRef(place));
                 }
             }
@@ -1396,7 +1420,9 @@
         }
 
         <span class="kw">for </span>child <span class="kw">in </span><span class="self">self</span>.children(root) {
-            <span class="kw">let </span>elem = <span class="self">self</span>.places[child].proj_elem.unwrap();
+            <span class="kw">let </span>elem = <span class="self">self</span>.places[child]
+                .proj_elem
+                .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
             projection.push(elem);
             <span class="self">self</span>.for_each_tracked_place_rec(child, projection, f);
             projection.pop();
@@ -1592,7 +1618,9 @@
         }
         <span class="kw">for </span>target_child <span class="kw">in </span>map.children(target) {
             <span class="comment">// Try to find corresponding child and recurse. Reasoning is similar as above.
-            </span><span class="kw">let </span>projection = map.places[target_child].proj_elem.unwrap();
+            </span><span class="kw">let </span>projection = map.places[target_child]
+                .proj_elem
+                .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
             <span class="kw">if let </span><span class="prelude-val">Some</span>(source_child) = map.projections.get(<span class="kw-2">&amp;</span>(source, projection)) {
                 <span class="self">self</span>.insert_place_idx(target_child, <span class="kw-2">*</span>source_child, map);
             }
@@ -1663,7 +1691,9 @@
     }
 
     <span class="kw">for </span>child <span class="kw">in </span>map.children(place) {
-        <span class="kw">let </span>info_elem = map.places[child].proj_elem.unwrap();
+        <span class="kw">let </span>info_elem = map.places[child]
+            .proj_elem
+            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
         <span class="kw">let </span>child_place_str = <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, place_str, info_elem.index());
         debug_with_context_rec(child, <span class="kw-2">&amp;</span>child_place_str, new, old, map, f)<span class="question-mark">?</span>;
     }
