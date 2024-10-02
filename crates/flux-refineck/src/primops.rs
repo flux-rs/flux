@@ -173,14 +173,14 @@ fn mk_mul_rules(check_overflow: bool) -> RuleMatcher<2> {
             requires E::le(a * b, E::uint_max(uint_ty)) => ConstrReason::Overflow
             if let &BaseTy::Uint(uint_ty) = T
 
-            fn(a: T, b: T) -> T // this is underspecified
+            fn(a: T, b: T) -> T
         }
     } else {
         primop_rules!(
             fn(a: T, b: T) -> T[a * b]
             if T.is_integral()
 
-            fn(a: T, b: T) -> T // this is underspecified
+            fn(a: T, b: T) -> T
             if T.is_float()
         )
     }
@@ -215,7 +215,7 @@ fn mk_sub_rules(check_overflow: bool) -> RuleMatcher<2> {
             fn(a: T, b: T) -> T[a - b]
             if T.is_signed()
 
-            fn(a: T, b: T) -> T // this is underspecified
+            fn(a: T, b: T) -> T
             if T.is_float()
         }
     }
@@ -228,7 +228,7 @@ fn mk_div_rules() -> RuleMatcher<2> {
         requires E::ne(b, 0) => ConstrReason::Div
         if T.is_integral()
 
-        fn(a: T, b: T) -> T // this is underspecified
+        fn(a: T, b: T) -> T
         if T.is_float()
     }
 }
@@ -376,7 +376,7 @@ fn mk_neg_rules(check_overflow: bool) -> RuleMatcher<1> {
             fn(a: T) -> T[a.neg()]
             if T.is_integral()
 
-            fn(a: T) -> T[a.neg()]
+            fn(a: T) -> T
             if T.is_float()
         }
     }
