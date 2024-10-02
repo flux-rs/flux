@@ -1162,8 +1162,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         param_id: DefId,
         assoc_ident: Ident,
     ) -> ty::GenericPredicates<'tcx> {
-        // Add comment
-        let a = 1;
+        // We would like to do this computation on the resolved id for it to work with extern specs
+        // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
+        // fine because the worst that can happen is that we fail to infer a trait when using the
+        // `T::Assoc` syntax and the user has to manually annotate it as `<T as Trait>::Assoc`
+        // (or add it as a bound to the extern spec so it's returned by the query).
         let param_id = self
             .genv
             .resolve_id(param_id)

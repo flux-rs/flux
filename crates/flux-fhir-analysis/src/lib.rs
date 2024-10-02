@@ -387,8 +387,6 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
         }
         DefKind::TyParam => {
-            // Add comment
-            let a = 1;
             match def_id {
                 MaybeExternId::Local(local_id) => {
                     let owner = genv.hir().ty_param_owner(local_id);

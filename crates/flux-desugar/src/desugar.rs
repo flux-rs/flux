@@ -246,13 +246,17 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 };
 
                 // The default type is wrong for extern specs
-                let a = 1;
+                let maybe_extern = self.genv.maybe_extern_id(def_id);
                 let kind = match &param.kind {
                     surface::GenericParamKind::Type => {
                         fhir::GenericParamKind::Type {
-                            default: default
-                                .map(|ty| self.as_lift_cx().lift_ty(ty))
-                                .transpose()?,
+                            default: if maybe_extern.is_local() {
+                                default
+                                    .map(|ty| self.as_lift_cx().lift_ty(ty))
+                                    .transpose()?
+                            } else {
+                                None
+                            },
                         }
                     }
                     surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
@@ -260,7 +264,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 surface_params.insert(
                     def_id,
                     fhir::GenericParam {
-                        def_id: self.genv.maybe_extern_id(def_id),
+                        def_id: maybe_extern,
                         name: ParamName::Plain(param.name),
                         kind,
                     },
