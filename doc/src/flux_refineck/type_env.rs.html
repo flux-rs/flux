@@ -771,6 +771,9 @@
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1207,6 +1210,9 @@
             | BaseTy::Coroutine(..) =&gt; {
                 <span class="macro">debug_assert!</span>(!scope.has_free_vars(bty));
                 bty.clone()
+            }
+            BaseTy::Infer(..) =&gt; {
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected infer type"</span>)
             }
         }
     }

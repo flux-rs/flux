@@ -1035,6 +1035,8 @@
 <a href="#1035" id="1035">1035</a>
 <a href="#1036" id="1036">1036</a>
 <a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1763,6 +1765,7 @@
                 resume_ty.visit_with(visitor)<span class="question-mark">?</span>;
                 upvars.visit_with(visitor)
             }
+            BaseTy::Dynamic(exi_preds, <span class="kw">_</span>) =&gt; exi_preds.visit_with(visitor),
             BaseTy::Int(<span class="kw">_</span>)
             | BaseTy::Uint(<span class="kw">_</span>)
             | BaseTy::Bool
@@ -1771,8 +1774,8 @@
             | BaseTy::Char
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never
+            | BaseTy::Infer(<span class="kw">_</span>)
             | BaseTy::Param(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
-            BaseTy::Dynamic(exi_preds, <span class="kw">_</span>) =&gt; exi_preds.visit_with(visitor),
         }
     }
 }
@@ -1798,14 +1801,6 @@
             BaseTy::Array(ty, c) =&gt; {
                 BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
             }
-            BaseTy::Int(<span class="kw">_</span>)
-            | BaseTy::Param(<span class="kw">_</span>)
-            | BaseTy::Uint(<span class="kw">_</span>)
-            | BaseTy::Bool
-            | BaseTy::Float(<span class="kw">_</span>)
-            | BaseTy::Str
-            | BaseTy::Char
-            | BaseTy::Never =&gt; <span class="self">self</span>.clone(),
             BaseTy::Closure(did, args, gen_args) =&gt; {
                 BaseTy::Closure(<span class="kw-2">*</span>did, args.try_fold_with(folder)<span class="question-mark">?</span>, gen_args.clone())
             }
@@ -1819,6 +1814,15 @@
             BaseTy::Dynamic(preds, region) =&gt; {
                 BaseTy::Dynamic(preds.try_fold_with(folder)<span class="question-mark">?</span>, region.try_fold_with(folder)<span class="question-mark">?</span>)
             }
+            BaseTy::Int(<span class="kw">_</span>)
+            | BaseTy::Param(<span class="kw">_</span>)
+            | BaseTy::Uint(<span class="kw">_</span>)
+            | BaseTy::Bool
+            | BaseTy::Float(<span class="kw">_</span>)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::Infer(<span class="kw">_</span>)
+            | BaseTy::Never =&gt; <span class="self">self</span>.clone(),
         };
         <span class="prelude-val">Ok</span>(bty)
     }

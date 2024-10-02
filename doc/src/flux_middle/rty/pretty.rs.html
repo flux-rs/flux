@@ -545,6 +545,9 @@
 <a href="#545" id="545">545</a>
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -863,8 +866,8 @@
                     <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
                 )
             }
-            TyKind::Infer(<span class="kw">_</span>) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"□"</span>)
+            TyKind::Infer(ty_vid) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"{ty_vid:?}"</span>)
             }
         }
     }
@@ -1005,6 +1008,9 @@
             }
             BaseTy::Dynamic(preds, re) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"dyn {:?} + {:?}"</span>, <span class="macro">join!</span>(<span class="string">" + "</span>, preds), re)
+            }
+            BaseTy::Infer(ty_vid) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"{ty_vid:?}"</span>)
             }
         }
     }

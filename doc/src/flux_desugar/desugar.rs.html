@@ -1569,7 +1569,6 @@
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
 <a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1817,8 +1816,7 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnresolvedGenericParam::new(param.name)));
                 };
 
-                <span class="comment">// The default type is wrong for extern specs
-                </span><span class="kw">let </span>maybe_extern = <span class="self">self</span>.genv.maybe_extern_id(def_id);
+                <span class="kw">let </span>maybe_extern = <span class="self">self</span>.genv.maybe_extern_id(def_id);
                 <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
                     surface::GenericParamKind::Type =&gt; {
                         fhir::GenericParamKind::Type {

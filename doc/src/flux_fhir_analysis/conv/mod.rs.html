@@ -2147,6 +2147,9 @@
 <a href="#2147" id="2147">2147</a>
 <a href="#2148" id="2148">2148</a>
 <a href="#2149" id="2149">2149</a>
+<a href="#2150" id="2150">2150</a>
+<a href="#2151" id="2151">2151</a>
+<a href="#2152" id="2152">2152</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3594,14 +3597,17 @@
     <span class="doccomment">/// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
     </span><span class="kw">fn </span>ty_to_base_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; QueryResult&lt;rty::GenericArg&gt; {
-        <span class="kw">let </span>ctor = ty
-            .shallow_canonicalize()
-            .to_subset_ty_ctor()
-            .ok_or_else(|| {
-                <span class="self">self</span>.genv
-                    .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(span))
-            })<span class="question-mark">?</span>;
+        <span class="kw">let </span>ctor = <span class="kw">if </span>ty == <span class="kw-2">&amp;</span>rty::Ty::trait_object_dummy_self() {
+            rty::SubsetTyCtor::trait_object_dummy_self()
+        } <span class="kw">else </span>{
+            ty.shallow_canonicalize()
+                .to_subset_ty_ctor()
+                .ok_or_else(|| {
+                    <span class="self">self</span>.genv
+                        .sess()
+                        .emit_err(errors::InvalidBaseInstance::new(span))
+                })<span class="question-mark">?
+        </span>};
         <span class="prelude-val">Ok</span>(rty::GenericArg::Base(ctor))
     }
 

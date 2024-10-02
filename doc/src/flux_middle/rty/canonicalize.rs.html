@@ -388,7 +388,7 @@
                     <span class="kw">let </span>constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
+                        Expr::and(<span class="kw-2">&amp;</span>constr.pred, Expr::eq(Expr::nu(), idx)),
                     );
                     <span class="prelude-val">Some</span>(Binder::bind_with_sort(constr, sort))
                 } <span class="kw">else </span>{

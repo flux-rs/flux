@@ -2314,6 +2314,23 @@
 <a href="#2314" id="2314">2314</a>
 <a href="#2315" id="2315">2315</a>
 <a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
+<a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
+<a href="#2333" id="2333">2333</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3609,6 +3626,7 @@
     Coroutine(DefId, <span class="comment">/*resume_ty: */ </span>Ty, <span class="comment">/* upvar_tys: */ </span>List&lt;Ty&gt;),
     Dynamic(List&lt;Binder&lt;ExistentialPredicate&gt;&gt;, Region),
     Param(ParamTy),
+    Infer(TyVid),
 }
 
 <span class="kw">impl </span>BaseTy {
@@ -3775,6 +3793,7 @@
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never =&gt; Sort::unit(),
+            BaseTy::Infer(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(),
         }
     }
 
@@ -3842,6 +3861,7 @@
                 // let args = tcx.mk_args_from_iter(args);
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             </span>}
+            BaseTy::Infer(ty_vid) =&gt; ty::Ty::new_var(tcx, <span class="kw-2">*</span>ty_vid),
         }
     }
 }
@@ -3867,6 +3887,14 @@
 </span><span class="kw">pub type </span>SubsetTyCtor = Binder&lt;SubsetTy&gt;;
 
 <span class="kw">impl </span>SubsetTyCtor {
+    <span class="doccomment">/// This is the subset type version of [`Ty::trait_object_dummy_self`]
+    </span><span class="kw">pub fn </span>trait_object_dummy_self() -&gt; <span class="self">Self </span>{
+        SubsetTyCtor::bind_with_sort(
+            SubsetTy::trivial(BaseTy::Infer(TyVid::from_u32(<span class="number">0</span>)), Expr::nu()),
+            Sort::Infer(SortInfer::SortVar(SortVid::from_u32(<span class="number">0</span>))),
+        )
+    }
+
     <span class="kw">pub fn </span>as_bty_skipping_binder(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BaseTy {
         <span class="kw-2">&amp;</span><span class="self">self</span>.as_ref().skip_binder().bty
     }
@@ -3888,53 +3916,59 @@
 ///
 /// These are mainly found under a [`Binder`] with a single variable of the base type's sort. This
 /// can be interpreted as a type constructor or an existial type. For example, under a binder with a
-/// variable `v` of sort `int`, we can interpret `{i32[v] | v &gt; 0}` as a lambda `λv:int. {i32[v] | v &gt; 0}`
-/// that "constructs" types when applied to ints, or as an existential type `∃v:int. {i32[v] | v &gt; 0}`.
+/// variable `v` of sort `int`, we can interpret `{i32[v] | v &gt; 0}` as:
+/// - A lambda `λv:int. {i32[v] | v &gt; 0}` that "constructs" types when applied to ints, or
+/// - An existential type `∃v:int. {i32[v] | v &gt; 0}`.
+///
 /// This second interpretation is the reason we call this a subset type, i.e., the type `∃v. {b[v] | p}`
-/// corresponds to the subset of values of (base) type `b` whose index satisfies `p`. In other words,
-/// these are the types written as `B{v: p}` in the surface syntax and correspond to the types
-/// supported in other refinement type systems like Liquid Haskell (with the difference that we are
-/// explicit about separating refinements from program values via an index).
+/// corresponds to the subset of values of  type `b` whose index satisfies `p`.  These are the types
+/// written as `B{v: p}` in the surface syntax and correspond to the types supported in other
+/// refinement type systems like Liquid Haskell (with the difference that we are explicit
+/// about separating refinements from program values via an index).
 ///
 /// The main purpose for subset types is to be used as generic arguments of [kind base] when
-/// interpreted as type constructors. A subset type has two key properties that makes them suitable
-/// for that.
+/// interpreted as type constructors. They have two key properties that makes them suitable
+/// for this:
 ///
-/// First, because subset types are syntactically restricted, they make it easier to relate types
-/// structurally (e.g., for subtyping). For instance, given two types `S&lt;λv. T1&gt;` and `S&lt;λ. T2&gt;`,
-/// since we know `T1` and `T2` must be subset types, we also know they match structurally
-/// (at least shallowly). The syntactic restriction also rules out more complex types like
-/// `S&lt;λv. (i32[v], i32[0])&gt;` which simplifies some operations on types.
+/// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
+///    relate types structurally (e.g., for subtyping). For instance, given two types `S&lt;λv. T1&gt;` and
+///    `S&lt;λ. T2&gt;`, if `T1` and `T2` are subset types, we know they match structurally (at least
+///    shallowly). The syntactic restriction also rules out complex types like `S&lt;λv. (i32[v], i32[0])&gt;`,
+///    simplifying some operations on types.
 ///
-/// Second, subset types can be eagerly canonicalized via [*strengthening*] during substitution. For
-/// example, suppose we have a function:
-/// ```text
-/// fn foo&lt;T&gt;(x: T[@a], y: { T[@b] | b == a }) { }
-/// ```
-/// If we instantiate `T` with `λv. { i32[v] | v &gt; 0}`, after substitution and applying the lambda
-/// (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
-/// ```text
-/// fn foo(x: {i32[@a] | a &gt; 0}, y: { { i32[@b] | b &gt; 0 } | b == a }) { }
-/// ```
-/// Via *strengthening* we can canonicalize this to
-/// ```text
-/// fn foo(x: {i32[@a] | a &gt; 0}, y: { i32[@b] | b == a &amp;&amp; b &gt; 0 }) { }
-/// ```
-/// As a result, we can guarantee the syntactic restriction through substitution.
+/// 2. **Eager Canonicalization**: Subset types can be eagerly canonicalized via [*strengthening*]
+///    during substitution. For example, suppose we have a function:
+///    ```text
+///    fn foo&lt;T&gt;(x: T[@a], y: { T[@b] | b == a }) { }
+///    ```
+///    If we instantiate `T` with `λv. { i32[v] | v &gt; 0}`, after substitution and applying the lambda
+///    (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
+///    ```text
+///    fn foo(x: {i32[@a] | a &gt; 0}, y: { { i32[@b] | b &gt; 0 } | b == a }) { }
+///    ```
+///    Via *strengthening* we can canonicalize this to
+///    ```text
+///    fn foo(x: {i32[@a] | a &gt; 0}, y: { i32[@b] | b == a &amp;&amp; b &gt; 0 }) { }
+///    ```
+///    As a result, we can guarantee the syntactic restriction through substitution.
 ///
 /// [kind base]: GenericParamDefKind::Base
 /// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf
 </span><span class="attr">#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>SubsetTy {
-    <span class="doccomment">/// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
+    <span class="doccomment">/// The base type `b` in the subset type `{b[e] | p}`.
+    ///
+    /// **NOTE:** This is mostly going to be under a [`Binder`]. It is not yet clear to me whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
     /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
-    /// facilitate syntactic manipulation we may restrict this.
+    /// facilitate syntactic manipulation we may want to restrict this.
     </span><span class="kw">pub </span>bty: BaseTy,
-    <span class="doccomment">/// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
-    /// going to be under a binder we expect it to be [`Expr::nu()`].
+    <span class="doccomment">/// The refinement index `e` in the subset type `{b[e] | p}`. This can be an arbitrary expression,
+    /// which makes manipulation easier. However, since this is mostly found under a binder, we expect
+    /// it to be [`Expr::nu()`].
     </span><span class="kw">pub </span>idx: Expr,
-    <span class="kw">pub </span>pred: Expr,
+    <span class="doccomment">/// The predicate `p` in the subset type `{b[e] | p}`.
+    </span><span class="kw">pub </span>pred: Expr,
 }
 
 <span class="kw">impl </span>SubsetTy {
