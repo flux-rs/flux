@@ -2158,6 +2158,14 @@
 <a href="#2158" id="2158">2158</a>
 <a href="#2159" id="2159">2159</a>
 <a href="#2160" id="2160">2160</a>
+<a href="#2161" id="2161">2161</a>
+<a href="#2162" id="2162">2162</a>
+<a href="#2163" id="2163">2163</a>
+<a href="#2164" id="2164">2164</a>
+<a href="#2165" id="2165">2165</a>
+<a href="#2166" id="2166">2166</a>
+<a href="#2167" id="2167">2167</a>
+<a href="#2168" id="2168">2168</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2371,24 +2379,32 @@
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
         rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
-    <span class="kw">let </span>rust_generics = genv.tcx().generics_of(def_id.local_id());
-    <span class="kw">let </span><span class="kw-2">mut </span>params = opt_self
-        .into_iter()
-        .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
-            <span class="comment">// We have to filter out late bound parameters
-            </span><span class="kw">let </span>param = generics
-                .params
-                .iter()
-                .find(|param| param.def_id.to_def_id() == rust_param.def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>def_id = param.def_id.to_def_id();
-            <span class="prelude-val">Some</span>(rty::GenericParamDef {
-                kind: conv_generic_param_kind(<span class="kw-2">&amp;</span>param.kind),
-                def_id,
-                index: rust_param.index,
-                name: rust_param.name,
-            })
-        }))
-        .collect_vec();
+    <span class="kw">let </span><span class="kw-2">mut </span>params = {
+        <span class="comment">// FIXME(nilehmann) we should use the extern generics for this.
+        </span><span class="kw">let </span>local_rust_generics = genv.tcx().generics_of(def_id.local_id());
+        opt_self
+            .into_iter()
+            .chain(
+                local_rust_generics
+                    .own_params
+                    .iter()
+                    .flat_map(|rust_param| {
+                        <span class="comment">// We have to filter out late bound parameters
+                        </span><span class="kw">let </span>param = generics
+                            .params
+                            .iter()
+                            .find(|param| param.def_id.to_def_id() == rust_param.def_id)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>def_id = param.def_id.to_def_id();
+                        <span class="prelude-val">Some</span>(rty::GenericParamDef {
+                            kind: conv_generic_param_kind(<span class="kw-2">&amp;</span>param.kind),
+                            def_id,
+                            index: rust_param.index,
+                            name: rust_param.name,
+                        })
+                    }),
+            )
+            .collect_vec()
+    };
 
     <span class="comment">// HACK(nilehmann) add host param for effect to std/core external specs
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = def_id.as_extern() {
@@ -2409,7 +2425,7 @@
             );
         }
     }
-
+    <span class="kw">let </span>rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     <span class="prelude-val">Ok</span>(rty::Generics {
         own_params: List::from_vec(params),
         parent: rust_generics.parent,
