@@ -179,7 +179,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn define_generics(&mut self, def_id: MaybeExternId<OwnerId>) {
-        // FIXME(nilehmann) should we use resolved_id?
         let generics = self
             .genv
             .hir()
@@ -191,11 +190,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 && let Some(ns) = def_kind.ns()
             {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
-                self.define_res_in(
-                    name.name,
-                    hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
-                    ns,
-                );
+                let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
+                self.define_res_in(name.name, hir::def::Res::Def(def_kind, param_id), ns);
             }
         }
     }
@@ -403,8 +399,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
-                    // FIXME(nilehmann) should we use resolved_id?
-                    hir::def::Res::SelfTyParam { trait_: def_id.local_id().to_def_id() },
+                    hir::def::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
                 self.resolve_trait(def_id).collect_err(&mut self.err);
@@ -414,8 +409,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        // FIXME(nilehmann) should we use resolved_id?
-                        alias_to: def_id.local_id().to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
@@ -432,8 +426,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        // FIXME(nilehmann) should we use resolved_id?
-                        alias_to: def_id.local_id().to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
@@ -446,8 +439,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        // FIXME(nilehmann) should we use resolved_id?
-                        alias_to: def_id.local_id().to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
@@ -520,6 +512,7 @@ impl Rib {
 }
 
 fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
+    #[expect(clippy::disallowed_methods, reason = "modules cannot have extern specs")]
     if let Some(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
     } else {

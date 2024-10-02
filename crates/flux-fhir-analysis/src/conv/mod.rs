@@ -211,30 +211,23 @@ pub(crate) fn conv_generics(
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
+    let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     let mut params = {
-        // FIXME(nilehmann) we should use the extern generics for this.
-        let local_rust_generics = genv.tcx().generics_of(def_id.local_id());
         opt_self
             .into_iter()
-            .chain(
-                local_rust_generics
-                    .own_params
+            .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
+                // We have to filter out late bound parameters
+                let param = generics
+                    .params
                     .iter()
-                    .flat_map(|rust_param| {
-                        // We have to filter out late bound parameters
-                        let param = generics
-                            .params
-                            .iter()
-                            .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
-                        let def_id = param.def_id.to_def_id();
-                        Some(rty::GenericParamDef {
-                            kind: conv_generic_param_kind(&param.kind),
-                            def_id,
-                            index: rust_param.index,
-                            name: rust_param.name,
-                        })
-                    }),
-            )
+                    .find(|param| param.def_id.resolved_id() == rust_param.def_id)?;
+                Some(rty::GenericParamDef {
+                    kind: conv_generic_param_kind(&param.kind),
+                    def_id: param.def_id.resolved_id(),
+                    index: rust_param.index,
+                    name: rust_param.name,
+                })
+            }))
             .collect_vec()
     };
 
@@ -500,7 +493,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let vars = poly_trait_ref
             .bound_generic_params
             .iter()
-            .map(|param| self.conv_trait_bound_generic_param(param))
+            .map(|param| self.param_as_bound_var(param))
             .try_collect_vec()?;
         let poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
@@ -564,29 +557,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(())
     }
 
-    fn conv_trait_bound_generic_param(
-        &self,
-        param: &fhir::GenericParam,
-    ) -> QueryResult<rty::BoundVariableKind> {
-        match &param.kind {
-            fhir::GenericParamKind::Lifetime => {
-                let def_id = param.def_id;
-                let name = self
-                    .genv
-                    .tcx()
-                    .hir()
-                    .name(self.genv.tcx().local_def_id_to_hir_id(def_id));
-                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
-                Ok(rty::BoundVariableKind::Region(kind))
-            }
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Base => {
-                bug!("unexpected!")
-            }
-        }
-    }
-
     fn conv_fn_bound(
         &mut self,
         env: &mut Env,
@@ -612,7 +582,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let vars = trait_ref
             .bound_generic_params
             .iter()
-            .map(|param| self.conv_trait_bound_generic_param(param))
+            .map(|param| self.param_as_bound_var(param))
             .try_collect_vec()?;
         clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         Ok(())
@@ -1116,10 +1086,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     assoc_ident,
                 )?
             }
-            fhir::Res::Def(DefKind::TyParam, param_did)
-            | fhir::Res::SelfTyParam { trait_: param_did } => {
+            fhir::Res::Def(DefKind::TyParam, param_id)
+            | fhir::Res::SelfTyParam { trait_: param_id } => {
                 let predicates = self
-                    .probe_type_param_bounds(param_did.expect_local(), assoc_ident)
+                    .probe_type_param_bounds(param_id, assoc_ident)
                     .predicates;
                 self.probe_single_bound_for_assoc_item(
                     || {
@@ -1189,14 +1159,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn probe_type_param_bounds(
         &self,
-        param_did: LocalDefId,
+        param_id: DefId,
         assoc_ident: Ident,
     ) -> ty::GenericPredicates<'tcx> {
+        // We would like to do this computation on the resolved id for it to work with extern specs
+        // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
+        // fine because the worst that can happen is that we fail to infer a trait when using the
+        // `T::Assoc` syntax and the user has to manually annotate it as `<T as Trait>::Assoc`
+        // (or add it as a bound to the extern spec so it's returned by the query).
+        let param_id = self
+            .genv
+            .resolve_id(param_id)
+            .as_maybe_extern()
+            .unwrap()
+            .local_id();
         match self.owner() {
             FluxOwnerId::Rust(owner_id) => {
                 self.genv
                     .tcx()
-                    .type_param_predicates((owner_id.def_id, param_did, assoc_ident))
+                    .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
             FluxOwnerId::Flux(_) => ty::GenericPredicates::default(),
         }
@@ -1329,7 +1310,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         param: &fhir::GenericParam,
     ) -> QueryResult<rty::BoundVariableKind> {
-        let def_id = param.def_id.to_def_id();
+        let def_id = param.def_id.resolved_id();
         let name = self.genv.tcx().item_name(def_id);
         match param.kind {
             fhir::GenericParamKind::Lifetime => {
@@ -1338,7 +1319,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::GenericParamKind::Const { .. }
             | fhir::GenericParamKind::Type { .. }
             | fhir::GenericParamKind::Base => {
-                Err(query_bug!(param.def_id, "unsupported param kind `{:?}`", param.kind))
+                Err(query_bug!(def_id, "unsupported param kind `{:?}`", param.kind))
             }
         }
     }

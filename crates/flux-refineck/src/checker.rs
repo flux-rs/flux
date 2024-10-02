@@ -627,12 +627,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        let def_id = gen_pred.def_id;
+        #[expect(clippy::disallowed_methods, reason = "generators cannot be extern speced")]
+        let def_id = gen_pred.def_id.expect_local();
         let span = self.genv.tcx().def_span(def_id);
-        let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
+        let body = self.genv.mir(def_id).with_span(span)?;
         Checker::run(
-            infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
-            gen_pred.def_id.expect_local(),
+            infcx.change_item(def_id, &body.infcx, snapshot),
+            def_id,
             self.inherited.reborrow(),
             gen_pred.to_poly_fn_sig(),
         )
@@ -751,11 +752,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
             Some(BaseTy::Closure(closure_id, tys, args)) => {
-                let span = self.genv.tcx().def_span(closure_id);
-                let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
+                #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
+                let local_closure_id = closure_id.expect_local();
+                let span = self.genv.tcx().def_span(local_closure_id);
+                let body = self.genv.mir(local_closure_id).with_span(span)?;
                 Checker::run(
-                    infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
-                    closure_id.expect_local(),
+                    infcx.change_item(local_closure_id, &body.infcx, snapshot),
+                    local_closure_id,
                     self.inherited.reborrow(),
                     fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
                 )?;

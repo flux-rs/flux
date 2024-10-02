@@ -104,7 +104,7 @@ pub struct Generics<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct GenericParam<'fhir> {
-    pub def_id: LocalDefId,
+    pub def_id: MaybeExternId,
     pub name: ParamName,
     pub kind: GenericParamKind<'fhir>,
 }
@@ -1099,13 +1099,16 @@ pub enum SpecFuncKind {
 }
 
 impl<'fhir> Generics<'fhir> {
-    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &'fhir GenericParam<'fhir> {
-        self.params.iter().find(|p| p.def_id == def_id).unwrap()
+    pub fn get_param(&self, def_id: LocalDefId) -> &'fhir GenericParam<'fhir> {
+        self.params
+            .iter()
+            .find(|p| p.def_id.local_id() == def_id)
+            .unwrap()
     }
 
     pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
         let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
-            let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
+            let kind = if refined_by.is_base_generic(param.def_id.resolved_id()) {
                 GenericParamKind::Base
             } else {
                 param.kind
