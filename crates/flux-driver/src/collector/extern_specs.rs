@@ -386,6 +386,10 @@ impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, '
                 if !cmp_generic_param_def(local_param, extern_param) {
                     break 'mismatch true;
                 }
+                #[expect(
+                    clippy::disallowed_methods,
+                    reason = "we are inserting the extern spec mapping"
+                )]
                 self.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)?;
             }
             false

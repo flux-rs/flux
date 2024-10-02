@@ -728,6 +728,10 @@ enum ResolvedDefId {
     Extern(DefId),
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "we are explicitly testing whether it's an extern spec"
+)]
 fn resolve_id(genv: GlobalEnv, def_id: DefId) -> ResolvedDefId {
     if let Some(local_id) = genv.get_local_id_for_extern(def_id) {
         ResolvedDefId::ExternSpec(local_id, def_id)

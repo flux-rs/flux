@@ -505,6 +505,7 @@ impl Rib {
 }
 
 fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
+    #[expect(clippy::disallowed_methods, reason = "modules cannot have extern specs")]
     if let Some(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
     } else {

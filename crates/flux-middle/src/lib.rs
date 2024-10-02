@@ -394,6 +394,10 @@ impl Specs {
         local_id: LocalDefId,
         extern_id: DefId,
     ) -> Result<(), ExternSpecMappingErr> {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "we are inserting the extern spec mapping and we want to ensure it's not point to a local item"
+        )]
         if let Some(local) = extern_id.as_local() {
             return Err(ExternSpecMappingErr::IsLocal(local));
         }
