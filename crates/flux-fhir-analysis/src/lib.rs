@@ -29,6 +29,7 @@ use flux_middle::{
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
+    MaybeExternId,
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
@@ -383,13 +384,28 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
         }
         DefKind::TyParam => {
-            match &genv.map().get_generic_param(def_id.local_id())?.kind {
-                fhir::GenericParamKind::Type { default: Some(ty) } => {
-                    let parent = genv.tcx().local_parent(def_id.local_id());
-                    let wfckresults = genv.check_wf(parent)?;
-                    conv::conv_ty(genv, ty, &wfckresults)?
+            // Add comment
+            let a = 1;
+            match def_id {
+                MaybeExternId::Local(local_id) => {
+                    let owner = genv.hir().ty_param_owner(local_id);
+                    let param = genv.map().get_generics(owner)?.unwrap().get_param(local_id);
+                    match param.kind {
+                        fhir::GenericParamKind::Type { default: Some(ty) } => {
+                            let parent = genv.tcx().local_parent(def_id.local_id());
+                            let wfckresults = genv.check_wf(parent)?;
+                            conv::conv_ty(genv, &ty, &wfckresults)?
+                        }
+                        k => {
+                            Err(query_bug!(def_id.local_id(), "non-type def def {k:?} {def_id:?}"))?
+                        }
+                    }
                 }
-                k => Err(query_bug!(def_id.local_id(), "non-type def def {k:?} {def_id:?}"))?,
+                MaybeExternId::Extern(_, extern_id) => {
+                    let generics = genv.generics_of(extern_id)?;
+                    let ty = genv.lower_type_of(extern_id)?.skip_binder();
+                    Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
+                }
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {

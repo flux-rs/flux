@@ -243,6 +243,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     return Err(self.emit_err(errors::UnresolvedGenericParam::new(param.name)));
                 };
 
+                // The default type is wrong for extern specs
+                let a = 1;
                 let kind = match &param.kind {
                     surface::GenericParamKind::Type => {
                         fhir::GenericParamKind::Type {
@@ -255,7 +257,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 };
                 surface_params.insert(
                     def_id,
-                    fhir::GenericParam { def_id, name: ParamName::Plain(param.name), kind },
+                    fhir::GenericParam {
+                        def_id: self.genv.maybe_extern_id(def_id),
+                        name: ParamName::Plain(param.name),
+                        kind,
+                    },
                 );
             }
         }

@@ -468,14 +468,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn get_generic_param(
-        self,
-        def_id: LocalDefId,
-    ) -> QueryResult<&'genv fhir::GenericParam<'genv>> {
-        let owner = self.genv.hir().ty_param_owner(def_id);
-        Ok(self.get_generics(owner)?.unwrap().get_param(def_id))
-    }
-
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
         self.fhir.items.get(&name).as_ref().copied()
     }

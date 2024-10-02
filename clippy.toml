@@ -1,0 +1,5 @@
+disallowed-methods = [
+  # "rustc_span::def_id::DefId::is_local",
+  # "rustc_span::def_id::DefId::expect_local",
+  # "rustc_span::def_id::DefId::as_local",
+]
