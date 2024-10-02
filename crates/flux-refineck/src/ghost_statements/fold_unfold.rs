@@ -402,7 +402,10 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                         successors.push((env, target));
                     }
                     if remaining.len() == 1 {
-                        let (_, variant_idx) = remaining.into_iter().next().unwrap();
+                        let (_, variant_idx) = remaining
+                            .into_iter()
+                            .next()
+                            .unwrap_or_else(|| tracked_span_bug!());
                         env.downcast(self.genv, &place, variant_idx)?;
                     }
                     successors.push((env, targets.otherwise()));

@@ -102,6 +102,27 @@ pub fn logical_not_f(a: bool) -> bool {
     !a
 }
 
+// f32 ops
+#[flux::sig(fn(f32) -> f32)]
+pub fn negate_f32(a: f32) -> f32 {
+    -a
+}
+
+#[flux::sig(fn(f32, f32) -> f32)]
+pub fn multiply_f32(a: f32, b: f32) -> f32 {
+    a * b
+}
+
+#[flux::sig(fn(f32, f32) -> f32)]
+pub fn subtract_f32(a: f32, b: f32) -> f32 {
+    a - b
+}
+
+#[flux::sig(fn(f32, f32) -> f32)]
+pub fn divide_f32(a: f32, b: f32) -> f32 {
+    a / b
+}
+
 // unsigned shift right
 pub fn uint_shr(left: u32, right: usize) {
     let blah = left >> right;
