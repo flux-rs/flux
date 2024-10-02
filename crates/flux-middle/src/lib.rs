@@ -448,7 +448,7 @@ pub struct ResolverOutput {
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
-/// This enum serves as a type-level reminder that local ids can wrap an extern specs. The
+/// This enum serves as a type-level reminder that local ids can wrap an extern spec. The
 /// abstraction is not infallible, so one should still be careful and decide in each situation
 /// whether to use the [_local id_] or the [_resolved id_]. Although the construction of
 /// [`MaybeExternId`] is not encapsulated, it is recommended to use [`GlobalEnv::maybe_extern_id`]
@@ -464,8 +464,8 @@ pub struct ResolverOutput {
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),
-    /// A local id wrapping an external spec. The `Id` is the local id of a definition holding the
-    /// extern spec. The `DefId` is the resolved id for the external definition.
+    /// A "dummy" local definition wrapping an external spec. The `Id` is the local id of a definition
+    /// corresponding to the extern spec. The `DefId` is the resolved id for the external definition.
     Extern(Id, DefId),
 }
 
@@ -533,6 +533,39 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
 impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
     fn into_query_param(self) -> DefId {
         self.resolved_id()
+    }
+}
+
+/// Normally, a [`DefId`] is either local or external, and [`DefId::as_local`] can be used to
+/// distinguish between the two. However, extern specs introduce a third case: a local definition
+/// wrapping an extern spec. This enum is used to differentiate between the three cases.
+///
+/// The construction of [`ResolvedDefId`] is not encapsulated, but it is recommended to use
+/// [`GlobalEnv::resolve_id`] to create one.
+///
+/// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
+/// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
+#[derive(Clone, Copy)]
+pub enum ResolvedDefId {
+    /// A local definition. Corresponds to [`MaybeExternId::Local`].
+    Local(LocalDefId),
+    /// A "dummy" local definition wrapping an extern spec. The `LocalDefId` is for the local item,
+    /// and the `DefId` is the resolved id for the external spec. Corresponds to
+    /// [`MaybeExternId::Extern`].
+    ExternSpec(LocalDefId, DefId),
+    /// An external definition with no corresponding (local) extern spec.
+    Extern(DefId),
+}
+
+impl ResolvedDefId {
+    pub fn as_maybe_extern(self) -> Option<MaybeExternId> {
+        match self {
+            ResolvedDefId::Local(local_id) => Some(MaybeExternId::Local(local_id)),
+            ResolvedDefId::ExternSpec(local_id, def_id) => {
+                Some(MaybeExternId::Extern(local_id, def_id))
+            }
+            ResolvedDefId::Extern(_) => None,
+        }
     }
 }
 

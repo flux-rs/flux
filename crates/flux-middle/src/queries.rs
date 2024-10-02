@@ -27,7 +27,7 @@ use crate::{
         self,
         refining::{self, Refiner},
     },
-    MaybeExternId,
+    MaybeExternId, ResolvedDefId,
 };
 
 type Cache<K, V> = RefCell<UnordMap<K, V>>;
@@ -689,7 +689,7 @@ fn dispatch_query<R>(
     external: impl FnOnce(DefId) -> Option<R>,
     default: impl FnOnce(DefId) -> R,
 ) -> R {
-    match resolve_id(genv, def_id) {
+    match genv.resolve_id(def_id) {
         ResolvedDefId::Local(local_id) => {
             // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
             local(MaybeExternId::Local(local_id))
@@ -708,37 +708,6 @@ fn dispatch_query<R>(
             // Case 4: If none of the above, we generate a default annotation
             default(def_id)
         }
-    }
-}
-
-/// Normally, a [`DefId`] is either local or external, and [`DefId::as_local`] can be used to
-/// distinguish between the two. However, extern specs introduce a third case: a local definition
-/// wrapping an extern spec. This enum is used to differentiate between the three cases.
-///
-/// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
-/// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
-enum ResolvedDefId {
-    /// A local definition. Corresponds to [`MaybeExternId::Local`].
-    Local(LocalDefId),
-    /// A local definition wrapping an extern spec. The `LocalDefId` is for the local item,
-    /// and the `DefId` is the resolved id for the external spec. Corresponds to
-    /// [`MaybeExternId::Extern`].
-    ExternSpec(LocalDefId, DefId),
-    /// An external definition with no corresponding (local) extern spec.
-    Extern(DefId),
-}
-
-#[expect(
-    clippy::disallowed_methods,
-    reason = "we are explicitly testing whether it's an extern spec"
-)]
-fn resolve_id(genv: GlobalEnv, def_id: DefId) -> ResolvedDefId {
-    if let Some(local_id) = genv.get_local_id_for_extern(def_id) {
-        ResolvedDefId::ExternSpec(local_id, def_id)
-    } else if let Some(local_id) = def_id.as_local() {
-        ResolvedDefId::Local(local_id)
-    } else {
-        ResolvedDefId::Extern(def_id)
     }
 }
 

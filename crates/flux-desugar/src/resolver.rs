@@ -22,7 +22,7 @@ use rustc_hir::{
         PerNS,
     },
     def_id::CRATE_DEF_ID,
-    PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
+    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -179,12 +179,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn define_generics(&mut self, def_id: MaybeExternId<OwnerId>) {
-        let generics = self.genv.tcx().generics_of(def_id.resolved_id());
-        for param in &generics.own_params {
+        let generics = self
+            .genv
+            .hir()
+            .get_generics(def_id.local_id().def_id)
+            .unwrap();
+        for param in generics.params {
             let def_kind = self.genv.tcx().def_kind(param.def_id);
-            if let Some(ns) = def_kind.ns() {
+            if let ParamName::Plain(name) = param.name
+                && let Some(ns) = def_kind.ns()
+            {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
-                self.define_res_in(param.name, hir::def::Res::Def(def_kind, param.def_id), ns);
+                let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
+                self.define_res_in(name.name, hir::def::Res::Def(def_kind, param_id), ns);
             }
         }
     }

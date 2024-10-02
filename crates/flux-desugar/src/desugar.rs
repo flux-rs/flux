@@ -66,7 +66,8 @@ pub(crate) fn desugar_spec_func<'genv>(
 /// Collect all sorts resolved to a generic type in a list of refinement parameters. Return the set
 /// of generic def_ids used (sorted by their position in the list of generics).
 fn collect_generics_in_params(
-    generics: &rustc_middle::ty::Generics,
+    genv: GlobalEnv,
+    owner: MaybeExternId<OwnerId>,
     resolver_output: &ResolverOutput,
     params: &surface::RefineParams,
 ) -> FxIndexSet<DefId> {
@@ -87,7 +88,8 @@ fn collect_generics_in_params(
     }
     let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
     walk_list!(vis, visit_refine_param, params);
-    generics
+    genv.tcx()
+        .generics_of(owner.resolved_id())
         .own_params
         .iter()
         .filter_map(
@@ -317,9 +319,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         refined_by: &surface::RefineParams,
     ) -> Result<fhir::RefinedBy<'genv>> {
-        let generics = self.genv.tcx().generics_of(self.owner.local_id());
         let generic_id_to_var_idx =
-            collect_generics_in_params(generics, self.resolver_output, refined_by);
+            collect_generics_in_params(self.genv, self.owner, self.resolver_output, refined_by);
 
         let fields = refined_by
             .iter()
@@ -802,7 +803,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<DefId> {
-        let local_id = self.owner.local_id();
         let resolved_id = self.owner.resolved_id();
 
         match self.resolver_output().path_res_map[&path.node_id].full_res()? {
@@ -811,7 +811,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             _ => return None,
         }
 
-        let generics = self.genv.tcx().generics_of(local_id);
+        let generics = self.genv.tcx().generics_of(resolved_id);
         let args = &path.last().args;
         if generics.own_counts().types != args.len() {
             return None;

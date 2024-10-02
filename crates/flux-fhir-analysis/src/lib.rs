@@ -19,7 +19,7 @@ mod wf;
 use std::rc::Rc;
 
 use conv::bug_on_infer_sort;
-use flux_common::{dbg, iter::IterExt, result::ResultExt};
+use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
@@ -35,7 +35,10 @@ use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -392,17 +395,15 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                     let param = genv.map().get_generics(owner)?.unwrap().get_param(local_id);
                     match param.kind {
                         fhir::GenericParamKind::Type { default: Some(ty) } => {
-                            let parent = genv.tcx().local_parent(def_id.local_id());
+                            let parent = genv.tcx().local_parent(local_id);
                             let wfckresults = genv.check_wf(parent)?;
                             conv::conv_ty(genv, &ty, &wfckresults)?
                         }
-                        k => {
-                            Err(query_bug!(def_id.local_id(), "non-type def def {k:?} {def_id:?}"))?
-                        }
+                        k => Err(query_bug!(local_id, "non-type def def {k:?} {def_id:?}"))?,
                     }
                 }
                 MaybeExternId::Extern(_, extern_id) => {
-                    let generics = genv.generics_of(extern_id)?;
+                    let generics = genv.generics_of(ty_param_owner(genv, extern_id))?;
                     let ty = genv.lower_type_of(extern_id)?.skip_binder();
                     Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
                 }
@@ -422,6 +423,17 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         }
     };
     Ok(rty::EarlyBinder(ty))
+}
+
+fn ty_param_owner(genv: GlobalEnv, def_id: DefId) -> DefId {
+    let def_kind = genv.def_kind(def_id);
+    match def_kind {
+        DefKind::Trait | DefKind::TraitAlias => def_id,
+        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam => {
+            genv.tcx().parent(def_id)
+        }
+        _ => bug!("ty_param_owner: {:?} is a {:?} not a type parameter", def_id, def_kind),
+    }
 }
 
 fn variants_of(

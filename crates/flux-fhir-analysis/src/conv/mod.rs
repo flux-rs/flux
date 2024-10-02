@@ -1086,10 +1086,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     assoc_ident,
                 )?
             }
-            fhir::Res::Def(DefKind::TyParam, param_did)
-            | fhir::Res::SelfTyParam { trait_: param_did } => {
+            fhir::Res::Def(DefKind::TyParam, param_id)
+            | fhir::Res::SelfTyParam { trait_: param_id } => {
                 let predicates = self
-                    .probe_type_param_bounds(param_did.expect_local(), assoc_ident)
+                    .probe_type_param_bounds(param_id, assoc_ident)
                     .predicates;
                 self.probe_single_bound_for_assoc_item(
                     || {
@@ -1159,14 +1159,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn probe_type_param_bounds(
         &self,
-        param_did: LocalDefId,
+        param_id: DefId,
         assoc_ident: Ident,
     ) -> ty::GenericPredicates<'tcx> {
+        // Add comment
+        let a = 1;
+        let param_id = self
+            .genv
+            .resolve_id(param_id)
+            .as_maybe_extern()
+            .unwrap()
+            .local_id();
         match self.owner() {
             FluxOwnerId::Rust(owner_id) => {
                 self.genv
                     .tcx()
-                    .type_param_predicates((owner_id.def_id, param_did, assoc_ident))
+                    .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
             FluxOwnerId::Flux(_) => ty::GenericPredicates::default(),
         }

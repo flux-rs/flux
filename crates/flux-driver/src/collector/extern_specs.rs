@@ -9,7 +9,7 @@ use rustc_hir::{
     BodyId, OwnerId,
 };
 use rustc_middle::ty::{self, TyCtxt};
-use rustc_span::{ErrorGuaranteed, Span};
+use rustc_span::{symbol::kw, ErrorGuaranteed, Span};
 
 use super::{FluxAttrs, SpecCollector};
 
@@ -76,6 +76,7 @@ impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, '
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
         self.insert_extern_id(item.owner_id.def_id, extern_id)?;
+        self.check_generics(item.owner_id, extern_id)?;
 
         Ok(())
     }
@@ -379,18 +380,19 @@ impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, '
         let extern_params = &tcx.generics_of(extern_id).own_params;
 
         let mismatch = 'mismatch: {
-            if local_params.len() == extern_params.len() {
+            if local_params.len() != extern_params.len() {
                 break 'mismatch true;
             }
             for (local_param, extern_param) in iter::zip(local_params, extern_params) {
                 if !cmp_generic_param_def(local_param, extern_param) {
                     break 'mismatch true;
                 }
-                #[expect(
-                    clippy::disallowed_methods,
-                    reason = "we are inserting the extern spec mapping"
-                )]
-                self.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)?;
+                // We skip the self parameter because its id is the same as the trait's id, which
+                // has already been inserted.
+                if local_param.name != kw::SelfUpper {
+                    #[expect(clippy::disallowed_methods)]
+                    self.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)?;
+                }
             }
             false
         };

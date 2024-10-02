@@ -21,7 +21,7 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
-    MaybeExternId,
+    MaybeExternId, ResolvedDefId,
 };
 
 #[derive(Clone, Copy)]
@@ -379,12 +379,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             )
     }
 
-    /// If `extern_def_id` is an extern spec return the corresponding local id.
-    pub(crate) fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.collect_specs()
+    #[expect(clippy::disallowed_methods)]
+    pub fn resolve_id(self, def_id: DefId) -> ResolvedDefId {
+        let maybe_extern_spec = self
+            .collect_specs()
             .extern_id_to_local_id
-            .get(&extern_def_id)
-            .copied()
+            .get(&def_id)
+            .copied();
+        if let Some(local_id) = maybe_extern_spec {
+            ResolvedDefId::ExternSpec(local_id, def_id)
+        } else if let Some(local_id) = def_id.as_local() {
+            ResolvedDefId::Local(local_id)
+        } else {
+            ResolvedDefId::Extern(def_id)
+        }
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
