@@ -1598,26 +1598,26 @@ impl SubsetTyCtor {
 /// for this:
 ///
 /// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
-/// relate types structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and
-/// `S<λ. T2>`, if `T1` and `T2` are subset types, we know they match structurally (at least
-/// shallowly). The syntactic restriction also rules out complex types like `S<λv. (i32[v], i32[0])>`,
-/// simplifying some operations on types.
+///    relate types structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and
+///    `S<λ. T2>`, if `T1` and `T2` are subset types, we know they match structurally (at least
+///    shallowly). The syntactic restriction also rules out complex types like `S<λv. (i32[v], i32[0])>`,
+///    simplifying some operations on types.
 ///
 /// 2. **Eager Canonicalization**: Subset types can be eagerly canonicalized via [*strengthening*]
-/// during substitution. For example, suppose we have a function:
-/// ```text
-/// fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
-/// ```
-/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the lambda
-/// (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
-/// ```text
-/// fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
-/// ```
-/// Via *strengthening* we can canonicalize this to
-/// ```text
-/// fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
-/// ```
-/// As a result, we can guarantee the syntactic restriction through substitution.
+///    during substitution. For example, suppose we have a function:
+///    ```text
+///    fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
+///    ```
+///    If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the lambda
+///    (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
+///    ```text
+///    fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
+///    ```
+///    Via *strengthening* we can canonicalize this to
+///    ```text
+///    fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
+///    ```
+///    As a result, we can guarantee the syntactic restriction through substitution.
 ///
 /// [kind base]: GenericParamDefKind::Base
 /// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf

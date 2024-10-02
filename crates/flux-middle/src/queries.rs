@@ -681,7 +681,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
 /// [Resolve] the `def_id` and *dispatch* it to a provider (`local`, `external`, or `default`).
 ///
-/// [Resolve]: resolve_id
+/// [Resolve]: GlobalEnv::resolve_id
 fn dispatch_query<R>(
     genv: GlobalEnv,
     def_id: DefId,
