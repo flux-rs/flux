@@ -26,12 +26,18 @@ struct ExternImplItem {
     item_id: DefId,
 }
 
-impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
-    pub(super) fn collect(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result {
+impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, 'tcx> {
+    pub(super) fn collect(
+        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
+        body_id: BodyId,
+    ) -> Result {
         Self::new(inner, body_id)?.run()
     }
 
-    fn new(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result<Self> {
+    fn new(
+        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
+        body_id: BodyId,
+    ) -> Result<Self> {
         let body = inner.tcx.hir().body(body_id);
         if let hir::ExprKind::Block(block, _) = body.value.kind {
             Ok(Self { inner, block })
@@ -372,19 +378,29 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let local_params = &tcx.generics_of(local_id).own_params;
         let extern_params = &tcx.generics_of(extern_id).own_params;
 
-        let mismatch = local_params.len() != extern_params.len()
-            || iter::zip(local_params, extern_params).any(|(a, b)| !cmp_generic_param_def(a, b));
+        let mismatch = 'mismatch: {
+            if local_params.len() == extern_params.len() {
+                break 'mismatch true;
+            }
+            for (local_param, extern_param) in iter::zip(local_params, extern_params) {
+                if !cmp_generic_param_def(local_param, extern_param) {
+                    break 'mismatch true;
+                }
+                self.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)?;
+            }
+            false
+        };
         if mismatch {
             let local_hir_generics = tcx.hir().get_generics(local_id.def_id).unwrap();
             let span = local_hir_generics.span;
-            return Err(self.emit(errors::MismatchedGenerics {
+            Err(self.emit(errors::MismatchedGenerics {
                 span,
                 extern_def: tcx.def_span(extern_id),
                 def_descr: tcx.def_descr(extern_id),
-            }));
+            }))
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
     #[track_caller]
@@ -461,12 +477,12 @@ fn cmp_generic_param_def(a: &ty::GenericParamDef, b: &ty::GenericParamDef) -> bo
     if a.index != b.index {
         return false;
     }
-    match (&a.kind, &b.kind) {
+    matches!(
+        (&a.kind, &b.kind),
         (ty::GenericParamDefKind::Lifetime, ty::GenericParamDefKind::Lifetime)
-        | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
-        | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. }) => true,
-        _ => false,
-    }
+            | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
+            | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. })
+    )
 }
 
 fn ident_or_def_span(tcx: TyCtxt, def_id: impl Into<DefId>) -> Span {
