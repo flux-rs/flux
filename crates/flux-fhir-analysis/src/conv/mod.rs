@@ -211,24 +211,32 @@ pub(crate) fn conv_generics(
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
-    let rust_generics = genv.tcx().generics_of(def_id.local_id());
-    let mut params = opt_self
-        .into_iter()
-        .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
-            // We have to filter out late bound parameters
-            let param = generics
-                .params
-                .iter()
-                .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
-            let def_id = param.def_id.to_def_id();
-            Some(rty::GenericParamDef {
-                kind: conv_generic_param_kind(&param.kind),
-                def_id,
-                index: rust_param.index,
-                name: rust_param.name,
-            })
-        }))
-        .collect_vec();
+    let mut params = {
+        // FIXME(nilehmann) we should use the extern generics for this.
+        let local_rust_generics = genv.tcx().generics_of(def_id.local_id());
+        opt_self
+            .into_iter()
+            .chain(
+                local_rust_generics
+                    .own_params
+                    .iter()
+                    .flat_map(|rust_param| {
+                        // We have to filter out late bound parameters
+                        let param = generics
+                            .params
+                            .iter()
+                            .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
+                        let def_id = param.def_id.to_def_id();
+                        Some(rty::GenericParamDef {
+                            kind: conv_generic_param_kind(&param.kind),
+                            def_id,
+                            index: rust_param.index,
+                            name: rust_param.name,
+                        })
+                    }),
+            )
+            .collect_vec()
+    };
 
     // HACK(nilehmann) add host param for effect to std/core external specs
     if let Some(extern_id) = def_id.as_extern() {
@@ -249,7 +257,7 @@ pub(crate) fn conv_generics(
             );
         }
     }
-
+    let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     Ok(rty::Generics {
         own_params: List::from_vec(params),
         parent: rust_generics.parent,
