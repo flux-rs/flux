@@ -2147,25 +2147,6 @@
 <a href="#2147" id="2147">2147</a>
 <a href="#2148" id="2148">2148</a>
 <a href="#2149" id="2149">2149</a>
-<a href="#2150" id="2150">2150</a>
-<a href="#2151" id="2151">2151</a>
-<a href="#2152" id="2152">2152</a>
-<a href="#2153" id="2153">2153</a>
-<a href="#2154" id="2154">2154</a>
-<a href="#2155" id="2155">2155</a>
-<a href="#2156" id="2156">2156</a>
-<a href="#2157" id="2157">2157</a>
-<a href="#2158" id="2158">2158</a>
-<a href="#2159" id="2159">2159</a>
-<a href="#2160" id="2160">2160</a>
-<a href="#2161" id="2161">2161</a>
-<a href="#2162" id="2162">2162</a>
-<a href="#2163" id="2163">2163</a>
-<a href="#2164" id="2164">2164</a>
-<a href="#2165" id="2165">2165</a>
-<a href="#2166" id="2166">2166</a>
-<a href="#2167" id="2167">2167</a>
-<a href="#2168" id="2168">2168</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2379,30 +2360,23 @@
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
         rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
+    <span class="kw">let </span>rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     <span class="kw">let </span><span class="kw-2">mut </span>params = {
-        <span class="comment">// FIXME(nilehmann) we should use the extern generics for this.
-        </span><span class="kw">let </span>local_rust_generics = genv.tcx().generics_of(def_id.local_id());
         opt_self
             .into_iter()
-            .chain(
-                local_rust_generics
-                    .own_params
+            .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
+                <span class="comment">// We have to filter out late bound parameters
+                </span><span class="kw">let </span>param = generics
+                    .params
                     .iter()
-                    .flat_map(|rust_param| {
-                        <span class="comment">// We have to filter out late bound parameters
-                        </span><span class="kw">let </span>param = generics
-                            .params
-                            .iter()
-                            .find(|param| param.def_id.to_def_id() == rust_param.def_id)<span class="question-mark">?</span>;
-                        <span class="kw">let </span>def_id = param.def_id.to_def_id();
-                        <span class="prelude-val">Some</span>(rty::GenericParamDef {
-                            kind: conv_generic_param_kind(<span class="kw-2">&amp;</span>param.kind),
-                            def_id,
-                            index: rust_param.index,
-                            name: rust_param.name,
-                        })
-                    }),
-            )
+                    .find(|param| param.def_id.resolved_id() == rust_param.def_id)<span class="question-mark">?</span>;
+                <span class="prelude-val">Some</span>(rty::GenericParamDef {
+                    kind: conv_generic_param_kind(<span class="kw-2">&amp;</span>param.kind),
+                    def_id: param.def_id.resolved_id(),
+                    index: rust_param.index,
+                    name: rust_param.name,
+                })
+            }))
             .collect_vec()
     };
 
@@ -2668,7 +2642,7 @@
         <span class="kw">let </span>vars = poly_trait_ref
             .bound_generic_params
             .iter()
-            .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
+            .map(|param| <span class="self">self</span>.param_as_bound_var(param))
             .try_collect_vec()<span class="question-mark">?</span>;
         <span class="kw">let </span>poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
@@ -2732,29 +2706,6 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>conv_trait_bound_generic_param(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        param: <span class="kw-2">&amp;</span>fhir::GenericParam,
-    ) -&gt; QueryResult&lt;rty::BoundVariableKind&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
-            fhir::GenericParamKind::Lifetime =&gt; {
-                <span class="kw">let </span>def_id = param.def_id;
-                <span class="kw">let </span>name = <span class="self">self
-                    </span>.genv
-                    .tcx()
-                    .hir()
-                    .name(<span class="self">self</span>.genv.tcx().local_def_id_to_hir_id(def_id));
-                <span class="kw">let </span>kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
-                <span class="prelude-val">Ok</span>(rty::BoundVariableKind::Region(kind))
-            }
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Base =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"unexpected!"</span>)
-            }
-        }
-    }
-
     <span class="kw">fn </span>conv_fn_bound(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
@@ -2780,7 +2731,7 @@
         </span><span class="kw">let </span>vars = trait_ref
             .bound_generic_params
             .iter()
-            .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
+            .map(|param| <span class="self">self</span>.param_as_bound_var(param))
             .try_collect_vec()<span class="question-mark">?</span>;
         clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         <span class="prelude-val">Ok</span>(())
@@ -3284,10 +3235,10 @@
                     assoc_ident,
                 )<span class="question-mark">?
             </span>}
-            fhir::Res::Def(DefKind::TyParam, param_did)
-            | fhir::Res::SelfTyParam { trait_: param_did } =&gt; {
+            fhir::Res::Def(DefKind::TyParam, param_id)
+            | fhir::Res::SelfTyParam { trait_: param_id } =&gt; {
                 <span class="kw">let </span>predicates = <span class="self">self
-                    </span>.probe_type_param_bounds(param_did.expect_local(), assoc_ident)
+                    </span>.probe_type_param_bounds(param_id, assoc_ident)
                     .predicates;
                 <span class="self">self</span>.probe_single_bound_for_assoc_item(
                     || {
@@ -3357,14 +3308,25 @@
 
     <span class="kw">fn </span>probe_type_param_bounds(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        param_did: LocalDefId,
+        param_id: DefId,
         assoc_ident: Ident,
     ) -&gt; ty::GenericPredicates&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="comment">// We would like to do this computation on the resolved id for it to work with extern specs
+        // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
+        // fine because the worst that can happen is that we fail to infer a trait when using the
+        // `T::Assoc` syntax and the user has to manually annotate it as `&lt;T as Trait&gt;::Assoc`
+        // (or add it as a bound to the extern spec so it's returned by the query).
+        </span><span class="kw">let </span>param_id = <span class="self">self
+            </span>.genv
+            .resolve_id(param_id)
+            .as_maybe_extern()
+            .unwrap()
+            .local_id();
         <span class="kw">match </span><span class="self">self</span>.owner() {
             FluxOwnerId::Rust(owner_id) =&gt; {
                 <span class="self">self</span>.genv
                     .tcx()
-                    .type_param_predicates((owner_id.def_id, param_did, assoc_ident))
+                    .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
             FluxOwnerId::Flux(<span class="kw">_</span>) =&gt; ty::GenericPredicates::default(),
         }
@@ -3497,7 +3459,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         param: <span class="kw-2">&amp;</span>fhir::GenericParam,
     ) -&gt; QueryResult&lt;rty::BoundVariableKind&gt; {
-        <span class="kw">let </span>def_id = param.def_id.to_def_id();
+        <span class="kw">let </span>def_id = param.def_id.resolved_id();
         <span class="kw">let </span>name = <span class="self">self</span>.genv.tcx().item_name(def_id);
         <span class="kw">match </span>param.kind {
             fhir::GenericParamKind::Lifetime =&gt; {
@@ -3506,7 +3468,7 @@
             fhir::GenericParamKind::Const { .. }
             | fhir::GenericParamKind::Type { .. }
             | fhir::GenericParamKind::Base =&gt; {
-                <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(param.def_id, <span class="string">"unsupported param kind `{:?}`"</span>, param.kind))
+                <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id, <span class="string">"unsupported param kind `{:?}`"</span>, param.kind))
             }
         }
     }

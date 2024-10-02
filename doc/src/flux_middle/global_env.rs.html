@@ -583,7 +583,7 @@
     fhir::{<span class="self">self</span>, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
-    MaybeExternId,
+    MaybeExternId, ResolvedDefId,
 };
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -941,12 +941,20 @@
             )
     }
 
-    <span class="doccomment">/// If `extern_def_id` is an extern spec return the corresponding local id.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
-        <span class="self">self</span>.collect_specs()
+    <span class="attr">#[expect(clippy::disallowed_methods)]
+    </span><span class="kw">pub fn </span>resolve_id(<span class="self">self</span>, def_id: DefId) -&gt; ResolvedDefId {
+        <span class="kw">let </span>maybe_extern_spec = <span class="self">self
+            </span>.collect_specs()
             .extern_id_to_local_id
-            .get(<span class="kw-2">&amp;</span>extern_def_id)
-            .copied()
+            .get(<span class="kw-2">&amp;</span>def_id)
+            .copied();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = maybe_extern_spec {
+            ResolvedDefId::ExternSpec(local_id, def_id)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
+            ResolvedDefId::Local(local_id)
+        } <span class="kw">else </span>{
+            ResolvedDefId::Extern(def_id)
+        }
     }
 
     <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
@@ -1028,14 +1036,6 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.generics()))
         }
-    }
-
-    <span class="kw">pub fn </span>get_generic_param(
-        <span class="self">self</span>,
-        def_id: LocalDefId,
-    ) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::GenericParam&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>owner = <span class="self">self</span>.genv.hir().ty_param_owner(def_id);
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(def_id))
     }
 
     <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {

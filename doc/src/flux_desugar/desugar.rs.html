@@ -1560,6 +1560,16 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1628,7 +1638,8 @@
 <span class="doccomment">/// Collect all sorts resolved to a generic type in a list of refinement parameters. Return the set
 /// of generic def_ids used (sorted by their position in the list of generics).
 </span><span class="kw">fn </span>collect_generics_in_params(
-    generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics,
+    genv: GlobalEnv,
+    owner: MaybeExternId&lt;OwnerId&gt;,
     resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
     params: <span class="kw-2">&amp;</span>surface::RefineParams,
 ) -&gt; FxIndexSet&lt;DefId&gt; {
@@ -1649,7 +1660,8 @@
     }
     <span class="kw">let </span><span class="kw-2">mut </span>vis = ParamCollector { resolver_output, found: FxHashSet::default() };
     <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    generics
+    genv.tcx()
+        .generics_of(owner.resolved_id())
         .own_params
         .iter()
         .filter_map(
@@ -1805,19 +1817,29 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnresolvedGenericParam::new(param.name)));
                 };
 
+                <span class="comment">// The default type is wrong for extern specs
+                </span><span class="kw">let </span>maybe_extern = <span class="self">self</span>.genv.maybe_extern_id(def_id);
                 <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
                     surface::GenericParamKind::Type =&gt; {
                         fhir::GenericParamKind::Type {
-                            default: default
-                                .map(|ty| <span class="self">self</span>.as_lift_cx().lift_ty(ty))
-                                .transpose()<span class="question-mark">?</span>,
+                            default: <span class="kw">if </span>maybe_extern.is_local() {
+                                default
+                                    .map(|ty| <span class="self">self</span>.as_lift_cx().lift_ty(ty))
+                                    .transpose()<span class="question-mark">?
+                            </span>} <span class="kw">else </span>{
+                                <span class="prelude-val">None
+                            </span>},
                         }
                     }
                     surface::GenericParamKind::Base =&gt; fhir::GenericParamKind::Base,
                 };
                 surface_params.insert(
                     def_id,
-                    fhir::GenericParam { def_id, name: ParamName::Plain(param.name), kind },
+                    fhir::GenericParam {
+                        def_id: maybe_extern,
+                        name: ParamName::Plain(param.name),
+                        kind,
+                    },
                 );
             }
         }
@@ -1873,9 +1895,8 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         refined_by: <span class="kw-2">&amp;</span>surface::RefineParams,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx().generics_of(<span class="self">self</span>.owner.local_id());
         <span class="kw">let </span>generic_id_to_var_idx =
-            collect_generics_in_params(generics, <span class="self">self</span>.resolver_output, refined_by);
+            collect_generics_in_params(<span class="self">self</span>.genv, <span class="self">self</span>.owner, <span class="self">self</span>.resolver_output, refined_by);
 
         <span class="kw">let </span>fields = refined_by
             .iter()
@@ -2358,7 +2379,6 @@
     }
 
     <span class="kw">fn </span>check_variant_ret_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="kw">let </span>local_id = <span class="self">self</span>.owner.local_id();
         <span class="kw">let </span>resolved_id = <span class="self">self</span>.owner.resolved_id();
 
         <span class="kw">match </span><span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>path.node_id].full_res()<span class="question-mark">? </span>{
@@ -2367,7 +2387,7 @@
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         }
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx().generics_of(local_id);
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx().generics_of(resolved_id);
         <span class="kw">let </span>args = <span class="kw-2">&amp;</span>path.last().args;
         <span class="kw">if </span>generics.own_counts().types != args.len() {
             <span class="kw">return </span><span class="prelude-val">None</span>;

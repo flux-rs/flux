@@ -1855,6 +1855,9 @@
 <a href="#1855" id="1855">1855</a>
 <a href="#1856" id="1856">1856</a>
 <a href="#1857" id="1857">1857</a>
+<a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2484,12 +2487,13 @@
         snapshot: <span class="kw-2">&amp;</span>Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>def_id = gen_pred.def_id;
+        <span class="attr">#[expect(clippy::disallowed_methods, reason = <span class="string">"generators cannot be extern speced"</span>)]
+        </span><span class="kw">let </span>def_id = gen_pred.def_id.expect_local();
         <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
-        <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
         Checker::run(
-            infcx.change_item(def_id.expect_local(), <span class="kw-2">&amp;</span>body.infcx, snapshot),
-            gen_pred.def_id.expect_local(),
+            infcx.change_item(def_id, <span class="kw-2">&amp;</span>body.infcx, snapshot),
+            def_id,
             <span class="self">self</span>.inherited.reborrow(),
             gen_pred.to_poly_fn_sig(),
         )
@@ -2608,11 +2612,13 @@
         <span class="kw">let </span>self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         <span class="kw">match </span>self_ty {
             <span class="prelude-val">Some</span>(BaseTy::Closure(closure_id, tys, args)) =&gt; {
-                <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(closure_id);
-                <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(closure_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
+                <span class="attr">#[expect(clippy::disallowed_methods, reason = <span class="string">"closures cannot be extern speced"</span>)]
+                </span><span class="kw">let </span>local_closure_id = closure_id.expect_local();
+                <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(local_closure_id);
+                <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(local_closure_id).with_span(span)<span class="question-mark">?</span>;
                 Checker::run(
-                    infcx.change_item(closure_id.expect_local(), <span class="kw-2">&amp;</span>body.infcx, snapshot),
-                    closure_id.expect_local(),
+                    infcx.change_item(local_closure_id, <span class="kw-2">&amp;</span>body.infcx, snapshot),
+                    local_closure_id,
                     <span class="self">self</span>.inherited.reborrow(),
                     fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>closure_id, tys.clone(), args),
                 )<span class="question-mark">?</span>;

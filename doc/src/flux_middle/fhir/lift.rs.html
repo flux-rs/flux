@@ -545,6 +545,10 @@
 <a href="#545" id="545">545</a>
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -622,7 +626,11 @@
                 fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
-        <span class="prelude-val">Ok</span>(fhir::GenericParam { def_id: param.def_id, name: param.name, kind })
+        <span class="prelude-val">Ok</span>(fhir::GenericParam {
+            def_id: <span class="self">self</span>.genv.maybe_extern_id(param.def_id),
+            name: param.name,
+            kind,
+        })
     }
 
     <span class="kw">fn </span>lift_generics_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {

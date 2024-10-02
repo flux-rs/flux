@@ -575,6 +575,28 @@
 <a href="#575" id="575">575</a>
 <a href="#576" id="576">576</a>
 <a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_middle::ExternSpecMappingErr;
@@ -586,7 +608,7 @@
     BodyId, OwnerId,
 };
 <span class="kw">use </span>rustc_middle::ty::{<span class="self">self</span>, TyCtxt};
-<span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span};
+<span class="kw">use </span>rustc_span::{symbol::kw, ErrorGuaranteed, Span};
 
 <span class="kw">use super</span>::{FluxAttrs, SpecCollector};
 
@@ -603,12 +625,18 @@
     item_id: DefId,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; ExternSpecCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>collect(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;, body_id: BodyId) -&gt; <span class="prelude-ty">Result </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'mismatch_check</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; ExternSpecCollector&lt;<span class="lifetime">'mismatch_check</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>collect(
+        inner: <span class="kw-2">&amp;</span><span class="lifetime">'mismatch_check </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;,
+        body_id: BodyId,
+    ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">Self</span>::new(inner, body_id)<span class="question-mark">?</span>.run()
     }
 
-    <span class="kw">fn </span>new(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;, body_id: BodyId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>new(
+        inner: <span class="kw-2">&amp;</span><span class="lifetime">'mismatch_check </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;,
+        body_id: BodyId,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>body = inner.tcx.hir().body(body_id);
         <span class="kw">if let </span>hir::ExprKind::Block(block, <span class="kw">_</span>) = body.value.kind {
             <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ inner, block })
@@ -647,6 +675,7 @@
 
         <span class="kw">let </span>extern_id = <span class="self">self</span>.extract_extern_id_from_fn(item)<span class="question-mark">?</span>;
         <span class="self">self</span>.insert_extern_id(item.owner_id.def_id, extern_id)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_generics(item.owner_id, extern_id)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -949,19 +978,34 @@
         <span class="kw">let </span>local_params = <span class="kw-2">&amp;</span>tcx.generics_of(local_id).own_params;
         <span class="kw">let </span>extern_params = <span class="kw-2">&amp;</span>tcx.generics_of(extern_id).own_params;
 
-        <span class="kw">let </span>mismatch = local_params.len() != extern_params.len()
-            || iter::zip(local_params, extern_params).any(|(a, b)| !cmp_generic_param_def(a, b));
+        <span class="kw">let </span>mismatch = <span class="lifetime">'mismatch</span>: {
+            <span class="kw">if </span>local_params.len() != extern_params.len() {
+                <span class="kw">break </span><span class="lifetime">'mismatch </span><span class="bool-val">true</span>;
+            }
+            <span class="kw">for </span>(local_param, extern_param) <span class="kw">in </span>iter::zip(local_params, extern_params) {
+                <span class="kw">if </span>!cmp_generic_param_def(local_param, extern_param) {
+                    <span class="kw">break </span><span class="lifetime">'mismatch </span><span class="bool-val">true</span>;
+                }
+                <span class="comment">// We skip the self parameter because its id is the same as the trait's id, which
+                // has already been inserted.
+                </span><span class="kw">if </span>local_param.name != kw::SelfUpper {
+                    <span class="attr">#[expect(clippy::disallowed_methods)]
+                    </span><span class="self">self</span>.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)<span class="question-mark">?</span>;
+                }
+            }
+            <span class="bool-val">false
+        </span>};
         <span class="kw">if </span>mismatch {
             <span class="kw">let </span>local_hir_generics = tcx.hir().get_generics(local_id.def_id).unwrap();
             <span class="kw">let </span>span = local_hir_generics.span;
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::MismatchedGenerics {
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::MismatchedGenerics {
                 span,
                 extern_def: tcx.def_span(extern_id),
                 def_descr: tcx.def_descr(extern_id),
-            }));
+            }))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(())
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attr">#[track_caller]
@@ -1038,12 +1082,12 @@
     <span class="kw">if </span>a.index != b.index {
         <span class="kw">return </span><span class="bool-val">false</span>;
     }
-    <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
+    <span class="macro">matches!</span>(
+        (<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind),
         (ty::GenericParamDefKind::Lifetime, ty::GenericParamDefKind::Lifetime)
-        | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
-        | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. }) =&gt; <span class="bool-val">true</span>,
-        <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-    }
+            | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
+            | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. })
+    )
 }
 
 <span class="kw">fn </span>ident_or_def_span(tcx: TyCtxt, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; Span {

@@ -1505,6 +1505,9 @@
 <a href="#1505" id="1505">1505</a>
 <a href="#1506" id="1506">1506</a>
 <a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1611,7 +1614,7 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>GenericParam&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>def_id: LocalDefId,
+    <span class="kw">pub </span>def_id: MaybeExternId,
     <span class="kw">pub </span>name: ParamName,
     <span class="kw">pub </span>kind: GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt;,
 }
@@ -2606,13 +2609,16 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Generics&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>GenericParam&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="self">self</span>.params.iter().find(|p| p.def_id == def_id).unwrap()
+    <span class="kw">pub fn </span>get_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>GenericParam&lt;<span class="lifetime">'fhir</span>&gt; {
+        <span class="self">self</span>.params
+            .iter()
+            .find(|p| p.def_id.local_id() == def_id)
+            .unwrap()
     }
 
     <span class="kw">pub fn </span>with_refined_by(<span class="self">self</span>, genv: GlobalEnv&lt;<span class="lifetime">'fhir</span>, <span class="lifetime">'_</span>&gt;, refined_by: <span class="kw-2">&amp;</span>RefinedBy) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>params = genv.alloc_slice_fill_iter(<span class="self">self</span>.params.iter().map(|param| {
-            <span class="kw">let </span>kind = <span class="kw">if </span>refined_by.is_base_generic(param.def_id.to_def_id()) {
+            <span class="kw">let </span>kind = <span class="kw">if </span>refined_by.is_base_generic(param.def_id.resolved_id()) {
                 GenericParamKind::Base
             } <span class="kw">else </span>{
                 param.kind
