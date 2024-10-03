@@ -33,12 +33,12 @@ use super::{
 };
 use crate::rty::fold::TypeVisitable;
 
-#[derive(Default)]
 pub struct Hoister<D> {
     delegate: D,
     tuples: bool,
     shr_refs: bool,
     boxes: bool,
+    downcast: bool,
 }
 
 pub trait HoisterDelegate {
@@ -48,7 +48,7 @@ pub trait HoisterDelegate {
 
 impl<D> Hoister<D> {
     pub fn with_delegate(delegate: D) -> Self {
-        Hoister { delegate, tuples: false, shr_refs: false, boxes: false }
+        Hoister { delegate, tuples: false, shr_refs: false, boxes: false, downcast: false }
     }
 
     pub fn hoist_inside_shr_refs(mut self, shr_refs: bool) -> Self {
@@ -63,6 +63,10 @@ impl<D> Hoister<D> {
 
     pub fn hoist_inside_boxes(mut self, boxes: bool) -> Self {
         self.boxes = boxes;
+        self
+    }
+    pub fn hoist_inside_downcast(mut self, downcast: bool) -> Self {
+        self.downcast = downcast;
         self
     }
 }
@@ -83,7 +87,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 ty.fold_with(self)
             }
             TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
-            TyKind::Downcast(..) => ty.super_fold_with(self),
+            TyKind::Downcast(..) if self.downcast => ty.super_fold_with(self),
             _ => ty.clone(),
         }
     }

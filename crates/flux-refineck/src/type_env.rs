@@ -645,7 +645,8 @@ impl BasicBlockEnvShape {
         let mut hoister = Hoister::with_delegate(&mut delegate)
             .hoist_inside_tuples(true)
             .hoist_inside_shr_refs(true)
-            .hoist_inside_boxes(true);
+            .hoist_inside_boxes(true)
+            .hoist_inside_downcast(true);
 
         let mut bindings = self.bindings;
         bindings.fmap_mut(|ty| hoister.hoist(ty));
