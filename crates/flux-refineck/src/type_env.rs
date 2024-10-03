@@ -12,7 +12,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        canonicalize::{BoundedHoister, Hoister},
+        canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
@@ -640,7 +640,7 @@ impl BasicBlockEnvShape {
     }
 
     pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
-        let mut delegate = BoundedHoister::default();
+        let mut delegate = LocalHoister::default();
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let mut bindings = self.bindings;

@@ -2,18 +2,27 @@
 //! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b > 0}` is
 //! `∃a,b. {i32[a + b] | b > 0}`.
 //!
-//! Canonicalization can be *shallow* or *deep*, by this we mean that some type constructors
-//! introduce new "scopes" that limit the hoisting. For instance, we are not allowed (in general) to
-//! hoist an existential type out of a generic argument, for example, in `Vec<∃v. i32[v]>` the
-//! existential inside the `Vec` cannot be hoisted out. However, the type inside the generic argument
-//! can be canonizalized locally inside the scope of the generic argument. Shallow canonicalization
-//! stops when finding type constructors. In contrast, deep canonicalization also canonicalizes inside
-//! type constructors.
+//! Type constructors introduce scopes that can limit the hoisting. For instance, it is generally
+//! not permitted to hoist an existential out of a generic argument. For example, in `Vec<∃v. i32[v]>`
+//! the existential inside the `Vec` cannot be hoisted out.
 //!
-//! Note that existentials inside some type constructors like shared references, tuples or boxes can
-//! be hoisted soundly, e.g., `(∃a. i32[a], ∃b. i32[b])` is equivalent to `∃a,b. (i32[a], i32[b])`
-//! and `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We don't do this hoisting by default, but the
-//! [`Hoister`] struct can be configured to do so.
+//! However, some type constructors are more lenient with respect to howsint. Consider the tuple
+//! `(∃a. i32[a], ∃b. i32[b])`. Hoisting the existentials results in `∃a,b. (i32[a], i32[b])` which
+//! is an equivalent type (in the sense that subtyping holds both ways). The same applies to shared
+//! references: `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We refer to this class of type
+//! constructors *transparent*. Hoisting existential out of transparent type constructors is useful
+//! as it allows the logical information to be extracted from the type. We try to eagerly do so as
+//! much as possible.
+//!
+//! And important case is mutable references. In some situations, it is sound to hoist out of mutable
+//! references. For example, if we have a variable in the environment of type `&mut ∃v. T[v]`, it is
+//! sound to treat it as `&mut T[a]` for a freshly generated `a` (assuming the lifetime of the
+//! reference is alive). However, this may result in a type that is *too specific* because the index
+//! `a` cannot be updated anymore.
+//!
+//! By default, we do *shallow* hoisting, i.e., we stop at the first type constructor. This enough
+//! in cases where we need to inspect a type structurally one level. The amount of hoisting
+//! can be controlled by configuring the [`Hoister`] struct.
 //!
 //! It's also important to note that canonizalization doesn't imply any form of semantic equality
 //! and it is just a best effort to facilitate syntactic manipulation. For example, the types
@@ -33,13 +42,19 @@ use super::{
 };
 use crate::rty::fold::TypeVisitable;
 
+/// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
+/// It can be configured to stop hoisting at specific type constructors.
+///
+/// The struct is generic on a delegate `D` because we use it to do *local* hoisting, keeping
+/// variables bound with a [`Binder`], and for *freeing* variables into the refinement context.
+// Should we use a builder for this?
 pub struct Hoister<D> {
     delegate: D,
-    boxes: bool,
-    downcast: bool,
-    mut_refs: bool,
-    shr_refs: bool,
-    tuples: bool,
+    in_boxes: bool,
+    in_downcast: bool,
+    in_mut_refs: bool,
+    in_shr_refs: bool,
+    in_tuples: bool,
     existentials: bool,
 }
 
@@ -52,37 +67,37 @@ impl<D> Hoister<D> {
     pub fn with_delegate(delegate: D) -> Self {
         Hoister {
             delegate,
-            tuples: false,
-            shr_refs: false,
-            mut_refs: false,
-            boxes: false,
-            downcast: false,
+            in_tuples: false,
+            in_shr_refs: false,
+            in_mut_refs: false,
+            in_boxes: false,
+            in_downcast: false,
             existentials: true,
         }
     }
 
     pub fn hoist_inside_shr_refs(mut self, shr_refs: bool) -> Self {
-        self.shr_refs = shr_refs;
+        self.in_shr_refs = shr_refs;
         self
     }
 
     pub fn hoist_inside_mut_refs(mut self, mut_refs: bool) -> Self {
-        self.mut_refs = mut_refs;
+        self.in_mut_refs = mut_refs;
         self
     }
 
     pub fn hoist_inside_tuples(mut self, tuples: bool) -> Self {
-        self.tuples = tuples;
+        self.in_tuples = tuples;
         self
     }
 
     pub fn hoist_inside_boxes(mut self, boxes: bool) -> Self {
-        self.boxes = boxes;
+        self.in_boxes = boxes;
         self
     }
 
     pub fn hoist_inside_downcast(mut self, downcast: bool) -> Self {
-        self.downcast = downcast;
+        self.in_downcast = downcast;
         self
     }
 
@@ -126,14 +141,14 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 ty.fold_with(self)
             }
             TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
-            TyKind::Downcast(..) if self.downcast => ty.super_fold_with(self),
+            TyKind::Downcast(..) if self.in_downcast => ty.super_fold_with(self),
             _ => ty.clone(),
         }
     }
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
-            BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.boxes => {
+            BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.in_boxes => {
                 let (boxed, alloc) = args.box_args();
                 let args = List::from_arr([
                     GenericArg::Ty(boxed.fold_with(self)),
@@ -141,32 +156,32 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 ]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
-            BaseTy::Ref(re, ty, Mutability::Not) if self.shr_refs => {
+            BaseTy::Ref(re, ty, Mutability::Not) if self.in_shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
             }
-            BaseTy::Ref(re, ty, Mutability::Mut) if self.mut_refs => {
+            BaseTy::Ref(re, ty, Mutability::Mut) if self.in_mut_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Mut)
             }
-            BaseTy::Tuple(tys) if self.tuples => BaseTy::Tuple(tys.fold_with(self)),
+            BaseTy::Tuple(tys) if self.in_tuples => BaseTy::Tuple(tys.fold_with(self)),
             _ => bty.clone(),
         }
     }
 }
 
 #[derive(Default)]
-pub struct BoundedHoister {
+pub struct LocalHoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
 }
 
-impl BoundedHoister {
+impl LocalHoister {
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
         let vars = List::from_vec(self.vars);
         Binder::bind_with_vars(f(vars.clone(), self.preds), vars)
     }
 }
 
-impl HoisterDelegate for &mut BoundedHoister {
+impl HoisterDelegate for &mut LocalHoister {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
         ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
             let idx = self.vars.len();
@@ -186,7 +201,7 @@ impl Ty {
     /// type constructor.
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
         debug_assert!(!self.has_escaping_bvars());
-        let mut delegate = BoundedHoister::default();
+        let mut delegate = LocalHoister::default();
         let ty = Hoister::with_delegate(&mut delegate).hoist(self);
         let constr_ty = delegate.bind(|_, preds| {
             let pred = Expr::and_from_iter(preds);
