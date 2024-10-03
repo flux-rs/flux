@@ -782,13 +782,13 @@
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        canonicalize::Hoister,
+        canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
@@ -1042,9 +1042,8 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, check_overflow: bool) {
         <span class="self">self</span>.bindings.fmap_mut(|ty| {
             infcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(ty)
+                .hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(ty)
         });
     }
 
@@ -1417,37 +1416,38 @@
     }
 
     <span class="kw">pub fn </span>into_bb_env(<span class="self">self</span>, kvar_gen: <span class="kw-2">&amp;mut </span>KVarGen) -&gt; BasicBlockEnv {
+        <span class="kw">let </span><span class="kw-2">mut </span>delegate = LocalHoister::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).transparent();
+
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="self">self</span>.bindings;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::default()
-            .hoist_inside_tuples(<span class="bool-val">true</span>)
-            .hoist_inside_shr_refs(<span class="bool-val">true</span>)
-            .hoist_inside_boxes(<span class="bool-val">true</span>);
         bindings.fmap_mut(|ty| hoister.hoist(ty));
-        <span class="kw">let </span>(vars, preds) = hoister.into_parts();
 
-        <span class="comment">// Replace all holes with a single fresh kvar on all parameters
-        </span><span class="kw">let </span><span class="kw-2">mut </span>constrs = preds
-            .into_iter()
-            .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
-            .collect_vec();
+        BasicBlockEnv {
+            <span class="comment">// We are relying on all the types in `bindings` not having escaping bvars, otherwise
+            // we would have to shift them in since we are creating a new binder.
+            </span>data: delegate.bind(|vars, preds| {
+                <span class="comment">// Replace all holes with a single fresh kvar on all parameters
+                </span><span class="kw">let </span><span class="kw-2">mut </span>constrs = preds
+                    .into_iter()
+                    .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
+                    .collect_vec();
+                <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[vars.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
+                constrs.push(kvar);
 
-        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[vars.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
-        constrs.push(kvar);
+                <span class="comment">// Replace remaining holes by fresh kvars
+                </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |binders: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
+                    <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
+                    <span class="kw">let </span>binders = std::iter::once(vars.clone())
+                        .chain(binders.iter().cloned())
+                        .collect_vec();
+                    kvar_gen.fresh(<span class="kw-2">&amp;</span>binders, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
+                };
+                bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
 
-        <span class="comment">// Replace remaining holes by fresh kvars
-        </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |binders: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
-            <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
-            <span class="kw">let </span>binders = std::iter::once(vars.clone())
-                .chain(binders.iter().cloned())
-                .collect_vec();
-            kvar_gen.fresh(<span class="kw-2">&amp;</span>binders, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
-        };
-        bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
-
-        <span class="kw">let </span>data = BasicBlockEnvData { constrs: constrs.into(), bindings };
-
-        BasicBlockEnv { data: Binder::bind_with_vars(data, vars), scope: <span class="self">self</span>.scope }
+                BasicBlockEnvData { constrs: constrs.into(), bindings }
+            }),
+            scope: <span class="self">self</span>.scope,
+        }
     }
 }
 

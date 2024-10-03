@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CanonicalTy"],"mod":["pretty"],"struct":["CanonicalConstrTy","Hoister"]};
+window.SIDEBAR_ITEMS = {"enum":["CanonicalTy"],"mod":["pretty"],"struct":["CanonicalConstrTy","Hoister","LocalHoister"],"trait":["HoisterDelegate"]};

@@ -1865,7 +1865,7 @@
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{<span class="self">self</span>, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot},
-    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Snapshot},
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
@@ -2189,9 +2189,8 @@
         source_info: SourceInfo,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>ty = infcx
-            .unpacker()
-            .assume_invariants(<span class="self">self</span>.check_overflow())
-            .unpack(<span class="kw-2">&amp;</span>ty);
+            .hoister(AssumeInvariants::yes(<span class="self">self</span>.check_overflow()))
+            .hoist(<span class="kw-2">&amp;</span>ty);
         env.assign(<span class="kw-2">&amp;mut </span>infcx.at(source_info.span), place, ty)
             .with_src_info(source_info)
     }
@@ -3199,9 +3198,8 @@
             Operand::Constant(c) =&gt; <span class="self">self</span>.check_constant(c)<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(infcx
-            .unpacker()
-            .assume_invariants(<span class="self">self</span>.check_overflow())
-            .unpack(<span class="kw-2">&amp;</span>ty))
+            .hoister(AssumeInvariants::yes(<span class="self">self</span>.check_overflow()))
+            .hoist(<span class="kw-2">&amp;</span>ty))
     }
 
     <span class="kw">fn </span>check_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: <span class="kw-2">&amp;</span>Constant) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
@@ -3448,7 +3446,9 @@
             &amp;&amp; <span class="kw">let </span><span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
             &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
         {
-            rcx.unpacker().unpack_inside_mut_ref(<span class="bool-val">true</span>).unpack(actual)
+            rcx.hoister(AssumeInvariants::No)
+                .hoist_inside_mut_refs(<span class="bool-val">true</span>)
+                .hoist(actual)
         } <span class="kw">else </span>{
             actual.clone()
         }
