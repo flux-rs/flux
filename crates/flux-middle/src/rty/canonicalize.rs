@@ -29,19 +29,28 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
-    Ty, TyKind,
+    Ty, TyCtor, TyKind,
 };
+use crate::rty::fold::TypeVisitable;
 
 #[derive(Default)]
-pub struct Hoister {
-    vars: Vec<BoundVariableKind>,
-    preds: Vec<Expr>,
+pub struct Hoister<D> {
+    delegate: D,
     tuples: bool,
     shr_refs: bool,
     boxes: bool,
 }
 
-impl Hoister {
+pub trait HoisterDelegate {
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty;
+    fn hoist_constr(&mut self, pred: Expr);
+}
+
+impl<D> Hoister<D> {
+    pub fn with_delegate(delegate: D) -> Self {
+        Hoister { delegate, tuples: false, shr_refs: false, boxes: false }
+    }
+
     pub fn hoist_inside_shr_refs(mut self, shr_refs: bool) -> Self {
         self.shr_refs = shr_refs;
         self
@@ -56,31 +65,21 @@ impl Hoister {
         self.boxes = boxes;
         self
     }
+}
 
-    pub fn into_parts(self) -> (List<BoundVariableKind>, Vec<Expr>) {
-        (List::from_vec(self.vars), self.preds)
-    }
-
+impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
     }
 }
 
-impl TypeFolder for Hoister {
+impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
-            TyKind::Exists(ty) => {
-                ty.replace_bound_refts_with(|sort, mode, kind| {
-                    let idx = self.vars.len();
-                    self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
-                })
-                .fold_with(self)
-            }
+            TyKind::Exists(ty_ctor) => self.delegate.hoist_exists(ty_ctor).fold_with(self),
             TyKind::Constr(pred, ty) => {
-                self.preds.push(pred.clone());
+                self.delegate.hoist_constr(pred.clone());
                 ty.fold_with(self)
             }
             TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
@@ -108,19 +107,49 @@ impl TypeFolder for Hoister {
     }
 }
 
+#[derive(Default)]
+pub struct BoundedHoister {
+    vars: Vec<BoundVariableKind>,
+    preds: Vec<Expr>,
+}
+
+impl BoundedHoister {
+    pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
+        let vars = List::from_vec(self.vars);
+        Binder::bind_with_vars(f(vars.clone(), self.preds), vars)
+    }
+}
+
+impl HoisterDelegate for &mut BoundedHoister {
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
+        ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
+            let idx = self.vars.len();
+            self.vars
+                .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
+            Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
+        })
+    }
+
+    fn hoist_constr(&mut self, pred: Expr) {
+        self.preds.push(pred);
+    }
+}
+
 impl Ty {
     /// Hoist existentials and predicates inside the type stopping when encountering the first
     /// type constructor.
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
-        let mut hoister = Hoister::default();
-        let ty = hoister.hoist(self);
-        let (vars, preds) = hoister.into_parts();
-        let pred = Expr::and_from_iter(preds);
-        let constr_ty = CanonicalConstrTy { ty, pred };
-        if vars.is_empty() {
-            CanonicalTy::Constr(constr_ty)
+        debug_assert!(!self.has_escaping_bvars());
+        let mut delegate = BoundedHoister::default();
+        let ty = Hoister::with_delegate(&mut delegate).hoist(self);
+        let constr_ty = delegate.bind(|_, preds| {
+            let pred = Expr::and_from_iter(preds);
+            CanonicalConstrTy { ty, pred }
+        });
+        if constr_ty.vars().is_empty() {
+            CanonicalTy::Constr(constr_ty.skip_binder())
         } else {
-            CanonicalTy::Exists(Binder::bind_with_vars(constr_ty, vars))
+            CanonicalTy::Exists(constr_ty)
         }
     }
 }
