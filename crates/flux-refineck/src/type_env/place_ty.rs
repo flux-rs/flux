@@ -3,7 +3,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::RefineCtxt,
+    refine_tree::{AssumeInvariants, RefineCtxt},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -94,7 +94,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.0.unpacker().shallow(true).unpack(ty)
+        self.0.hoister(AssumeInvariants::No).shallow().hoist(ty)
     }
 
     fn downcast_struct(
@@ -342,9 +342,8 @@ impl LookupResult<'_> {
             let mut unblocked = ty.unblocked();
             if self.is_strg {
                 unblocked = rcx
-                    .unpacker()
-                    .assume_invariants(check_overflow)
-                    .unpack(&unblocked);
+                    .hoister(AssumeInvariants::yes(check_overflow))
+                    .hoist(&unblocked);
             }
             unblocked
         });
@@ -570,18 +569,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
         self.infcx
-            .unpacker()
-            .assume_invariants(self.checker_conf.check_overflow)
-            .shallow(true)
-            .unpack(ty)
+            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .shallow()
+            .hoist(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.infcx.unpacker();
-        if self.in_ref == Some(Mutability::Mut) {
-            unpacker = unpacker.unpack_exists(false);
-        }
-        let ty = unpacker.unpack(ty);
+        let ty = self
+            .infcx
+            .hoister(AssumeInvariants::No)
+            .hoist_existentials(self.in_ref != Some(Mutability::Mut))
+            .hoist(ty);
         self.infcx
             .assume_invariants(&ty, self.checker_conf.check_overflow);
         ty

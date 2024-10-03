@@ -5,7 +5,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot},
-    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -329,9 +329,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         source_info: SourceInfo,
     ) -> Result {
         let ty = infcx
-            .unpacker()
-            .assume_invariants(self.check_overflow())
-            .unpack(&ty);
+            .hoister(AssumeInvariants::yes(self.check_overflow()))
+            .hoist(&ty);
         env.assign(&mut infcx.at(source_info.span), place, ty)
             .with_src_info(source_info)
     }
@@ -1339,9 +1338,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(infcx
-            .unpacker()
-            .assume_invariants(self.check_overflow())
-            .unpack(&ty))
+            .hoister(AssumeInvariants::yes(self.check_overflow()))
+            .hoist(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> Result<Ty> {
@@ -1588,7 +1586,9 @@ fn infer_under_mut_ref_hack(
             && let Ref!(_, ty, Mutability::Mut) = formal.kind()
             && let TyKind::Indexed(..) = ty.kind()
         {
-            rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
+            rcx.hoister(AssumeInvariants::No)
+                .hoist_inside_mut_refs(true)
+                .hoist(actual)
         } else {
             actual.clone()
         }

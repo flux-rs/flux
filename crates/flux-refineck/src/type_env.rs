@@ -6,13 +6,13 @@ use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        canonicalize::Hoister,
+        canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
@@ -266,9 +266,8 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt, check_overflow: bool) {
         self.bindings.fmap_mut(|ty| {
             infcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(ty)
+                .hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(ty)
         });
     }
 
@@ -641,37 +640,38 @@ impl BasicBlockEnvShape {
     }
 
     pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
+        let mut delegate = LocalHoister::default();
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+
         let mut bindings = self.bindings;
-
-        let mut hoister = Hoister::default()
-            .hoist_inside_tuples(true)
-            .hoist_inside_shr_refs(true)
-            .hoist_inside_boxes(true);
         bindings.fmap_mut(|ty| hoister.hoist(ty));
-        let (vars, preds) = hoister.into_parts();
 
-        // Replace all holes with a single fresh kvar on all parameters
-        let mut constrs = preds
-            .into_iter()
-            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
-            .collect_vec();
+        BasicBlockEnv {
+            // We are relying on all the types in `bindings` not having escaping bvars, otherwise
+            // we would have to shift them in since we are creating a new binder.
+            data: delegate.bind(|vars, preds| {
+                // Replace all holes with a single fresh kvar on all parameters
+                let mut constrs = preds
+                    .into_iter()
+                    .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
+                    .collect_vec();
+                let kvar = kvar_gen.fresh(&[vars.clone()], self.scope.iter(), KVarEncoding::Conj);
+                constrs.push(kvar);
 
-        let kvar = kvar_gen.fresh(&[vars.clone()], self.scope.iter(), KVarEncoding::Conj);
-        constrs.push(kvar);
+                // Replace remaining holes by fresh kvars
+                let mut kvar_gen = |binders: &[_], kind| {
+                    debug_assert_eq!(kind, HoleKind::Pred);
+                    let binders = std::iter::once(vars.clone())
+                        .chain(binders.iter().cloned())
+                        .collect_vec();
+                    kvar_gen.fresh(&binders, self.scope.iter(), KVarEncoding::Conj)
+                };
+                bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
-        // Replace remaining holes by fresh kvars
-        let mut kvar_gen = |binders: &[_], kind| {
-            debug_assert_eq!(kind, HoleKind::Pred);
-            let binders = std::iter::once(vars.clone())
-                .chain(binders.iter().cloned())
-                .collect_vec();
-            kvar_gen.fresh(&binders, self.scope.iter(), KVarEncoding::Conj)
-        };
-        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
-
-        let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
-
-        BasicBlockEnv { data: Binder::bind_with_vars(data, vars), scope: self.scope }
+                BasicBlockEnvData { constrs: constrs.into(), bindings }
+            }),
+            scope: self.scope,
+        }
     }
 }
 
