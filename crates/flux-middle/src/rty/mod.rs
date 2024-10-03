@@ -24,7 +24,7 @@ pub use expr::{
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
@@ -1757,7 +1757,7 @@ impl GenericArg {
         }
         for param in &generics.own_params {
             let kind = mk_kind(param, args);
-            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
+            tracked_span_assert_eq!(param.index as usize, args.len()); // "{args:#?}, {generics:#?}");
             args.push(kind);
         }
         Ok(())
@@ -2320,14 +2320,14 @@ impl WfckResults {
 
 impl<'a, T> LocalTableInContextMut<'a, T> {
     pub fn insert(&mut self, fhir_id: FhirId, value: T) {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.insert(fhir_id.local_id, value);
     }
 }
 
 impl<'a, T> LocalTableInContext<'a, T> {
     pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.get(&fhir_id.local_id)
     }
 }
