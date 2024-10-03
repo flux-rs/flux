@@ -414,7 +414,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(infcx, env, terminator_span, discr)?;
-                if discr_ty.is_integral() || discr_ty.is_bool() {
+                if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
                     Ok(Self::check_match(&discr_ty, targets))
@@ -838,6 +838,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, idx) => {
+                    if bits == 0 {
+                        idx.not()
+                    } else {
+                        idx.clone()
+                    }
+                }
+                TyKind::Indexed(BaseTy::Char, idx) => {
                     if bits == 0 {
                         idx.not()
                     } else {
