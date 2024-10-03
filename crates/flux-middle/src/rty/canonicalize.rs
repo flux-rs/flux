@@ -27,7 +27,7 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    fold::{TypeFoldable, TypeFolder},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
     Ty, TyKind,
 };
@@ -84,6 +84,7 @@ impl TypeFolder for Hoister {
                 ty.fold_with(self)
             }
             TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
+            TyKind::Downcast(..) => ty.super_fold_with(self),
             _ => ty.clone(),
         }
     }

@@ -577,7 +577,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.infcx.unpacker().shallow(true);
+        let mut unpacker = self.infcx.unpacker();
         if self.in_ref == Some(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(false);
         }
