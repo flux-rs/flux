@@ -6,11 +6,11 @@
 //! not permitted to hoist an existential out of a generic argument. For example, in `Vec<∃v. i32[v]>`
 //! the existential inside the `Vec` cannot be hoisted out.
 //!
-//! However, some type constructors are more lenient with respect to howsint. Consider the tuple
+//! However, some type constructors are more lenient with respect to hoisting. Consider the tuple
 //! `(∃a. i32[a], ∃b. i32[b])`. Hoisting the existentials results in `∃a,b. (i32[a], i32[b])` which
 //! is an equivalent type (in the sense that subtyping holds both ways). The same applies to shared
 //! references: `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We refer to this class of type
-//! constructors *transparent*. Hoisting existential out of transparent type constructors is useful
+//! constructors as *transparent*. Hoisting existential out of transparent type constructors is useful
 //! as it allows the logical information to be extracted from the type. We try to eagerly do so as
 //! much as possible.
 //!
@@ -20,9 +20,9 @@
 //! reference is alive). However, this may result in a type that is *too specific* because the index
 //! `a` cannot be updated anymore.
 //!
-//! By default, we do *shallow* hoisting, i.e., we stop at the first type constructor. This enough
-//! in cases where we need to inspect a type structurally one level. The amount of hoisting
-//! can be controlled by configuring the [`Hoister`] struct.
+//! By default, we do *shallow* hoisting, i.e., we stop at the first type constructor. This is enough
+//! for cases where we need to inspect a type structurally one level. The amount of hoisting can be
+//! controlled by configuring the [`Hoister`] struct.
 //!
 //! It's also important to note that canonizalization doesn't imply any form of semantic equality
 //! and it is just a best effort to facilitate syntactic manipulation. For example, the types
