@@ -35,10 +35,12 @@ use crate::rty::fold::TypeVisitable;
 
 pub struct Hoister<D> {
     delegate: D,
-    tuples: bool,
-    shr_refs: bool,
     boxes: bool,
     downcast: bool,
+    mut_refs: bool,
+    shr_refs: bool,
+    tuples: bool,
+    existentials: bool,
 }
 
 pub trait HoisterDelegate {
@@ -48,11 +50,24 @@ pub trait HoisterDelegate {
 
 impl<D> Hoister<D> {
     pub fn with_delegate(delegate: D) -> Self {
-        Hoister { delegate, tuples: false, shr_refs: false, boxes: false, downcast: false }
+        Hoister {
+            delegate,
+            tuples: false,
+            shr_refs: false,
+            mut_refs: false,
+            boxes: false,
+            downcast: false,
+            existentials: true,
+        }
     }
 
     pub fn hoist_inside_shr_refs(mut self, shr_refs: bool) -> Self {
         self.shr_refs = shr_refs;
+        self
+    }
+
+    pub fn hoist_inside_mut_refs(mut self, mut_refs: bool) -> Self {
+        self.mut_refs = mut_refs;
         self
     }
 
@@ -65,9 +80,31 @@ impl<D> Hoister<D> {
         self.boxes = boxes;
         self
     }
+
     pub fn hoist_inside_downcast(mut self, downcast: bool) -> Self {
         self.downcast = downcast;
         self
+    }
+
+    pub fn hoist_existentials(mut self, exists: bool) -> Self {
+        self.existentials = exists;
+        self
+    }
+
+    pub fn transparent(self) -> Self {
+        self.hoist_inside_boxes(true)
+            .hoist_inside_downcast(true)
+            .hoist_inside_mut_refs(false)
+            .hoist_inside_shr_refs(true)
+            .hoist_inside_tuples(true)
+    }
+
+    pub fn shallow(self) -> Self {
+        self.hoist_inside_boxes(false)
+            .hoist_inside_downcast(false)
+            .hoist_inside_mut_refs(false)
+            .hoist_inside_shr_refs(false)
+            .hoist_inside_tuples(false)
     }
 }
 
@@ -81,7 +118,9 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
-            TyKind::Exists(ty_ctor) => self.delegate.hoist_exists(ty_ctor).fold_with(self),
+            TyKind::Exists(ty_ctor) if self.existentials => {
+                self.delegate.hoist_exists(ty_ctor).fold_with(self)
+            }
             TyKind::Constr(pred, ty) => {
                 self.delegate.hoist_constr(pred.clone());
                 ty.fold_with(self)
@@ -104,6 +143,9 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
             }
             BaseTy::Ref(re, ty, Mutability::Not) if self.shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
+            }
+            BaseTy::Ref(re, ty, Mutability::Mut) if self.mut_refs => {
+                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Mut)
             }
             BaseTy::Tuple(tys) if self.tuples => BaseTy::Tuple(tys.fold_with(self)),
             _ => bty.clone(),

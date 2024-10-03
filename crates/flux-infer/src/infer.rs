@@ -427,10 +427,10 @@ impl Sub {
 
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
-                bug!("existentials should be removed by the unpack");
+                bug!("existentials should be removed by the unpacking");
             }
             (TyKind::Constr(..), _) => {
-                bug!("constraint types should removed by the unpack");
+                bug!("constraint types should removed by the unpacking");
             }
             (_, TyKind::Exists(ty_b)) => {
                 infcx.push_scope();

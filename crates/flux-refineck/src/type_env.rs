@@ -6,7 +6,7 @@ use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -266,9 +266,8 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt, check_overflow: bool) {
         self.bindings.fmap_mut(|ty| {
             infcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(ty)
+                .hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(ty)
         });
     }
 
@@ -642,11 +641,7 @@ impl BasicBlockEnvShape {
 
     pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
         let mut delegate = BoundedHoister::default();
-        let mut hoister = Hoister::with_delegate(&mut delegate)
-            .hoist_inside_tuples(true)
-            .hoist_inside_shr_refs(true)
-            .hoist_inside_boxes(true)
-            .hoist_inside_downcast(true);
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let mut bindings = self.bindings;
         bindings.fmap_mut(|ty| hoister.hoist(ty));
