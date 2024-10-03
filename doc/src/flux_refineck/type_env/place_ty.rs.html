@@ -1558,7 +1558,7 @@
     }
 
     <span class="kw">fn </span>unpack_for_downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">let </span><span class="kw-2">mut </span>unpacker = <span class="self">self</span>.infcx.unpacker().shallow(<span class="bool-val">true</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>unpacker = <span class="self">self</span>.infcx.unpacker();
         <span class="kw">if </span><span class="self">self</span>.in_ref == <span class="prelude-val">Some</span>(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(<span class="bool-val">false</span>);
         }

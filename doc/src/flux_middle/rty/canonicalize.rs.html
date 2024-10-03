@@ -219,6 +219,7 @@
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
 //! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b &gt; 0}` is
 //! `∃a,b. {i32[a + b] | b &gt; 0}`.
@@ -248,7 +249,7 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
-    fold::{TypeFoldable, TypeFolder},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
     Ty, TyKind,
 };
@@ -305,6 +306,7 @@
                 ty.fold_with(<span class="self">self</span>)
             }
             TyKind::StrgRef(re, path, ty) =&gt; Ty::strg_ref(<span class="kw-2">*</span>re, path.clone(), ty.fold_with(<span class="self">self</span>)),
+            TyKind::Downcast(..) =&gt; ty.super_fold_with(<span class="self">self</span>),
             <span class="kw">_ </span>=&gt; ty.clone(),
         }
     }
