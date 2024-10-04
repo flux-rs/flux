@@ -747,6 +747,25 @@
 <a href="#747" id="747">747</a>
 <a href="#748" id="748">748</a>
 <a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -1283,19 +1302,20 @@
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleRefinement {
+    #[note]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
         <span class="attr">#[label(fhir_analysis_expected_label)]
         </span>expected_span: <span class="prelude-ty">Option</span>&lt;Span&gt;,
-        expected_ty: String,
+        expected_ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
         def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
-    <span class="kw">impl </span>IncompatibleRefinement {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>type_alias(
-            genv: GlobalEnv,
+            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
             def_id: MaybeExternId,
             type_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
         ) -&gt; <span class="self">Self </span>{
@@ -1304,57 +1324,75 @@
                 span: type_alias.ty.span,
                 def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: <span class="prelude-val">Some</span>(tcx.def_span(def_id)),
-                expected_ty: <span class="macro">format!</span>(<span class="string">"{}"</span>, tcx.type_of(def_id).skip_binder()),
+                expected_ty: tcx.type_of(def_id).skip_binder(),
             }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_input(
-            genv: GlobalEnv,
+            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
             fn_id: MaybeExternId,
             decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
             pos: usize,
         ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
+            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
+                MaybeExternId::Local(local_id) =&gt; {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .and_then(|fn_decl| fn_decl.inputs.get(pos))
+                        .map(|input| input.span)
+                }
+                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
+            };
 
-            <span class="kw">let </span>expected_ty = expected_decl.inputs[pos];
+            <span class="kw">let </span>expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .inputs()
+                .map_bound(|inputs| inputs[pos])
+                .skip_binder();
+
             <span class="self">Self </span>{
                 span: decl.inputs[pos].span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: <span class="prelude-val">Some</span>(expected_ty.span),
-                expected_ty: rustc_hir_pretty::ty_to_string(<span class="kw-2">&amp;</span>genv.tcx(), <span class="kw-2">&amp;</span>expected_ty),
+                expected_span,
+                expected_ty,
             }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_output(
-            genv: GlobalEnv,
+            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
             fn_id: MaybeExternId,
             decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
         ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
-
-            <span class="kw">let </span>expected_ty = <span class="kw">match </span>expected_decl.output {
-                rustc_hir::FnRetTy::DefaultReturn(<span class="kw">_</span>) =&gt; <span class="string">"()"</span>.to_string(),
-                rustc_hir::FnRetTy::Return(ty) =&gt; rustc_hir_pretty::ty_to_string(<span class="kw-2">&amp;</span>genv.tcx(), ty),
+            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
+                MaybeExternId::Local(local_id) =&gt; {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .map(|fn_decl| fn_decl.output.span())
+                }
+                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
             };
+
+            <span class="kw">let </span>expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .output()
+                .skip_binder();
             <span class="kw">let </span>spec_span = decl.output.ret.span;
             <span class="self">Self </span>{
                 span: spec_span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: <span class="prelude-val">Some</span>(expected_decl.output.span()),
+                expected_span,
                 expected_ty,
             }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>ensures(
-            genv: GlobalEnv,
+            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
             fn_id: MaybeExternId,
             decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
             expected: <span class="kw-2">&amp;</span>rty::Ty,
@@ -1368,12 +1406,12 @@
                 span: ty.span,
                 def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: <span class="prelude-val">None</span>,
-                expected_ty: <span class="macro">format!</span>(<span class="string">"{}"</span>, expected.to_rustc(tcx)),
+                expected_ty: expected.to_rustc(tcx),
             }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>field(
-            genv: GlobalEnv,
+            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
             adt_id: MaybeExternId,
             variant_idx: VariantIdx,
             field_idx: FieldIdx,
@@ -1401,7 +1439,7 @@
                 span,
                 def_descr: tcx.def_descr(field_def.did),
                 expected_span: <span class="prelude-val">Some</span>(tcx.def_span(field_def.did)),
-                expected_ty: <span class="macro">format!</span>(<span class="string">"{}"</span>, tcx.type_of(field_def.did).skip_binder()),
+                expected_ty: tcx.type_of(field_def.did).skip_binder(),
             }
         }
     }
