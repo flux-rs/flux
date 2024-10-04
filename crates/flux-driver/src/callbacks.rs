@@ -171,11 +171,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                // If the function is an extern spec its body is irrelevant
-                if let Some(local_id) = def_id.as_local() {
-                    refineck::check_fn(self.genv, &mut self.cache, local_id, self.checker_config)?;
-                }
-                Ok(())
+                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;

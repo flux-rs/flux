@@ -3,7 +3,7 @@
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
 //! infer types annotated with `_` in the surface syntax.
 
-use std::iter;
+use std::{fmt, iter};
 
 use flux_common::bug;
 use flux_errors::Errors;
@@ -200,8 +200,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_output(&mut self, a: &rty::FnOutput, b: &rty::FnOutput) -> Result<(), FnSigErr> {
-        self.zip_ty(&a.ret, &b.ret)
-            .map_err(|_| FnSigErr::FnOutput)?;
+        self.zip_ty(&a.ret, &b.ret).map_err(FnSigErr::FnOutput)?;
 
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
@@ -261,7 +260,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             ) => {
                 bug!("unexpected type {a:?}");
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -299,7 +298,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
                 self.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
-                    .map_err(|_| Mismatch)
+                    .map_err(|_| Mismatch::new(poly_sig_a, poly_sig_b))
             }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) => {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())?;
@@ -327,7 +326,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -350,7 +349,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) => {
                 self.zip_const(ct_a, ct_b)
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -370,7 +369,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
                 assert_eq_or_incompatible(c1, c2)
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -414,7 +413,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
                     rty::ExistentialPredicate::AutoTrait(def_id_b),
                 ) => assert_eq_or_incompatible(def_id_a, def_id_b),
-                _ => Err(Mismatch),
+                _ => Err(Mismatch::new(a, b)),
             }
         })
     }
@@ -475,7 +474,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     i,
                 ));
             }
-            FnSigErr::FnOutput => {
+            FnSigErr::FnOutput(_) => {
                 self.errors.emit(errors::IncompatibleRefinement::fn_output(
                     self.genv,
                     self.owner_id,
@@ -495,20 +494,31 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 }
 
-fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Mismatch> {
+fn assert_eq_or_incompatible<T: Eq + fmt::Debug>(a: T, b: T) -> Result<(), Mismatch> {
     if a != b {
-        return Err(Mismatch);
+        return Err(Mismatch::new(a, b));
     }
     Ok(())
 }
 
-struct Mismatch;
+#[expect(dead_code, reason = "we use the the String for debugging")]
+struct Mismatch(String);
+
+impl Mismatch {
+    fn new<T: fmt::Debug>(a: T, b: T) -> Self {
+        Self(format!("{a:?} != {b:?}"))
+    }
+}
 
 enum FnSigErr {
     ArgCountMismatch,
     FnInput(usize),
-    FnOutput,
-    Ensures { i: usize, expected: rty::Ty },
+    #[expect(dead_code, reason = "we use the struct for debugging")]
+    FnOutput(Mismatch),
+    Ensures {
+        i: usize,
+        expected: rty::Ty,
+    },
 }
 
 mod errors {
