@@ -547,4 +547,5 @@ impl_debug_with_default_cx!(
     SortCtor,
     SubsetTy,
     BvSize,
+    ExistentialPredicate,
 );

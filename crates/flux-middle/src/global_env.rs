@@ -237,9 +237,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn predicates_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        self.inner.queries.predicates_of(self, def_id.into())
+        self.inner
+            .queries
+            .predicates_of(self, def_id.into_query_param())
     }
 
     pub fn assoc_refinements_of(
@@ -290,8 +292,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.type_of(self, def_id.into_query_param())
     }
 
-    pub fn fn_sig(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.inner.queries.fn_sig(self, def_id.into())
+    pub fn fn_sig(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+        self.inner.queries.fn_sig(self, def_id.into_query_param())
     }
 
     pub fn variants_of(
