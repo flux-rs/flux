@@ -14,11 +14,12 @@ use flux_middle::{
     fhir::{self, visit::Visitor, FluxOwnerId},
     global_env::GlobalEnv,
     rty::{self, WfckResults},
+    MaybeExternId,
 };
 use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::def::DefKind;
+use rustc_hir::{def::DefKind, OwnerId};
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
@@ -42,6 +43,25 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
         let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
         infcx.check_expr(body, &output)?;
     }
+    Ok(infcx.into_results())
+}
+
+pub(crate) fn check_invariants(
+    genv: GlobalEnv,
+    adt_def_id: MaybeExternId<OwnerId>,
+    params: &[fhir::RefineParam],
+    invariants: &[fhir::Expr],
+) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Rust(adt_def_id.local_id());
+    let mut infcx = InferCtxt::new(genv, owner);
+    infcx.insert_params(params)?;
+    let mut err = None;
+    for invariant in invariants {
+        infcx
+            .check_expr(invariant, &rty::Sort::Bool)
+            .collect_err(&mut err);
+    }
+    err.into_result()?;
     Ok(infcx.into_results())
 }
 
@@ -165,25 +185,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 .check_expr(body, &output)
                 .collect_err(&mut self.errors);
         }
-    }
-
-    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef<'genv>) {
-        for invariant in struct_def.invariants {
-            self.infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut self.errors);
-        }
-        fhir::visit::walk_struct_def(self, struct_def);
-    }
-
-    fn visit_enum_def(&mut self, enum_def: &fhir::EnumDef<'genv>) {
-        for invariant in enum_def.invariants {
-            self.infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut self.errors);
-        }
-
-        fhir::visit::walk_enum_def(self, enum_def);
     }
 
     fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
