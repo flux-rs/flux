@@ -12,7 +12,7 @@ variable <code>v</code> of sort <code>int</code>, we can interpret <code>{i32[v]
 <li>An existential type <code>∃v:int. {i32[v] | v &gt; 0}</code>.</li>
 </ul>
 <p>This second interpretation is the reason we call this a subset type, i.e., the type <code>∃v. {b[v] | p}</code>
-corresponds to the subset of values of  type <code>b</code> whose index satisfies <code>p</code>.  These are the types
+corresponds to the subset of values of  type <code>b</code> whose index satisfies <code>p</code>. These are the types
 written as <code>B{v: p}</code> in the surface syntax and correspond to the types supported in other
 refinement type systems like Liquid Haskell (with the difference that we are explicit
 about separating refinements from program values via an index).</p>
@@ -22,18 +22,18 @@ for this:</p>
 <ol>
 <li>
 <p><strong>Syntacitc Restriction</strong>: Subset types are syntactically restricted, making it easier to
-relate types structurally (e.g., for subtyping). For instance, given two types <code>S&lt;λv. T1&gt;</code> and
+relate them structurally (e.g., for subtyping). For instance, given two types <code>S&lt;λv. T1&gt;</code> and
 <code>S&lt;λ. T2&gt;</code>, if <code>T1</code> and <code>T2</code> are subset types, we know they match structurally (at least
-shallowly). The syntactic restriction also rules out complex types like <code>S&lt;λv. (i32[v], i32[0])&gt;</code>,
-simplifying some operations on types.</p>
+shallowly). In particularly, the syntactic restriction rules out complex types like
+<code>S&lt;λv. (i32[v], i32[v])&gt;</code> simplifying some operations.</p>
 </li>
 <li>
 <p><strong>Eager Canonicalization</strong>: Subset types can be eagerly canonicalized via <a href="https://arxiv.org/pdf/2010.07763.pdf"><em>strengthening</em></a>
 during substitution. For example, suppose we have a function:</p>
 <div class="example-wrap"><pre class="language-text"><code>fn foo&lt;T&gt;(x: T[@a], y: { T[@b] | b == a }) { }
 </code></pre></div>
-<p>If we instantiate <code>T</code> with <code>λv. { i32[v] | v &gt; 0}</code>, after substitution and applying the lambda
-(the indexing syntax <code>T[a]</code> corresponds to an application of the lambda), we get:</p>
+<p>If we instantiate <code>T</code> with <code>λv. { i32[v] | v &gt; 0}</code>, after substitution and applying the
+lambda (the indexing syntax <code>T[a]</code> corresponds to an application of the lambda), we get:</p>
 <div class="example-wrap"><pre class="language-text"><code>fn foo(x: {i32[@a] | a &gt; 0}, y: { { i32[@b] | b &gt; 0 } | b == a }) { }
 </code></pre></div>
 <p>Via <em>strengthening</em> we can canonicalize this to</p>

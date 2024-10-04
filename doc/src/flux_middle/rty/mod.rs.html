@@ -3921,7 +3921,7 @@
 /// - An existential type `∃v:int. {i32[v] | v &gt; 0}`.
 ///
 /// This second interpretation is the reason we call this a subset type, i.e., the type `∃v. {b[v] | p}`
-/// corresponds to the subset of values of  type `b` whose index satisfies `p`.  These are the types
+/// corresponds to the subset of values of  type `b` whose index satisfies `p`. These are the types
 /// written as `B{v: p}` in the surface syntax and correspond to the types supported in other
 /// refinement type systems like Liquid Haskell (with the difference that we are explicit
 /// about separating refinements from program values via an index).
@@ -3931,18 +3931,18 @@
 /// for this:
 ///
 /// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
-///    relate types structurally (e.g., for subtyping). For instance, given two types `S&lt;λv. T1&gt;` and
+///    relate them structurally (e.g., for subtyping). For instance, given two types `S&lt;λv. T1&gt;` and
 ///    `S&lt;λ. T2&gt;`, if `T1` and `T2` are subset types, we know they match structurally (at least
-///    shallowly). The syntactic restriction also rules out complex types like `S&lt;λv. (i32[v], i32[0])&gt;`,
-///    simplifying some operations on types.
+///    shallowly). In particularly, the syntactic restriction rules out complex types like
+///    `S&lt;λv. (i32[v], i32[v])&gt;` simplifying some operations.
 ///
 /// 2. **Eager Canonicalization**: Subset types can be eagerly canonicalized via [*strengthening*]
 ///    during substitution. For example, suppose we have a function:
 ///    ```text
 ///    fn foo&lt;T&gt;(x: T[@a], y: { T[@b] | b == a }) { }
 ///    ```
-///    If we instantiate `T` with `λv. { i32[v] | v &gt; 0}`, after substitution and applying the lambda
-///    (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
+///    If we instantiate `T` with `λv. { i32[v] | v &gt; 0}`, after substitution and applying the
+///    lambda (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
 ///    ```text
 ///    fn foo(x: {i32[@a] | a &gt; 0}, y: { { i32[@b] | b &gt; 0 } | b == a }) { }
 ///    ```
@@ -3982,7 +3982,7 @@
 
     <span class="kw">pub fn </span>strengthen(<span class="kw-2">&amp;</span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>this = <span class="self">self</span>.clone();
-        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
+        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
     }
 
     <span class="kw">fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
