@@ -350,8 +350,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     fn conv_base_ty(&self, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
-        let mut cx = ConvCtxt::new(self.genv, InSortck { owner: self.wfckresults.owner });
-        cx.conv_base_ty(&mut Env::empty(), bty)
+        let results = InSortck { owner: self.wfckresults.owner };
+        ConvCtxt::new(self.genv, &results).conv_base_ty(&mut Env::empty(), bty)
     }
 }
 
