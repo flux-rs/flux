@@ -2255,7 +2255,7 @@ pub struct WfckResults {
     coercions: ItemLocalMap<Vec<Coercion>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),

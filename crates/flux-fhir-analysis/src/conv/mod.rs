@@ -33,7 +33,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::{
     self as hir,
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{CrateNum, DefId, DefIndex, LocalDefId},
     PrimTy, Safety,
 };
 use rustc_middle::{
@@ -48,39 +48,57 @@ use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
-pub struct ConvCtxt<'genv, 'tcx, M> {
+pub struct ConvCtxt<'genv, 'tcx, P> {
     genv: GlobalEnv<'genv, 'tcx>,
-    mode: M,
+    provider: P,
     next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
 }
 
-pub trait Mode: Sized {
+pub trait WfckResultsProvider: Sized {
     fn owner(&self) -> FluxOwnerId;
+
+    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
+
+    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
+
+    fn coercions_at(&self, fhir_id: FhirId) -> &[rty::Coercion];
+
+    fn record_ctor(&self, fhir_id: FhirId) -> DefId;
 
     fn resolve_param_sort(
         &self,
         genv: GlobalEnv,
         param: &fhir::RefineParam,
     ) -> QueryResult<rty::Sort>;
-
-    fn conv_expr(
-        cx: &mut ConvCtxt<Self>,
-        env: &mut Env,
-        expr: &fhir::Expr,
-    ) -> QueryResult<rty::Expr>;
-
-    fn conv_refine_arg(
-        cx: &mut ConvCtxt<Self>,
-        env: &mut Env,
-        arg: &fhir::RefineArg,
-    ) -> QueryResult<rty::Expr>;
 }
 
-impl Mode for &WfckResults {
+impl WfckResultsProvider for &WfckResults {
     fn owner(&self) -> FluxOwnerId {
         self.owner
+    }
+
+    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.node_sorts()
+            .get(fhir_id)
+            .unwrap_or_else(|| bug!("node without elaborated sort for {fhir_id:?}"))
+            .clone()
+    }
+
+    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.bin_rel_sorts()
+            .get(fhir_id)
+            .cloned()
+            .unwrap_or_else(|| bug!("binary relation without elaborated sort {fhir_id:?}"))
+    }
+
+    fn coercions_at(&self, fhir_id: FhirId) -> &[rty::Coercion] {
+        self.coercions().get(fhir_id).map_or(&[][..], Vec::as_slice)
+    }
+
+    fn record_ctor(&self, fhir_id: FhirId) -> DefId {
+        *self.record_ctors().get(fhir_id).unwrap()
     }
 
     fn resolve_param_sort(
@@ -90,232 +108,35 @@ impl Mode for &WfckResults {
     ) -> QueryResult<rty::Sort> {
         resolve_param_sort(genv, param, Some(self))
     }
-
-    fn conv_expr(
-        cx: &mut ConvCtxt<Self>,
-        env: &mut Env,
-        expr: &fhir::Expr,
-    ) -> QueryResult<rty::Expr> {
-        let fhir_id = expr.fhir_id;
-        let espan = ESpan::new(expr.span);
-        let expr = match &expr.kind {
-            fhir::ExprKind::Var(var, _) => {
-                match var.res {
-                    ExprRes::Param(..) => env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
-                    ExprRes::ConstGeneric(def_id) => {
-                        rty::Expr::const_generic(def_id_to_param_const(cx.genv, def_id)).at(espan)
-                    }
-                    ExprRes::NumConst(num) => {
-                        rty::Expr::constant(rty::Constant::from(num)).at(espan)
-                    }
-                    ExprRes::GlobalFunc(..) => {
-                        span_bug!(var.span, "unexpected func in var position")
-                    }
-                }
-            }
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::Expr::binary_op(
-                    cx.conv_bin_op(*op, expr.fhir_id),
-                    cx.conv_expr(env, e1)?,
-                    cx.conv_expr(env, e2)?,
-                )
-                .at(espan)
-            }
-            fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(conv_un_op(*op), cx.conv_expr(env, e)?).at(espan)
-            }
-            fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(cx.conv_func(env, func), cx.conv_exprs(env, args)?).at(espan)
-            }
-            fhir::ExprKind::Alias(alias, args) => {
-                let args = args
-                    .iter()
-                    .map(|arg| cx.conv_expr(env, arg))
-                    .try_collect()?;
-                let alias = cx.conv_alias_reft(env, alias)?;
-                rty::Expr::alias(alias, args).at(espan)
-            }
-            fhir::ExprKind::IfThenElse(p, e1, e2) => {
-                rty::Expr::ite(
-                    cx.conv_expr(env, p)?,
-                    cx.conv_expr(env, e1)?,
-                    cx.conv_expr(env, e2)?,
-                )
-                .at(espan)
-            }
-            fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld, espan),
-        };
-        Ok(cx.add_coercions(expr, fhir_id))
-    }
-
-    fn conv_refine_arg(
-        cx: &mut ConvCtxt<Self>,
-        env: &mut Env,
-        arg: &fhir::RefineArg,
-    ) -> QueryResult<rty::Expr> {
-        match &arg.kind {
-            fhir::RefineArgKind::Expr(expr) => cx.conv_expr(env, expr),
-            fhir::RefineArgKind::Abs(params, body) => {
-                let layer = Layer::list(cx, 0, params)?;
-
-                env.push_layer(layer);
-                let pred = cx.conv_expr(env, body)?;
-                let inputs = env.pop_layer().into_bound_vars(cx.genv)?;
-                let output = cx
-                    .mode
-                    .node_sorts()
-                    .get(arg.fhir_id)
-                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
-                    .clone();
-                let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
-                Ok(cx.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
-            }
-            fhir::RefineArgKind::Record(flds) => {
-                let def_id = cx.mode.record_ctors().get(arg.fhir_id).unwrap();
-                let flds = flds
-                    .iter()
-                    .map(|arg| cx.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                Ok(rty::Expr::adt(*def_id, flds))
-            }
-        }
-    }
-}
-
-impl<'genv, 'tcx> ConvCtxt<'genv, 'tcx, &WfckResults> {
-    fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
-        exprs.iter().map(|e| self.conv_expr(env, e)).collect()
-    }
-
-    fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
-        match op {
-            fhir::BinOp::Iff => rty::BinOp::Iff,
-            fhir::BinOp::Imp => rty::BinOp::Imp,
-            fhir::BinOp::Or => rty::BinOp::Or,
-            fhir::BinOp::And => rty::BinOp::And,
-            fhir::BinOp::Eq => rty::BinOp::Eq,
-            fhir::BinOp::Ne => rty::BinOp::Ne,
-            fhir::BinOp::Gt => rty::BinOp::Gt(self.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Ge => rty::BinOp::Ge(self.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Lt => rty::BinOp::Lt(self.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Le => rty::BinOp::Le(self.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Add => rty::BinOp::Add,
-            fhir::BinOp::Sub => rty::BinOp::Sub,
-            fhir::BinOp::Mod => rty::BinOp::Mod,
-            fhir::BinOp::Mul => rty::BinOp::Mul,
-            fhir::BinOp::Div => rty::BinOp::Div,
-        }
-    }
-
-    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
-        self.mode.bin_rel_sorts().get(fhir_id).unwrap().clone()
-    }
-
-    fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
-        let span = expr.span();
-        if let Some(coercions) = self.mode.coercions().get(fhir_id) {
-            for coercion in coercions {
-                expr = match *coercion {
-                    rty::Coercion::Inject(def_id) => {
-                        rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
-                            .at_opt(span)
-                    }
-                    rty::Coercion::Project(def_id) => {
-                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })
-                            .at_opt(span)
-                    }
-                };
-            }
-        }
-        expr
-    }
-
-    fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
-        let expr = match func.res {
-            ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind, sym) => rty::Expr::global_func(sym, kind),
-            _ => span_bug!(func.span, "unexpected path in function position"),
-        };
-        self.add_coercions(expr, func.fhir_id)
-    }
-
-    fn conv_alias_reft(
-        &mut self,
-        env: &mut Env,
-        alias: &fhir::AliasReft,
-    ) -> QueryResult<rty::AliasReft> {
-        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
-            span_bug!(alias.path.span, "expected trait")
-        };
-        let trait_segment = alias.path.last_segment();
-
-        let generics = self.genv.generics_of(trait_id)?;
-        let self_ty =
-            self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
-        let mut generic_args = vec![self_ty];
-        self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
-
-        let alias_reft =
-            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-        Ok(alias_reft)
-    }
-
-    fn conv_invariants(
-        &mut self,
-        env: &mut Env,
-        invariants: &[fhir::Expr],
-    ) -> QueryResult<Vec<rty::Invariant>> {
-        invariants
-            .iter()
-            .map(|invariant| self.conv_invariant(env, invariant))
-            .collect()
-    }
-
-    fn conv_invariant(
-        &mut self,
-        env: &mut Env,
-        invariant: &fhir::Expr,
-    ) -> QueryResult<rty::Invariant> {
-        Ok(rty::Invariant::new(rty::Binder::bind_with_vars(
-            self.conv_expr(env, invariant)?,
-            env.top_layer().to_bound_vars(self.genv)?,
-        )))
-    }
 }
 
 pub struct InSortck {
     pub owner: FluxOwnerId,
 }
 
-impl Mode for InSortck {
+impl WfckResultsProvider for InSortck {
     fn owner(&self) -> FluxOwnerId {
         self.owner
     }
 
-    fn resolve_param_sort(
-        &self,
-        _genv: GlobalEnv,
-        _param: &fhir::RefineParam,
-    ) -> QueryResult<rty::Sort> {
+    fn node_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn coercions_at(&self, _: FhirId) -> &[rty::Coercion] {
+        &[]
+    }
+
+    fn record_ctor(&self, _: FhirId) -> DefId {
+        DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
+    }
+
+    fn resolve_param_sort(&self, _: GlobalEnv, _: &fhir::RefineParam) -> QueryResult<rty::Sort> {
         Ok(rty::Sort::Err)
-    }
-
-    fn conv_expr(
-        _cx: &mut ConvCtxt<Self>,
-        _env: &mut Env,
-        _expr: &fhir::Expr,
-    ) -> QueryResult<rty::Expr> {
-        Ok(rty::Expr::hole(rty::HoleKind::Pred))
-    }
-
-    fn conv_refine_arg(
-        _cx: &mut ConvCtxt<Self>,
-        _env: &mut Env,
-        _arg: &fhir::RefineArg,
-    ) -> QueryResult<rty::Expr> {
-        Ok(rty::Expr::hole(rty::HoleKind::Pred))
     }
 }
 
@@ -766,11 +587,11 @@ impl<'genv, 'tcx> ConvCtxt<'genv, 'tcx, &WfckResults> {
     }
 }
 
-impl<'genv, 'tcx, M: Mode> ConvCtxt<'genv, 'tcx, M> {
-    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, mode: M) -> Self {
+impl<'genv, 'tcx, P: WfckResultsProvider> ConvCtxt<'genv, 'tcx, P> {
+    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, provider: P) -> Self {
         Self {
             genv,
-            mode,
+            provider,
             // We start from 1 to skip the trait object dummy self type.
             // See [`rty::Ty::trait_object_dummy_self`]
             next_type_index: 1,
@@ -780,19 +601,11 @@ impl<'genv, 'tcx, M: Mode> ConvCtxt<'genv, 'tcx, M> {
     }
 
     fn owner(&self) -> FluxOwnerId {
-        self.mode.owner()
-    }
-
-    fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
-        M::conv_expr(self, env, expr)
-    }
-
-    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
-        M::conv_refine_arg(self, env, arg)
+        self.provider.owner()
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> QueryResult<rty::Sort> {
-        self.mode.resolve_param_sort(self.genv, param)
+        self.provider.resolve_param_sort(self.genv, param)
     }
 
     fn conv_fn_decl(
@@ -1744,6 +1557,180 @@ impl<'genv, 'tcx, M: Mode> ConvCtxt<'genv, 'tcx, M> {
     }
 }
 
+impl<'genv, 'tcx, P: WfckResultsProvider> ConvCtxt<'genv, 'tcx, P> {
+    fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
+        let fhir_id = expr.fhir_id;
+        let espan = ESpan::new(expr.span);
+        let expr = match &expr.kind {
+            fhir::ExprKind::Var(var, _) => {
+                match var.res {
+                    ExprRes::Param(..) => env.lookup(var).to_expr(),
+                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
+                    ExprRes::ConstGeneric(def_id) => {
+                        rty::Expr::const_generic(def_id_to_param_const(self.genv, def_id)).at(espan)
+                    }
+                    ExprRes::NumConst(num) => {
+                        rty::Expr::constant(rty::Constant::from(num)).at(espan)
+                    }
+                    ExprRes::GlobalFunc(..) => {
+                        span_bug!(var.span, "unexpected func in var position")
+                    }
+                }
+            }
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
+            fhir::ExprKind::BinaryOp(op, e1, e2) => {
+                rty::Expr::binary_op(
+                    self.conv_bin_op(*op, expr.fhir_id),
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                )
+                .at(espan)
+            }
+            fhir::ExprKind::UnaryOp(op, e) => {
+                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?).at(espan)
+            }
+            fhir::ExprKind::App(func, args) => {
+                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?).at(espan)
+            }
+            fhir::ExprKind::Alias(alias, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.conv_expr(env, arg))
+                    .try_collect()?;
+                let alias = self.conv_alias_reft(env, alias)?;
+                rty::Expr::alias(alias, args).at(espan)
+            }
+            fhir::ExprKind::IfThenElse(p, e1, e2) => {
+                rty::Expr::ite(
+                    self.conv_expr(env, p)?,
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                )
+                .at(espan)
+            }
+            fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld, espan),
+        };
+        Ok(self.add_coercions(expr, fhir_id))
+    }
+
+    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
+            fhir::RefineArgKind::Abs(params, body) => {
+                let layer = Layer::list(self, 0, params)?;
+
+                env.push_layer(layer);
+                let pred = self.conv_expr(env, body)?;
+                let inputs = env.pop_layer().into_bound_vars(self.genv)?;
+                let output = self.provider.node_sort(arg.fhir_id);
+                let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
+                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
+            }
+            fhir::RefineArgKind::Record(flds) => {
+                let def_id = self.provider.record_ctor(arg.fhir_id);
+                let flds = flds
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .try_collect()?;
+                Ok(rty::Expr::adt(def_id, flds))
+            }
+        }
+    }
+
+    fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
+        exprs.iter().map(|e| self.conv_expr(env, e)).collect()
+    }
+
+    fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
+        match op {
+            fhir::BinOp::Iff => rty::BinOp::Iff,
+            fhir::BinOp::Imp => rty::BinOp::Imp,
+            fhir::BinOp::Or => rty::BinOp::Or,
+            fhir::BinOp::And => rty::BinOp::And,
+            fhir::BinOp::Eq => rty::BinOp::Eq,
+            fhir::BinOp::Ne => rty::BinOp::Ne,
+            fhir::BinOp::Gt => rty::BinOp::Gt(self.provider.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Ge => rty::BinOp::Ge(self.provider.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Lt => rty::BinOp::Lt(self.provider.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Le => rty::BinOp::Le(self.provider.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Add => rty::BinOp::Add,
+            fhir::BinOp::Sub => rty::BinOp::Sub,
+            fhir::BinOp::Mod => rty::BinOp::Mod,
+            fhir::BinOp::Mul => rty::BinOp::Mul,
+            fhir::BinOp::Div => rty::BinOp::Div,
+        }
+    }
+
+    fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
+        let span = expr.span();
+        for coercion in self.provider.coercions_at(fhir_id) {
+            expr = match *coercion {
+                rty::Coercion::Inject(def_id) => {
+                    rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
+                        .at_opt(span)
+                }
+                rty::Coercion::Project(def_id) => {
+                    rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })
+                        .at_opt(span)
+                }
+            };
+        }
+        expr
+    }
+
+    fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
+        let expr = match func.res {
+            ExprRes::Param(..) => env.lookup(func).to_expr(),
+            ExprRes::GlobalFunc(kind, sym) => rty::Expr::global_func(sym, kind),
+            _ => span_bug!(func.span, "unexpected path in function position"),
+        };
+        self.add_coercions(expr, func.fhir_id)
+    }
+
+    fn conv_alias_reft(
+        &mut self,
+        env: &mut Env,
+        alias: &fhir::AliasReft,
+    ) -> QueryResult<rty::AliasReft> {
+        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
+            span_bug!(alias.path.span, "expected trait")
+        };
+        let trait_segment = alias.path.last_segment();
+
+        let generics = self.genv.generics_of(trait_id)?;
+        let self_ty =
+            self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
+        let mut generic_args = vec![self_ty];
+        self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
+
+        let alias_reft =
+            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
+        Ok(alias_reft)
+    }
+
+    fn conv_invariants(
+        &mut self,
+        env: &mut Env,
+        invariants: &[fhir::Expr],
+    ) -> QueryResult<Vec<rty::Invariant>> {
+        invariants
+            .iter()
+            .map(|invariant| self.conv_invariant(env, invariant))
+            .collect()
+    }
+
+    fn conv_invariant(
+        &mut self,
+        env: &mut Env,
+        invariant: &fhir::Expr,
+    ) -> QueryResult<rty::Invariant> {
+        Ok(rty::Invariant::new(rty::Binder::bind_with_vars(
+            self.conv_expr(env, invariant)?,
+            env.top_layer().to_bound_vars(self.genv)?,
+        )))
+    }
+}
+
 impl Env {
     fn new(
         genv: GlobalEnv,
@@ -1817,11 +1804,11 @@ impl Env {
     }
 }
 
-impl<M: Mode> ConvCtxt<'_, '_, M> {}
+impl<M: WfckResultsProvider> ConvCtxt<'_, '_, M> {}
 
 impl Layer {
-    fn new<M: Mode>(
-        cx: &ConvCtxt<M>,
+    fn new<R: WfckResultsProvider>(
+        cx: &ConvCtxt<R>,
         params: &[fhir::RefineParam],
         kind: LayerKind,
     ) -> QueryResult<Self> {
@@ -1837,16 +1824,16 @@ impl Layer {
         Ok(Self { map, kind })
     }
 
-    fn list<M: Mode>(
-        cx: &ConvCtxt<M>,
+    fn list<R: WfckResultsProvider>(
+        cx: &ConvCtxt<R>,
         bound_regions: u32,
         params: &[fhir::RefineParam],
     ) -> QueryResult<Self> {
         Self::new(cx, params, LayerKind::List { bound_regions })
     }
 
-    fn coalesce<M: Mode>(
-        cx: &ConvCtxt<M>,
+    fn coalesce<R: WfckResultsProvider>(
+        cx: &ConvCtxt<R>,
         def_id: DefId,
         params: &[fhir::RefineParam],
     ) -> QueryResult<Self> {

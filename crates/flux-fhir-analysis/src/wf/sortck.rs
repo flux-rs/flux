@@ -353,10 +353,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         let mut cx = ConvCtxt::new(self.genv, InSortck { owner: self.wfckresults.owner });
         cx.conv_base_ty(&mut Env::empty(), bty)
     }
-
-    fn conv_ctxt(&self) -> ConvCtxt<'genv, 'tcx, InSortck> {
-        ConvCtxt::new(self.genv, InSortck { owner: self.wfckresults.owner })
-    }
 }
 
 impl<'genv> InferCtxt<'genv, '_> {
