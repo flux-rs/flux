@@ -45,8 +45,6 @@ pub(crate) fn type_alias(
     Ok(zipper.holes.replace_holes(ty))
 }
 
-static mut A: bool = false;
-
 pub(crate) fn fn_sig(
     genv: GlobalEnv,
     decl: &fhir::FnDecl,
@@ -56,14 +54,6 @@ pub(crate) fn fn_sig(
     let rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
-
-    if genv
-        .tcx()
-        .def_path_str(def_id.resolved_id())
-        .contains("Zip")
-    {
-        unsafe { A = true };
-    }
 
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
