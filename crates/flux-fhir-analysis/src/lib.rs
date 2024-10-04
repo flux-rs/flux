@@ -119,25 +119,6 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .try_collect()
 }
 
-fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
-    let (params, invariants) = match &item.kind {
-        fhir::ItemKind::Enum(enum_def) => (&enum_def.params, &enum_def.invariants),
-        fhir::ItemKind::Struct(struct_def) => (&struct_def.params, &struct_def.invariants),
-        _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
-    };
-    let wfckresults = genv.check_wf(item.owner_id.local_id().def_id)?;
-    conv::conv_invariants(
-        genv,
-        item.owner_id.map(|it| it.def_id),
-        params,
-        invariants,
-        &wfckresults,
-    )?
-    .into_iter()
-    .map(|invariant| normalize(genv, invariant))
-    .collect()
-}
-
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let def_id = genv.maybe_extern_id(def_id);
     let item = genv.map().expect_item(def_id.local_id())?;
@@ -148,6 +129,25 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
     Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+}
+
+fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
+    let (params, invariants) = match &item.kind {
+        fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
+        fhir::ItemKind::Struct(struct_def) => (struct_def.params, struct_def.invariants),
+        _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
+    };
+    let wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)?;
+    conv::conv_invariants(
+        genv,
+        item.owner_id.map(|it| it.def_id),
+        params,
+        invariants,
+        &wfckresults,
+    )?
+    .into_iter()
+    .map(|invariant| normalize(genv, invariant))
+    .collect()
 }
 
 fn predicates_of(
