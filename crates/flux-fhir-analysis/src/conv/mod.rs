@@ -1332,43 +1332,43 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     }
 
     fn conv_ty_ctor(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
-        let bty = match &path.res {
+        let bty = match path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
             fhir::Res::PrimTy(PrimTy::Char) => rty::BaseTy::Char,
             fhir::Res::PrimTy(PrimTy::Int(int_ty)) => {
-                rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty))
+                rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))
             }
             fhir::Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty))
+                rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))
             }
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
-                rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
+                rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
-                let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, path.last_segment())?;
+                let adt_def = self.genv.adt_def(did)?;
+                let args = self.conv_generic_args(env, did, path.last_segment())?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                rty::BaseTy::Param(def_id_to_param_ty(self.genv, *def_id))
+                rty::BaseTy::Param(def_id_to_param_ty(self.genv, def_id))
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity());
+                rty::BaseTy::Alias(rty::AliasTy {
+                    def_id: alias_to,
+                    args: List::empty(),
+                    refine_args: List::empty(),
+                })
             }
-            fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, path.last_segment())?;
-                let refine = path
+            fhir::Res::Def(DefKind::TyAlias, def_id) => {
+                let args = self.conv_generic_args(env, def_id, path.last_segment())?;
+                let refine_args = path
                     .refine
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect_vec()?;
-                let tcx = self.genv.tcx();
-                return Ok(self
-                    .genv
-                    .type_of(*def_id)?
-                    .instantiate(tcx, &generics, &refine));
+                    .try_collect()?;
+                rty::BaseTy::Alias(rty::AliasTy { def_id, args: List::from(args), refine_args })
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)

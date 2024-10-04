@@ -109,6 +109,7 @@ impl Pretty for Sort {
                     w!("({:?})", join!(", ", sorts))
                 }
             }
+            Sort::Alias(alias_ty) => todo!(),
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
                     w!("{:?}", ctor)
@@ -444,6 +445,7 @@ impl Pretty for BaseTy {
                     w!("({:?})", join!(", ", tys))
                 }
             }
+            BaseTy::Alias(alias_ty) => todo!(),
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),
             BaseTy::Closure(did, args, _) => {

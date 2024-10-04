@@ -429,9 +429,10 @@ impl BasicBlockEnvShape {
             | BaseTy::Never
             | BaseTy::Closure(..)
             | BaseTy::Dynamic(..)
+            | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
             | BaseTy::Coroutine(..) => {
-                debug_assert!(!scope.has_free_vars(bty));
+                assert!(!scope.has_free_vars(bty));
                 bty.clone()
             }
             BaseTy::Infer(..) => {

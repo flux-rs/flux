@@ -106,7 +106,7 @@ impl AdtSortDef {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+    pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
         let sorts = self
             .filter_generic_args(args)
             .map(|arg| arg.expect_base().sort())
@@ -606,6 +606,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
+    Alias(AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -1287,6 +1288,7 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
+    Alias(AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
@@ -1448,6 +1450,7 @@ impl BaseTy {
             BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Str => Sort::Str,
+            BaseTy::Alias(alias_ty) => Sort::Alias(alias_ty.clone()),
             BaseTy::Float(_)
             | BaseTy::Char
             | BaseTy::RawPtr(..)
@@ -1507,6 +1510,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
+            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);
@@ -1537,10 +1541,10 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
     Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct AliasTy {
+    pub def_id: DefId,
     pub args: GenericArgs,
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
-    pub def_id: DefId,
 }
 
 pub type RefineArgs = List<Expr>;
@@ -1972,7 +1976,7 @@ impl AdtDef {
     }
 
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
-        self.sort_def().sort(args)
+        self.sort_def().to_sort(args)
     }
 
     pub fn is_box(&self) -> bool {

@@ -194,7 +194,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         let Ok(args) = rty::GenericArg::identity_for_item(genv, enum_id).emit(&self.errors) else {
             return;
         };
-        let expected = adt_sort_def.sort(&args);
+        let expected = adt_sort_def.to_sort(&args);
         self.infcx
             .check_refine_arg(&ret.idx, &expected)
             .collect_err(&mut self.errors);
