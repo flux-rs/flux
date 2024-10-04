@@ -566,14 +566,15 @@ mod errors {
             decl: &fhir::FnDecl,
             pos: usize,
         ) -> Self {
-            let expected_span = if let Some(local_id) = fn_id.as_local() {
-                genv.tcx()
-                    .hir_node_by_def_id(local_id)
-                    .fn_decl()
-                    .and_then(|fn_decl| fn_decl.inputs.get(pos))
-                    .map(|input| input.span)
-            } else {
-                Some(genv.tcx().def_span(fn_id.resolved_id()))
+            let expected_span = match fn_id {
+                MaybeExternId::Local(local_id) => {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .and_then(|fn_decl| fn_decl.inputs.get(pos))
+                        .map(|input| input.span)
+                }
+                MaybeExternId::Extern(_, extern_id) => Some(genv.tcx().def_span(extern_id)),
             };
 
             let expected_ty = genv
@@ -597,13 +598,14 @@ mod errors {
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
         ) -> Self {
-            let expected_span = if let Some(local_id) = fn_id.as_local() {
-                genv.tcx()
-                    .hir_node_by_def_id(local_id)
-                    .fn_decl()
-                    .map(|fn_decl| fn_decl.output.span())
-            } else {
-                Some(genv.tcx().def_span(fn_id.resolved_id()))
+            let expected_span = match fn_id {
+                MaybeExternId::Local(local_id) => {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .map(|fn_decl| fn_decl.output.span())
+                }
+                MaybeExternId::Extern(_, extern_id) => Some(genv.tcx().def_span(extern_id)),
             };
 
             let expected_ty = genv
