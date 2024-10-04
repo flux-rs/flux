@@ -560,6 +560,11 @@
 <a href="#560" id="560">560</a>
 <a href="#561" id="561">561</a>
 <a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -799,9 +804,11 @@
 
     <span class="kw">pub fn </span>predicates_of(
         <span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
-        <span class="self">self</span>.inner.queries.predicates_of(<span class="self">self</span>, def_id.into())
+        <span class="self">self</span>.inner
+            .queries
+            .predicates_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>assoc_refinements_of(
@@ -852,8 +859,11 @@
         <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
-    <span class="kw">pub fn </span>fn_sig(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
-        <span class="self">self</span>.inner.queries.fn_sig(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>fn_sig(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
+        <span class="self">self</span>.inner.queries.fn_sig(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>variants_of(

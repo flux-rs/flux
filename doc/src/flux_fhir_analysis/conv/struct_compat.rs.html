@@ -737,12 +737,22 @@
 <a href="#737" id="737">737</a>
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
 //! infer types annotated with `_` in the surface syntax.
 
-</span><span class="kw">use </span>std::iter;
+</span><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::Errors;
@@ -939,8 +949,7 @@
     }
 
     <span class="kw">fn </span>zip_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnOutput, b: <span class="kw-2">&amp;</span>rty::FnOutput) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
-        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret)
-            .map_err(|<span class="kw">_</span>| FnSigErr::FnOutput)<span class="question-mark">?</span>;
+        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret).map_err(FnSigErr::FnOutput)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>(i, ensures) <span class="kw">in </span>a.ensures.iter().enumerate() {
             <span class="kw">if let </span>rty::Ensures::Type(path, ty_a) = ensures {
@@ -1000,7 +1009,7 @@
             ) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected type {a:?}"</span>);
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
         }
     }
 
@@ -1038,7 +1047,7 @@
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) =&gt; {
                 <span class="self">self</span>.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
-                    .map_err(|<span class="kw">_</span>| Mismatch)
+                    .map_err(|<span class="kw">_</span>| Mismatch::new(poly_sig_a, poly_sig_b))
             }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) =&gt; {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())<span class="question-mark">?</span>;
@@ -1066,7 +1075,7 @@
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected type `{a:?}`"</span>);
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
         }
     }
 
@@ -1089,7 +1098,7 @@
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) =&gt; {
                 <span class="self">self</span>.zip_const(ct_a, ct_b)
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
         }
     }
 
@@ -1109,7 +1118,7 @@
             (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) =&gt; {
                 assert_eq_or_incompatible(c1, c2)
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
         }
     }
 
@@ -1153,7 +1162,7 @@
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
                     rty::ExistentialPredicate::AutoTrait(def_id_b),
                 ) =&gt; assert_eq_or_incompatible(def_id_a, def_id_b),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch),
+                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
             }
         })
     }
@@ -1214,7 +1223,7 @@
                     i,
                 ));
             }
-            FnSigErr::FnOutput =&gt; {
+            FnSigErr::FnOutput(<span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_output(
                     <span class="self">self</span>.genv,
                     <span class="self">self</span>.owner_id,
@@ -1234,20 +1243,31 @@
     }
 }
 
-<span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq + fmt::Debug&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
     <span class="kw">if </span>a != b {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(Mismatch);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(Mismatch::new(a, b));
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">struct </span>Mismatch;
+<span class="attr">#[expect(dead_code, reason = <span class="string">"we use the the String for debugging"</span>)]
+</span><span class="kw">struct </span>Mismatch(String);
+
+<span class="kw">impl </span>Mismatch {
+    <span class="kw">fn </span>new&lt;T: fmt::Debug&gt;(a: T, b: T) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">"{a:?} != {b:?}"</span>))
+    }
+}
 
 <span class="kw">enum </span>FnSigErr {
     ArgCountMismatch,
     FnInput(usize),
-    FnOutput,
-    Ensures { i: usize, expected: rty::Ty },
+    <span class="attr">#[expect(dead_code, reason = <span class="string">"we use the struct for debugging"</span>)]
+    </span>FnOutput(Mismatch),
+    Ensures {
+        i: usize,
+        expected: rty::Ty,
+    },
 }
 
 <span class="kw">mod </span>errors {
