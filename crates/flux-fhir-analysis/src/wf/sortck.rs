@@ -6,6 +6,7 @@ use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -18,7 +19,10 @@ use rustc_errors::Diagnostic;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
-use crate::{compare_impl_item::errors::InvalidAssocReft, conv};
+use crate::{
+    compare_impl_item::errors::InvalidAssocReft,
+    conv::{self, ConvCtxt, Env, InSortck},
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -344,6 +348,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .collect_vec();
         fsort.instantiate(&args)
     }
+
+    fn conv_base_ty(&self, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
+        let mut cx = ConvCtxt::new(self.genv, InSortck { owner: self.wfckresults.owner });
+        cx.conv_base_ty(&mut Env::empty(), bty)
+    }
+
+    fn conv_ctxt(&self) -> ConvCtxt<'genv, 'tcx, InSortck> {
+        ConvCtxt::new(self.genv, InSortck { owner: self.wfckresults.owner })
+    }
 }
 
 impl<'genv> InferCtxt<'genv, '_> {
@@ -644,6 +657,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
+            if let Ok(ty) = self.infcx.conv_base_ty(bty) {}
             let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
                 return;
             };
