@@ -103,7 +103,8 @@ fhir_analysis_refined_unrefinable_type =
 fhir_analysis_incompatible_refinement =
     {$def_descr} has an incompatible refinement annotation
     .label = expected a refinement of `{$expected_ty}`
-    .expected_label = unrefined {$def_descr} defined here
+    .expected_label = unrefined {$def_descr} found here
+    .note = a refinement annotation must match the unrefined definition structurally
 
 fhir_analysis_incompatible_param_count =
     {$def_descr} has an incompatible refinement annotation

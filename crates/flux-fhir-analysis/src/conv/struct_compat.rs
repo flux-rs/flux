@@ -534,19 +534,20 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    pub(super) struct IncompatibleRefinement {
+    #[note]
+    pub(super) struct IncompatibleRefinement<'tcx> {
         #[primary_span]
         #[label]
         span: Span,
         #[label(fhir_analysis_expected_label)]
         expected_span: Option<Span>,
-        expected_ty: String,
+        expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
     }
 
-    impl IncompatibleRefinement {
+    impl<'tcx> IncompatibleRefinement<'tcx> {
         pub(super) fn type_alias(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             def_id: MaybeExternId,
             type_alias: &fhir::TyAlias,
         ) -> Self {
@@ -555,57 +556,73 @@ mod errors {
                 span: type_alias.ty.span,
                 def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: Some(tcx.def_span(def_id)),
-                expected_ty: format!("{}", tcx.type_of(def_id).skip_binder()),
+                expected_ty: tcx.type_of(def_id).skip_binder(),
             }
         }
 
         pub(super) fn fn_input(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             pos: usize,
         ) -> Self {
-            let expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
+            let expected_span = if let Some(local_id) = fn_id.as_local() {
+                genv.tcx()
+                    .hir_node_by_def_id(local_id)
+                    .fn_decl()
+                    .and_then(|fn_decl| fn_decl.inputs.get(pos))
+                    .map(|input| input.span)
+            } else {
+                Some(genv.tcx().def_span(fn_id.resolved_id()))
+            };
 
-            let expected_ty = expected_decl.inputs[pos];
+            let expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .inputs()
+                .map_bound(|inputs| inputs[pos])
+                .skip_binder();
+
             Self {
                 span: decl.inputs[pos].span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: Some(expected_ty.span),
-                expected_ty: rustc_hir_pretty::ty_to_string(&genv.tcx(), &expected_ty),
+                expected_span,
+                expected_ty,
             }
         }
 
         pub(super) fn fn_output(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
         ) -> Self {
-            let expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
-
-            let expected_ty = match expected_decl.output {
-                rustc_hir::FnRetTy::DefaultReturn(_) => "()".to_string(),
-                rustc_hir::FnRetTy::Return(ty) => rustc_hir_pretty::ty_to_string(&genv.tcx(), ty),
+            let expected_span = if let Some(local_id) = fn_id.as_local() {
+                genv.tcx()
+                    .hir_node_by_def_id(local_id)
+                    .fn_decl()
+                    .map(|fn_decl| fn_decl.output.span())
+            } else {
+                Some(genv.tcx().def_span(fn_id.resolved_id()))
             };
+
+            let expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .output()
+                .skip_binder();
             let spec_span = decl.output.ret.span;
             Self {
                 span: spec_span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: Some(expected_decl.output.span()),
+                expected_span,
                 expected_ty,
             }
         }
 
         pub(super) fn ensures(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             expected: &rty::Ty,
@@ -619,12 +636,12 @@ mod errors {
                 span: ty.span,
                 def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: None,
-                expected_ty: format!("{}", expected.to_rustc(tcx)),
+                expected_ty: expected.to_rustc(tcx),
             }
         }
 
         pub(super) fn field(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             adt_id: MaybeExternId,
             variant_idx: VariantIdx,
             field_idx: FieldIdx,
@@ -652,7 +669,7 @@ mod errors {
                 span,
                 def_descr: tcx.def_descr(field_def.did),
                 expected_span: Some(tcx.def_span(field_def.did)),
-                expected_ty: format!("{}", tcx.type_of(field_def.did).skip_binder()),
+                expected_ty: tcx.type_of(field_def.did).skip_binder(),
             }
         }
     }
