@@ -302,6 +302,7 @@
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -318,11 +319,12 @@
     fhir::{<span class="self">self</span>, visit::Visitor, FluxOwnerId},
     global_env::GlobalEnv,
     rty::{<span class="self">self</span>, WfckResults},
+    MaybeExternId,
 };
 <span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_hir::def::DefKind;
+<span class="kw">use </span>rustc_hir::{def::DefKind, OwnerId};
 <span class="kw">use </span>rustc_span::{symbol::Ident, Symbol};
 
 <span class="kw">use </span><span class="self">self</span>::sortck::{ImplicitParamInferer, InferCtxt};
@@ -346,6 +348,25 @@
         <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>func.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         infcx.check_expr(body, <span class="kw-2">&amp;</span>output)<span class="question-mark">?</span>;
     }
+    <span class="prelude-val">Ok</span>(infcx.into_results())
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_invariants(
+    genv: GlobalEnv,
+    adt_def_id: MaybeExternId&lt;OwnerId&gt;,
+    params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
+    invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
+    <span class="kw">let </span>owner = FluxOwnerId::Rust(adt_def_id.local_id());
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
+    infcx.insert_params(params)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
+    <span class="kw">for </span>invariant <span class="kw">in </span>invariants {
+        infcx
+            .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+            .collect_err(<span class="kw-2">&amp;mut </span>err);
+    }
+    err.into_result()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(infcx.into_results())
 }
 
@@ -469,25 +490,6 @@
                 .check_expr(body, <span class="kw-2">&amp;</span>output)
                 .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
         }
-    }
-
-    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef&lt;<span class="lifetime">'genv</span>&gt;) {
-        <span class="kw">for </span>invariant <span class="kw">in </span>struct_def.invariants {
-            <span class="self">self</span>.infcx
-                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
-                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
-        }
-        fhir::visit::walk_struct_def(<span class="self">self</span>, struct_def);
-    }
-
-    <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef&lt;<span class="lifetime">'genv</span>&gt;) {
-        <span class="kw">for </span>invariant <span class="kw">in </span>enum_def.invariants {
-            <span class="self">self</span>.infcx
-                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
-                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
-        }
-
-        fhir::visit::walk_enum_def(<span class="self">self</span>, enum_def);
     }
 
     <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>fhir::VariantRet) {
