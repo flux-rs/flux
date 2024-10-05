@@ -98,6 +98,7 @@ impl Pretty for Sort {
             Sort::Int => w!("int"),
             Sort::Real => w!("real"),
             Sort::Str => w!("str"),
+            Sort::Char => w!("char"),
             Sort::BitVec(size) => w!("bitvec({:?})", size),
             Sort::Loc => w!("loc"),
             Sort::Var(n) => w!("@{}", ^n.index()),

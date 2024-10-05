@@ -325,8 +325,7 @@ pub enum Constant {
     Float(u128, FloatTy),
     Bool(bool),
     Str(Symbol),
-    /// We only support opaque chars, so no data stored here for now
-    Char,
+    Char(u32),
     Unit,
     Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
@@ -724,7 +723,7 @@ impl fmt::Debug for Constant {
             Constant::Bool(b) => write!(f, "{b}"),
             Constant::Unit => write!(f, "()"),
             Constant::Str(s) => write!(f, "\"{s:?}\""),
-            Constant::Char => write!(f, "\"<opaque char>\""),
+            Constant::Char(c) => write!(f, "\"{}\"", unsafe { char::from_u32_unchecked(*c) }),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
             Constant::Param(p, _) => write!(f, "{:?}", p),
         }

@@ -631,7 +631,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             TyKind::Float(float_ty) => {
                 Some(Constant::Float(scalar_to_bits(self.tcx, scalar, ty).unwrap(), *float_ty))
             }
-            TyKind::Char => Some(Constant::Char),
+            TyKind::Char => Some(Constant::Char(scalar.to_u32())),
             TyKind::Bool => Some(Constant::Bool(scalar.try_to_bool().unwrap())),
             TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
             _ => {

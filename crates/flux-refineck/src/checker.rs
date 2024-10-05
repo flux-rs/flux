@@ -834,6 +834,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(Guard::Pred(pred))
     }
 
+    /// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
     fn check_if(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
@@ -1369,7 +1371,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let idx = Expr::constant(rty::Constant::from(*s));
                 Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
             }
-            Constant::Char => Ok(Ty::char()),
+            Constant::Char(c) => {
+                let idx = Expr::constant(rty::Constant::from(*c));
+                Ok(Ty::indexed(BaseTy::Char, idx))
+            }
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
                 let ty_ctor = Refiner::default(self.genv, &self.generics)

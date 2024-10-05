@@ -912,7 +912,8 @@ pub enum Lit {
     Int(i128),
     Real(i128),
     Bool(bool),
-    Str(Symbol),
+    Str(Symbol), // `rustc_span::Symbol` interns a value with the type
+    Char(u32),   // all Rust chars are u32s
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1438,6 +1439,8 @@ impl fmt::Debug for Lit {
             Lit::Real(r) => write!(f, "{r}real"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
+            Lit::Char(c) => write!(f, "\"{c:?}\""),
+            // Lit::Char(c) => write!(f, "\"{char::from_u32(c)}\""),
         }
     }
 }

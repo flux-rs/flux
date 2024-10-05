@@ -603,6 +603,7 @@ pub enum Sort {
     Real,
     BitVec(BvSize),
     Str,
+    Char,
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),

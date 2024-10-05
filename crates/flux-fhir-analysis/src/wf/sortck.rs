@@ -690,6 +690,7 @@ fn synth_lit(lit: fhir::Lit) -> rty::Sort {
         fhir::Lit::Bool(_) => rty::Sort::Bool,
         fhir::Lit::Real(_) => rty::Sort::Real,
         fhir::Lit::Str(_) => rty::Sort::Str,
+        fhir::Lit::Char(_) => rty::Sort::Char,
     }
 }
 
