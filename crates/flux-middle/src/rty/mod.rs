@@ -2104,13 +2104,6 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     }
 }
 
-impl Binder<Expr> {
-    /// See [`Expr::is_trivially_true`]
-    pub fn is_trivially_true(&self) -> bool {
-        self.skip_binder_ref().is_trivially_true()
-    }
-}
-
 /// returns the same invariants as for `usize` which is the length of a slice
 fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {

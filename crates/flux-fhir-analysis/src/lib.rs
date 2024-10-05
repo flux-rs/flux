@@ -378,12 +378,14 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     let def_id = genv.maybe_extern_id(def_id);
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
-            let alias = genv
+            let fhir_ty_alias = genv
                 .map()
                 .expect_item(def_id.local_id())?
                 .expect_type_alias();
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)?;
+            struct_compat::type_alias(genv, fhir_ty_alias, &ty_alias, def_id)?
         }
         DefKind::TyParam => {
             match def_id {

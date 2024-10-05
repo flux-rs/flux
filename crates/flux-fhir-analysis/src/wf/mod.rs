@@ -100,7 +100,9 @@ pub(crate) fn foo<'genv>(genv: GlobalEnv<'genv, '_>, node: &fhir::Node<'genv>) -
                 fhir::ItemKind::Struct(struct_def) => {
                     cx.conv_struct_variant(def_id, struct_def)?;
                 }
-                fhir::ItemKind::TyAlias(_) => {}
+                fhir::ItemKind::TyAlias(ty_alias) => {
+                    cx.conv_type_alias(def_id, ty_alias)?;
+                }
                 fhir::ItemKind::Trait(_) => {}
                 fhir::ItemKind::Impl(_) => {}
                 fhir::ItemKind::Fn(fn_sig) => {

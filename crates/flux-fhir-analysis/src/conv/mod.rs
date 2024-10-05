@@ -235,25 +235,6 @@ pub(crate) fn conv_adt_sort_def(
     Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
 }
 
-pub(crate) fn expand_type_alias(
-    genv: GlobalEnv,
-    def_id: MaybeExternId,
-    alias: &fhir::TyAlias,
-    wfckresults: &WfckResults,
-) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut cx = ConvCtxt::new(genv, wfckresults);
-    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
-
-    let mut env = Env::new(generics.refinement_params);
-    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), alias.params)?);
-
-    let ty = cx.conv_ty(&mut env, &alias.ty)?;
-
-    let ty = struct_compat::type_alias(genv, alias, &ty, def_id)?;
-
-    Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(genv)?))
-}
-
 pub(crate) fn conv_generic_predicates(
     genv: GlobalEnv,
     def_id: LocalDefId,
@@ -503,19 +484,19 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
     pub(crate) fn conv_enum_variants(
         &mut self,
-        adt_def_id: MaybeExternId,
+        enum_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
             .iter()
-            .map(|variant| self.conv_enum_variant(adt_def_id, variant))
+            .map(|variant| self.conv_enum_variant(enum_id, variant))
             .try_collect_vec()
     }
 
     fn conv_enum_variant(
         &mut self,
-        adt_def_id: MaybeExternId,
+        enum_id: MaybeExternId,
         variant: &fhir::VariantDef,
     ) -> QueryResult<rty::PolyVariant> {
         let mut env = Env::new(&[]);
@@ -527,11 +508,11 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             .map(|field| self.conv_ty(&mut env, &field.ty))
             .try_collect()?;
 
-        let adt_def = self.genv.adt_def(adt_def_id)?;
+        let adt_def = self.genv.adt_def(enum_id)?;
         let idxs = self.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArg::identity_for_item(self.genv, adt_def_id.resolved_id())?,
+            rty::GenericArg::identity_for_item(self.genv, enum_id.resolved_id())?,
             fields,
             idxs,
         );
@@ -541,14 +522,14 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
     pub(crate) fn conv_struct_variant(
         &mut self,
-        adt_def_id: MaybeExternId,
+        struct_id: MaybeExternId,
         struct_def: &fhir::StructDef,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(self, 0, struct_def.params)?);
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let adt_def = self.genv.adt_def(adt_def_id)?;
+            let adt_def = self.genv.adt_def(struct_id)?;
 
             let fields = fields
                 .iter()
@@ -557,7 +538,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
             let vars = env.pop_layer().into_bound_vars(self.genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id.resolved_id(),
+                struct_id.resolved_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::bvar(
@@ -570,7 +551,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArg::identity_for_item(self.genv, adt_def_id.resolved_id())?,
+                rty::GenericArg::identity_for_item(self.genv, struct_id.resolved_id())?,
                 fields,
                 idx,
             );
@@ -579,6 +560,25 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         } else {
             Ok(rty::Opaqueness::Opaque)
         }
+    }
+
+    pub(crate) fn conv_type_alias(
+        &mut self,
+        ty_alias_id: MaybeExternId,
+        ty_alias: &fhir::TyAlias,
+    ) -> QueryResult<rty::TyCtor> {
+        let generics = self
+            .genv
+            .map()
+            .get_generics(ty_alias_id.local_id())?
+            .unwrap();
+
+        let mut env = Env::new(generics.refinement_params);
+        env.push_layer(Layer::coalesce(self, ty_alias_id.resolved_id(), ty_alias.params)?);
+
+        let ty = self.conv_ty(&mut env, &ty_alias.ty)?;
+
+        Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(self.genv)?))
     }
 
     pub(crate) fn conv_fn_sig(

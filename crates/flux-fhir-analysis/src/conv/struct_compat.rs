@@ -26,15 +26,18 @@ use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 pub(crate) fn type_alias(
     genv: GlobalEnv,
     alias: &fhir::TyAlias,
-    ty: &rty::Ty,
+    alias_ty: &rty::TyCtor,
     def_id: MaybeExternId,
-) -> QueryResult<rty::Ty> {
+) -> QueryResult<rty::TyCtor> {
     let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_ty(&rust_ty)?;
     let mut zipper = Zipper::new(genv, def_id);
 
-    if zipper.zip_ty(ty, &expected).is_err() {
+    if zipper
+        .enter_a_binder(alias_ty, |zipper, ty| zipper.zip_ty(ty, &expected))
+        .is_err()
+    {
         zipper
             .errors
             .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
@@ -42,7 +45,7 @@ pub(crate) fn type_alias(
 
     zipper.errors.into_result()?;
 
-    Ok(zipper.holes.replace_holes(ty))
+    Ok(zipper.holes.replace_holes(alias_ty))
 }
 
 pub(crate) fn fn_sig(
