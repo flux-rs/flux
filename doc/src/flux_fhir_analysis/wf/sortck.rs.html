@@ -757,6 +757,10 @@
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -936,9 +940,13 @@
                 <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(var)<span class="question-mark">?</span>;
                 <span class="kw">match </span><span class="kw-2">&amp;</span>sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) =&gt; {
-                        sort_def
-                            .field_sort(sort_args, fld.name)
-                            .ok_or_else(|| <span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld))
+                        <span class="kw">let </span>(proj, sort) = sort_def
+                            .field_by_name(sort_args, fld.name)
+                            .ok_or_else(|| <span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld))<span class="question-mark">?</span>;
+                        <span class="self">self</span>.wfckresults
+                            .field_projs_mut()
+                            .insert(expr.fhir_id, proj);
+                        <span class="prelude-val">Ok</span>(sort)
                     }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real =&gt; {
                         <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidPrimitiveDotAccess::new(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld)))
