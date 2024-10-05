@@ -17,7 +17,7 @@ mod wf;
 
 use std::rc::Rc;
 
-use conv::{bug_on_infer_sort, ConvCtxt};
+use conv::{bug_on_infer_sort, struct_compat, ConvCtxt};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
@@ -444,7 +444,10 @@ fn variants_of(
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let variants = ConvCtxt::conv_enum_variants(genv, def_id, enum_def, &*wfckresults)?
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let variants = cx.conv_enum_variants(def_id, enum_def)?;
+            let variants = struct_compat::variants(genv, &variants, def_id)?;
+            let variants = variants
                 .into_iter()
                 .map(|variant| normalize(genv, variant))
                 .try_collect()?;
@@ -452,8 +455,10 @@ fn variants_of(
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            ConvCtxt::conv_struct_variant(genv, def_id, struct_def, &*wfckresults)?
-                .map(|variants| {
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            cx.conv_struct_variant(def_id, struct_def)?
+                .map(|variant| {
+                    let variants = struct_compat::variants(genv, &[variant], def_id)?;
                     variants
                         .into_iter()
                         .map(|variant| normalize(genv, variant))

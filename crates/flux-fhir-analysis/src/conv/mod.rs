@@ -8,7 +8,7 @@
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
 
-mod struct_compat;
+pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -114,11 +114,11 @@ impl WfckResultsProvider for WfckResults {
     }
 }
 
-pub struct InSortck {
+pub struct BeforeWf {
     pub owner: FluxOwnerId,
 }
 
-impl WfckResultsProvider for InSortck {
+impl WfckResultsProvider for BeforeWf {
     const EXPAND_TYPE_ALIASES: bool = false;
 
     fn owner(&self) -> FluxOwnerId {
@@ -188,7 +188,7 @@ struct LookupResult<'a> {
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    LateBound {
+    Bound {
         debruijn: DebruijnIndex,
         entry: &'a ParamEntry,
         kind: LayerKind,
@@ -500,6 +500,7 @@ pub(crate) fn conv_ty(
     Ok(rty::Binder::bind_with_vars(ty, List::empty()))
 }
 
+/// Conversion of types
 impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, results: &'a R) -> Self {
         Self {
@@ -522,68 +523,60 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     }
 
     pub(crate) fn conv_enum_variants(
-        genv: GlobalEnv,
+        &mut self,
         adt_def_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
-        results: &R,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
-        let variants = enum_def
+        enum_def
             .variants
             .iter()
-            .map(|variant_def| Self::conv_enum_variant(genv, adt_def_id, variant_def, results))
-            .try_collect_vec()?;
-        let variants = struct_compat::variants(genv, &variants, adt_def_id)?;
-        Ok(variants)
+            .map(|variant| self.conv_enum_variant(adt_def_id, variant))
+            .try_collect_vec()
     }
 
     fn conv_enum_variant(
-        genv: GlobalEnv,
+        &mut self,
         adt_def_id: MaybeExternId,
         variant: &fhir::VariantDef,
-        results: &R,
     ) -> QueryResult<rty::PolyVariant> {
-        let mut cx = ConvCtxt::new(genv, results);
-
-        let mut env = Env::new(genv, &[], results)?;
-        env.push_layer(Layer::list(&cx, 0, variant.params)?);
+        let mut env = Env::new(self.genv, &[], self.results)?;
+        env.push_layer(Layer::list(&self, 0, variant.params)?);
 
         let fields = variant
             .fields
             .iter()
-            .map(|field| cx.conv_ty(&mut env, &field.ty))
+            .map(|field| self.conv_ty(&mut env, &field.ty))
             .try_collect()?;
 
-        let adt_def = genv.adt_def(adt_def_id)?;
-        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
+        let adt_def = self.genv.adt_def(adt_def_id)?;
+        let idxs = self.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArg::identity_for_item(genv, adt_def_id.resolved_id())?,
+            rty::GenericArg::identity_for_item(self.genv, adt_def_id.resolved_id())?,
             fields,
             idxs,
         );
 
-        Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(genv)?))
+        Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(self.genv)?))
     }
 
     pub(crate) fn conv_struct_variant(
-        genv: GlobalEnv,
+        &mut self,
         adt_def_id: MaybeExternId,
         struct_def: &fhir::StructDef,
-        results: &R,
-    ) -> QueryResult<rty::Opaqueness<Vec<rty::PolyVariant>>> {
-        let mut cx = ConvCtxt::new(genv, results);
-        let mut env = Env::new(genv, &[], results)?;
-        env.push_layer(Layer::list(&cx, 0, struct_def.params)?);
+    ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
+        let mut env = Env::new(self.genv, &[], self.results)?;
+        env.push_layer(Layer::list(&self, 0, struct_def.params)?);
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let adt_def = genv.adt_def(adt_def_id)?;
+            let adt_def = self.genv.adt_def(adt_def_id)?;
 
             let fields = fields
                 .iter()
-                .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
+                .map(|field_def| self.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
 
-            let vars = env.pop_layer().into_bound_vars(genv)?;
+            let vars = env.pop_layer().into_bound_vars(self.genv)?;
             let idx = rty::Expr::adt(
                 adt_def_id.resolved_id(),
                 (0..vars.len())
@@ -598,13 +591,12 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArg::identity_for_item(genv, adt_def_id.resolved_id())?,
+                rty::GenericArg::identity_for_item(self.genv, adt_def_id.resolved_id())?,
                 fields,
                 idx,
             );
             let variant = rty::Binder::bind_with_vars(variant, vars);
-            let variants = struct_compat::variants(genv, &[variant], adt_def_id)?;
-            Ok(rty::Opaqueness::Transparent(variants))
+            Ok(rty::Opaqueness::Transparent(variant))
         } else {
             Ok(rty::Opaqueness::Opaque)
         }
@@ -1575,6 +1567,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     }
 }
 
+/// Conversion of expressions
 impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
@@ -1790,7 +1783,7 @@ impl Env {
         for (i, layer) in self.layers.iter().rev().enumerate() {
             if let Some((idx, entry)) = layer.get(id) {
                 let debruijn = DebruijnIndex::from_usize(i);
-                let kind = LookupResultKind::LateBound {
+                let kind = LookupResultKind::Bound {
                     debruijn,
                     entry,
                     index: idx as u32,
@@ -1904,12 +1897,7 @@ impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         let espan = ESpan::new(self.var_span);
         match &self.kind {
-            LookupResultKind::LateBound {
-                debruijn,
-                entry: ParamEntry { name, .. },
-                kind,
-                index,
-            } => {
+            LookupResultKind::Bound { debruijn, entry: ParamEntry { name, .. }, kind, index } => {
                 match *kind {
                     LayerKind::List { bound_regions } => {
                         rty::Expr::bvar(
@@ -1936,7 +1924,7 @@ impl LookupResult<'_> {
 
     fn is_adt(&self) -> Option<&AdtSortDef> {
         match &self.kind {
-            LookupResultKind::LateBound {
+            LookupResultKind::Bound {
                 entry: ParamEntry { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),

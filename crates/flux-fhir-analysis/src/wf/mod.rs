@@ -13,6 +13,7 @@ use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, visit::Visitor, FluxOwnerId},
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, WfckResults},
     MaybeExternId,
 };
@@ -23,7 +24,7 @@ use rustc_hir::{def::DefKind, OwnerId};
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{self, bug_on_infer_sort};
+use crate::conv::{self, bug_on_infer_sort, BeforeWf, ConvCtxt};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -71,6 +72,8 @@ pub(crate) fn check_node<'genv>(
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
 
+    foo(genv, node).emit(&genv)?;
+
     insert_params(&mut infcx, node)?;
 
     ImplicitParamInferer::infer(&mut infcx, node)?;
@@ -82,6 +85,32 @@ pub(crate) fn check_node<'genv>(
     param_usage::check(&infcx, node)?;
 
     Ok(infcx.into_results())
+}
+
+pub(crate) fn foo<'genv>(genv: GlobalEnv<'genv, '_>, node: &fhir::Node<'genv>) -> QueryResult {
+    let def_id = node.owner_id().map(|id| id.def_id);
+    let mode = BeforeWf { owner: FluxOwnerId::Rust(node.owner_id().local_id()) };
+    let mut cx = ConvCtxt::new(genv, &mode);
+    match node {
+        fhir::Node::Item(item) => {
+            match &item.kind {
+                fhir::ItemKind::Enum(enum_def) => {
+                    cx.conv_enum_variants(def_id, enum_def)?;
+                }
+                fhir::ItemKind::Struct(struct_def) => {
+                    cx.conv_struct_variant(def_id, struct_def)?;
+                }
+                fhir::ItemKind::TyAlias(_) => {}
+                fhir::ItemKind::Trait(_) => {}
+                fhir::ItemKind::Impl(_) => {}
+                fhir::ItemKind::Fn(_) => {}
+                fhir::ItemKind::OpaqueTy(_) => {}
+            }
+        }
+        fhir::Node::TraitItem(_) => {}
+        fhir::Node::ImplItem(_) => {}
+    }
+    Ok(())
 }
 
 /// Initializes the inference context with all parameters required to check node
