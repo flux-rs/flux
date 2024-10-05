@@ -608,7 +608,22 @@ pub enum RefineArgKind<'fhir> {
 #[derive(Clone, Copy)]
 pub struct BaseTy<'fhir> {
     pub kind: BaseTyKind<'fhir>,
+    pub fhir_id: FhirId,
     pub span: Span,
+}
+
+impl<'fhir> BaseTy<'fhir> {
+    pub fn from_qpath(qpath: QPath<'fhir>, fhir_id: FhirId) -> Self {
+        let span = qpath.span();
+        Self { kind: BaseTyKind::Path(qpath), fhir_id, span }
+    }
+
+    fn as_path(&self) -> Option<Path<'fhir>> {
+        match self.kind {
+            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -998,15 +1013,6 @@ impl<'fhir> Ty<'fhir> {
     }
 }
 
-impl<'fhir> BaseTy<'fhir> {
-    fn as_path(&self) -> Option<Path<'fhir>> {
-        match self.kind {
-            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
-            _ => None,
-        }
-    }
-}
-
 impl Res {
     pub fn descr(&self) -> &'static str {
         match self {
@@ -1049,13 +1055,6 @@ impl<'fhir> QPath<'fhir> {
             QPath::Resolved(_, path) => path.span,
             QPath::TypeRelative(qself, assoc) => qself.span.to(assoc.ident.span),
         }
-    }
-}
-
-impl<'fhir> From<QPath<'fhir>> for BaseTy<'fhir> {
-    fn from(qpath: QPath<'fhir>) -> Self {
-        let span = qpath.span();
-        Self { kind: BaseTyKind::Path(qpath), span }
     }
 }
 

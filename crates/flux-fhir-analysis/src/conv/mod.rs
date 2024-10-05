@@ -27,14 +27,14 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     self as hir,
     def::DefKind,
     def_id::{CrateNum, DefId, DefIndex, LocalDefId},
-    PrimTy, Safety,
+    OwnerId, PrimTy, Safety,
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
@@ -63,11 +63,11 @@ pub trait WfckResultsProvider: Sized {
 
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
-    fn coercions_at(&self, fhir_id: FhirId) -> &[rty::Coercion];
+    fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion];
 
     fn field_proj(&self, fhir_id: FhirId) -> rty::FieldProj;
 
-    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
+    fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort;
 
     fn record_ctor(&self, fhir_id: FhirId) -> DefId;
 
@@ -76,6 +76,8 @@ pub trait WfckResultsProvider: Sized {
         genv: GlobalEnv,
         param: &fhir::RefineParam,
     ) -> QueryResult<rty::Sort>;
+
+    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort);
 }
 
 impl WfckResultsProvider for WfckResults {
@@ -89,10 +91,10 @@ impl WfckResultsProvider for WfckResults {
         self.bin_rel_sorts()
             .get(fhir_id)
             .cloned()
-            .unwrap_or_else(|| bug!("binary relation without elaborated sort {fhir_id:?}"))
+            .unwrap_or_else(|| bug!("binary relation without elaborated sort: `{fhir_id:?}`"))
     }
 
-    fn coercions_at(&self, fhir_id: FhirId) -> &[rty::Coercion] {
+    fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
         self.coercions().get(fhir_id).map_or(&[][..], Vec::as_slice)
     }
 
@@ -100,13 +102,13 @@ impl WfckResultsProvider for WfckResults {
         *self
             .field_projs()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("field projectoin without elaboration {fhir_id:?}"))
+            .unwrap_or_else(|| bug!("field projectoin without elaboration: `{fhir_id:?}`"))
     }
 
-    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort {
+    fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort {
         self.node_sorts()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("node without elaborated sort for {fhir_id:?}"))
+            .unwrap_or_else(|| bug!("lambda without elaborated sort for: `{fhir_id:?}`"))
             .clone()
     }
 
@@ -121,24 +123,37 @@ impl WfckResultsProvider for WfckResults {
     ) -> QueryResult<rty::Sort> {
         resolve_param_sort(genv, param, Some(self))
     }
+
+    fn insert_bty_sort(&self, _: FhirId, _: rty::Sort) {}
 }
 
 pub struct BeforeWf {
-    pub owner: FluxOwnerId,
+    owner: OwnerId,
+    bty_sort_map: std::cell::RefCell<UnordMap<FhirId, rty::Sort>>,
+}
+
+impl BeforeWf {
+    pub fn new(owner: OwnerId) -> Self {
+        Self { owner, bty_sort_map: Default::default() }
+    }
+
+    pub fn bty_sort_map(self) -> UnordMap<FhirId, rty::Sort> {
+        self.bty_sort_map.into_inner()
+    }
 }
 
 impl WfckResultsProvider for BeforeWf {
     const EXPAND_TYPE_ALIASES: bool = false;
 
     fn owner(&self) -> FluxOwnerId {
-        self.owner
+        FluxOwnerId::Rust(self.owner)
     }
 
     fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }
 
-    fn coercions_at(&self, _: FhirId) -> &[rty::Coercion] {
+    fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
         &[]
     }
 
@@ -146,7 +161,7 @@ impl WfckResultsProvider for BeforeWf {
         rty::FieldProj::Tuple { arity: 0, field: 0 }
     }
 
-    fn node_sort(&self, _: FhirId) -> rty::Sort {
+    fn lambda_output(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }
 
@@ -156,6 +171,10 @@ impl WfckResultsProvider for BeforeWf {
 
     fn resolve_param_sort(&self, _: GlobalEnv, _: &fhir::RefineParam) -> QueryResult<rty::Sort> {
         Ok(rty::Sort::Err)
+    }
+
+    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
+        self.bty_sort_map.borrow_mut().insert(fhir_id, sort);
     }
 }
 
@@ -858,19 +877,23 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
+            fhir::TyKind::BaseTy(bty) => self.conv_bty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
+                let fhir_id = bty.fhir_id;
                 let idx = self.conv_refine_arg(env, idx)?;
                 match &bty.kind {
                     fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                         debug_assert!(qself.is_none());
-                        Ok(self.conv_ty_ctor(env, path)?.replace_bound_reft(&idx))
+                        let ty_ctor = self.conv_path(env, path)?;
+                        self.results.insert_bty_sort(fhir_id, ty_ctor.sort());
+                        Ok(ty_ctor.replace_bound_reft(&idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
                         span_bug!(ty.span, "Indexed type relative paths are not yet supported");
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
+                        self.results.insert_bty_sort(fhir_id, bty.sort());
                         Ok(rty::Ty::indexed(bty, idx))
                     }
                 }
@@ -1076,11 +1099,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         Ok(rty::Ty::dynamic(existential_predicates, region))
     }
 
-    pub(crate) fn conv_base_ty(
-        &mut self,
-        env: &mut Env,
-        bty: &fhir::BaseTy,
-    ) -> QueryResult<rty::Ty> {
+    pub(crate) fn conv_bty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                 match path.res {
@@ -1122,7 +1141,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     }
                     _ => {}
                 }
-                Ok(self.conv_ty_ctor(env, path)?.to_ty())
+                Ok(self.conv_path(env, path)?.to_ty())
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
                 self.conv_assoc_path(env, qself, segment)
@@ -1337,7 +1356,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         }
     }
 
-    fn conv_ty_ctor(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
+    fn conv_path(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
         let bty = match path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -1644,7 +1663,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
                 let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-                let output = self.results.node_sort(arg.fhir_id);
+                let output = self.results.lambda_output(arg.fhir_id);
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
@@ -1685,7 +1704,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
         let span = expr.span();
-        for coercion in self.results.coercions_at(fhir_id) {
+        for coercion in self.results.coercions_for(fhir_id) {
             expr = match *coercion {
                 rty::Coercion::Inject(def_id) => {
                     rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))

@@ -11,13 +11,13 @@ use std::iter;
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{self, visit::Visitor, FluxOwnerId},
+    fhir::{self, visit::Visitor, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, WfckResults},
     MaybeExternId,
 };
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, OwnerId};
@@ -30,7 +30,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(qual.name);
-    let mut infcx = InferCtxt::new(genv, owner);
+    let mut infcx = InferCtxt::new(genv, owner, Default::default());
     infcx.insert_params(qual.args)?;
     infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
     Ok(infcx.into_results())
@@ -38,7 +38,7 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
 
 pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(func.name);
-    let mut infcx = InferCtxt::new(genv, owner);
+    let mut infcx = InferCtxt::new(genv, owner, Default::default());
     if let Some(body) = &func.body {
         infcx.insert_params(func.args)?;
         let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
@@ -54,7 +54,7 @@ pub(crate) fn check_invariants(
     invariants: &[fhir::Expr],
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Rust(adt_def_id.local_id());
-    let mut infcx = InferCtxt::new(genv, owner);
+    let mut infcx = InferCtxt::new(genv, owner, Default::default());
     infcx.insert_params(params)?;
     let mut err = None;
     for invariant in invariants {
@@ -70,9 +70,9 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
 ) -> Result<WfckResults> {
-    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
+    let bty_sort_map = foo(genv, node).emit(&genv)?;
 
-    foo(genv, node).emit(&genv)?;
+    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into(), bty_sort_map);
 
     insert_params(&mut infcx, node)?;
 
@@ -87,9 +87,12 @@ pub(crate) fn check_node<'genv>(
     Ok(infcx.into_results())
 }
 
-pub(crate) fn foo<'genv>(genv: GlobalEnv<'genv, '_>, node: &fhir::Node<'genv>) -> QueryResult {
+pub(crate) fn foo<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    node: &fhir::Node<'genv>,
+) -> QueryResult<UnordMap<FhirId, rty::Sort>> {
     let def_id = node.owner_id().map(|id| id.def_id);
-    let mode = BeforeWf { owner: FluxOwnerId::Rust(node.owner_id().local_id()) };
+    let mode = BeforeWf::new(node.owner_id().local_id());
     let mut cx = ConvCtxt::new(genv, &mode);
     match node {
         fhir::Node::Item(item) => {
@@ -128,7 +131,7 @@ pub(crate) fn foo<'genv>(genv: GlobalEnv<'genv, '_>, node: &fhir::Node<'genv>) -
             }
         }
     }
-    Ok(())
+    Ok(mode.bty_sort_map())
 }
 
 /// Initializes the inference context with all parameters required to check node

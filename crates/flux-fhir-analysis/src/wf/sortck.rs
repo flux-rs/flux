@@ -25,21 +25,27 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
-    pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
+    pub wfckresults: WfckResults,
+    sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
-    pub wfckresults: WfckResults,
+    bty_sort_map: UnordMap<FhirId, rty::Sort>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
-    pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
+    pub(super) fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        owner: FluxOwnerId,
+        bty_sort_map: UnordMap<FhirId, rty::Sort>,
+    ) -> Self {
         Self {
             genv,
+            params: Default::default(),
             wfckresults: WfckResults::new(owner),
             sort_unification_table: InPlaceUnificationTable::new(),
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
-            params: Default::default(),
+            bty_sort_map,
         }
     }
 
@@ -648,6 +654,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
+            let sort = &self.infcx.bty_sort_map[&bty.fhir_id];
             let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
                 return;
             };
