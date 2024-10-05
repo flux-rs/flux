@@ -103,12 +103,28 @@ pub(crate) fn foo<'genv>(genv: GlobalEnv<'genv, '_>, node: &fhir::Node<'genv>) -
                 fhir::ItemKind::TyAlias(_) => {}
                 fhir::ItemKind::Trait(_) => {}
                 fhir::ItemKind::Impl(_) => {}
-                fhir::ItemKind::Fn(_) => {}
+                fhir::ItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, fn_sig)?;
+                }
                 fhir::ItemKind::OpaqueTy(_) => {}
             }
         }
-        fhir::Node::TraitItem(_) => {}
-        fhir::Node::ImplItem(_) => {}
+        fhir::Node::TraitItem(trait_item) => {
+            match trait_item.kind {
+                fhir::TraitItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, &fn_sig)?;
+                }
+                fhir::TraitItemKind::Type => {}
+            }
+        }
+        fhir::Node::ImplItem(impl_item) => {
+            match impl_item.kind {
+                fhir::ImplItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, &fn_sig)?;
+                }
+                fhir::ImplItemKind::Type => {}
+            }
+        }
     }
     Ok(())
 }

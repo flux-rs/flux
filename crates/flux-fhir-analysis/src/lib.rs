@@ -477,11 +477,11 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
+    let fhir_fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
-    let defns = genv.spec_func_defns()?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
-        .map(|fn_sig| fn_sig.normalize(defns));
+    let fn_sig = ConvCtxt::new(genv, &*wfckresults).conv_fn_sig(def_id, fhir_fn_sig)?;
+    let fn_sig = struct_compat::fn_sig(genv, &fhir_fn_sig.decl, &fn_sig, def_id)?;
+    let fn_sig = normalize(genv, fn_sig)?;
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
@@ -494,7 +494,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         )
         .unwrap();
     }
-    Ok(fn_sig)
+    Ok(rty::EarlyBinder(fn_sig))
 }
 
 fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {

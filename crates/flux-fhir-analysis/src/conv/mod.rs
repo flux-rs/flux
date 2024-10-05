@@ -431,38 +431,6 @@ pub(crate) fn conv_qualifier(
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-pub(crate) fn conv_fn_sig(
-    genv: GlobalEnv,
-    def_id: MaybeExternId,
-    fn_sig: &fhir::FnSig,
-    wfckresults: &WfckResults,
-) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let decl = &fn_sig.decl;
-    let header = fn_sig.header;
-
-    let mut cx = ConvCtxt::new(genv, wfckresults);
-
-    let late_bound_regions =
-        refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id.local_id())?);
-
-    let generics = genv.map().get_generics(def_id.local_id())?.unwrap();
-    let mut env = Env::new(generics.refinement_params);
-    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
-
-    let fn_sig = cx.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
-
-    let vars = late_bound_regions
-        .iter()
-        .chain(env.pop_layer().into_bound_vars(genv)?.iter())
-        .cloned()
-        .collect();
-
-    let poly_fn_sig = rty::PolyFnSig::bind_with_vars(fn_sig, vars);
-    let poly_fn_sig = struct_compat::fn_sig(genv, decl, &poly_fn_sig, def_id)?;
-
-    Ok(rty::EarlyBinder(poly_fn_sig))
-}
-
 pub(crate) fn conv_default_assoc_reft_def(
     genv: GlobalEnv,
     assoc_reft: &fhir::TraitAssocReft,
@@ -511,7 +479,7 @@ pub(crate) fn conv_ty(
     Ok(rty::Binder::bind_with_vars(ty, List::empty()))
 }
 
-/// Conversion of types
+/// Conversion of definitions
 impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, results: &'a R) -> Self {
         Self {
@@ -613,6 +581,35 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         }
     }
 
+    pub(crate) fn conv_fn_sig(
+        &mut self,
+        fn_id: MaybeExternId,
+        fn_sig: &fhir::FnSig,
+    ) -> QueryResult<rty::PolyFnSig> {
+        let decl = &fn_sig.decl;
+        let header = fn_sig.header;
+
+        let late_bound_regions =
+            refining::refine_bound_variables(&self.genv.lower_late_bound_vars(fn_id.local_id())?);
+
+        let generics = self.genv.map().get_generics(fn_id.local_id())?.unwrap();
+        let mut env = Env::new(generics.refinement_params);
+        env.push_layer(Layer::list(self, late_bound_regions.len() as u32, &[])?);
+
+        let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
+
+        let vars = late_bound_regions
+            .iter()
+            .chain(env.pop_layer().into_bound_vars(self.genv)?.iter())
+            .cloned()
+            .collect();
+
+        Ok(rty::PolyFnSig::bind_with_vars(fn_sig, vars))
+    }
+}
+
+/// Conversion of types
+impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     fn conv_fn_decl(
         &mut self,
         env: &mut Env,
