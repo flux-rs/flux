@@ -57,6 +57,8 @@ pub struct ConvCtxt<'a, 'genv, 'tcx, R> {
 }
 
 pub trait WfckResultsProvider: Sized {
+    const EXPAND_TYPE_ALIASES: bool;
+
     fn owner(&self) -> FluxOwnerId;
 
     fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
@@ -75,6 +77,8 @@ pub trait WfckResultsProvider: Sized {
 }
 
 impl WfckResultsProvider for WfckResults {
+    const EXPAND_TYPE_ALIASES: bool = true;
+
     fn owner(&self) -> FluxOwnerId {
         self.owner
     }
@@ -115,6 +119,8 @@ pub struct InSortck {
 }
 
 impl WfckResultsProvider for InSortck {
+    const EXPAND_TYPE_ALIASES: bool = false;
+
     fn owner(&self) -> FluxOwnerId {
         self.owner
     }
@@ -1355,11 +1361,15 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                rty::BaseTy::Alias(rty::AliasTy {
-                    def_id: alias_to,
-                    args: List::empty(),
-                    refine_args: List::empty(),
-                })
+                if R::EXPAND_TYPE_ALIASES {
+                    return Ok(self.genv.type_of(alias_to)?.instantiate_identity());
+                } else {
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        def_id: alias_to,
+                        args: List::empty(),
+                        refine_args: List::empty(),
+                    })
+                }
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let args = self.conv_generic_args(env, def_id, path.last_segment())?;
@@ -1367,8 +1377,20 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     .refine
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                rty::BaseTy::Alias(rty::AliasTy { def_id, args: List::from(args), refine_args })
+                    .try_collect_vec()?;
+                if R::EXPAND_TYPE_ALIASES {
+                    let tcx = self.genv.tcx();
+                    return Ok(self
+                        .genv
+                        .type_of(def_id)?
+                        .instantiate(tcx, &args, &refine_args));
+                } else {
+                    rty::BaseTy::Alias(rty::AliasTy {
+                        def_id,
+                        args: List::from(args),
+                        refine_args: List::from(refine_args),
+                    })
+                }
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
