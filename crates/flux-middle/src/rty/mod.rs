@@ -97,9 +97,11 @@ impl AdtSortDef {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
-        let idx = self.field_index(name)?;
-        Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
+    pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
+        let idx = self.0.field_names.iter().position(|it| name == *it)?;
+        let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
+        let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
+        Some((proj, sort))
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
@@ -2249,10 +2251,11 @@ pub use crate::_Ref as Ref;
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
-    record_ctors: ItemLocalMap<DefId>,
-    node_sorts: ItemLocalMap<Sort>,
     bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
+    field_projs: ItemLocalMap<FieldProj>,
+    node_sorts: ItemLocalMap<Sort>,
+    record_ctors: ItemLocalMap<DefId>,
 }
 
 #[derive(Debug)]
@@ -2278,27 +2281,12 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
-            record_ctors: ItemLocalMap::default(),
-            node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
+            field_projs: ItemLocalMap::default(),
+            node_sorts: ItemLocalMap::default(),
+            record_ctors: ItemLocalMap::default(),
         }
-    }
-
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
-    }
-
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
-        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
-    }
-
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
-    }
-
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
     pub fn bin_rel_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
@@ -2315,6 +2303,30 @@ impl WfckResults {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+
+    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<FieldProj> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.field_projs }
+    }
+
+    pub fn field_projs(&self) -> LocalTableInContext<FieldProj> {
+        LocalTableInContext { owner: self.owner, data: &self.field_projs }
+    }
+
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
+    }
+
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 }
 
