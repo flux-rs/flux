@@ -177,9 +177,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.ensure_resolved_var(var)?;
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
-                        sort_def
-                            .field_sort(sort_args, fld.name)
-                            .ok_or_else(|| self.emit_field_not_found(&sort, *fld))
+                        let (proj, sort) = sort_def
+                            .field_by_name(sort_args, fld.name)
+                            .ok_or_else(|| self.emit_field_not_found(&sort, *fld))?;
+                        self.wfckresults
+                            .field_projs_mut()
+                            .insert(expr.fhir_id, proj);
+                        Ok(sort)
                     }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
                         Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, *fld)))
