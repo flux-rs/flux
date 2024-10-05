@@ -98,7 +98,7 @@ struct LookupResult<'a> {
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    LateBound {
+    Bound {
         debruijn: DebruijnIndex,
         entry: &'a ParamEntry,
         kind: LayerKind,
@@ -1516,7 +1516,7 @@ impl Env {
         for (i, layer) in self.layers.iter().rev().enumerate() {
             if let Some((idx, entry)) = layer.get(id) {
                 let debruijn = DebruijnIndex::from_usize(i);
-                let kind = LookupResultKind::LateBound {
+                let kind = LookupResultKind::Bound {
                     debruijn,
                     entry,
                     index: idx as u32,
@@ -1793,12 +1793,7 @@ impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         let espan = ESpan::new(self.var_span);
         match &self.kind {
-            LookupResultKind::LateBound {
-                debruijn,
-                entry: ParamEntry { name, .. },
-                kind,
-                index,
-            } => {
+            LookupResultKind::Bound { debruijn, entry: ParamEntry { name, .. }, kind, index } => {
                 match *kind {
                     LayerKind::List { bound_regions } => {
                         rty::Expr::bvar(

@@ -128,10 +128,6 @@ impl AdtSortDef {
             .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
     }
-
-    pub fn field_index(&self, name: Symbol) -> Option<usize> {
-        self.0.field_names.iter().position(|it| name == *it)
-    }
 }
 
 #[derive(Debug, Clone, Default, Encodable, Decodable)]
