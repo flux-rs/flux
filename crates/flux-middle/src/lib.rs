@@ -44,6 +44,7 @@ mod sort_of;
 use std::sync::LazyLock;
 
 use flux_arc_interner::List;
+use flux_common::bug;
 use flux_config as config;
 use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
@@ -480,6 +481,14 @@ impl<Id> MaybeExternId<Id> {
     pub fn local_id(self) -> Id {
         match self {
             MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_local(self) -> Id {
+        match self {
+            MaybeExternId::Local(local_id) => local_id,
+            MaybeExternId::Extern(..) => bug!("expected `MaybeExternId::Local`"),
         }
     }
 

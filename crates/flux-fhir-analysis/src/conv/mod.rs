@@ -254,51 +254,6 @@ pub(crate) fn conv_adt_sort_def(
     Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
 }
 
-pub(crate) fn conv_generic_predicates(
-    genv: GlobalEnv,
-    def_id: LocalDefId,
-    predicates: &[fhir::WhereBoundPredicate],
-    wfckresults: &WfckResults,
-) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    let mut cx = ConvCtxt::new(genv, wfckresults);
-
-    let refparams = &genv.map().get_generics(def_id)?.unwrap().refinement_params;
-
-    let env = &mut Env::new(refparams);
-
-    let mut clauses = vec![];
-    for pred in predicates {
-        let span = pred.bounded_ty.span;
-        let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
-        for clause in cx.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
-            clauses.push(clause);
-        }
-    }
-    let parent = genv.tcx().predicates_of(def_id.to_def_id()).parent;
-    Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
-}
-
-pub(crate) fn conv_opaque_ty(
-    genv: GlobalEnv,
-    def_id: LocalDefId,
-    opaque_ty: &fhir::OpaqueTy,
-    wfckresults: &WfckResults,
-) -> QueryResult<rty::Clauses> {
-    let mut cx = ConvCtxt::new(genv, wfckresults);
-    let parent = genv.tcx().local_parent(def_id);
-    let refparams = &genv.map().get_generics(parent)?.unwrap().refinement_params;
-
-    let env = &mut Env::new(refparams);
-
-    let args = rty::GenericArg::identity_for_item(genv, def_id)?;
-    let self_ty = rty::Ty::opaque(def_id, args, env.to_early_param_args());
-    // FIXME(nilehmann) use a good span here
-    Ok(cx
-        .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
-        .into_iter()
-        .collect())
-}
-
 pub(crate) fn conv_generics(
     genv: GlobalEnv,
     generics: &fhir::Generics,
@@ -624,6 +579,49 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             .collect();
 
         Ok(rty::PolyFnSig::bind_with_vars(fn_sig, vars))
+    }
+
+    pub(crate) fn conv_generic_predicates(
+        &mut self,
+        def_id: MaybeExternId,
+        generics: &fhir::Generics,
+    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+        let env = &mut Env::new(generics.refinement_params);
+
+        let mut clauses = vec![];
+        for pred in generics.predicates {
+            let span = pred.bounded_ty.span;
+            let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
+            for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
+                clauses.push(clause);
+            }
+        }
+        let parent = self.genv.tcx().predicates_of(def_id).parent;
+        Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
+    }
+
+    pub(crate) fn conv_opaque_ty(
+        &mut self,
+        def_id: LocalDefId,
+        opaque_ty: &fhir::OpaqueTy,
+    ) -> QueryResult<rty::Clauses> {
+        let parent = self.genv.tcx().local_parent(def_id);
+        let refparams = &self
+            .genv
+            .map()
+            .get_generics(parent)?
+            .unwrap()
+            .refinement_params;
+
+        let env = &mut Env::new(refparams);
+
+        let args = rty::GenericArg::identity_for_item(self.genv, def_id)?;
+        let self_ty = rty::Ty::opaque(def_id, args, env.to_early_param_args());
+        // FIXME(nilehmann) use a good span here
+        Ok(self
+            .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
+            .into_iter()
+            .collect())
     }
 }
 
@@ -951,7 +949,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                 ))
             }
             fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
-                self.conv_opaque_ty(env, *item_id, lifetimes, reft_args)
+                self.conv_opaque_def(env, *item_id, lifetimes, reft_args)
             }
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
@@ -965,7 +963,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     }
 
     /// Code adapted from <https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099>
-    fn conv_opaque_ty(
+    fn conv_opaque_def(
         &mut self,
         env: &mut Env,
         item_id: hir::ItemId,

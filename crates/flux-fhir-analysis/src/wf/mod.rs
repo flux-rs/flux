@@ -110,14 +110,18 @@ pub(crate) fn foo<'genv>(
                 fhir::ItemKind::Impl(_) => {}
                 fhir::ItemKind::Fn(fn_sig) => {
                     cx.conv_fn_sig(def_id, fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &item.generics)?;
                 }
-                fhir::ItemKind::OpaqueTy(_) => {}
+                fhir::ItemKind::OpaqueTy(opaque_ty) => {
+                    cx.conv_opaque_ty(def_id.expect_local(), opaque_ty)?;
+                }
             }
         }
         fhir::Node::TraitItem(trait_item) => {
             match trait_item.kind {
                 fhir::TraitItemKind::Fn(fn_sig) => {
                     cx.conv_fn_sig(def_id, &fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &trait_item.generics)?;
                 }
                 fhir::TraitItemKind::Type => {}
             }
@@ -126,6 +130,7 @@ pub(crate) fn foo<'genv>(
             match impl_item.kind {
                 fhir::ImplItemKind::Fn(fn_sig) => {
                     cx.conv_fn_sig(def_id, &fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &impl_item.generics)?;
                 }
                 fhir::ImplItemKind::Type => {}
             }

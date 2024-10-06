@@ -151,14 +151,15 @@ fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Inv
 
 fn predicates_of(
     genv: GlobalEnv,
-    local_id: LocalDefId,
+    def_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    if let Some(generics) = genv.map().get_generics(local_id)? {
-        let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_generic_predicates(genv, local_id, generics.predicates, &wfckresults)
+    let def_id = genv.maybe_extern_id(def_id);
+    if let Some(generics) = genv.map().get_generics(def_id.local_id())? {
+        let wfckresults = genv.check_wf(def_id.local_id())?;
+        ConvCtxt::new(genv, &*wfckresults).conv_generic_predicates(def_id, generics)
     } else {
         Ok(rty::EarlyBinder(rty::GenericPredicates {
-            parent: genv.tcx().predicates_of(local_id.to_def_id()).parent,
+            parent: genv.tcx().predicates_of(def_id).parent,
             predicates: rty::List::empty(),
         }))
     }
@@ -295,7 +296,7 @@ fn item_bounds(
 ) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
     let wfckresults = genv.check_wf(local_id)?;
     let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
-    Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
+    Ok(rty::EarlyBinder(ConvCtxt::new(genv, &*wfckresults).conv_opaque_ty(local_id, opaque_ty)?))
 }
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
