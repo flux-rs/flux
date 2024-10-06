@@ -6,6 +6,7 @@ use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -29,15 +30,11 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
-    bty_sort_map: UnordMap<FhirId, rty::Sort>,
+    sort_of_bty: UnordMap<FhirId, rty::Sort>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
-    pub(super) fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        owner: FluxOwnerId,
-        bty_sort_map: UnordMap<FhirId, rty::Sort>,
-    ) -> Self {
+    pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
         Self {
             genv,
             params: Default::default(),
@@ -45,7 +42,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_unification_table: InPlaceUnificationTable::new(),
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
-            bty_sort_map,
+            sort_of_bty: Default::default(),
         }
     }
 
@@ -354,6 +351,19 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .collect_vec();
         fsort.instantiate(&args)
     }
+
+    pub(crate) fn insert_sort_for_bty(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.sort_of_bty.insert(fhir_id, sort);
+    }
+
+    pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> QueryResult<rty::Sort> {
+        let sort = self.sort_of_bty[&fhir_id].clone();
+        if let rty::Sort::Alias(alias_ty) = sort {
+            self.genv.normalize_weak_alias_sort(&alias_ty)
+        } else {
+            Ok(sort)
+        }
+    }
 }
 
 impl<'genv> InferCtxt<'genv, '_> {
@@ -654,18 +664,13 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            let sort = &self.infcx.bty_sort_map[&bty.fhir_id];
-            let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
-                return;
-            };
-            if let Some(expected) = sort_of_bty {
-                self.infer_implicit_params(idx, &expected);
-            } else if let Some(id) = idx.is_colon_param() {
-                let found = self.infcx.param_sort(id);
-                self.infcx.equate(&found, &rty::Sort::Err);
-            } else {
-                self.errors
-                    .emit(errors::RefinedUnrefinableType::new(bty.span));
+            match self.infcx.sort_of_bty(bty.fhir_id) {
+                Ok(expected) => {
+                    self.infer_implicit_params(idx, &expected);
+                }
+                Err(err) => {
+                    self.errors.emit(err);
+                }
             }
         }
         fhir::visit::walk_ty(self, ty);

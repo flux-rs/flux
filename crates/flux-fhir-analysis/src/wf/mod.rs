@@ -17,20 +17,24 @@ use flux_middle::{
     rty::{self, WfckResults},
     MaybeExternId,
 };
-use rustc_data_structures::unord::{UnordMap, UnordSet};
+use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, OwnerId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{CrateNum, DefId, DefIndex},
+    OwnerId,
+};
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{self, bug_on_infer_sort, BeforeWf, ConvCtxt};
+use crate::conv::{self, bug_on_infer_sort, ConvCtxt, WfckResultsProvider};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(qual.name);
-    let mut infcx = InferCtxt::new(genv, owner, Default::default());
+    let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(qual.args)?;
     infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
     Ok(infcx.into_results())
@@ -38,7 +42,7 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
 
 pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(func.name);
-    let mut infcx = InferCtxt::new(genv, owner, Default::default());
+    let mut infcx = InferCtxt::new(genv, owner);
     if let Some(body) = &func.body {
         infcx.insert_params(func.args)?;
         let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
@@ -54,7 +58,7 @@ pub(crate) fn check_invariants(
     invariants: &[fhir::Expr],
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Rust(adt_def_id.local_id());
-    let mut infcx = InferCtxt::new(genv, owner, Default::default());
+    let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(params)?;
     let mut err = None;
     for invariant in invariants {
@@ -70,9 +74,7 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
 ) -> Result<WfckResults> {
-    let bty_sort_map = foo(genv, node).emit(&genv)?;
-
-    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into(), bty_sort_map);
+    let mut infcx = init_infcx(genv, node).emit(&genv)?;
 
     insert_params(&mut infcx, node)?;
 
@@ -87,12 +89,12 @@ pub(crate) fn check_node<'genv>(
     Ok(infcx.into_results())
 }
 
-pub(crate) fn foo<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+fn init_infcx<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     node: &fhir::Node<'genv>,
-) -> QueryResult<UnordMap<FhirId, rty::Sort>> {
+) -> QueryResult<InferCtxt<'genv, 'tcx>> {
     let def_id = node.owner_id().map(|id| id.def_id);
-    let mode = BeforeWf::new(node.owner_id().local_id());
+    let mode = BeforeWf::new(genv, node.owner_id());
     let mut cx = ConvCtxt::new(genv, &mode);
     match node {
         fhir::Node::Item(item) => {
@@ -136,7 +138,7 @@ pub(crate) fn foo<'genv>(
             }
         }
     }
-    Ok(mode.bty_sort_map())
+    Ok(mode.into_infcx())
 }
 
 /// Initializes the inference context with all parameters required to check node
@@ -283,17 +285,21 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
-                    return;
-                };
-                if let Some(expected) = sort_of_bty {
-                    self.infcx
-                        .check_refine_arg(idx, &expected)
-                        .collect_err(&mut self.errors);
-                } else if idx.is_colon_param().is_none() {
-                    self.errors
-                        .emit(errors::RefinedUnrefinableType::new(bty.span));
-                }
+                // let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
+                //     return;
+                // };
+                // if let Some(expected) = sort_of_bty {
+                //     self.infcx
+                //         .check_refine_arg(idx, &expected)
+                //         .collect_err(&mut self.errors);
+                // } else if idx.is_colon_param().is_none() {
+                //     self.errors
+                //         .emit(errors::RefinedUnrefinableType::new(bty.span));
+                // }
+                let Ok(expected) = self.infcx.sort_of_bty(bty.fhir_id) else { return };
+                self.infcx
+                    .check_refine_arg(idx, &expected)
+                    .collect_err(&mut self.errors);
                 self.visit_bty(bty);
             }
             fhir::TyKind::StrgRef(_, loc, ty) => {
@@ -357,4 +363,57 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
     let mut visitor = RefineParamVisitor { f, err: None };
     visitor.visit_node(node);
     visitor.err.into_result()
+}
+
+struct BeforeWf<'genv, 'tcx> {
+    owner: OwnerId,
+    infcx: std::cell::RefCell<InferCtxt<'genv, 'tcx>>,
+}
+
+impl<'genv, 'tcx> BeforeWf<'genv, 'tcx> {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, owner: MaybeExternId<OwnerId>) -> Self {
+        let owner = owner.local_id();
+        let infcx = InferCtxt::new(genv, owner.into());
+        Self { owner, infcx: std::cell::RefCell::new(infcx) }
+    }
+
+    fn into_infcx(self) -> InferCtxt<'genv, 'tcx> {
+        self.infcx.into_inner()
+    }
+}
+
+impl WfckResultsProvider for BeforeWf<'_, '_> {
+    const EXPAND_TYPE_ALIASES: bool = false;
+
+    fn owner(&self) -> FluxOwnerId {
+        FluxOwnerId::Rust(self.owner)
+    }
+
+    fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
+        &[]
+    }
+
+    fn field_proj(&self, _: FhirId) -> rty::FieldProj {
+        rty::FieldProj::Tuple { arity: 0, field: 0 }
+    }
+
+    fn lambda_output(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn record_ctor(&self, _: FhirId) -> DefId {
+        DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
+    }
+
+    fn resolve_param_sort(&self, _: GlobalEnv, _: &fhir::RefineParam) -> QueryResult<rty::Sort> {
+        Ok(rty::Sort::Err)
+    }
+
+    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
+        self.infcx.borrow_mut().insert_sort_for_bty(fhir_id, sort);
+    }
 }

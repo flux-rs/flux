@@ -333,8 +333,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         if let Sort::Alias(alias_ty) = sort {
             self.genv
-                .adt_sort_def_of(alias_ty.def_id)?
-                .to_sort(&alias_ty.args)
+                .normalize_weak_alias_sort(alias_ty)?
                 .try_fold_with(self)
         } else {
             sort.try_super_fold_with(self)

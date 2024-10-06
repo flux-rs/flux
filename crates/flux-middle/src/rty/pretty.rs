@@ -109,7 +109,13 @@ impl Pretty for Sort {
                     w!("({:?})", join!(", ", sorts))
                 }
             }
-            Sort::Alias(alias_ty) => todo!(),
+            Sort::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                w!("::sort")
+            }
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
                     w!("{:?}", ctor)

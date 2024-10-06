@@ -27,14 +27,14 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     self as hir,
     def::DefKind,
-    def_id::{CrateNum, DefId, DefIndex, LocalDefId},
-    OwnerId, PrimTy, Safety,
+    def_id::{DefId, LocalDefId},
+    PrimTy, Safety,
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
@@ -125,57 +125,6 @@ impl WfckResultsProvider for WfckResults {
     }
 
     fn insert_bty_sort(&self, _: FhirId, _: rty::Sort) {}
-}
-
-pub struct BeforeWf {
-    owner: OwnerId,
-    bty_sort_map: std::cell::RefCell<UnordMap<FhirId, rty::Sort>>,
-}
-
-impl BeforeWf {
-    pub fn new(owner: OwnerId) -> Self {
-        Self { owner, bty_sort_map: Default::default() }
-    }
-
-    pub fn bty_sort_map(self) -> UnordMap<FhirId, rty::Sort> {
-        self.bty_sort_map.into_inner()
-    }
-}
-
-impl WfckResultsProvider for BeforeWf {
-    const EXPAND_TYPE_ALIASES: bool = false;
-
-    fn owner(&self) -> FluxOwnerId {
-        FluxOwnerId::Rust(self.owner)
-    }
-
-    fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
-    fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
-        &[]
-    }
-
-    fn field_proj(&self, _: FhirId) -> rty::FieldProj {
-        rty::FieldProj::Tuple { arity: 0, field: 0 }
-    }
-
-    fn lambda_output(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
-    fn record_ctor(&self, _: FhirId) -> DefId {
-        DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
-    }
-
-    fn resolve_param_sort(&self, _: GlobalEnv, _: &fhir::RefineParam) -> QueryResult<rty::Sort> {
-        Ok(rty::Sort::Err)
-    }
-
-    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
-        self.bty_sort_map.borrow_mut().insert(fhir_id, sort);
-    }
 }
 
 pub(crate) struct Env {
@@ -1374,6 +1323,8 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
+                // We should check the param is of kind base
+                let a = 0;
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv, def_id))
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
@@ -2064,6 +2015,10 @@ pub(crate) fn conv_func_sort(
     ))
 }
 
+pub(crate) fn bug_on_infer_sort() -> rty::Sort {
+    bug!("unexpected infer sort")
+}
+
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     match lit {
         fhir::Lit::Int(n) => rty::Constant::from(n),
@@ -2072,11 +2027,6 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Str(s) => rty::Constant::from(s),
     }
 }
-
-pub(crate) fn bug_on_infer_sort() -> rty::Sort {
-    bug!("unexpected infer sort")
-}
-
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
     match op {
         fhir::UnOp::Not => rty::UnOp::Not,

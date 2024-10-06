@@ -3,7 +3,7 @@ use flux_common::{bug, span_bug};
 use rustc_hir::{def::DefKind, PrimTy};
 use rustc_span::def_id::DefId;
 
-use crate::{fhir, global_env::GlobalEnv, queries::QueryResult, rty};
+use crate::{fhir, global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_alias_reft(self, alias: &fhir::AliasReft) -> QueryResult<Option<rty::FuncSort>> {
@@ -160,5 +160,17 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             _ => bug!("unexpected self ty {ty:?}"),
         };
         Ok(sort)
+    }
+
+    pub fn normalize_weak_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
+        match self.def_kind(alias_ty.def_id) {
+            DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
+            DefKind::Struct | DefKind::Enum | DefKind::TyAlias => {
+                Ok(self
+                    .adt_sort_def_of(alias_ty.def_id)?
+                    .to_sort(&alias_ty.args))
+            }
+            _ => Err(query_bug!(alias_ty.def_id, "unexpected weak alias `{:?}`", alias_ty.def_id)),
+        }
     }
 }
