@@ -271,7 +271,7 @@ fn sort_of_assoc_reft(
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
                 .try_collect_vec()?;
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
@@ -281,7 +281,7 @@ fn sort_of_assoc_reft(
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
                 .try_collect_vec()?;
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))

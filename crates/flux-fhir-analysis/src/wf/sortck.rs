@@ -551,20 +551,16 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     pub(crate) fn resolve_param_sort(&mut self, param: &fhir::RefineParam) -> Result {
-        if let fhir::Sort::Infer = param.sort {
-            let sort = self.param_sort(param.id);
-            match self.fully_resolve(&sort) {
-                Ok(sort) => {
-                    self.wfckresults
-                        .node_sorts_mut()
-                        .insert(param.fhir_id, sort);
-                }
-                Err(_) => {
-                    return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
-                }
+        let sort = self.param_sort(param.id);
+        match self.fully_resolve(&sort) {
+            Ok(sort) => {
+                self.wfckresults
+                    .node_sorts_mut()
+                    .insert(param.fhir_id, sort);
+                Ok(())
             }
+            Err(_) => Err(self.emit_err(errors::SortAnnotationNeeded::new(param))),
         }
-        Ok(())
     }
 
     fn ensure_resolved_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {

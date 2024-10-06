@@ -37,6 +37,9 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
     let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(qual.args)?;
     infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
+    for param in qual.args {
+        infcx.resolve_param_sort(param)?;
+    }
     Ok(infcx.into_results())
 }
 
@@ -47,6 +50,9 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
         infcx.insert_params(func.args)?;
         let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
         infcx.check_expr(body, &output)?;
+        for param in func.args {
+            infcx.resolve_param_sort(param)?;
+        }
     }
     Ok(infcx.into_results())
 }
@@ -65,6 +71,9 @@ pub(crate) fn check_invariants(
         infcx
             .check_expr(invariant, &rty::Sort::Bool)
             .collect_err(&mut err);
+    }
+    for param in params {
+        infcx.resolve_param_sort(param)?;
     }
     err.into_result()?;
     Ok(infcx.into_results())
@@ -409,8 +418,8 @@ impl WfckResultsProvider for BeforeWf<'_, '_> {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
-    fn resolve_param_sort(&self, _: GlobalEnv, _: &fhir::RefineParam) -> QueryResult<rty::Sort> {
-        Ok(rty::Sort::Err)
+    fn param_sort(&self, _: &fhir::RefineParam) -> rty::Sort {
+        rty::Sort::Err
     }
 
     fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
