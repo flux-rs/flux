@@ -357,6 +357,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> QueryResult<rty::Sort> {
+        // find a better place to do the normalization
+        let a = 0;
         let sort = self.sort_of_bty[&fhir_id].clone();
         if let rty::Sort::Alias(alias_ty) = sort {
             self.genv.normalize_weak_alias_sort(&alias_ty)
@@ -590,7 +592,11 @@ impl<'genv> InferCtxt<'genv, '_> {
 
     #[track_caller]
     pub(crate) fn param_sort(&self, id: fhir::ParamId) -> rty::Sort {
-        self.params[&id].0.clone()
+        self.params
+            .get(&id)
+            .unwrap_or_else(|| bug!("no entry found for `{id:?}`"))
+            .0
+            .clone()
     }
 
     fn shallow_resolve(&mut self, sort: &rty::Sort) -> rty::Sort {

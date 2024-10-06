@@ -85,8 +85,6 @@ pub(crate) fn check_node<'genv>(
 ) -> Result<WfckResults> {
     let mut infcx = init_infcx(genv, node).emit(&genv)?;
 
-    insert_params(&mut infcx, node)?;
-
     ImplicitParamInferer::infer(&mut infcx, node)?;
 
     Wf::check(&mut infcx, node)?;
@@ -103,7 +101,9 @@ fn init_infcx<'genv, 'tcx>(
     node: &fhir::Node<'genv>,
 ) -> QueryResult<InferCtxt<'genv, 'tcx>> {
     let def_id = node.owner_id().map(|id| id.def_id);
-    let mode = BeforeWf::new(genv, node.owner_id());
+    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
+    insert_params(&mut infcx, node)?;
+    let mode = BeforeWf::new(node.owner_id(), infcx);
     let mut cx = ConvCtxt::new(genv, &mode);
     match node {
         fhir::Node::Item(item) => {
@@ -172,7 +172,7 @@ fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     })
 }
 
-/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the [`WfckResults`]
+/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
 fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
@@ -380,9 +380,8 @@ struct BeforeWf<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> BeforeWf<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, owner: MaybeExternId<OwnerId>) -> Self {
+    fn new(owner: MaybeExternId<OwnerId>, infcx: InferCtxt<'genv, 'tcx>) -> Self {
         let owner = owner.local_id();
-        let infcx = InferCtxt::new(genv, owner.into());
         Self { owner, infcx: std::cell::RefCell::new(infcx) }
     }
 
@@ -418,8 +417,8 @@ impl WfckResultsProvider for BeforeWf<'_, '_> {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
-    fn param_sort(&self, _: &fhir::RefineParam) -> rty::Sort {
-        rty::Sort::Err
+    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
+        self.infcx.borrow().param_sort(param.id)
     }
 
     fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
