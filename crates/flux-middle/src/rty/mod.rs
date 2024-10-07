@@ -63,14 +63,27 @@ use crate::{
     rty::subst::SortSubst,
 };
 
+/// The definition of the data sort automatically generated for a struct, enum or type alias.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
+    /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
     def_id: DefId,
+    /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
+    ///
+    /// See [`fhir::RefinedBy::sort_params`] for more details. This is a version of that but using
+    /// [`ParamTy`] instead of [`DefId`].
+    ///
+    /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
+    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
     field_names: Vec<Symbol>,
+    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
     sorts: List<Sort>,
 }
 
@@ -108,7 +121,7 @@ impl AdtSortDef {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+    pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
         let sorts = self
             .filter_generic_args(args)
             .map(|arg| arg.expect_base().sort())
@@ -480,8 +493,8 @@ pub enum SortCtor {
 
 newtype_index! {
     /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params
-    /// in the [`PolyFuncSort`].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be <
+    /// than the number of params.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     #[debug_format = "?{}s"]
@@ -604,6 +617,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
+    Alias(AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -1285,6 +1299,7 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
+    Alias(AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
@@ -1439,29 +1454,6 @@ impl BaseTy {
         }
     }
 
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
-            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
-            BaseTy::Str => Sort::Str,
-            BaseTy::Float(_)
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::FnPtr(..)
-            | BaseTy::FnDef(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(..)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Dynamic(_, _)
-            | BaseTy::Never => Sort::unit(),
-            BaseTy::Infer(_) => tracked_span_bug!(),
-        }
-    }
-
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
         if let BaseTy::Adt(adt_def, args) = self {
@@ -1505,6 +1497,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
+            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);
@@ -1535,10 +1528,10 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
     Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct AliasTy {
+    pub def_id: DefId,
     pub args: GenericArgs,
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
-    pub def_id: DefId,
 }
 
 pub type RefineArgs = List<Expr>;
@@ -1970,7 +1963,7 @@ impl AdtDef {
     }
 
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
-        self.sort_def().sort(args)
+        self.sort_def().to_sort(args)
     }
 
     pub fn is_box(&self) -> bool {
@@ -2097,13 +2090,6 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
-    }
-}
-
-impl Binder<Expr> {
-    /// See [`Expr::is_trivially_true`]
-    pub fn is_trivially_true(&self) -> bool {
-        self.skip_binder_ref().is_trivially_true()
     }
 }
 
@@ -2254,7 +2240,7 @@ pub struct WfckResults {
     record_ctors: ItemLocalMap<DefId>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),

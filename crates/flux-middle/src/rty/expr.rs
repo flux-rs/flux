@@ -306,10 +306,6 @@ newtype_index! {
 }
 
 impl ExprKind {
-    // pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
-    //     Expr { kind: Interned::new(self), espan }
-    // }
-
     fn intern(self) -> Expr {
         Expr { kind: Interned::new(self), espan: None }
     }

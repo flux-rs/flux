@@ -608,7 +608,22 @@ pub enum RefineArgKind<'fhir> {
 #[derive(Clone, Copy)]
 pub struct BaseTy<'fhir> {
     pub kind: BaseTyKind<'fhir>,
+    pub fhir_id: FhirId,
     pub span: Span,
+}
+
+impl<'fhir> BaseTy<'fhir> {
+    pub fn from_qpath(qpath: QPath<'fhir>, fhir_id: FhirId) -> Self {
+        let span = qpath.span();
+        Self { kind: BaseTyKind::Path(qpath), fhir_id, span }
+    }
+
+    fn as_path(&self) -> Option<Path<'fhir>> {
+        match self.kind {
+            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -998,15 +1013,6 @@ impl<'fhir> Ty<'fhir> {
     }
 }
 
-impl<'fhir> BaseTy<'fhir> {
-    fn as_path(&self) -> Option<Path<'fhir>> {
-        match self.kind {
-            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
-            _ => None,
-        }
-    }
-}
-
 impl Res {
     pub fn descr(&self) -> &'static str {
         match self {
@@ -1052,13 +1058,6 @@ impl<'fhir> QPath<'fhir> {
     }
 }
 
-impl<'fhir> From<QPath<'fhir>> for BaseTy<'fhir> {
-    fn from(qpath: QPath<'fhir>) -> Self {
-        let span = qpath.span();
-        Self { kind: BaseTyKind::Path(qpath), span }
-    }
-}
-
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
@@ -1066,14 +1065,20 @@ impl Lit {
 /// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
-    /// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    /// When a `#[flux::refined_by(..)]` annotation mentions generic type parameters we implicitly
+    /// generate a *polymorphic* data sort.
     ///
+    /// For example, if we have:
     /// ```ignore
     /// #[refined_by(keys: Set<K>)]
-    /// RMap<K, V> { ...}
+    /// RMap<K, V> { ... }
     /// ```
-    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
-    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
+    /// we implicitly create a data sort of the form `forall #0. { keys: Set<#0> }`, where `#0` is a
+    /// *sort variable*.
+    ///
+    /// The [`FxIndexSet`] is used to track a mapping between sort varriables and their corresponding
+    /// type parameter. The [`DefId`] is the id of the type parameter and its index in the set is the
+    /// position of the sort variable.
     pub sort_params: FxIndexSet<DefId>,
     /// Fields indexed by their name and in the same order they appear in the definition.
     pub fields: FxIndexMap<Symbol, Sort<'fhir>>,

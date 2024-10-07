@@ -14,7 +14,12 @@ pub trait MyTrait {
 
 #[flux::sig(fn[hrn q: T -> bool](&T{v:q(v)}) -> T{v: q(v)})]
 //~^ ERROR type cannot be refined
-//~^^ ERROR type cannot be refined
 pub fn baz<T: MyTrait>(x: &T) -> T {
     x.foo()
+}
+
+// This error is confusing, but it should go once we make all types refinable
+#[flux::sig(fn(x: T) -> i32[x])] //~ ERROR type cannot be refined
+fn generic<T>(x: T) -> i32 {
+    0
 }

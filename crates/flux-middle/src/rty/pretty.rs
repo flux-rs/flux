@@ -109,6 +109,13 @@ impl Pretty for Sort {
                     w!("({:?})", join!(", ", sorts))
                 }
             }
+            Sort::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                w!("::sort")
+            }
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
                     w!("{:?}", ctor)
@@ -443,6 +450,13 @@ impl Pretty for BaseTy {
                 } else {
                     w!("({:?})", join!(", ", tys))
                 }
+            }
+            BaseTy::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                Ok(())
             }
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),

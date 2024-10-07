@@ -11,19 +11,24 @@ use std::iter;
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{self, visit::Visitor, FluxOwnerId},
+    fhir::{self, visit::Visitor, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, WfckResults},
     MaybeExternId,
 };
 use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, OwnerId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{CrateNum, DefId, DefIndex},
+    OwnerId,
+};
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{self, bug_on_infer_sort};
+use crate::conv::{self, bug_on_infer_sort, ConvCtxt, ConvPhase, WfckResultsProvider};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -32,6 +37,9 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
     let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(qual.args)?;
     infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
+    for param in qual.args {
+        infcx.resolve_param_sort(param)?;
+    }
     Ok(infcx.into_results())
 }
 
@@ -42,6 +50,9 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
         infcx.insert_params(func.args)?;
         let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
         infcx.check_expr(body, &output)?;
+        for param in func.args {
+            infcx.resolve_param_sort(param)?;
+        }
     }
     Ok(infcx.into_results())
 }
@@ -61,6 +72,9 @@ pub(crate) fn check_invariants(
             .check_expr(invariant, &rty::Sort::Bool)
             .collect_err(&mut err);
     }
+    for param in params {
+        infcx.resolve_param_sort(param)?;
+    }
     err.into_result()?;
     Ok(infcx.into_results())
 }
@@ -69,9 +83,7 @@ pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
 ) -> Result<WfckResults> {
-    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
-
-    insert_params(&mut infcx, node)?;
+    let mut infcx = init_infcx(genv, node).emit(&genv)?;
 
     ImplicitParamInferer::infer(&mut infcx, node)?;
 
@@ -84,7 +96,90 @@ pub(crate) fn check_node<'genv>(
     Ok(infcx.into_results())
 }
 
-/// Initializes the inference context with all parameters required to check node
+/// To check for well-formedness we need to know the sort of base types. For example, to check if
+/// the type `i32[e]` is well formed, we need to know that the sort of `i32` is `int` so we can
+/// check the expression `e` against it. Computing the sort from a base type is subtle and hard
+/// to do in `fhir` so we must do it in `rty`. However, to convert from `fhir` to `rty` we need
+/// elaborated information from sort checking which we do in `fhir`.
+///
+/// To break this circularity, we do conversion in two phases. In the first phase, we do conversion
+/// without elaborated information. This results in types in `rty` with incorrect refinements but
+/// with the right *shape* to compute their sorts. We use these sorts for sort checking and then do
+/// conversion again with the elaborated information.
+///
+/// This function initializes the [inference context] by running the first phase of conversion and
+/// collecting the sort of all base types.
+///
+/// [inference context]: InferCtxt
+fn init_infcx<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    node: &fhir::Node<'genv>,
+) -> QueryResult<InferCtxt<'genv, 'tcx>> {
+    let def_id = node.owner_id().map(|id| id.def_id);
+    let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
+    insert_params(&mut infcx, node)?;
+    let mut cx = ConvCtxt::new(genv, &mut infcx);
+    match node {
+        fhir::Node::Item(item) => {
+            match &item.kind {
+                fhir::ItemKind::Enum(enum_def) => {
+                    cx.conv_enum_variants(def_id, enum_def)?;
+                }
+                fhir::ItemKind::Struct(struct_def) => {
+                    cx.conv_struct_variant(def_id, struct_def)?;
+                }
+                fhir::ItemKind::TyAlias(ty_alias) => {
+                    cx.conv_type_alias(def_id, ty_alias)?;
+                }
+                fhir::ItemKind::Trait(trait_) => {
+                    for assoc_reft in trait_.assoc_refinements {
+                        if let Some(body) = assoc_reft.body {
+                            cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
+                        }
+                    }
+                }
+                fhir::ItemKind::Impl(impl_) => {
+                    for assoc_reft in impl_.assoc_refinements {
+                        cx.conv_assoc_reft_body(
+                            assoc_reft.params,
+                            &assoc_reft.body,
+                            &assoc_reft.output,
+                        )?;
+                    }
+                }
+                fhir::ItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &item.generics)?;
+                }
+                fhir::ItemKind::OpaqueTy(opaque_ty) => {
+                    cx.conv_opaque_ty(def_id.expect_local(), opaque_ty)?;
+                }
+            }
+        }
+        fhir::Node::TraitItem(trait_item) => {
+            match trait_item.kind {
+                fhir::TraitItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, &fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &trait_item.generics)?;
+                }
+                fhir::TraitItemKind::Type => {}
+            }
+        }
+        fhir::Node::ImplItem(impl_item) => {
+            match impl_item.kind {
+                fhir::ImplItemKind::Fn(fn_sig) => {
+                    cx.conv_fn_sig(def_id, &fn_sig)?;
+                    cx.conv_generic_predicates(def_id, &impl_item.generics)?;
+                }
+                fhir::ImplItemKind::Type => {}
+            }
+        }
+    }
+    infcx.normalize_weak_alias_sorts()?;
+    Ok(infcx)
+}
+
+/// Initializes the inference context with all refinement parameters in `node`
 fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     let genv = infcx.genv;
     if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
@@ -106,7 +201,7 @@ fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     })
 }
 
-/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the [`WfckResults`]
+/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
 fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
@@ -174,13 +269,13 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft) {
-        let Ok(output) =
-            conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
-                .emit(&self.errors)
-        else {
-            return;
-        };
         if let Some(body) = &assoc_reft.body {
+            let Ok(output) =
+                conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
+                    .emit(&self.errors)
+            else {
+                return;
+            };
             self.infcx
                 .check_expr(body, &output)
                 .collect_err(&mut self.errors);
@@ -194,7 +289,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         let Ok(args) = rty::GenericArg::identity_for_item(genv, enum_id).emit(&self.errors) else {
             return;
         };
-        let expected = adt_sort_def.sort(&args);
+        let expected = adt_sort_def.to_sort(&args);
         self.infcx
             .check_refine_arg(&ret.idx, &expected)
             .collect_err(&mut self.errors);
@@ -228,17 +323,10 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
-                    return;
-                };
-                if let Some(expected) = sort_of_bty {
-                    self.infcx
-                        .check_refine_arg(idx, &expected)
-                        .collect_err(&mut self.errors);
-                } else if idx.is_colon_param().is_none() {
-                    self.errors
-                        .emit(errors::RefinedUnrefinableType::new(bty.span));
-                }
+                let expected = self.infcx.sort_of_bty(bty.fhir_id);
+                self.infcx
+                    .check_refine_arg(idx, &expected)
+                    .collect_err(&mut self.errors);
                 self.visit_bty(bty);
             }
             fhir::TyKind::StrgRef(_, loc, ty) => {
@@ -302,4 +390,67 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
     let mut visitor = RefineParamVisitor { f, err: None };
     visitor.visit_node(node);
     visitor.err.into_result()
+}
+
+impl<'genv, 'tcx> ConvPhase for &mut InferCtxt<'genv, 'tcx> {
+    /// We don't expand type aliases before sort checking because we need every base type in `fhir`
+    /// to match a type in `rty`.
+    const EXPAND_TYPE_ALIASES: bool = false;
+
+    type Results = InferCtxt<'genv, 'tcx>;
+
+    fn results(&self) -> &Self::Results {
+        self
+    }
+
+    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.insert_sort_for_bty(fhir_id, sort);
+    }
+
+    fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
+        self.insert_sort_for_alias_reft(fhir_id, fsort);
+    }
+}
+
+/// The purpose of doing conversion before sort checking is to collect the sorts of base types.
+/// Thus, what we return here mostly doesn't matter because the refinements on a type should not
+/// affect its sort. The one exception is the sort we generate for refinement parameters.
+///
+/// For instance, consider the following definition where we refine a struct with a polymorphic set:
+/// ```ignore
+/// #[flux::refined_by(elems: Set<T>)]
+/// struct RSet<T> { ... }
+/// ```
+/// Now, consider the type `RSet<i32{v: v >= 0}>`. This type desugars to `RSet<λv:σ. {i32[v] | v >= 0}>`
+/// where the sort `σ` needs to be inferred. The type `RSet<λv:σ. {i32[v] | v >= 0}>` has sort
+/// `RSet<σ>` where `RSet` is the sort-level representation of the `RSet` type. Thus, it is important
+/// that the inference variable we generate for `σ` is the same we use for sort checking.
+impl WfckResultsProvider for InferCtxt<'_, '_> {
+    fn owner(&self) -> FluxOwnerId {
+        self.wfckresults.owner
+    }
+
+    fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
+        &[]
+    }
+
+    fn field_proj(&self, _: FhirId) -> rty::FieldProj {
+        rty::FieldProj::Tuple { arity: 0, field: 0 }
+    }
+
+    fn lambda_output(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn record_ctor(&self, _: FhirId) -> DefId {
+        DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
+    }
+
+    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
+        self.param_sort(param.id)
+    }
 }
