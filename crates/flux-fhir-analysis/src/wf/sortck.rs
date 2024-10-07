@@ -1,7 +1,7 @@
 use std::iter;
 
 use ena::unify::InPlaceUnificationTable;
-use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug};
+use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
@@ -19,7 +19,7 @@ use rustc_errors::Diagnostic;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
-use crate::{compare_impl_item::errors::InvalidAssocReft, conv};
+use crate::conv;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -31,6 +31,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     sort_of_bty: UnordMap<FhirId, rty::Sort>,
+    sort_of_alias_reft: UnordMap<FhirId, rty::FuncSort>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -43,6 +44,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
+            sort_of_alias_reft: Default::default(),
         }
     }
 
@@ -167,8 +169,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
-            fhir::ExprKind::Alias(alias, func_args) => {
-                self.synth_alias_reft_app(alias, func_args, expr.span)
+            fhir::ExprKind::Alias(_alias_reft, func_args) => {
+                // To check the application we only need the sort of `_alias_reft` which we collected
+                // during early conv, but should we do any extra checks on _alias_reft?
+                self.synth_alias_reft_app(expr.fhir_id, expr.span, func_args)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
@@ -299,17 +303,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_alias_reft_app(
         &mut self,
-        alias: &fhir::AliasReft,
-        args: &[fhir::Expr],
+        fhir_id: FhirId,
         span: Span,
+        args: &[fhir::Expr],
     ) -> Result<rty::Sort> {
-        let Some(fsort) = self.genv.sort_of_alias_reft(alias).emit(&self.genv)? else {
-            return Err(self.emit_err(InvalidAssocReft::new(
-                span,
-                alias.name,
-                format!("{:?}", alias.path),
-            )));
-        };
+        let fsort = self.sort_of_alias_reft(fhir_id);
         if args.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -356,6 +354,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.sort_of_bty.insert(fhir_id, sort);
     }
 
+    pub(crate) fn insert_sort_for_alias_reft(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
+        self.sort_of_alias_reft.insert(fhir_id, fsort);
+    }
+
     pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> QueryResult<rty::Sort> {
         // find a better place to do the normalization
         let a = 0;
@@ -365,6 +367,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         } else {
             Ok(sort)
         }
+    }
+
+    fn sort_of_alias_reft(&self, fhir_id: FhirId) -> rty::FuncSort {
+        self.sort_of_alias_reft
+            .get(&fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
+            .clone()
     }
 }
 

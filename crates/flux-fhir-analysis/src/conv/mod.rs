@@ -48,6 +48,8 @@ use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
+use crate::compare_impl_item::errors::InvalidAssocReft;
+
 pub struct ConvCtxt<'a, 'genv, 'tcx, R> {
     genv: GlobalEnv<'genv, 'tcx>,
     results: &'a R,
@@ -74,6 +76,8 @@ pub trait WfckResultsProvider: Sized {
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
 
     fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort);
+
+    fn insert_alias_reft_sort(&self, fhir_id: FhirId, fsort: rty::FuncSort);
 }
 
 impl WfckResultsProvider for WfckResults {
@@ -120,6 +124,8 @@ impl WfckResultsProvider for WfckResults {
     }
 
     fn insert_bty_sort(&self, _: FhirId, _: rty::Sort) {}
+
+    fn insert_alias_reft_sort(&self, _: FhirId, _: rty::FuncSort) {}
 }
 
 pub(crate) struct Env {
@@ -203,7 +209,7 @@ pub(crate) fn conv_generics(
     generics: &fhir::Generics,
     def_id: MaybeExternId,
     is_trait: bool,
-) -> QueryResult<rty::Generics> {
+) -> rty::Generics {
     let opt_self = is_trait.then(|| {
         let kind = generics
             .self_kind
@@ -251,12 +257,12 @@ pub(crate) fn conv_generics(
         }
     }
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
-    Ok(rty::Generics {
+    rty::Generics {
         own_params: List::from_vec(params),
         parent: rust_generics.parent,
         parent_count: rust_generics.parent_count,
         has_self: rust_generics.has_self,
-    })
+    }
 }
 
 pub(crate) fn conv_refinement_generics(
@@ -332,44 +338,6 @@ pub(crate) fn conv_qualifier(
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
-}
-
-pub(crate) fn conv_default_assoc_reft_def(
-    genv: GlobalEnv,
-    assoc_reft: &fhir::TraitAssocReft,
-    wfckresults: &WfckResults,
-) -> QueryResult<Option<rty::Lambda>> {
-    if let Some(body) = assoc_reft.body {
-        let res =
-            conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &body, &assoc_reft.output)?;
-        Ok(Some(res))
-    } else {
-        Ok(None)
-    }
-}
-
-pub(crate) fn conv_assoc_reft_def(
-    genv: GlobalEnv,
-    assoc_reft: &fhir::ImplAssocReft,
-    wfckresults: &WfckResults,
-) -> QueryResult<rty::Lambda> {
-    conv_assoc_reft_body(genv, wfckresults, assoc_reft.params, &assoc_reft.body, &assoc_reft.output)
-}
-
-fn conv_assoc_reft_body(
-    genv: GlobalEnv,
-    wfckresults: &WfckResults,
-    params: &[fhir::RefineParam],
-    body: &fhir::Expr,
-    output: &fhir::Sort,
-) -> QueryResult<rty::Lambda> {
-    let mut cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[]);
-    env.push_layer(Layer::list(&cx, 0, params));
-    let expr = cx.conv_expr(&mut env, body)?;
-    let inputs = env.pop_layer().into_bound_vars(genv)?;
-    let output = conv_sort(genv, output, &mut bug_on_infer_sort)?;
-    Ok(rty::Lambda::bind_with_vars(expr, inputs, output))
 }
 
 pub(crate) fn conv_ty(
@@ -566,6 +534,20 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
             .into_iter()
             .collect())
+    }
+
+    pub(crate) fn conv_assoc_reft_body(
+        &mut self,
+        params: &[fhir::RefineParam],
+        body: &fhir::Expr,
+        output: &fhir::Sort,
+    ) -> QueryResult<rty::Lambda> {
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::list(&self, 0, params));
+        let expr = self.conv_expr(&mut env, body)?;
+        let inputs = env.pop_layer().into_bound_vars(self.genv)?;
+        let output = conv_sort(self.genv, output, &mut bug_on_infer_sort)?;
+        Ok(rty::Lambda::bind_with_vars(expr, inputs, output))
     }
 }
 
@@ -1144,12 +1126,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     assoc_ident,
                 )?
             }
-            _ => {
-                Err(self
-                    .genv
-                    .sess()
-                    .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
-            }
+            _ => Err(self.emit(errors::AssocTypeNotFound::new(assoc_ident)))?,
         };
 
         let Some(trait_ref) = bound.no_bound_vars() else {
@@ -1160,7 +1137,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             // trait Child: for<'a> Super<'a> {}
             // fn foo<T: Child>(x: T::Assoc) {}
             // ```
-            Err(self.genv.sess().emit_err(
+            Err(self.emit(
                 query_bug!("associated path with uninferred generic parameters")
                     .at(assoc_ident.span),
             ))?
@@ -1237,17 +1214,11 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         });
 
         let Some(bound) = matching_candidates.next() else {
-            return Err(self
-                .genv
-                .sess()
-                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)));
+            return Err(self.emit(errors::AssocTypeNotFound::new(assoc_ident)));
         };
 
         if matching_candidates.next().is_some() {
-            return Err(self
-                .genv
-                .sess()
-                .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
+            return Err(self.emit(errors::AmbiguousAssocType::new(assoc_ident)));
         }
 
         Ok(bound)
@@ -1508,11 +1479,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         } else {
             ty.shallow_canonicalize()
                 .to_subset_ty_ctor()
-                .ok_or_else(|| {
-                    self.genv
-                        .sess()
-                        .emit_err(errors::InvalidBaseInstance::new(span))
-                })?
+                .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(span)))?
         };
         Ok(rty::GenericArg::Base(ctor))
     }
@@ -1579,7 +1546,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     .iter()
                     .map(|arg| self.conv_expr(env, arg))
                     .try_collect()?;
-                let alias = self.conv_alias_reft(env, alias)?;
+                let alias = self.conv_alias_reft(env, expr.fhir_id, alias)?;
                 rty::Expr::alias(alias, args).at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
@@ -1675,6 +1642,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     fn conv_alias_reft(
         &mut self,
         env: &mut Env,
+        fhir_id: FhirId,
         alias: &fhir::AliasReft,
     ) -> QueryResult<rty::AliasReft> {
         let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
@@ -1690,6 +1658,15 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
         let alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
+
+        let Some(fsort) = alias_reft.fsort(self.genv)? else {
+            return Err(self.emit(InvalidAssocReft::new(
+                alias.path.span,
+                alias_reft.name,
+                format!("{:?}", alias.path),
+            )))?;
+        };
+        self.results.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
     }
 

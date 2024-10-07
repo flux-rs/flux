@@ -1441,30 +1441,6 @@ impl BaseTy {
         }
     }
 
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
-            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
-            BaseTy::Str => Sort::Str,
-            BaseTy::Alias(alias_ty) => Sort::Alias(alias_ty.clone()),
-            BaseTy::Float(_)
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::FnPtr(..)
-            | BaseTy::FnDef(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(..)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Dynamic(_, _)
-            | BaseTy::Never => Sort::unit(),
-            BaseTy::Infer(_) => tracked_span_bug!(),
-        }
-    }
-
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
         if let BaseTy::Adt(adt_def, args) = self {

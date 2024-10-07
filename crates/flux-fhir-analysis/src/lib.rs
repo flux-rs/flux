@@ -212,9 +212,12 @@ fn default_assoc_refinement_def(
         .expect_trait()
         .find_assoc_reft(name);
 
-    let wfckresults = genv.check_wf(trait_id.local_id())?;
     if let Some(assoc_reft) = assoc_reft {
-        Ok(conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?.map(rty::EarlyBinder))
+        let Some(body) = assoc_reft.body else { return Ok(None) };
+        let wfckresults = genv.check_wf(trait_id.local_id())?;
+        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let body = cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
+        Ok(Some(rty::EarlyBinder(body)))
     } else {
         Err(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })?
     }
@@ -233,7 +236,10 @@ fn impl_assoc_refinement_def(
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;
-        Ok(Some(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?)))
+        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let body =
+            cx.conv_assoc_reft_body(assoc_reft.params, &assoc_reft.body, &assoc_reft.output)?;
+        Ok(Some(rty::EarlyBinder(body)))
     } else {
         Ok(None)
     }
@@ -265,7 +271,8 @@ fn sort_of_assoc_reft(
     def_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-    match &genv.map().expect_item(def_id)?.kind {
+    let def_id = genv.maybe_extern_id(def_id);
+    match &genv.map().expect_item(def_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let Some(assoc_reft) = trait_.find_assoc_reft(name) else { return Ok(None) };
             let inputs = assoc_reft
@@ -286,7 +293,7 @@ fn sort_of_assoc_reft(
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
-        _ => Err(query_bug!(def_id, "expected trait or impl")),
+        _ => Err(query_bug!(def_id.local_id(), "expected trait or impl")),
     }
 }
 
@@ -318,7 +325,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .map()
                 .get_generics(def_id.local_id())?
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
-            conv::conv_generics(genv, generics, def_id, is_trait)?
+            conv::conv_generics(genv, generics, def_id, is_trait)
         }
         DefKind::Closure => {
             let rustc_generics = genv.tcx().generics_of(def_id.local_id());

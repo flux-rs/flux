@@ -1,67 +1,11 @@
 use flux_arc_interner::List;
-use flux_common::{bug, span_bug};
-use rustc_hir::{def::DefKind, PrimTy};
+use flux_common::{bug, tracked_span_bug};
+use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
-use crate::{fhir, global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
+use crate::{global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_alias_reft(self, alias: &fhir::AliasReft) -> QueryResult<Option<rty::FuncSort>> {
-        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
-            bug!("expected trait")
-        };
-        let name = alias.name;
-        let Some(fsort) = self.sort_of_assoc_reft(trait_id, name)? else { return Ok(None) };
-        Some(fsort.instantiate_func_sort(|param_ty| {
-            if param_ty.index == 0 {
-                self.sort_of_ty(alias.qself)
-            } else {
-                let args = alias.path.last_segment().args;
-                self.sort_of_generic_arg(&args[(param_ty.index - 1) as usize])
-            }
-            .transpose()
-            .unwrap()
-        }))
-        .transpose()
-    }
-
-    pub fn sort_of_bty(self, bty: &fhir::BaseTy) -> QueryResult<Option<rty::Sort>> {
-        let sort = match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path)?,
-            fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => None,
-            fhir::BaseTyKind::Slice(_) => Some(rty::Sort::Int),
-        };
-        Ok(sort)
-    }
-
-    fn sort_of_path(self, path: &fhir::Path) -> QueryResult<Option<rty::Sort>> {
-        let sort = match path.res {
-            fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(rty::Sort::Int),
-            fhir::Res::PrimTy(PrimTy::Bool) => Some(rty::Sort::Bool),
-            fhir::Res::PrimTy(PrimTy::Str) => Some(rty::Sort::Str),
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Char) => Some(rty::Sort::unit()),
-            fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
-                let mut sort_args = vec![];
-                let sort_def = self.adt_sort_def_of(def_id)?;
-                let generic_args = path.segments.last().unwrap().args;
-                for arg in sort_def.filter_generic_args(generic_args) {
-                    let Some(sort) = self.sort_of_ty(arg.expect_type())? else { return Ok(None) };
-                    sort_args.push(sort);
-                }
-                let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(def_id)?);
-                Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
-            }
-            fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to)?,
-            fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id)?,
-            fhir::Res::SelfTyParam { trait_ } => self.sort_of_self_param(trait_)?,
-            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => None,
-            fhir::Res::Def(..) | fhir::Res::Err => {
-                span_bug!(path.span, "unexpected res `{:?}`", path.res)
-            }
-        };
-        Ok(sort)
-    }
-
     pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> QueryResult<Option<rty::Sort>> {
         let self_ty = self.tcx().type_of(alias_to).instantiate_identity();
         self.sort_of_rust_ty(alias_to, self_ty)
@@ -82,42 +26,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Lifetime => None,
         };
         Ok(sort)
-    }
-
-    fn sort_of_self_param(self, trait_id: DefId) -> QueryResult<Option<rty::Sort>> {
-        assert!(matches!(self.def_kind(trait_id), DefKind::Trait));
-        let generics = self.generics_of(trait_id)?;
-        let sort = match &generics.param_at(0, self)?.kind {
-            rty::GenericParamDefKind::Base => Some(rty::Sort::Param(rty::SELF_PARAM_TY)),
-            rty::GenericParamDefKind::Const { .. }
-            | rty::GenericParamDefKind::Type { .. }
-            | rty::GenericParamDefKind::Lifetime => None,
-        };
-        Ok(sort)
-    }
-
-    fn sort_of_generic_arg(self, arg: &fhir::GenericArg) -> QueryResult<Option<rty::Sort>> {
-        match arg {
-            fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
-            fhir::GenericArg::Lifetime(_) | fhir::GenericArg::Const(_) => Ok(None),
-        }
-    }
-
-    fn sort_of_ty(self, ty: &fhir::Ty) -> QueryResult<Option<rty::Sort>> {
-        match &ty.kind {
-            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => self.sort_of_bty(bty),
-            fhir::TyKind::Exists(_, ty) | fhir::TyKind::Constr(_, ty) => self.sort_of_ty(ty),
-            fhir::TyKind::RawPtr(..)
-            | fhir::TyKind::Ref(..)
-            | fhir::TyKind::Tuple(_)
-            | fhir::TyKind::Array(..)
-            | fhir::TyKind::TraitObject(..)
-            | fhir::TyKind::BareFn(_)
-            | fhir::TyKind::Never => Ok(Some(rty::Sort::unit())),
-            fhir::TyKind::Infer | fhir::TyKind::StrgRef(..) | fhir::TyKind::OpaqueDef(..) => {
-                Ok(None)
-            }
-        }
     }
 
     fn sort_of_rust_ty(
@@ -172,5 +80,40 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             _ => Err(query_bug!(alias_ty.def_id, "unexpected weak alias `{:?}`", alias_ty.def_id)),
         }
+    }
+}
+
+impl rty::BaseTy {
+    pub fn sort(&self) -> rty::Sort {
+        match self {
+            rty::BaseTy::Int(_) | rty::BaseTy::Uint(_) | rty::BaseTy::Slice(_) => rty::Sort::Int,
+            rty::BaseTy::Bool => rty::Sort::Bool,
+            rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
+            rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
+            rty::BaseTy::Str => rty::Sort::Str,
+            rty::BaseTy::Alias(alias_ty) => rty::Sort::Alias(alias_ty.clone()),
+            rty::BaseTy::Float(_)
+            | rty::BaseTy::Char
+            | rty::BaseTy::RawPtr(..)
+            | rty::BaseTy::Ref(..)
+            | rty::BaseTy::FnPtr(..)
+            | rty::BaseTy::FnDef(..)
+            | rty::BaseTy::Tuple(_)
+            | rty::BaseTy::Array(_, _)
+            | rty::BaseTy::Closure(..)
+            | rty::BaseTy::Coroutine(..)
+            | rty::BaseTy::Dynamic(_, _)
+            | rty::BaseTy::Never => rty::Sort::unit(),
+            rty::BaseTy::Infer(_) => tracked_span_bug!(),
+        }
+    }
+}
+
+impl rty::AliasReft {
+    pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<Option<rty::FuncSort>> {
+        let Some(fsort) = genv.sort_of_assoc_reft(self.trait_id, self.name)? else {
+            return Ok(None);
+        };
+        Ok(Some(fsort.instantiate(genv.tcx(), &self.args, &[])))
     }
 }

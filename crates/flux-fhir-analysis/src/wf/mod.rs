@@ -117,8 +117,22 @@ fn init_infcx<'genv, 'tcx>(
                 fhir::ItemKind::TyAlias(ty_alias) => {
                     cx.conv_type_alias(def_id, ty_alias)?;
                 }
-                fhir::ItemKind::Trait(_) => {}
-                fhir::ItemKind::Impl(_) => {}
+                fhir::ItemKind::Trait(trait_) => {
+                    for assoc_reft in trait_.assoc_refinements {
+                        if let Some(body) = assoc_reft.body {
+                            cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
+                        }
+                    }
+                }
+                fhir::ItemKind::Impl(impl_) => {
+                    for assoc_reft in impl_.assoc_refinements {
+                        cx.conv_assoc_reft_body(
+                            assoc_reft.params,
+                            &assoc_reft.body,
+                            &assoc_reft.output,
+                        )?;
+                    }
+                }
                 fhir::ItemKind::Fn(fn_sig) => {
                     cx.conv_fn_sig(def_id, fn_sig)?;
                     cx.conv_generic_predicates(def_id, &item.generics)?;
@@ -240,13 +254,13 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft) {
-        let Ok(output) =
-            conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
-                .emit(&self.errors)
-        else {
-            return;
-        };
         if let Some(body) = &assoc_reft.body {
+            let Ok(output) =
+                conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
+                    .emit(&self.errors)
+            else {
+                return;
+            };
             self.infcx
                 .check_expr(body, &output)
                 .collect_err(&mut self.errors);
@@ -294,6 +308,8 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
+                // Check if any error reported here should be reportd during conv
+                let a = 0;
                 // let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
                 //     return;
                 // };
@@ -423,5 +439,11 @@ impl WfckResultsProvider for BeforeWf<'_, '_> {
 
     fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
         self.infcx.borrow_mut().insert_sort_for_bty(fhir_id, sort);
+    }
+
+    fn insert_alias_reft_sort(&self, fhir_id: FhirId, fsort: rty::FuncSort) {
+        self.infcx
+            .borrow_mut()
+            .insert_sort_for_alias_reft(fhir_id, fsort);
     }
 }
