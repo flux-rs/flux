@@ -373,6 +373,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
+    // FIXME(nilehmann) this assumes weak aliases appear shallowly and are only created for the
+    // sorts associated to base types. We should find a more robust way to do normalization for
+    // sort checkint. If we do so we can stop expanding self aliases in `conv::conv_sort`.
     pub(crate) fn normalize_weak_alias_sorts(&mut self) -> QueryResult {
         for sort in self.sort_of_bty.values_mut() {
             if let rty::Sort::Alias(alias_ty) = sort {

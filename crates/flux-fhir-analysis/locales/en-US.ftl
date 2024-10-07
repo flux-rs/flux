@@ -94,10 +94,6 @@ fhir_analysis_cannot_infer_sort =
     .label = cannot infer sort
     .note = sort must be known at this point
 
-
-fhir_analysis_refined_unrefinable_type =
-    type cannot be refined
-
 # Structural Compatibility
 
 fhir_analysis_incompatible_refinement =
@@ -204,6 +200,9 @@ fhir_analysis_too_many_generic_args =
         [one] argument
         *[other] arguments
     }
+
+fhir_analysis_refined_unrefinable_type =
+    type cannot be refined
 
 # Check impl against trait errors
 

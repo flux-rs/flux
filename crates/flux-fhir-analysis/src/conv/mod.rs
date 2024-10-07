@@ -1310,9 +1310,16 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                // We should check the param is of kind base
-                let a = 0;
-                rty::BaseTy::Param(def_id_to_param_ty(self.genv, def_id))
+                let owner_id = self.genv.tcx().parent(def_id);
+                let param_ty = def_id_to_param_ty(self.genv, def_id);
+                let param = self
+                    .genv
+                    .generics_of(owner_id)?
+                    .param_at(param_ty.index as usize, self.genv)?;
+                if let rty::GenericParamDefKind::Type { .. } = param.kind {
+                    return Err(self.emit(errors::RefinedUnrefinableType::new(path.span)))?;
+                }
+                rty::BaseTy::Param(param_ty)
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
@@ -2156,6 +2163,19 @@ mod errors {
                 max,
                 def_descr: genv.tcx().def_descr(def_id),
             }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_refined_unrefinable_type, code = E0999)]
+    pub(super) struct RefinedUnrefinableType {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl RefinedUnrefinableType {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 }

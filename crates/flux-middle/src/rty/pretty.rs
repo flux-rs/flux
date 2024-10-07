@@ -451,7 +451,13 @@ impl Pretty for BaseTy {
                     w!("({:?})", join!(", ", tys))
                 }
             }
-            BaseTy::Alias(alias_ty) => todo!(),
+            BaseTy::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                Ok(())
+            }
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),
             BaseTy::Closure(did, args, _) => {
