@@ -16,6 +16,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashMap;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
@@ -30,7 +31,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
-    sort_of_bty: UnordMap<FhirId, rty::Sort>,
+    sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     sort_of_alias_reft: UnordMap<FhirId, rty::FuncSort>,
 }
 
@@ -354,19 +355,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.sort_of_bty.insert(fhir_id, sort);
     }
 
-    pub(crate) fn insert_sort_for_alias_reft(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
-        self.sort_of_alias_reft.insert(fhir_id, fsort);
+    pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> rty::Sort {
+        self.sort_of_bty
+            .get(&fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
+            .clone()
     }
 
-    pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> QueryResult<rty::Sort> {
-        // find a better place to do the normalization
-        let a = 0;
-        let sort = self.sort_of_bty[&fhir_id].clone();
-        if let rty::Sort::Alias(alias_ty) = sort {
-            self.genv.normalize_weak_alias_sort(&alias_ty)
-        } else {
-            Ok(sort)
-        }
+    pub(crate) fn insert_sort_for_alias_reft(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
+        self.sort_of_alias_reft.insert(fhir_id, fsort);
     }
 
     fn sort_of_alias_reft(&self, fhir_id: FhirId) -> rty::FuncSort {
@@ -374,6 +371,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .get(&fhir_id)
             .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
             .clone()
+    }
+
+    pub(crate) fn normalize_weak_alias_sorts(&mut self) -> QueryResult {
+        for sort in self.sort_of_bty.values_mut() {
+            if let rty::Sort::Alias(alias_ty) = sort {
+                *sort = self.genv.normalize_weak_alias_sort(&alias_ty)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -675,14 +681,8 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            match self.infcx.sort_of_bty(bty.fhir_id) {
-                Ok(expected) => {
-                    self.infer_implicit_params(idx, &expected);
-                }
-                Err(err) => {
-                    self.errors.emit(err);
-                }
-            }
+            let expected = self.infcx.sort_of_bty(bty.fhir_id);
+            self.infer_implicit_params(idx, &expected);
         }
         fhir::visit::walk_ty(self, ty);
     }

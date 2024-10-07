@@ -160,6 +160,7 @@ fn init_infcx<'genv, 'tcx>(
             }
         }
     }
+    infcx.normalize_weak_alias_sorts()?;
     Ok(infcx)
 }
 
@@ -307,20 +308,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                // Check if any error reported here should be reportd during conv
-                let a = 0;
-                // let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
-                //     return;
-                // };
-                // if let Some(expected) = sort_of_bty {
-                //     self.infcx
-                //         .check_refine_arg(idx, &expected)
-                //         .collect_err(&mut self.errors);
-                // } else if idx.is_colon_param().is_none() {
-                //     self.errors
-                //         .emit(errors::RefinedUnrefinableType::new(bty.span));
-                // }
-                let Ok(expected) = self.infcx.sort_of_bty(bty.fhir_id) else { return };
+                let expected = self.infcx.sort_of_bty(bty.fhir_id);
                 self.infcx
                     .check_refine_arg(idx, &expected)
                     .collect_err(&mut self.errors);
