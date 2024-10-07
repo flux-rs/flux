@@ -198,7 +198,7 @@
 </ul>
 </li>
 <li>
-<p><strong>Constraint Type</strong>: A constraint type has the form <code>{T | r}</code> where <code>T</code> is any type (not just a base type). Intuitively, a value has type <code>{T | r}</code> if it has type <code>T</code> and also <code>r</code> holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter <code>n</code> to be less than <code>n</code>.</p>
+<p><strong>Constraint Type</strong>: A constraint type has the form <code>{T | r}</code> where <code>T</code> is any type (not just a base type). Intuitively, a value has type <code>{T | r}</code> if it has type <code>T</code> and also <code>r</code> holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter <code>n</code> to be less than <code>10</code>.</p>
 <p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
 <p>Constraint types serve a similar role as existentials as they can also be used to constraint some
 refinement value with a predicate, but an existential type can only be used to constraint refinement
