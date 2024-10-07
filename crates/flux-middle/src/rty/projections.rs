@@ -15,7 +15,7 @@ use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     subst::{GenericsSubstDelegate, GenericsSubstFolder},
     AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -330,6 +330,16 @@ fn assemble_candidates_from_predicates(
 impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     type Error = QueryErr;
 
+    fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
+        if let Sort::Alias(alias_ty) = sort {
+            self.genv
+                .normalize_weak_alias_sort(alias_ty)?
+                .try_fold_with(self)
+        } else {
+            sort.try_super_fold_with(self)
+        }
+    }
+
     // As shown in https://github.com/flux-rs/flux/issues/711
     // one round of `normalize_projections` can replace one
     // projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item`
@@ -339,6 +349,13 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     // which is what the `changed` is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
+            TyKind::Indexed(BaseTy::Alias(alias_ty), idx) => {
+                Ok(self
+                    .genv
+                    .type_of(alias_ty.def_id)?
+                    .instantiate(self.genv.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .replace_bound_reft(idx))
+            }
             TyKind::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ty) = self.normalize_projection_ty(alias_ty)?;
                 if changed {

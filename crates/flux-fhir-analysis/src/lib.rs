@@ -17,7 +17,7 @@ mod wf;
 
 use std::rc::Rc;
 
-use conv::bug_on_infer_sort;
+use conv::{bug_on_infer_sort, struct_compat, ConvCtxt};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
@@ -151,14 +151,15 @@ fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Inv
 
 fn predicates_of(
     genv: GlobalEnv,
-    local_id: LocalDefId,
+    def_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    if let Some(generics) = genv.map().get_generics(local_id)? {
-        let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_generic_predicates(genv, local_id, generics.predicates, &wfckresults)
+    let def_id = genv.maybe_extern_id(def_id);
+    if let Some(generics) = genv.map().get_generics(def_id.local_id())? {
+        let wfckresults = genv.check_wf(def_id.local_id())?;
+        ConvCtxt::new(genv, &*wfckresults).conv_generic_predicates(def_id, generics)
     } else {
         Ok(rty::EarlyBinder(rty::GenericPredicates {
-            parent: genv.tcx().predicates_of(local_id.to_def_id()).parent,
+            parent: genv.tcx().predicates_of(def_id).parent,
             predicates: rty::List::empty(),
         }))
     }
@@ -211,9 +212,12 @@ fn default_assoc_refinement_def(
         .expect_trait()
         .find_assoc_reft(name);
 
-    let wfckresults = genv.check_wf(trait_id.local_id())?;
     if let Some(assoc_reft) = assoc_reft {
-        Ok(conv::conv_default_assoc_reft_def(genv, assoc_reft, &wfckresults)?.map(rty::EarlyBinder))
+        let Some(body) = assoc_reft.body else { return Ok(None) };
+        let wfckresults = genv.check_wf(trait_id.local_id())?;
+        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let body = cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
+        Ok(Some(rty::EarlyBinder(body)))
     } else {
         Err(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })?
     }
@@ -232,7 +236,10 @@ fn impl_assoc_refinement_def(
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;
-        Ok(Some(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?)))
+        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let body =
+            cx.conv_assoc_reft_body(assoc_reft.params, &assoc_reft.body, &assoc_reft.output)?;
+        Ok(Some(rty::EarlyBinder(body)))
     } else {
         Ok(None)
     }
@@ -264,13 +271,14 @@ fn sort_of_assoc_reft(
     def_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-    match &genv.map().expect_item(def_id)?.kind {
+    let def_id = genv.maybe_extern_id(def_id);
+    match &genv.map().expect_item(def_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let Some(assoc_reft) = trait_.find_assoc_reft(name) else { return Ok(None) };
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
                 .try_collect_vec()?;
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
@@ -280,12 +288,12 @@ fn sort_of_assoc_reft(
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
                 .try_collect_vec()?;
             let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
-        _ => Err(query_bug!(def_id, "expected trait or impl")),
+        _ => Err(query_bug!(def_id.local_id(), "expected trait or impl")),
     }
 }
 
@@ -295,7 +303,7 @@ fn item_bounds(
 ) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
     let wfckresults = genv.check_wf(local_id)?;
     let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
-    Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
+    Ok(rty::EarlyBinder(ConvCtxt::new(genv, &*wfckresults).conv_opaque_ty(local_id, opaque_ty)?))
 }
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
@@ -317,7 +325,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .map()
                 .get_generics(def_id.local_id())?
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
-            conv::conv_generics(genv, generics, def_id, is_trait)?
+            conv::conv_generics(genv, generics, def_id, is_trait)
         }
         DefKind::Closure => {
             let rustc_generics = genv.tcx().generics_of(def_id.local_id());
@@ -378,12 +386,14 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     let def_id = genv.maybe_extern_id(def_id);
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
-            let alias = genv
+            let fhir_ty_alias = genv
                 .map()
                 .expect_item(def_id.local_id())?
                 .expect_type_alias();
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)?;
+            struct_compat::type_alias(genv, fhir_ty_alias, &ty_alias, def_id)?
         }
         DefKind::TyParam => {
             match def_id {
@@ -444,17 +454,21 @@ fn variants_of(
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let variants =
-                conv::ConvCtxt::conv_enum_variants(genv, def_id, enum_def, &wfckresults)?
-                    .into_iter()
-                    .map(|variant| normalize(genv, variant))
-                    .try_collect()?;
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let variants = cx.conv_enum_variants(def_id, enum_def)?;
+            let variants = struct_compat::variants(genv, &variants, def_id)?;
+            let variants = variants
+                .into_iter()
+                .map(|variant| normalize(genv, variant))
+                .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            conv::ConvCtxt::conv_struct_variant(genv, def_id, struct_def, &wfckresults)?
-                .map(|variants| {
+            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            cx.conv_struct_variant(def_id, struct_def)?
+                .map(|variant| {
+                    let variants = struct_compat::variants(genv, &[variant], def_id)?;
                     variants
                         .into_iter()
                         .map(|variant| normalize(genv, variant))
@@ -473,11 +487,11 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
+    let fhir_fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
-    let defns = genv.spec_func_defns()?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
-        .map(|fn_sig| fn_sig.normalize(defns));
+    let fn_sig = ConvCtxt::new(genv, &*wfckresults).conv_fn_sig(def_id, fhir_fn_sig)?;
+    let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
+    let fn_sig = normalize(genv, fn_sig)?;
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
@@ -490,7 +504,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         )
         .unwrap();
     }
-    Ok(fn_sig)
+    Ok(rty::EarlyBinder(fn_sig))
 }
 
 fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {
