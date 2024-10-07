@@ -50,9 +50,9 @@ use rustc_type_ir::DebruijnIndex;
 
 use crate::compare_impl_item::errors::InvalidAssocReft;
 
-pub struct ConvCtxt<'genv, 'tcx, M> {
+pub struct ConvCtxt<'genv, 'tcx, P> {
     genv: GlobalEnv<'genv, 'tcx>,
-    mode: M,
+    phase: P,
     next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
@@ -60,24 +60,26 @@ pub struct ConvCtxt<'genv, 'tcx, M> {
 
 /// We do conversion twice: once before sort checking when we don't have elaborated information
 /// and then again after sort checking after all information has been elaborated. This is the
-/// interface to configure conversion for both cases.
-pub trait ConvMode {
-    /// Whether to expand type aliases or generate a weak type alias.
+/// interface to configure conversion for both *phases*.
+pub trait ConvPhase {
+    /// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     const EXPAND_TYPE_ALIASES: bool;
 
     type Results: WfckResultsProvider;
 
     fn results(&self) -> &Self::Results;
 
-    /// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`
+    /// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`. Used
+    /// during the first phase to collect the sort of base types.
     fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
 
     /// Called after converting an [`fhir::ExprKind::Alias`] with the sort of the resulting
-    /// [`rty::AliasReft`]
+    /// [`rty::AliasReft`]. Used during the first phase to collect the sorts of refinement aliases.
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort);
 }
 
-/// An interface to the information required to be elaborated to do conversion
+/// An interface to the information elaborated during sort checking. We mock these results in
+/// the first conversion phase before sort checking.
 pub trait WfckResultsProvider: Sized {
     fn owner(&self) -> FluxOwnerId;
 
@@ -94,7 +96,7 @@ pub trait WfckResultsProvider: Sized {
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
 }
 
-impl<'a> ConvMode for &'a WfckResults {
+impl<'a> ConvPhase for &'a WfckResults {
     const EXPAND_TYPE_ALIASES: bool = true;
 
     type Results = WfckResults;
@@ -103,13 +105,9 @@ impl<'a> ConvMode for &'a WfckResults {
         self
     }
 
-    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {
-        // this is used before sort checking to collect the sort of base types
-    }
+    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {}
 
-    fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {
-        // this is used before sort checking to collect the sort alias refts
-    }
+    fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {}
 }
 
 impl WfckResultsProvider for WfckResults {
@@ -121,7 +119,7 @@ impl WfckResultsProvider for WfckResults {
         self.bin_rel_sorts()
             .get(fhir_id)
             .cloned()
-            .unwrap_or_else(|| bug!("binary relation without elaborated sort: `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
     }
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
@@ -132,24 +130,27 @@ impl WfckResultsProvider for WfckResults {
         *self
             .field_projs()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("field projectoin without elaboration: `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("field projectoin without elaboration `{fhir_id:?}`"))
     }
 
     fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort {
         self.node_sorts()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("lambda without elaborated sort for: `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("lambda without elaborated sort for `{fhir_id:?}`"))
             .clone()
     }
 
     fn record_ctor(&self, fhir_id: FhirId) -> DefId {
-        *self.record_ctors().get(fhir_id).unwrap()
+        *self
+            .record_ctors()
+            .get(fhir_id)
+            .unwrap_or_else(|| bug!("unelaborated record constructor `{fhir_id:?}`"))
     }
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
         self.node_sorts()
             .get(param.fhir_id)
-            .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
+            .unwrap_or_else(|| bug!("unresolved sort for param `{param:?}`"))
             .clone()
     }
 }
@@ -377,11 +378,11 @@ pub(crate) fn conv_ty(
 }
 
 /// Conversion of definitions
-impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
-    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, mode: M) -> Self {
+impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
+    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, mode: P) -> Self {
         Self {
             genv,
-            mode,
+            phase: mode,
             // We start from 1 to skip the trait object dummy self type.
             // See [`rty::Ty::trait_object_dummy_self`]
             next_type_index: 1,
@@ -391,11 +392,11 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
     }
 
     fn owner(&self) -> FluxOwnerId {
-        self.mode.results().owner()
+        self.phase.results().owner()
     }
 
-    fn results(&self) -> &M::Results {
-        self.mode.results()
+    fn results(&self) -> &P::Results {
+        self.phase.results()
     }
 
     pub(crate) fn conv_enum_variants(
@@ -582,7 +583,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
 }
 
 /// Conversion of types
-impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
+impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     fn conv_fn_decl(
         &mut self,
         env: &mut Env,
@@ -839,7 +840,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
                     fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                         debug_assert!(qself.is_none());
                         let ty_ctor = self.conv_path(env, path)?;
-                        self.mode.insert_bty_sort(fhir_id, ty_ctor.sort());
+                        self.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
                         Ok(ty_ctor.replace_bound_reft(&idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
@@ -847,7 +848,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
-                        self.mode.insert_bty_sort(fhir_id, bty.sort());
+                        self.phase.insert_bty_sort(fhir_id, bty.sort());
                         Ok(rty::Ty::indexed(bty, idx))
                     }
                 }
@@ -1336,7 +1337,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                if M::EXPAND_TYPE_ALIASES {
+                if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv.type_of(alias_to)?.instantiate_identity());
                 } else {
                     rty::BaseTy::Alias(rty::AliasTy {
@@ -1353,7 +1354,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                if M::EXPAND_TYPE_ALIASES {
+                if P::EXPAND_TYPE_ALIASES {
                     let tcx = self.genv.tcx();
                     return Ok(self
                         .genv
@@ -1547,7 +1548,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
 }
 
 /// Conversion of expressions
-impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
+impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
@@ -1707,7 +1708,7 @@ impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
                 format!("{:?}", alias.path),
             )))?;
         };
-        self.mode.insert_alias_reft_sort(fhir_id, fsort);
+        self.phase.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
     }
 

@@ -28,7 +28,7 @@ use rustc_hir::{
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{self, bug_on_infer_sort, ConvCtxt, ConvMode, WfckResultsProvider};
+use crate::conv::{self, bug_on_infer_sort, ConvCtxt, ConvPhase, WfckResultsProvider};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -96,6 +96,21 @@ pub(crate) fn check_node<'genv>(
     Ok(infcx.into_results())
 }
 
+/// To check for well-formedness we need to know the sort of base types. For example, to check if
+/// the type `i32[e]` is well formed, we need to know that the sort of `i32` is `int` so we can
+/// check the expression `e` against it. Computing the sort from a base type is subtle and hard
+/// to do in `fhir` so we must do it in `rty`. However, to convert from `fhir` to `rty` we need
+/// elaborated information from sort checking which we do in `fhir`.
+///
+/// To break this circularity, we do conversion in two phases. In the first phase, we do conversion
+/// without elaborated information. This results in types in `rty` with incorrect refinements but
+/// with the right *shape* to compute their sorts. We use these sorts for sort checking and then do
+/// conversion again with the elaborated information.
+///
+/// This function initializes the [inference context] by running the first phase of conversion and
+/// collecting the sort of all base types.
+///
+/// [inference context]: InferCtxt
 fn init_infcx<'genv, 'tcx>(
     genv: GlobalEnv<'genv, 'tcx>,
     node: &fhir::Node<'genv>,
@@ -377,10 +392,9 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
     visitor.err.into_result()
 }
 
-impl<'genv, 'tcx> ConvMode for &mut InferCtxt<'genv, 'tcx> {
+impl<'genv, 'tcx> ConvPhase for &mut InferCtxt<'genv, 'tcx> {
     /// We don't expand type aliases before sort checking because we need every base type in `fhir`
-    /// to match a type in `rty`. The trick required is to give a separate [`rty::AdtSortDef`] for
-    /// type aliases.
+    /// to match a type in `rty`.
     const EXPAND_TYPE_ALIASES: bool = false;
 
     type Results = InferCtxt<'genv, 'tcx>;
@@ -398,19 +412,19 @@ impl<'genv, 'tcx> ConvMode for &mut InferCtxt<'genv, 'tcx> {
     }
 }
 
-/// The purpose of doing conversion before sort checking is to collect the sort of base types. Thus,
-/// what we return here mostly doesnt't matter because the refinements on a type should not affect
-/// its sort. The one exception is the sort refinement parameters.
+/// The purpose of doing conversion before sort checking is to collect the sorts of base types.
+/// Thus, what we return here mostly doesn't matter because the refinements on a type should not
+/// affect its sort. The one exception is the sort we generate for refinement parameters.
 ///
-/// For example, consider the following definition where we refine a struct with a polymorphic set:
+/// For instance, consider the following definition where we refine a struct with a polymorphic set:
 /// ```ignore
 /// #[flux::refined_by(elems: Set<T>)]
 /// struct RSet<T> { ... }
 /// ```
-/// Now consider the type `RSet<i32{v: v >= 0}>`. This type desugars to `RSet<λv:σ. {i32[v] | v >= 0}>`
-/// where the sort `σ` needs to be inferred. The sort of `RSet<λv:σ. {i32[v] | v >= 0}>` should be
-/// `RSet<σ>` so we must be sure the infer variable we use for `σ` during conversion is the one we
-/// generate for sort checking.
+/// Now, consider the type `RSet<i32{v: v >= 0}>`. This type desugars to `RSet<λv:σ. {i32[v] | v >= 0}>`
+/// where the sort `σ` needs to be inferred. The type `RSet<λv:σ. {i32[v] | v >= 0}>` has sort
+/// `RSet<σ>` where `RSet` is the sort-level representation of the `RSet` type. Thus, it is important
+/// that the inference variable we generate for `σ` is the same we use for sort checking.
 impl WfckResultsProvider for InferCtxt<'_, '_> {
     fn owner(&self) -> FluxOwnerId {
         self.wfckresults.owner
