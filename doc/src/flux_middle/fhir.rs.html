@@ -1508,6 +1508,11 @@
 <a href="#1508" id="1508">1508</a>
 <a href="#1509" id="1509">1509</a>
 <a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2118,7 +2123,22 @@
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>BaseTy&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>kind: BaseTyKind&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>fhir_id: FhirId,
     <span class="kw">pub </span>span: Span,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; BaseTy&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub fn </span>from_qpath(qpath: QPath&lt;<span class="lifetime">'fhir</span>&gt;, fhir_id: FhirId) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>span = qpath.span();
+        <span class="self">Self </span>{ kind: BaseTyKind::Path(qpath), fhir_id, span }
+    }
+
+    <span class="kw">fn </span>as_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Path&lt;<span class="lifetime">'fhir</span>&gt;&gt; {
+        <span class="kw">match </span><span class="self">self</span>.kind {
+            BaseTyKind::Path(QPath::Resolved(<span class="prelude-val">None</span>, path)) =&gt; <span class="prelude-val">Some</span>(path),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2508,15 +2528,6 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; BaseTy&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">fn </span>as_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Path&lt;<span class="lifetime">'fhir</span>&gt;&gt; {
-        <span class="kw">match </span><span class="self">self</span>.kind {
-            BaseTyKind::Path(QPath::Resolved(<span class="prelude-val">None</span>, path)) =&gt; <span class="prelude-val">Some</span>(path),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
-    }
-}
-
 <span class="kw">impl </span>Res {
     <span class="kw">pub fn </span>descr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
@@ -2562,13 +2573,6 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; From&lt;QPath&lt;<span class="lifetime">'fhir</span>&gt;&gt; <span class="kw">for </span>BaseTy&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">fn </span>from(qpath: QPath&lt;<span class="lifetime">'fhir</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>span = qpath.span();
-        <span class="self">Self </span>{ kind: BaseTyKind::Path(qpath), span }
-    }
-}
-
 <span class="kw">impl </span>Lit {
     <span class="kw">pub const </span>TRUE: Lit = Lit::Bool(<span class="bool-val">true</span>);
 }
@@ -2576,14 +2580,20 @@
 <span class="doccomment">/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="doccomment">/// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    <span class="doccomment">/// When a `#[flux::refined_by(..)]` annotation mentions generic type parameters we implicitly
+    /// generate a *polymorphic* data sort.
     ///
+    /// For example, if we have:
     /// ```ignore
     /// #[refined_by(keys: Set&lt;K&gt;)]
-    /// RMap&lt;K, V&gt; { ...}
+    /// RMap&lt;K, V&gt; { ... }
     /// ```
-    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set&lt;#0&gt; }`
-    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
+    /// we implicitly create a data sort of the form `forall #0. { keys: Set&lt;#0&gt; }`, where `#0` is a
+    /// *sort variable*.
+    ///
+    /// The [`FxIndexSet`] is used to track a mapping between sort varriables and their corresponding
+    /// type parameter. The [`DefId`] is the id of the type parameter and its index in the set is the
+    /// position of the sort variable.
     </span><span class="kw">pub </span>sort_params: FxIndexSet&lt;DefId&gt;,
     <span class="doccomment">/// Fields indexed by their name and in the same order they appear in the definition.
     </span><span class="kw">pub </span>fields: FxIndexMap&lt;Symbol, Sort&lt;<span class="lifetime">'fhir</span>&gt;&gt;,

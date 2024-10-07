@@ -1569,6 +1569,9 @@
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
 <a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -2732,12 +2735,12 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
             surface::BaseTyKind::Path(qself, path) =&gt; {
                 <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself.as_deref(), path)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::BaseTy::from(qpath))
+                <span class="prelude-val">Ok</span>(fhir::BaseTy::from_qpath(qpath, <span class="self">self</span>.next_fhir_id()))
             }
             surface::BaseTyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>kind = fhir::BaseTyKind::Slice(<span class="self">self</span>.genv().alloc(ty));
-                <span class="prelude-val">Ok</span>(fhir::BaseTy { kind, span: bty.span })
+                <span class="prelude-val">Ok</span>(fhir::BaseTy { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span: bty.span })
             }
         }
     }
@@ -2748,7 +2751,7 @@
         path: <span class="kw-2">&amp;</span>surface::Path,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself, path)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::BaseTy::from(qpath))
+        <span class="prelude-val">Ok</span>(fhir::BaseTy::from_qpath(qpath, <span class="self">self</span>.next_fhir_id()))
     }
 
     <span class="kw">fn </span>desugar_qpath(
@@ -2830,7 +2833,10 @@
     }
 
     <span class="kw">fn </span>ty_path(<span class="kw-2">&amp;</span><span class="self">self</span>, qpath: fhir::QPath&lt;<span class="lifetime">'genv</span>&gt;) -&gt; fhir::Ty&lt;<span class="lifetime">'genv</span>&gt; {
-        fhir::Ty { span: qpath.span(), kind: fhir::TyKind::BaseTy(fhir::BaseTy::from(qpath)) }
+        fhir::Ty {
+            span: qpath.span(),
+            kind: fhir::TyKind::BaseTy(fhir::BaseTy::from_qpath(qpath, <span class="self">self</span>.next_fhir_id())),
+        }
     }
 
     <span class="kw">fn </span>mk_lft_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::Lifetime {

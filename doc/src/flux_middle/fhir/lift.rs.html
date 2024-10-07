@@ -835,7 +835,7 @@
             hir::TyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>kind = fhir::BaseTyKind::Slice(<span class="self">self</span>.genv.alloc(ty));
-                <span class="kw">let </span>bty = fhir::BaseTy { kind, span: ty.span };
+                <span class="kw">let </span>bty = fhir::BaseTy { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span: ty.span };
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: ty.span });
             }
             hir::TyKind::Array(ty, len) =&gt; {
@@ -856,7 +856,7 @@
             }
             hir::TyKind::Path(qpath) =&gt; {
                 <span class="kw">let </span>qpath = <span class="self">self</span>.lift_qpath(qpath)<span class="question-mark">?</span>;
-                <span class="kw">let </span>bty = fhir::BaseTy::from(qpath);
+                <span class="kw">let </span>bty = fhir::BaseTy::from_qpath(qpath, <span class="self">self</span>.next_fhir_id());
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: bty.span });
             }
             hir::TyKind::Ptr(mut_ty) =&gt; {

@@ -1379,6 +1379,9 @@
 <a href="#1379" id="1379">1379</a>
 <a href="#1380" id="1380">1380</a>
 <a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1591,8 +1594,11 @@
             }
             rty::Sort::Func(sort) =&gt; <span class="self">self</span>.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index()),
+            rty::Sort::Alias(<span class="kw">_</span>) =&gt; {
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"TODO: implementt encoding of `Sort::Alias`: `{sort:?}`"</span>)
+            }
             rty::Sort::Err | rty::Sort::Infer(<span class="kw">_</span>) | rty::Sort::Loc =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"unexpected sort {sort:?}"</span>)
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected sort `{sort:?}`"</span>)
             }
         }
     }
@@ -2337,14 +2343,14 @@
                     <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
                 ]))
             }
-            rty::ExprKind::Alias(alias_pred, args) =&gt; {
+            rty::ExprKind::Alias(alias_reft, args) =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self
                     </span>.genv
-                    .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)<span class="question-mark">?
+                    .sort_of_assoc_reft(alias_reft.trait_id, alias_reft.name)<span class="question-mark">?
                     </span>.unwrap();
                 <span class="kw">let </span>sort = sort.instantiate_identity();
                 <span class="kw">let </span>func = fixpoint::Expr::Var(
-                    <span class="self">self</span>.register_const_for_alias_reft(alias_pred, sort, scx)
+                    <span class="self">self</span>.register_const_for_alias_reft(alias_reft, sort, scx)
                         .into(),
                 );
                 <span class="kw">let </span>args = args

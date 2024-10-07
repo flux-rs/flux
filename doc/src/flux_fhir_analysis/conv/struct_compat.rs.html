@@ -766,6 +766,9 @@
 <a href="#766" id="766">766</a>
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -794,15 +797,18 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_alias(
     genv: GlobalEnv,
     alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
-    ty: <span class="kw-2">&amp;</span>rty::Ty,
+    alias_ty: <span class="kw-2">&amp;</span>rty::TyCtor,
     def_id: MaybeExternId,
-) -&gt; QueryResult&lt;rty::Ty&gt; {
+) -&gt; QueryResult&lt;rty::TyCtor&gt; {
     <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
 
-    <span class="kw">if </span>zipper.zip_ty(ty, <span class="kw-2">&amp;</span>expected).is_err() {
+    <span class="kw">if </span>zipper
+        .enter_a_binder(alias_ty, |zipper, ty| zipper.zip_ty(ty, <span class="kw-2">&amp;</span>expected))
+        .is_err()
+    {
         zipper
             .errors
             .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
@@ -810,7 +816,7 @@
 
     zipper.errors.into_result()<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(ty))
+    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(alias_ty))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fn_sig(

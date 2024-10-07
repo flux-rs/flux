@@ -1037,6 +1037,10 @@
 <a href="#1037" id="1037">1037</a>
 <a href="#1038" id="1038">1038</a>
 <a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1470,6 +1474,7 @@
             Sort::Tuple(sorts) =&gt; sorts.visit_with(visitor),
             Sort::App(<span class="kw">_</span>, args) =&gt; args.visit_with(visitor),
             Sort::Func(fsort) =&gt; fsort.visit_with(visitor),
+            Sort::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -1496,6 +1501,7 @@
             Sort::Tuple(sorts) =&gt; Sort::tuple(sorts.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::App(ctor, sorts) =&gt; Sort::app(ctor.clone(), sorts.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::Func(fsort) =&gt; Sort::Func(fsort.try_fold_with(folder)<span class="question-mark">?</span>),
+            Sort::Alias(alias_ty) =&gt; Sort::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -1760,6 +1766,7 @@
             BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) =&gt; poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) =&gt; tys.visit_with(visitor),
+            BaseTy::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
             BaseTy::Array(ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::Coroutine(<span class="kw">_</span>, resume_ty, upvars) =&gt; {
                 resume_ty.visit_with(visitor)<span class="question-mark">?</span>;
@@ -1798,6 +1805,7 @@
             }
             BaseTy::FnPtr(decl) =&gt; BaseTy::FnPtr(decl.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Tuple(tys) =&gt; BaseTy::Tuple(tys.try_fold_with(folder)<span class="question-mark">?</span>),
+            BaseTy::Alias(alias_ty) =&gt; BaseTy::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Array(ty, c) =&gt; {
                 BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
             }

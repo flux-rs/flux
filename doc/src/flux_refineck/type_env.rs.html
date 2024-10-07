@@ -774,6 +774,7 @@
 <a href="#774" id="774">774</a>
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1205,9 +1206,10 @@
             | BaseTy::Never
             | BaseTy::Closure(..)
             | BaseTy::Dynamic(..)
+            | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
             | BaseTy::Coroutine(..) =&gt; {
-                <span class="macro">debug_assert!</span>(!scope.has_free_vars(bty));
+                <span class="macro">assert!</span>(!scope.has_free_vars(bty));
                 bty.clone()
             }
             BaseTy::Infer(..) =&gt; {
