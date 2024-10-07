@@ -50,17 +50,26 @@ use rustc_type_ir::DebruijnIndex;
 
 use crate::compare_impl_item::errors::InvalidAssocReft;
 
-pub struct ConvCtxt<'a, 'genv, 'tcx, R> {
+pub struct ConvCtxt<'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
-    results: &'a R,
+    mode: M,
     next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
 }
 
-pub trait WfckResultsProvider: Sized {
+pub trait ConvMode {
     const EXPAND_TYPE_ALIASES: bool;
+    type Results: WfckResultsProvider;
 
+    fn results(&self) -> &Self::Results;
+
+    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
+
+    fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort);
+}
+
+pub trait WfckResultsProvider: Sized {
     fn owner(&self) -> FluxOwnerId;
 
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
@@ -74,15 +83,23 @@ pub trait WfckResultsProvider: Sized {
     fn record_ctor(&self, fhir_id: FhirId) -> DefId;
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
+}
 
-    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort);
+impl<'a> ConvMode for &'a WfckResults {
+    const EXPAND_TYPE_ALIASES: bool = true;
 
-    fn insert_alias_reft_sort(&self, fhir_id: FhirId, fsort: rty::FuncSort);
+    type Results = WfckResults;
+
+    fn results(&self) -> &Self::Results {
+        self
+    }
+
+    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {}
+
+    fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {}
 }
 
 impl WfckResultsProvider for WfckResults {
-    const EXPAND_TYPE_ALIASES: bool = true;
-
     fn owner(&self) -> FluxOwnerId {
         self.owner
     }
@@ -122,10 +139,6 @@ impl WfckResultsProvider for WfckResults {
             .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
             .clone()
     }
-
-    fn insert_bty_sort(&self, _: FhirId, _: rty::Sort) {}
-
-    fn insert_alias_reft_sort(&self, _: FhirId, _: rty::FuncSort) {}
 }
 
 pub(crate) struct Env {
@@ -306,7 +319,7 @@ pub(crate) fn conv_invariants(
 ) -> QueryResult<Vec<rty::Invariant>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(&[]);
-    env.push_layer(Layer::coalesce(&cx, def_id.resolved_id(), params));
+    env.push_layer(Layer::coalesce(wfckresults, def_id.resolved_id(), params));
     cx.conv_invariants(&mut env, invariants)
 }
 
@@ -318,7 +331,7 @@ pub(crate) fn conv_defn(
     if let Some(body) = &func.body {
         let mut cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(&[]);
-        env.push_layer(Layer::list(&cx, 0, func.args));
+        env.push_layer(Layer::list(wfckresults, 0, func.args));
         let expr = cx.conv_expr(&mut env, body)?;
         let expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
         Ok(Some(rty::SpecFunc { name: func.name, expr }))
@@ -334,7 +347,7 @@ pub(crate) fn conv_qualifier(
 ) -> QueryResult<rty::Qualifier> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(&[]);
-    env.push_layer(Layer::list(&cx, 0, qualifier.args));
+    env.push_layer(Layer::list(wfckresults, 0, qualifier.args));
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
@@ -351,11 +364,11 @@ pub(crate) fn conv_ty(
 }
 
 /// Conversion of definitions
-impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
-    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, results: &'a R) -> Self {
+impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
+    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, mode: M) -> Self {
         Self {
             genv,
-            results,
+            mode,
             // We start from 1 to skip the trait object dummy self type.
             // See [`rty::Ty::trait_object_dummy_self`]
             next_type_index: 1,
@@ -365,7 +378,11 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
     }
 
     fn owner(&self) -> FluxOwnerId {
-        self.results.owner()
+        self.mode.results().owner()
+    }
+
+    fn results(&self) -> &M::Results {
+        self.mode.results()
     }
 
     pub(crate) fn conv_enum_variants(
@@ -386,7 +403,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         variant: &fhir::VariantDef,
     ) -> QueryResult<rty::PolyVariant> {
         let mut env = Env::new(&[]);
-        env.push_layer(Layer::list(self, 0, variant.params));
+        env.push_layer(Layer::list(self.results(), 0, variant.params));
 
         let fields = variant
             .fields
@@ -412,7 +429,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         struct_def: &fhir::StructDef,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let mut env = Env::new(&[]);
-        env.push_layer(Layer::list(self, 0, struct_def.params));
+        env.push_layer(Layer::list(self.results(), 0, struct_def.params));
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let adt_def = self.genv.adt_def(struct_id)?;
@@ -460,7 +477,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             .unwrap();
 
         let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::coalesce(self, ty_alias_id.resolved_id(), ty_alias.params));
+        env.push_layer(Layer::coalesce(self.results(), ty_alias_id.resolved_id(), ty_alias.params));
 
         let ty = self.conv_ty(&mut env, &ty_alias.ty)?;
 
@@ -480,7 +497,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
         let generics = self.genv.map().get_generics(fn_id.local_id())?.unwrap();
         let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::list(self, late_bound_regions.len() as u32, &[]));
+        env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
 
@@ -543,7 +560,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         output: &fhir::Sort,
     ) -> QueryResult<rty::Lambda> {
         let mut env = Env::new(&[]);
-        env.push_layer(Layer::list(&self, 0, params));
+        env.push_layer(Layer::list(self.results(), 0, params));
         let expr = self.conv_expr(&mut env, body)?;
         let inputs = env.pop_layer().into_bound_vars(self.genv)?;
         let output = conv_sort(self.genv, output, &mut bug_on_infer_sort)?;
@@ -552,7 +569,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 }
 
 /// Conversion of types
-impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
+impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
     fn conv_fn_decl(
         &mut self,
         env: &mut Env,
@@ -583,7 +600,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         if requires.params.is_empty() {
             self.conv_expr(env, &requires.pred)
         } else {
-            env.push_layer(Layer::list(self, 0, requires.params));
+            env.push_layer(Layer::list(self.results(), 0, requires.params));
             let pred = self.conv_expr(env, &requires.pred)?;
             let sorts = env.pop_layer().into_bound_vars(self.genv)?;
             Ok(rty::Expr::forall(rty::Binder::bind_with_vars(pred, sorts)))
@@ -608,7 +625,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         env: &mut Env,
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
-        env.push_layer(Layer::list(self, 0, output.params));
+        env.push_layer(Layer::list(self.results(), 0, output.params));
 
         let ret = self.conv_ty(env, &output.ret)?;
         let ensures: List<rty::Ensures> = output
@@ -765,7 +782,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let path = &trait_ref.trait_ref;
-        let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[]);
+        let layer = Layer::list(self.results(), trait_ref.bound_generic_params.len() as u32, &[]);
         env.push_layer(layer);
 
         let fhir::AssocItemConstraintKind::Equality { term } =
@@ -809,7 +826,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                         debug_assert!(qself.is_none());
                         let ty_ctor = self.conv_path(env, path)?;
-                        self.results.insert_bty_sort(fhir_id, ty_ctor.sort());
+                        self.mode.insert_bty_sort(fhir_id, ty_ctor.sort());
                         Ok(ty_ctor.replace_bound_reft(&idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
@@ -817,13 +834,13 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
-                        self.results.insert_bty_sort(fhir_id, bty.sort());
+                        self.mode.insert_bty_sort(fhir_id, bty.sort());
                         Ok(rty::Ty::indexed(bty, idx))
                     }
                 }
             }
             fhir::TyKind::Exists(params, ty) => {
-                let layer = Layer::list(self, 0, params);
+                let layer = Layer::list(self.results(), 0, params);
                 env.push_layer(layer);
                 let ty = self.conv_ty(env, ty)?;
                 let sorts = env.pop_layer().into_bound_vars(self.genv)?;
@@ -844,7 +861,11 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             }
             fhir::TyKind::BareFn(bare_fn) => {
                 let mut env = Env::empty();
-                env.push_layer(Layer::list(self, bare_fn.generic_params.len() as u32, &[]));
+                env.push_layer(Layer::list(
+                    self.results(),
+                    bare_fn.generic_params.len() as u32,
+                    &[],
+                ));
                 let fn_sig =
                     self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl)?;
                 let vars = bare_fn
@@ -1295,7 +1316,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                if R::EXPAND_TYPE_ALIASES {
+                if M::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv.type_of(alias_to)?.instantiate_identity());
                 } else {
                     rty::BaseTy::Alias(rty::AliasTy {
@@ -1312,7 +1333,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                if R::EXPAND_TYPE_ALIASES {
+                if M::EXPAND_TYPE_ALIASES {
                     let tcx = self.genv.tcx();
                     return Ok(self
                         .genv
@@ -1506,7 +1527,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 }
 
 /// Conversion of expressions
-impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
+impl<'genv, 'tcx, M: ConvMode> ConvCtxt<'genv, 'tcx, M> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
@@ -1558,7 +1579,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                 .at(espan)
             }
             fhir::ExprKind::Dot(var, _) => {
-                let proj = self.results.field_proj(fhir_id);
+                let proj = self.results().field_proj(fhir_id);
                 rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
             }
         };
@@ -1569,17 +1590,17 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) => {
-                let layer = Layer::list(self, 0, params);
+                let layer = Layer::list(self.results(), 0, params);
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
                 let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-                let output = self.results.lambda_output(arg.fhir_id);
+                let output = self.results().lambda_output(arg.fhir_id);
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) => {
-                let def_id = self.results.record_ctor(arg.fhir_id);
+                let def_id = self.results().record_ctor(arg.fhir_id);
                 let flds = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
@@ -1601,10 +1622,10 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
             fhir::BinOp::And => rty::BinOp::And,
             fhir::BinOp::Eq => rty::BinOp::Eq,
             fhir::BinOp::Ne => rty::BinOp::Ne,
-            fhir::BinOp::Gt => rty::BinOp::Gt(self.results.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Ge => rty::BinOp::Ge(self.results.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Lt => rty::BinOp::Lt(self.results.bin_rel_sort(fhir_id)),
-            fhir::BinOp::Le => rty::BinOp::Le(self.results.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Gt => rty::BinOp::Gt(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Ge => rty::BinOp::Ge(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Lt => rty::BinOp::Lt(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Le => rty::BinOp::Le(self.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Add => rty::BinOp::Add,
             fhir::BinOp::Sub => rty::BinOp::Sub,
             fhir::BinOp::Mod => rty::BinOp::Mod,
@@ -1615,7 +1636,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
 
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
         let span = expr.span();
-        for coercion in self.results.coercions_for(fhir_id) {
+        for coercion in self.results().coercions_for(fhir_id) {
             expr = match *coercion {
                 rty::Coercion::Inject(def_id) => {
                     rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
@@ -1666,7 +1687,7 @@ impl<'a, 'genv, 'tcx, R: WfckResultsProvider> ConvCtxt<'a, 'genv, 'tcx, R> {
                 format!("{:?}", alias.path),
             )))?;
         };
-        self.results.insert_alias_reft_sort(fhir_id, fsort);
+        self.mode.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
     }
 
@@ -1757,14 +1778,14 @@ impl Env {
 
 impl Layer {
     fn new<R: WfckResultsProvider>(
-        cx: &ConvCtxt<R>,
+        results: &R,
         params: &[fhir::RefineParam],
         kind: LayerKind,
     ) -> Self {
         let map = params
             .iter()
             .map(|param| {
-                let sort = cx.results.param_sort(param);
+                let sort = results.param_sort(param);
                 let infer_mode = rty::InferMode::from_param_kind(param.kind);
                 let entry = ParamEntry::new(sort, infer_mode, param.name);
                 (param.id, entry)
@@ -1774,19 +1795,19 @@ impl Layer {
     }
 
     fn list<R: WfckResultsProvider>(
-        cx: &ConvCtxt<R>,
+        results: &R,
         bound_regions: u32,
         params: &[fhir::RefineParam],
     ) -> Self {
-        Self::new(cx, params, LayerKind::List { bound_regions })
+        Self::new(results, params, LayerKind::List { bound_regions })
     }
 
     fn coalesce<R: WfckResultsProvider>(
-        cx: &ConvCtxt<R>,
+        results: &R,
         def_id: DefId,
         params: &[fhir::RefineParam],
     ) -> Self {
-        Self::new(cx, params, LayerKind::Coalesce(def_id))
+        Self::new(results, params, LayerKind::Coalesce(def_id))
     }
 
     fn get(&self, name: impl Borrow<fhir::ParamId>) -> Option<(usize, &ParamEntry)> {

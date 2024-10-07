@@ -28,7 +28,7 @@ use rustc_hir::{
 use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{self, bug_on_infer_sort, ConvCtxt, WfckResultsProvider};
+use crate::conv::{self, bug_on_infer_sort, ConvCtxt, ConvMode, WfckResultsProvider};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -103,8 +103,7 @@ fn init_infcx<'genv, 'tcx>(
     let def_id = node.owner_id().map(|id| id.def_id);
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
     insert_params(&mut infcx, node)?;
-    let mode = BeforeWf::new(node.owner_id(), infcx);
-    let mut cx = ConvCtxt::new(genv, &mode);
+    let mut cx = ConvCtxt::new(genv, &mut infcx);
     match node {
         fhir::Node::Item(item) => {
             match &item.kind {
@@ -161,7 +160,7 @@ fn init_infcx<'genv, 'tcx>(
             }
         }
     }
-    Ok(mode.into_infcx())
+    Ok(infcx)
 }
 
 /// Initializes the inference context with all parameters required to check node
@@ -390,27 +389,27 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
     visitor.err.into_result()
 }
 
-struct BeforeWf<'genv, 'tcx> {
-    owner: OwnerId,
-    infcx: std::cell::RefCell<InferCtxt<'genv, 'tcx>>,
-}
-
-impl<'genv, 'tcx> BeforeWf<'genv, 'tcx> {
-    fn new(owner: MaybeExternId<OwnerId>, infcx: InferCtxt<'genv, 'tcx>) -> Self {
-        let owner = owner.local_id();
-        Self { owner, infcx: std::cell::RefCell::new(infcx) }
-    }
-
-    fn into_infcx(self) -> InferCtxt<'genv, 'tcx> {
-        self.infcx.into_inner()
-    }
-}
-
-impl WfckResultsProvider for BeforeWf<'_, '_> {
+impl<'genv, 'tcx> ConvMode for &mut InferCtxt<'genv, 'tcx> {
     const EXPAND_TYPE_ALIASES: bool = false;
 
+    type Results = InferCtxt<'genv, 'tcx>;
+
+    fn results(&self) -> &Self::Results {
+        self
+    }
+
+    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.insert_sort_for_bty(fhir_id, sort);
+    }
+
+    fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
+        self.insert_sort_for_alias_reft(fhir_id, fsort);
+    }
+}
+
+impl WfckResultsProvider for InferCtxt<'_, '_> {
     fn owner(&self) -> FluxOwnerId {
-        FluxOwnerId::Rust(self.owner)
+        self.wfckresults.owner
     }
 
     fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
@@ -434,16 +433,6 @@ impl WfckResultsProvider for BeforeWf<'_, '_> {
     }
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
-        self.infcx.borrow().param_sort(param.id)
-    }
-
-    fn insert_bty_sort(&self, fhir_id: FhirId, sort: rty::Sort) {
-        self.infcx.borrow_mut().insert_sort_for_bty(fhir_id, sort);
-    }
-
-    fn insert_alias_reft_sort(&self, fhir_id: FhirId, fsort: rty::FuncSort) {
-        self.infcx
-            .borrow_mut()
-            .insert_sort_for_alias_reft(fhir_id, fsort);
+        self.param_sort(param.id)
     }
 }
