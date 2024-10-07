@@ -490,7 +490,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let fhir_fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let fn_sig = ConvCtxt::new(genv, &*wfckresults).conv_fn_sig(def_id, fhir_fn_sig)?;
-    let fn_sig = struct_compat::fn_sig(genv, &fhir_fn_sig.decl, &fn_sig, def_id)?;
+    let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
     let fn_sig = normalize(genv, fn_sig)?;
 
     if config::dump_rty() {

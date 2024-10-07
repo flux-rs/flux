@@ -379,7 +379,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     pub(crate) fn normalize_weak_alias_sorts(&mut self) -> QueryResult {
         for sort in self.sort_of_bty.values_mut() {
             if let rty::Sort::Alias(alias_ty) = sort {
-                *sort = self.genv.normalize_weak_alias_sort(&alias_ty)?;
+                *sort = self.genv.normalize_weak_alias_sort(alias_ty)?;
             }
         }
         Ok(())
