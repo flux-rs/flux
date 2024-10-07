@@ -58,17 +58,26 @@ pub struct ConvCtxt<'genv, 'tcx, M> {
     next_const_index: u32,
 }
 
+/// We do conversion twice: once before sort checking when we don't have elaborated information
+/// and then again after sort checking after all information has been elaborated. This is the
+/// interface to configure conversion for both cases.
 pub trait ConvMode {
+    /// Whether to expand type aliases or generate a weak type alias.
     const EXPAND_TYPE_ALIASES: bool;
+
     type Results: WfckResultsProvider;
 
     fn results(&self) -> &Self::Results;
 
+    /// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`
     fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
 
+    /// Called after converting an [`fhir::ExprKind::Alias`] with the sort of the resulting
+    /// [`rty::AliasReft`]
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort);
 }
 
+/// An interface to the information required to be elaborated to do conversion
 pub trait WfckResultsProvider: Sized {
     fn owner(&self) -> FluxOwnerId;
 
@@ -94,9 +103,13 @@ impl<'a> ConvMode for &'a WfckResults {
         self
     }
 
-    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {}
+    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {
+        // this is used before sort checking to collect the sort of base types
+    }
 
-    fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {}
+    fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {
+        // this is used before sort checking to collect the sort alias refts
+    }
 }
 
 impl WfckResultsProvider for WfckResults {

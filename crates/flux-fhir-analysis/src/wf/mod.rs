@@ -164,7 +164,7 @@ fn init_infcx<'genv, 'tcx>(
     Ok(infcx)
 }
 
-/// Initializes the inference context with all parameters required to check node
+/// Initializes the inference context with all refinement parameters in `node`
 fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     let genv = infcx.genv;
     if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
@@ -378,6 +378,9 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
 }
 
 impl<'genv, 'tcx> ConvMode for &mut InferCtxt<'genv, 'tcx> {
+    /// We don't expand type aliases before sort checking because we need every base type in `fhir`
+    /// to match a type in `rty`. The trick required is to give a separate [`rty::AdtSortDef`] for
+    /// type aliases.
     const EXPAND_TYPE_ALIASES: bool = false;
 
     type Results = InferCtxt<'genv, 'tcx>;
@@ -395,6 +398,19 @@ impl<'genv, 'tcx> ConvMode for &mut InferCtxt<'genv, 'tcx> {
     }
 }
 
+/// The purpose of doing conversion before sort checking is to collect the sort of base types. Thus,
+/// what we return here mostly doesnt't matter because the refinements on a type should not affect
+/// its sort. The one exception is the sort refinement parameters.
+///
+/// For example, consider the following definition where we refine a struct with a polymorphic set:
+/// ```ignore
+/// #[flux::refined_by(elems: Set<T>)]
+/// struct RSet<T> { ... }
+/// ```
+/// Now consider the type `RSet<i32{v: v >= 0}>`. This type desugars to `RSet<λv:σ. {i32[v] | v >= 0}>`
+/// where the sort `σ` needs to be inferred. The sort of `RSet<λv:σ. {i32[v] | v >= 0}>` should be
+/// `RSet<σ>` so we must be sure the infer variable we use for `σ` during conversion is the one we
+/// generate for sort checking.
 impl WfckResultsProvider for InferCtxt<'_, '_> {
     fn owner(&self) -> FluxOwnerId {
         self.wfckresults.owner

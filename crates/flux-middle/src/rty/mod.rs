@@ -63,14 +63,27 @@ use crate::{
     rty::subst::SortSubst,
 };
 
+/// The definition of the data sort automatically generated for a struct, enum or type alias.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
+    /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
     def_id: DefId,
+    /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
+    ///
+    /// See [`fhir::RefinedBy::sort_params`] for more details. This is a version of that but using
+    /// [`ParamTy`] instead of [`DefId`].
+    ///
+    /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
+    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
     field_names: Vec<Symbol>,
+    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
     sorts: List<Sort>,
 }
 
@@ -480,8 +493,8 @@ pub enum SortCtor {
 
 newtype_index! {
     /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params
-    /// in the [`PolyFuncSort`].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be <
+    /// than the number of params.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     #[debug_format = "?{}s"]
