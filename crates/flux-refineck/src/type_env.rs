@@ -374,10 +374,6 @@ impl BasicBlockEnvShape {
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields)
             }
             TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
-            TyKind::Alias(..) => {
-                assert!(!scope.has_free_vars(ty));
-                ty.clone()
-            }
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
             | TyKind::Discr(..)
@@ -519,11 +515,6 @@ impl BasicBlockEnvShape {
                     .collect();
                 Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
-            (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) => {
-                debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(alias_ty1, alias_ty2);
-                Ty::alias(*kind1, alias_ty1.clone())
-            }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
@@ -590,6 +581,11 @@ impl BasicBlockEnvShape {
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
                 BaseTy::Tuple(fields)
+            }
+            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
+                debug_assert_eq!(kind1, kind2);
+                debug_assert_eq!(alias_ty1, alias_ty2);
+                BaseTy::Alias(*kind1, alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(r1, r2);

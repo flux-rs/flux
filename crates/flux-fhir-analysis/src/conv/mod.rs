@@ -559,7 +559,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         let env = &mut Env::new(refparams);
 
         let args = rty::GenericArg::identity_for_item(self.genv, def_id)?;
-        let self_ty = rty::Ty::opaque(def_id, args, env.to_early_param_args());
+        let alias_ty = rty::AliasTy::new(def_id.into(), args, env.to_early_param_args());
+        let self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
         // FIXME(nilehmann) use a good span here
         Ok(self
             .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
@@ -839,7 +840,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 match &bty.kind {
                     fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                         debug_assert!(qself.is_none());
-                        let ty_ctor = self.conv_path(env, path)?;
+                        let ty_ctor = self.conv_path(env, *qself, path)?;
                         self.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
                         Ok(ty_ctor.replace_bound_reft(&idx))
                     }
@@ -960,7 +961,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .map(|arg| self.conv_refine_arg(env, arg))
             .try_collect()?;
         let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
-        Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+        Ok(rty::BaseTy::opaque(alias_ty).to_ty())
     }
 
     fn conv_trait_object(
@@ -1062,25 +1063,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                 match path.res {
-                    fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
-                        let trait_id = self.genv.tcx().trait_of_item(assoc_id).unwrap();
-                        let [.., trait_segment, assoc_segment] = path.segments else {
-                            span_bug!(bty.span, "expected at least two segments");
-                        };
-
-                        let trait_generics = self.genv.generics_of(trait_id)?;
-                        let qself = qself.as_deref().unwrap();
-                        let qself =
-                            self.conv_ty_to_generic_arg(env, &trait_generics.own_params[0], qself)?;
-                        let mut args = vec![qself];
-                        self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
-                        self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
-                        let args = List::from_vec(args);
-
-                        let refine_args = List::empty();
-                        let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-                        return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
-                    }
                     fhir::Res::SelfTyParam { trait_ } => {
                         let param = self.genv.generics_of(trait_)?.param_at(0, self.genv)?;
                         if let rty::GenericParamDefKind::Type { .. } = param.kind {
@@ -1100,7 +1082,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     }
                     _ => {}
                 }
-                Ok(self.conv_path(env, path)?.to_ty())
+                Ok(self.conv_path(env, *qself, path)?.to_ty())
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
                 self.conv_assoc_path(env, qself, segment)
@@ -1198,7 +1180,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         let args = List::from_vec(args);
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-        Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
+        Ok(rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty).to_ty())
     }
 
     /// Return the generics of the containing owner item
@@ -1304,7 +1286,12 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         }
     }
 
-    fn conv_path(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
+    fn conv_path(
+        &mut self,
+        env: &mut Env,
+        qself: Option<&fhir::Ty>,
+        path: &fhir::Path,
+    ) -> QueryResult<rty::TyCtor> {
         let bty = match path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -1340,12 +1327,36 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv.type_of(alias_to)?.instantiate_identity());
                 } else {
-                    rty::BaseTy::Alias(rty::AliasTy {
-                        def_id: alias_to,
-                        args: List::empty(),
-                        refine_args: List::empty(),
-                    })
+                    rty::BaseTy::Alias(
+                        rty::AliasKind::Weak,
+                        rty::AliasTy {
+                            def_id: alias_to,
+                            args: List::empty(),
+                            refine_args: List::empty(),
+                        },
+                    )
                 }
+            }
+            fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
+                let trait_id = self.genv.tcx().trait_of_item(assoc_id).unwrap();
+                let [.., trait_segment, assoc_segment] = path.segments else {
+                    span_bug!(path.span, "expected at least two segments");
+                };
+
+                let trait_generics = self.genv.generics_of(trait_id)?;
+                let qself = self.conv_ty_to_generic_arg(
+                    env,
+                    &trait_generics.own_params[0],
+                    qself.unwrap(),
+                )?;
+                let mut args = vec![qself];
+                self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
+                self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
+                let args = List::from_vec(args);
+
+                let refine_args = List::empty();
+                let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+                rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty)
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let args = self.conv_generic_args(env, def_id, path.last_segment())?;
@@ -1361,11 +1372,14 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                         .type_of(def_id)?
                         .instantiate(tcx, &args, &refine_args));
                 } else {
-                    rty::BaseTy::Alias(rty::AliasTy {
-                        def_id,
-                        args: List::from(args),
-                        refine_args: List::from(refine_args),
-                    })
+                    rty::BaseTy::Alias(
+                        rty::AliasKind::Weak,
+                        rty::AliasTy {
+                            def_id,
+                            args: List::from(args),
+                            refine_args: List::from(refine_args),
+                        },
+                    )
                 }
             }
             fhir::Res::Def(..) | fhir::Res::Err => {

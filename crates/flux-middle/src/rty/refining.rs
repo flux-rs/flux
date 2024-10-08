@@ -127,7 +127,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 }
                 let pred = rty::ProjectionPredicate {
                     projection_ty: self
-                        .refine_alias_ty(&ty::AliasKind::Projection, &proj_pred.projection_ty)?,
+                        .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
                     term: self.refine_ty(&proj_pred.term)?,
                 };
                 rty::ClauseKind::Projection(pred)
@@ -322,13 +322,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     fn refine_alias_ty(
         &self,
-        alias_kind: &ty::AliasKind,
+        alias_kind: ty::AliasKind,
         alias_ty: &ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
         let args = self.refine_generic_args(def_id, &alias_ty.args)?;
 
-        let refine_args = self.refine_args_of(def_id, alias_kind)?;
+        let refine_args = self.refine_refine_args_for_alias_ty(def_id, alias_kind)?;
 
         let res = rty::AliasTy::new(def_id, args, refine_args);
         Ok(res)
@@ -340,13 +340,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     pub fn refine_ty_ctor(&self, ty: &ty::Ty) -> QueryResult<rty::TyCtor> {
         Ok(self.refine_ty_inner(ty)?.into_ctor())
-    }
-
-    fn refine_alias_kind(kind: &ty::AliasKind) -> rty::AliasKind {
-        match kind {
-            ty::AliasKind::Projection => rty::AliasKind::Projection,
-            ty::AliasKind::Opaque => rty::AliasKind::Opaque,
-        }
     }
 
     fn refine_ty_inner(&self, ty: &ty::Ty) -> QueryResult<TyOrBase> {
@@ -400,10 +393,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let args = self.refine_generic_args(*def_id, args)?;
                 rty::BaseTy::fn_def(*def_id, args)
             }
-            ty::TyKind::Alias(alias_kind, alias_ty) => {
-                let kind = Self::refine_alias_kind(alias_kind);
-                let alias_ty = self.as_default().refine_alias_ty(alias_kind, alias_ty)?;
-                return Ok(TyOrBase::Ty(rty::Ty::alias(kind, alias_ty)));
+            ty::TyKind::Alias(kind, alias_ty) => {
+                let alias_ty = self.as_default().refine_alias_ty(*kind, alias_ty)?;
+                rty::BaseTy::Alias(*kind, alias_ty)
             }
             ty::TyKind::Bool => rty::BaseTy::Bool,
             ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
@@ -440,10 +432,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         self.genv.generics_of(def_id)
     }
 
-    fn refine_args_of(
+    fn refine_refine_args_for_alias_ty(
         &self,
         def_id: DefId,
-        alias_kind: &ty::AliasKind,
+        alias_kind: ty::AliasKind,
     ) -> QueryResult<rty::RefineArgs> {
         if let ty::AliasKind::Opaque = alias_kind {
             self.genv

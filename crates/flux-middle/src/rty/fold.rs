@@ -431,7 +431,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
             Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
-            Sort::Alias(alias_ty) => alias_ty.visit_with(visitor),
+            Sort::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -458,7 +458,7 @@ impl TypeSuperFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(ctor.clone(), sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
-            Sort::Alias(alias_ty) => Sort::Alias(alias_ty.try_fold_with(folder)?),
+            Sort::Alias(kind, alias_ty) => Sort::Alias(*kind, alias_ty.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -607,7 +607,6 @@ impl TypeSuperVisitable for Ty {
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
-            TyKind::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             TyKind::Infer(_) | TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => {
                 ControlFlow::Continue(())
             }
@@ -664,7 +663,6 @@ impl TypeSuperFoldable for Ty {
                 )
             }
             TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
-            TyKind::Alias(kind, alias_ty) => Ty::alias(*kind, alias_ty.try_fold_with(folder)?),
             TyKind::Infer(_) | TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => {
                 self.clone()
             }
@@ -723,7 +721,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
-            BaseTy::Alias(alias_ty) => alias_ty.visit_with(visitor),
+            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Coroutine(_, resume_ty, upvars) => {
                 resume_ty.visit_with(visitor)?;
@@ -762,7 +760,7 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::FnPtr(decl) => BaseTy::FnPtr(decl.try_fold_with(folder)?),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
-            BaseTy::Alias(alias_ty) => BaseTy::Alias(alias_ty.try_fold_with(folder)?),
+            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
             }

@@ -244,15 +244,6 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::TyKind::Param(pty_a), rty::TyKind::Param(pty_b)) => {
                 assert_eq_or_incompatible(pty_a, pty_b)
             }
-            (rty::TyKind::Alias(kind_a, aty_a), rty::TyKind::Alias(kind_b, aty_b)) => {
-                assert_eq_or_incompatible(kind_a, kind_b)?;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
-                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
-                for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
-                    self.zip_generic_arg(arg_a, arg_b)?;
-                }
-                Ok(())
-            }
             (
                 rty::TyKind::Ptr(_, _)
                 | rty::TyKind::Discr(_, _)
@@ -307,6 +298,15 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())?;
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.zip_ty(ty_a, ty_b)?;
+                }
+                Ok(())
+            }
+            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) => {
+                assert_eq_or_incompatible(kind_a, kind_b)?;
+                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
+                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
+                for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
+                    self.zip_generic_arg(arg_a, arg_b)?;
                 }
                 Ok(())
             }

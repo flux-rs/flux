@@ -91,7 +91,7 @@ impl rty::BaseTy {
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
-            rty::BaseTy::Alias(alias_ty) => rty::Sort::Alias(alias_ty.clone()),
+            rty::BaseTy::Alias(kind, alias_ty) => rty::Sort::Alias(*kind, alias_ty.clone()),
             rty::BaseTy::Float(_)
             | rty::BaseTy::Char
             | rty::BaseTy::RawPtr(..)

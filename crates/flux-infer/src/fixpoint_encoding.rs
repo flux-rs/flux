@@ -210,7 +210,7 @@ impl SortEncodingCtxt {
             }
             rty::Sort::Func(sort) => self.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) => fixpoint::Sort::Var(k.index()),
-            rty::Sort::Alias(_) => {
+            rty::Sort::Alias(..) => {
                 tracked_span_bug!("TODO: implementt encoding of `Sort::Alias`: `{sort:?}`")
             }
             rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {

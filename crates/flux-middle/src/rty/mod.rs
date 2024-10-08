@@ -617,7 +617,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -965,19 +965,6 @@ impl Ty {
         Ty::infer(TyVid::from_u32(0))
     }
 
-    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
-        TyKind::Alias(kind, alias_ty).intern()
-    }
-
-    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs, refine_args: RefineArgs) -> Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
-            .intern()
-    }
-
-    pub fn projection(alias_ty: AliasTy) -> Ty {
-        Self::alias(AliasKind::Projection, alias_ty)
-    }
-
     pub fn dynamic(preds: impl Into<List<Binder<ExistentialPredicate>>>, region: Region) -> Ty {
         BaseTy::Dynamic(preds.into(), region).to_ty()
     }
@@ -1230,9 +1217,6 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Exists(ty) => ty.skip_binder_ref().to_rustc(tcx),
             TyKind::Constr(_, ty) => ty.to_rustc(tcx),
             TyKind::Param(pty) => pty.to_ty(tcx),
-            TyKind::Alias(kind, alias_ty) => {
-                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
-            }
             TyKind::StrgRef(re, _, ty) => {
                 rustc_middle::ty::Ty::new_ref(
                     tcx,
@@ -1271,7 +1255,6 @@ pub enum TyKind {
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
-    Alias(AliasKind, AliasTy),
     /// A type that needs to be inferred by matching the signature against a rust signature.
     /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
     /// the final signature.
@@ -1299,7 +1282,7 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
@@ -1310,6 +1293,14 @@ pub enum BaseTy {
 }
 
 impl BaseTy {
+    pub fn opaque(alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(AliasKind::Opaque, alias_ty)
+    }
+
+    pub fn projection(alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(AliasKind::Projection, alias_ty)
+    }
+
     pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
         BaseTy::Adt(adt_def, args.into())
     }
@@ -1454,6 +1445,15 @@ impl BaseTy {
         }
     }
 
+    pub fn to_subset_ty_ctor(&self) -> SubsetTyCtor {
+        let sort = self.sort();
+        Binder::bind_with_sort(SubsetTy::trivial(self.clone(), Expr::nu()), sort)
+    }
+
+    fn to_ty_ctor(&self) -> TyCtor {
+        Binder::bind_with_sort(Ty::indexed(self.clone(), Expr::nu()), self.sort())
+    }
+
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
         if let BaseTy::Adt(adt_def, args) = self {
@@ -1497,7 +1497,9 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
-            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
+            BaseTy::Alias(kind, alias_ty) => {
+                ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);

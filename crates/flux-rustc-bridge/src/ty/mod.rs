@@ -243,10 +243,11 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasKind {
     Projection,
     Opaque,
+    Weak,
 }
 
 impl<'tcx> ToRustc<'tcx> for AliasKind {
@@ -257,6 +258,7 @@ impl<'tcx> ToRustc<'tcx> for AliasKind {
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
             AliasKind::Projection => ty::AliasTyKind::Projection,
+            AliasKind::Weak => ty::AliasTyKind::Weak,
         }
     }
 }
@@ -1015,15 +1017,6 @@ impl<T: fmt::Debug> fmt::Debug for Binder<T> {
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "fn({:?}) -> {:?}", self.inputs().iter().format(", "), self.output())
-    }
-}
-
-impl fmt::Debug for AliasKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AliasKind::Projection => write!(f, "Projection"),
-            AliasKind::Opaque => write!(f, "Opaque"),
-        }
     }
 }
 

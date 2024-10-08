@@ -9,9 +9,9 @@ use flux_middle::{
         self,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
-        Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant,
-        Sort, Ty, TyKind, Var,
+        AliasKind, AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen,
+        EarlyBinder, Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability,
+        PolyVariant, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -281,7 +281,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     ) -> InferResult {
         for clause in clauses {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
-                let impl_elem = Ty::projection(projection_pred.projection_ty)
+                let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .normalize_projections(
                         self.infcx.genv,
                         self.infcx.region_infcx,
@@ -294,8 +294,8 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
                 )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                self.subtyping(&impl_elem, &term, reason)?;
-                self.subtyping(&term, &impl_elem, reason)?;
+                // self.subtyping(&impl_elem, &term, reason)?;
+                // self.subtyping(&term, &impl_elem, reason)?;
             }
         }
         Ok(())
@@ -466,22 +466,6 @@ impl Sub {
                 }
                 Ok(())
             }
-            (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty_b)) => {
-                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty_a) = a.kind() {
-                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
-                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
-                }
-
-                self.handle_opaque_type(infcx, &a, alias_ty_b)
-            }
-            (
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_a),
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_b),
-            ) => {
-                debug_assert_eq!(alias_ty_a, alias_ty_b);
-                Ok(())
-            }
             _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
         }
     }
@@ -546,6 +530,22 @@ impl Sub {
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;
                 }
+                Ok(())
+            }
+            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
+                if let BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
+                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
+                }
+
+                self.handle_opaque_type(infcx, &a, alias_ty_b)
+            }
+            (
+                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
+                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
+            ) => {
+                debug_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
@@ -672,12 +672,10 @@ impl Sub {
     fn handle_opaque_type(
         &mut self,
         infcx: &mut InferCtxt,
-        ty: &Ty,
+        bty: &BaseTy,
         alias_ty: &AliasTy,
     ) -> InferResult {
-        if let Some(BaseTy::Coroutine(def_id, resume_ty, upvar_tys)) =
-            ty.as_bty_skipping_existentials()
-        {
+        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys) = bty {
             let obligs = mk_coroutine_obligations(
                 infcx.genv,
                 def_id,
@@ -694,19 +692,19 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
+                    let ty1 = Self::project_bty(infcx, bty, pred.projection_ty.def_id)?;
                     let ty2 = pred.term;
-                    self.tys(infcx, &ty1, &ty2)?;
+                    // self.tys(infcx, &ty1, &ty2)?;
                 }
             }
         }
         Ok(())
     }
 
-    fn project_bty(infcx: &InferCtxt, self_ty: &Ty, def_id: DefId) -> InferResult<Ty> {
-        let args = List::singleton(GenericArg::Ty(self_ty.clone()));
+    fn project_bty(infcx: &InferCtxt, self_ty: &BaseTy, def_id: DefId) -> InferResult<BaseTy> {
+        let args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        Ok(Ty::projection(alias_ty).normalize_projections(
+        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty).normalize_projections(
             infcx.genv,
             infcx.region_infcx,
             infcx.def_id,
