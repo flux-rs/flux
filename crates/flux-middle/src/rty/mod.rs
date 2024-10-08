@@ -336,7 +336,7 @@ impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
                     rustc_middle::ty::ExistentialProjection {
                         def_id: projection.def_id,
                         args: projection.args.to_rustc(tcx),
-                        term: projection.term.to_rustc(tcx).into(),
+                        term: projection.term.skip_binder_ref().to_rustc(tcx).into(),
                     },
                 )
             }
@@ -369,7 +369,7 @@ impl PolyExistentialTraitRef {
 pub struct ExistentialProjection {
     pub def_id: DefId,
     pub args: GenericArgs,
-    pub term: Ty,
+    pub term: TyCtor,
 }
 
 #[derive(
@@ -377,7 +377,7 @@ pub struct ExistentialProjection {
 )]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
-    pub term: Ty,
+    pub term: TyCtor,
 }
 
 #[derive(
@@ -1568,6 +1568,10 @@ impl SubsetTyCtor {
         } else {
             Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }
+    }
+
+    pub fn to_ty_ctor(&self) -> TyCtor {
+        self.as_ref().map(SubsetTy::to_ty)
     }
 }
 

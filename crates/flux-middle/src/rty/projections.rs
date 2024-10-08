@@ -192,7 +192,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 let (_, ctor) = self.normalize_projection_ty(obligation)?;
                 // is this right?
                 let a = 0;
-                subst.tys(&p.term, &ctor.to_ty());
+                subst.tys(&p.term.to_ty(), &ctor.to_ty());
             }
             projection_preds = unresolved;
         }
@@ -205,10 +205,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
     ) -> QueryResult<TyCtor> {
         match candidate {
-            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => {
-                todo!()
-                // Ok(pred.term)
-            }
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) => {
                 // Given a projection obligation
                 //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item

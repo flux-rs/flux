@@ -770,7 +770,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .def_id;
 
         let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
+        let span = term.span;
         let term = self.conv_ty(env, term)?;
+        let term = self.ty_to_subset_ty_ctor(span, &term)?.to_ty_ctor();
 
         let clause = poly_trait_ref
             .clone()
@@ -1530,6 +1532,10 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
     fn ty_to_base_generic(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
+        Ok(rty::GenericArg::Base(self.ty_to_subset_ty_ctor(span, ty)?))
+    }
+
+    fn ty_to_subset_ty_ctor(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::SubsetTyCtor> {
         let ctor = if ty == &rty::Ty::trait_object_dummy_self() {
             rty::SubsetTyCtor::trait_object_dummy_self()
         } else {
@@ -1537,7 +1543,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 .to_subset_ty_ctor()
                 .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(span)))?
         };
-        Ok(rty::GenericArg::Base(ctor))
+        Ok(ctor)
     }
 
     fn next_type_vid(&mut self) -> rty::TyVid {

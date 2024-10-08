@@ -410,7 +410,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     for (arg_a, arg_b) in iter::zip(&projection_a.args, &projection_b.args) {
                         this.zip_generic_arg(arg_a, arg_b)?;
                     }
-                    this.zip_ty(&projection_a.term, &projection_b.term)
+                    this.enter_binders(&projection_a.term, &projection_b.term, |this, a, b| {
+                        this.zip_ty(a, b)
+                    })
                 }
                 (
                     rty::ExistentialPredicate::AutoTrait(def_id_a),

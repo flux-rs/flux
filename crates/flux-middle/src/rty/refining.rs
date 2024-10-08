@@ -128,7 +128,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let pred = rty::ProjectionPredicate {
                     projection_ty: self
                         .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
-                    term: self.refine_ty(&proj_pred.term)?,
+                    term: self.refine_ty_ctor(&proj_pred.term)?,
                 };
                 rty::ClauseKind::Projection(pred)
             }
@@ -193,7 +193,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                             projection.def_id,
                             &projection.args,
                         )?,
-                        term: self.refine_ty(&projection.term)?,
+                        term: self.refine_ty_ctor(&projection.term)?,
                     })
                 }
                 ty::ExistentialPredicate::AutoTrait(def_id) => {

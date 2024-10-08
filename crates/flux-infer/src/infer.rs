@@ -286,16 +286,20 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
                         self.infcx.genv,
                         self.infcx.region_infcx,
                         self.infcx.def_id,
-                    )?;
-                let term = projection_pred.term.normalize_projections(
-                    self.infcx.genv,
-                    self.infcx.region_infcx,
-                    self.infcx.def_id,
-                )?;
+                    )?
+                    .to_ty();
+                let term = projection_pred
+                    .term
+                    .normalize_projections(
+                        self.infcx.genv,
+                        self.infcx.region_infcx,
+                        self.infcx.def_id,
+                    )?
+                    .to_ty();
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                // self.subtyping(&impl_elem, &term, reason)?;
-                // self.subtyping(&term, &impl_elem, reason)?;
+                self.subtyping(&impl_elem, &term, reason)?;
+                self.subtyping(&term, &impl_elem, reason)?;
             }
         }
         Ok(())
@@ -692,9 +696,9 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_bty(infcx, bty, pred.projection_ty.def_id)?;
-                    let ty2 = pred.term;
-                    // self.tys(infcx, &ty1, &ty2)?;
+                    let ty1 = Self::project_bty(infcx, bty, pred.projection_ty.def_id)?.to_ty();
+                    let ty2 = pred.term.to_ty();
+                    self.tys(infcx, &ty1, &ty2)?;
                 }
             }
         }
@@ -727,7 +731,7 @@ fn mk_coroutine_obligations(
                 def_id: *generator_did,
                 resume_ty: resume_ty.clone(),
                 upvar_tys: upvar_tys.clone(),
-                output,
+                output: output.to_ty(),
             };
             let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
             return Ok(vec![clause]);
