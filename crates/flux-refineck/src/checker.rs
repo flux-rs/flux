@@ -1372,7 +1372,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
             }
             Constant::Char(c) => {
-                let idx = Expr::constant(rty::Constant::from(*c));
+                let idx = Expr::constant(rty::Constant::from(*c as u128));
                 Ok(Ty::indexed(BaseTy::Char, idx))
             }
             Constant::Param(param_const, ty) => {

@@ -1451,7 +1451,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
             surface::LitKind::Char => {
                 Ok(fhir::Lit::Char(u32::from(lit.symbol.as_str().parse::<char>().unwrap())))
-            } // was not sure if it is better to desugar to an Int internally instead of Char
+            } 
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

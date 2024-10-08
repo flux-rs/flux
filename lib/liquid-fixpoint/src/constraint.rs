@@ -47,7 +47,6 @@ pub enum Sort<T: Types> {
     Bool,
     Real,
     Str,
-    // Char, // TODO:
     BitVec(Box<Sort<T>>),
     BvSize(usize),
     Var(usize),
@@ -385,7 +384,6 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Str => write!(f, "Str"),
-            // Sort::Char => write!(f, "Char"),
             Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec {size})"),
             Sort::BvSize(size) => write!(f, "Size{size}"),
@@ -500,7 +498,6 @@ impl<T: Types> fmt::Display for Constant<T> {
             Constant::Decimal(r) => write!(f, "{}", r.display()),
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
-            // Constant::Char
         }
     }
 }
