@@ -139,11 +139,11 @@ impl Pretty for Sort {
                 if !assoc_generics.is_empty() {
                     w!("<{:?}>", join!(", ", assoc_generics))?;
                 }
-                Ok(())
+                w!("::sort")
             }
             Sort::Alias(AliasKind::Opaque, alias_ty) => {
                 w!(
-                    "Alias(Opaque, {:?}, [{:?}], [{:?}])",
+                    "Alias(Opaque, {:?}, [{:?}], [{:?}])::sort",
                     alias_ty.def_id,
                     join!(", ", &alias_ty.args),
                     join!(", ", &alias_ty.refine_args)

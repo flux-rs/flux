@@ -21,7 +21,7 @@ use super::{
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::fold::TypeVisitable,
+    rty::{fold::TypeVisitable, refining::Refiner},
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
@@ -116,9 +116,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
         let generics = self.genv.generics_of(self.def_id)?;
-        let ty = self.genv.refine_default(&generics, &rustc_ty)?;
-        todo!()
-        // Ok(ty)
+        Refiner::default(self.genv, &generics).refine_ty_ctor(&rustc_ty)
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, TyCtor)> {
@@ -348,7 +346,13 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
-                todo!()
+                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+                let sort = ctor.sort();
+                if changed {
+                    sort.try_fold_with(self)
+                } else {
+                    Ok(sort)
+                }
             }
             _ => sort.try_super_fold_with(self),
         }
