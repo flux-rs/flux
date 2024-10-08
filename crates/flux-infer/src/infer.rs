@@ -510,9 +510,14 @@ impl Sub {
                         (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => {
                             let bty_a = ty_a.as_bty_skipping_existentials();
                             let bty_b = ty_b.as_bty_skipping_existentials();
-                            debug_assert_eq!(bty_a, bty_b);
+                            tracked_span_dbg_assert_eq!(bty_a, bty_b);
                         }
-                        (_, _) => debug_assert_eq!(arg_a, arg_b),
+                        (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                            let bty_a = ctor_a.as_bty_skipping_binder();
+                            let bty_b = ctor_b.as_bty_skipping_binder();
+                            tracked_span_dbg_assert_eq!(bty_a, bty_b);
+                        }
+                        (_, _) => tracked_span_dbg_assert_eq!(arg_a, arg_b),
                     }
                 }
                 Ok(())
@@ -542,7 +547,6 @@ impl Sub {
                     iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
                         .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
                 }
-
                 self.handle_opaque_type(infcx, &a, alias_ty_b)
             }
             (
@@ -696,7 +700,7 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_bty(infcx, bty, pred.projection_ty.def_id)?.to_ty();
+                    let ty1 = Self::project_ty(infcx, bty, pred.projection_ty.def_id)?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
@@ -705,14 +709,12 @@ impl Sub {
         Ok(())
     }
 
-    fn project_bty(infcx: &InferCtxt, self_ty: &BaseTy, def_id: DefId) -> InferResult<BaseTy> {
+    fn project_ty(infcx: &InferCtxt, self_ty: &BaseTy, assoc_item_id: DefId) -> InferResult<Ty> {
         let args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
-        let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty).normalize_projections(
-            infcx.genv,
-            infcx.region_infcx,
-            infcx.def_id,
-        )?)
+        let alias_ty = rty::AliasTy::new(assoc_item_id, args, List::empty());
+        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty)
+            .to_ty()
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?)
     }
 }
 

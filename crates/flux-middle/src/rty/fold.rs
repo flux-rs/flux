@@ -296,6 +296,10 @@ pub trait TypeFoldable: TypeVisitable {
                     ty.super_fold_with(self)
                 }
             }
+
+            fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
+                SubsetTy::new(constr.bty.clone(), constr.idx.clone(), Expr::hole(HoleKind::Pred))
+            }
         }
 
         self.fold_with(&mut WithHoles)

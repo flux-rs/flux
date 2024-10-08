@@ -7,7 +7,7 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::{ClosureKind, ParamTy};
 use rustc_target::abi::VariantIdx;
 
@@ -18,13 +18,22 @@ use crate::{
     rty,
 };
 
-pub(crate) fn refine_generics(generics: &ty::Generics) -> QueryResult<rty::Generics> {
+pub(crate) fn refine_generics(
+    genv: GlobalEnv,
+    def_id: DefId,
+    generics: &ty::Generics,
+) -> QueryResult<rty::Generics> {
+    let is_box = if let DefKind::Struct = genv.def_kind(def_id) {
+        genv.tcx().adt_def(def_id).is_box()
+    } else {
+        false
+    };
     let params = generics
         .params
         .iter()
         .map(|param| {
             rty::GenericParamDef {
-                kind: refine_generic_param_def_kind(param.kind),
+                kind: refine_generic_param_def_kind(is_box, param.kind),
                 index: param.index,
                 name: param.name,
                 def_id: param.def_id,
@@ -40,11 +49,18 @@ pub(crate) fn refine_generics(generics: &ty::Generics) -> QueryResult<rty::Gener
     })
 }
 
-pub fn refine_generic_param_def_kind(kind: ty::GenericParamDefKind) -> rty::GenericParamDefKind {
+pub fn refine_generic_param_def_kind(
+    is_box: bool,
+    kind: ty::GenericParamDefKind,
+) -> rty::GenericParamDefKind {
     match kind {
         ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
         ty::GenericParamDefKind::Type { has_default } => {
-            rty::GenericParamDefKind::Type { has_default }
+            if is_box {
+                rty::GenericParamDefKind::Type { has_default }
+            } else {
+                rty::GenericParamDefKind::Base { has_default }
+            }
         }
         ty::GenericParamDefKind::Const { has_default, .. } => {
             rty::GenericParamDefKind::Const { has_default }

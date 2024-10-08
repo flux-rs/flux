@@ -32,6 +32,7 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 use flux_arc_interner::List;
+use flux_macros::{TypeFoldable, TypeVisitable};
 use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
@@ -40,7 +41,6 @@ use super::{
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
     Ty, TyCtor, TyKind,
 };
-use crate::rty::fold::TypeVisitable;
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -200,21 +200,22 @@ impl Ty {
     /// Hoist existentials and predicates inside the type stopping when encountering the first
     /// type constructor.
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
-        debug_assert!(!self.has_escaping_bvars());
         let mut delegate = LocalHoister::default();
-        let ty = Hoister::with_delegate(&mut delegate).hoist(self);
+        let ty = self.shift_in_escaping(1);
+        let ty = Hoister::with_delegate(&mut delegate).hoist(&ty);
         let constr_ty = delegate.bind(|_, preds| {
             let pred = Expr::and_from_iter(preds);
             CanonicalConstrTy { ty, pred }
         });
         if constr_ty.vars().is_empty() {
-            CanonicalTy::Constr(constr_ty.skip_binder())
+            CanonicalTy::Constr(constr_ty.skip_binder().shift_out_escaping(1))
         } else {
             CanonicalTy::Exists(constr_ty)
         }
     }
 }
 
+#[derive(TypeVisitable, TypeFoldable)]
 pub struct CanonicalConstrTy {
     /// Guaranteed to not have any (shallow) [existential] or [constraint] types
     ///
@@ -256,9 +257,9 @@ impl CanonicalTy {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
                     let sort = bty.sort();
                     let constr = SubsetTy::new(
-                        bty.clone(),
+                        bty.shift_in_escaping(1),
                         Expr::nu(),
-                        Expr::and(&constr.pred, Expr::eq(Expr::nu(), idx)),
+                        Expr::and(&constr.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1))),
                     );
                     Some(Binder::bind_with_sort(constr, sort))
                 } else {

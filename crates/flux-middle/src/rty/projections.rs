@@ -14,9 +14,8 @@ use rustc_trait_selection::traits::SelectionContext;
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     subst::{GenericsSubstDelegate, GenericsSubstFolder},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, Ty, TyCtor,
-    TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Clause, ClauseKind, Const, EarlyBinder, Expr, ExprKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTyCtor, Ty, TyCtor, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -484,7 +483,7 @@ impl TVarSubst {
             (GenericArg::Ty(a), GenericArg::Ty(b)) => self.tys(a, b),
             (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) => self.regions(*a, *b),
             (GenericArg::Base(a), GenericArg::Base(b)) => {
-                self.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
+                self.subset_tys(a, b);
             }
             (GenericArg::Const(a), GenericArg::Const(b)) => self.consts(a, b),
             _ => {}
@@ -503,16 +502,27 @@ impl TVarSubst {
         self.btys(a_bty, b_bty);
     }
 
+    fn subset_tys(&mut self, a: &SubsetTyCtor, b: &SubsetTyCtor) {
+        let bty_a = a.as_bty_skipping_binder();
+        let bty_b = b.as_bty_skipping_binder();
+        if let BaseTy::Param(param_ty) = bty_a {
+            if !b.has_escaping_bvars() {
+                self.insert_generic_arg(param_ty.index, GenericArg::Base(b.clone()));
+            }
+        }
+        self.btys(bty_a, bty_b);
+    }
+
     fn btys(&mut self, a: &BaseTy, b: &BaseTy) {
         match (a, b) {
-            (BaseTy::Param(param_ty), _) => {
-                if !b.has_escaping_bvars() {
-                    let sort = b.sort();
-                    let ctor =
-                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
-                    self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
-                }
-            }
+            // (BaseTy::Param(param_ty), _) => {
+            //     if !b.has_escaping_bvars() {
+            //         let sort = b.sort();
+            //         let ctor =
+            //             Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+            //         self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
+            //     }
+            // }
             (BaseTy::Adt(_, a_args), BaseTy::Adt(_, b_args)) => {
                 debug_assert_eq!(a_args.len(), b_args.len());
                 for (a_arg, b_arg) in iter::zip(a_args, b_args) {

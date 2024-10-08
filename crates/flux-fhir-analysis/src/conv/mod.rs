@@ -238,7 +238,7 @@ pub(crate) fn conv_generics(
     is_trait: bool,
 ) -> rty::Generics {
     let opt_self = is_trait.then(|| {
-        let kind = rty::GenericParamDefKind::Type { has_default: false };
+        let kind = rty::GenericParamDefKind::Base { has_default: false };
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
@@ -272,7 +272,7 @@ pub(crate) fn conv_generics(
             params.insert(
                 pos,
                 rty::GenericParamDef {
-                    kind: refining::refine_generic_param_def_kind(param.kind),
+                    kind: refining::refine_generic_param_def_kind(false, param.kind),
                     def_id: param.def_id,
                     index: param.index,
                     name: param.name,
@@ -1480,18 +1480,18 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.own_params.iter().skip(into.len()) {
-            if let rty::GenericParamDefKind::Type { has_default } = param.kind {
-                debug_assert!(has_default);
-                let tcx = self.genv.tcx();
-                let ty = self
-                    .genv
-                    .type_of(param.def_id)?
-                    .instantiate(tcx, into, &[])
-                    .to_ty();
-                into.push(rty::GenericArg::Ty(ty));
-            } else {
-                bug!("unexpected generic param: {param:?}");
-            }
+            debug_assert!(matches!(
+                param.kind,
+                rty::GenericParamDefKind::Type { has_default: true }
+                    | rty::GenericParamDefKind::Base { has_default: true }
+            ));
+            let span = self.genv.tcx().def_span(param.def_id);
+            let ty = self
+                .genv
+                .type_of(param.def_id)?
+                .instantiate(self.genv.tcx(), into, &[])
+                .to_ty();
+            into.push(self.ty_to_generic_arg(param.kind, span, &ty)?);
         }
         Ok(())
     }

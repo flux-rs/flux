@@ -443,7 +443,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 def_id,
                 |def_id| (self.providers.generics_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().generics_of(def_id),
-                |def_id| refining::refine_generics(&genv.lower_generics_of(def_id)),
+                |def_id| refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)),
             )
         })
     }
@@ -622,8 +622,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     };
                     let generics = genv.generics_of(generics_def_id)?;
                     let ty = genv.lower_type_of(def_id)?.skip_binder();
-                    let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
-                    Ok(rty::EarlyBinder(rty::Binder::bind_with_sort(ty, rty::Sort::unit())))
+                    Ok(rty::EarlyBinder(Refiner::default(genv, &generics).refine_ty_ctor(&ty)?))
                 },
             )
         })
