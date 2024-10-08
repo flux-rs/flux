@@ -161,9 +161,10 @@ impl Generics {
             .iter()
             .filter(|param| {
                 match param.kind {
-                    GenericParamDefKind::Type { has_default } => has_default,
-                    GenericParamDefKind::Const { has_default } => has_default,
-                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                    GenericParamDefKind::Type { has_default }
+                    | GenericParamDefKind::Const { has_default }
+                    | GenericParamDefKind::Base { has_default } => has_default,
+                    GenericParamDefKind::Lifetime => false,
                 }
             })
             .count()
@@ -219,7 +220,7 @@ pub struct GenericParamDef {
 #[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
-    Base,
+    Base { has_default: bool },
     Lifetime,
     Const { has_default: bool },
 }
@@ -1698,7 +1699,7 @@ impl GenericArg {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Ty(Ty::param(param_ty))
             }
-            GenericParamDefKind::Base => {
+            GenericParamDefKind::Base { .. } => {
                 // λv. T[v]
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Base(Binder::bind_with_sort(

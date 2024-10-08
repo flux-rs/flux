@@ -238,10 +238,7 @@ pub(crate) fn conv_generics(
     is_trait: bool,
 ) -> rty::Generics {
     let opt_self = is_trait.then(|| {
-        let kind = generics
-            .self_kind
-            .as_ref()
-            .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
+        let kind = rty::GenericParamDefKind::Type { has_default: false };
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
@@ -314,9 +311,8 @@ pub(crate) fn conv_refinement_generics(
 fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {
     match kind {
         fhir::GenericParamKind::Type { default } => {
-            rty::GenericParamDefKind::Type { has_default: default.is_some() }
+            rty::GenericParamDefKind::Base { has_default: default.is_some() }
         }
-        fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
         fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
@@ -1403,9 +1399,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             fhir::GenericParamKind::Lifetime => {
                 Ok(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
             }
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Base => {
+            fhir::GenericParamKind::Const { .. } | fhir::GenericParamKind::Type { .. } => {
                 Err(query_bug!(def_id, "unsupported param kind `{:?}`", param.kind))
             }
         }
@@ -1511,7 +1505,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         let rty_ty = self.conv_ty(env, ty)?;
         match &param.kind {
             rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(rty_ty)),
-            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty.span, &rty_ty),
+            rty::GenericParamDefKind::Base { .. } => self.ty_to_base_generic(ty.span, &rty_ty),
             _ => bug!("unexpected param `{param:?}`"),
         }
     }
@@ -1524,7 +1518,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     ) -> QueryResult<rty::GenericArg> {
         match kind {
             rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
-            rty::GenericParamDefKind::Base => self.ty_to_base_generic(span, ty),
+            rty::GenericParamDefKind::Base { .. } => self.ty_to_base_generic(span, ty),
             _ => span_bug!(span, "unexpected param kind `{kind:?}`"),
         }
     }

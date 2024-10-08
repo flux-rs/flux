@@ -304,7 +304,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
-            (rty::GenericParamDefKind::Base, ty::GenericArg::Ty(ty)) => {
+            (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
                 let TyOrBase::Base(contr) = self.refine_ty_inner(ty)? else {
                     return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
@@ -378,7 +378,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     rty::GenericParamDefKind::Type { .. } => {
                         return Ok(TyOrBase::Ty(rty::Ty::param(*param_ty)));
                     }
-                    rty::GenericParamDefKind::Base => rty::BaseTy::Param(*param_ty),
+                    rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime | rty::GenericParamDefKind::Const { .. } => {
                         bug!()
                     }

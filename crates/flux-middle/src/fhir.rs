@@ -40,7 +40,7 @@ use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{global_env::GlobalEnv, MaybeExternId};
+use crate::MaybeExternId;
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -98,7 +98,6 @@ impl From<bool> for Trusted {
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
     pub refinement_params: &'fhir [RefineParam<'fhir>],
-    pub self_kind: Option<GenericParamKind<'fhir>>,
     pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
 }
 
@@ -112,7 +111,6 @@ pub struct GenericParam<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
-    Base,
     Lifetime,
     Const { ty: Ty<'fhir>, is_host_effect: bool },
 }
@@ -1110,18 +1108,6 @@ impl<'fhir> Generics<'fhir> {
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
     }
-
-    pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
-        let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
-            let kind = if refined_by.is_base_generic(param.def_id.resolved_id()) {
-                GenericParamKind::Base
-            } else {
-                param.kind
-            };
-            GenericParam { kind, ..*param }
-        }));
-        Generics { params, ..self }
-    }
 }
 
 impl<'fhir> RefinedBy<'fhir> {
@@ -1131,10 +1117,6 @@ impl<'fhir> RefinedBy<'fhir> {
 
     pub fn trivial() -> Self {
         RefinedBy { sort_params: Default::default(), fields: Default::default() }
-    }
-
-    fn is_base_generic(&self, def_id: DefId) -> bool {
-        self.sort_params.contains(&def_id)
     }
 }
 

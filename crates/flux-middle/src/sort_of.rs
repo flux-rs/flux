@@ -16,7 +16,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let index = self.def_id_to_param_index(def_id);
         let param = self.generics_of(parent)?.param_at(index as usize, self)?;
         let sort = match &param.kind {
-            rty::GenericParamDefKind::Base => {
+            rty::GenericParamDefKind::Base { .. } => {
                 Some(rty::Sort::Param(rty::ParamTy { index, name: param.name }))
             }
             rty::GenericParamDefKind::Const { .. } => {

@@ -89,7 +89,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             self.lift_where_predicate(pred)
         })?;
 
-        Ok(fhir::Generics { params, self_kind: None, refinement_params: &[], predicates })
+        Ok(fhir::Generics { params, refinement_params: &[], predicates })
     }
 
     fn lift_where_predicate(
