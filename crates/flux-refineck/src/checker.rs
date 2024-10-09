@@ -1365,10 +1365,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Char => Ok(Ty::char()),
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
-                let ty_ctor = Refiner::default(self.genv, &self.generics)
-                    .refine_ty_ctor(ty)
-                    .with_span(self.body.span())?;
-                Ok(ty_ctor.replace_bound_reft(&idx))
+                let ctor = Refiner::default(self.genv, &self.generics)
+                    .refine_ty_or_base(ty)
+                    .with_span(self.body.span())?
+                    .expect_base();
+                Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
             Constant::Opaque(ty) => {
                 self.genv

@@ -412,14 +412,18 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                 MaybeExternId::Extern(_, extern_id) => {
                     let generics = genv.generics_of(ty_param_owner(genv, extern_id))?;
                     let ty = genv.lower_type_of(extern_id)?.skip_binder();
-                    Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
+                    Refiner::default(genv, &generics)
+                        .refine_ty_or_base(&ty)?
+                        .into_ctor()
                 }
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
             let generics = genv.generics_of(def_id)?;
             let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
-            Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
+            Refiner::default(genv, &generics)
+                .refine_ty_or_base(&ty)?
+                .into_ctor()
         }
         kind => {
             Err(query_bug!(

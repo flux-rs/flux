@@ -1650,7 +1650,7 @@ impl SubsetTy {
         Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
     }
 
-    fn to_ty(&self) -> Ty {
+    pub fn to_ty(&self) -> Ty {
         let bty = self.bty.clone();
         if self.pred.is_trivially_true() {
             Ty::indexed(bty, &self.idx)
@@ -1792,6 +1792,35 @@ impl GenericArgs {
     // We can't implement [`ToRustc`] because of coherence so we add it here
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
+    }
+}
+
+pub enum TyOrBase {
+    Ty(Ty),
+    Base(SubsetTyCtor),
+}
+
+impl TyOrBase {
+    pub fn into_ty(self) -> Ty {
+        match self {
+            TyOrBase::Ty(ty) => ty,
+            TyOrBase::Base(ctor) => ctor.to_ty(),
+        }
+    }
+
+    pub fn into_ctor(self) -> TyCtor {
+        match self {
+            TyOrBase::Ty(ty) => Binder::bind_with_vars(ty, List::empty()),
+            TyOrBase::Base(ctor) => ctor.map(|ty| ty.to_ty()),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(self) -> SubsetTyCtor {
+        match self {
+            TyOrBase::Base(ctor) => ctor,
+            TyOrBase::Ty(_) => tracked_span_bug!("expected `TyOrBase::Base`"),
+        }
     }
 }
 

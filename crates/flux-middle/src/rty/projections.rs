@@ -115,7 +115,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
         let generics = self.genv.generics_of(self.def_id)?;
-        Refiner::default(self.genv, &generics).refine_ty_ctor(&rustc_ty)
+        Ok(Refiner::default(self.genv, &generics)
+            .refine_ty_or_base(&rustc_ty)?
+            .into_ctor())
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, TyCtor)> {
