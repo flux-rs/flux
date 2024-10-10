@@ -768,7 +768,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
         let span = term.span;
         let term = self.conv_ty(env, term)?;
-        let term = self.ty_to_subset_ty_ctor(span, &term)?.to_ty_ctor();
+        let term = self.ty_to_subset_ty_ctor(span, &term)?;
 
         let clause = poly_trait_ref
             .clone()

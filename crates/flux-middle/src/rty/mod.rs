@@ -371,7 +371,7 @@ impl PolyExistentialTraitRef {
 pub struct ExistentialProjection {
     pub def_id: DefId,
     pub args: GenericArgs,
-    pub term: TyCtor,
+    pub term: SubsetTyCtor,
 }
 
 #[derive(
@@ -379,7 +379,7 @@ pub struct ExistentialProjection {
 )]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
-    pub term: TyCtor,
+    pub term: SubsetTyCtor,
 }
 
 #[derive(

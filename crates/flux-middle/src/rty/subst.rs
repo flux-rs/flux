@@ -151,7 +151,7 @@ impl RegionSubst {
             ) => {
                 debug_assert_eq!(proj_a.def_id, proj_b.def_id);
                 self.infer_from_generic_args(&proj_a.args, &proj_b.args);
-                self.infer_from_ty(proj_a.term.skip_binder_ref(), &proj_b.term);
+                self.infer_from_bty(proj_a.term.as_bty_skipping_binder(), &proj_b.term);
             }
             _ => {}
         }

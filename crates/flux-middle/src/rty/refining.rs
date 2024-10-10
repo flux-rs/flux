@@ -15,7 +15,7 @@ use super::fold::TypeFoldable;
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty,
+    query_bug, rty,
 };
 
 pub(crate) fn refine_generics(
@@ -139,10 +139,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 if self.genv.is_fn_once_output(proj_pred.projection_ty.def_id) {
                     return Ok(None);
                 }
+                let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&proj_pred.term)? else {
+                    return Err(query_bug!(
+                        self.def_id,
+                        "sorry, we can't handle non-base associated types"
+                    ));
+                };
                 let pred = rty::ProjectionPredicate {
                     projection_ty: self
                         .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
-                    term: self.refine_ty_or_base(&proj_pred.term)?.into_ctor(),
+                    term,
                 };
                 rty::ClauseKind::Projection(pred)
             }
@@ -201,13 +207,20 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     })
                 }
                 ty::ExistentialPredicate::Projection(projection) => {
+                    let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&projection.term)?
+                    else {
+                        return Err(query_bug!(
+                            self.def_id,
+                            "sorry, we can't handle non-base associated types"
+                        ));
+                    };
                     rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
                         def_id: projection.def_id,
                         args: self.refine_existential_predicate_generic_args(
                             projection.def_id,
                             &projection.args,
                         )?,
-                        term: self.refine_ty_or_base(&projection.term)?.into_ctor(),
+                        term,
                     })
                 }
                 ty::ExistentialPredicate::AutoTrait(def_id) => {

@@ -409,7 +409,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                         this.zip_generic_arg(arg_a, arg_b)?;
                     }
                     this.enter_binders(&projection_a.term, &projection_b.term, |this, a, b| {
-                        this.zip_ty(a, b)
+                        this.zip_bty(&a.bty, &b.bty)
                     })
                 }
                 (

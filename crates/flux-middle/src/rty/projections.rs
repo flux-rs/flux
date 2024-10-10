@@ -203,7 +203,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
     ) -> QueryResult<TyCtor> {
         match candidate {
-            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term.to_ty_ctor()),
             Candidate::UserDefinedImpl(impl_def_id) => {
                 // Given a projection obligation
                 //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
