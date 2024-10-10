@@ -1643,7 +1643,8 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
+        let pred = Expr::and(this.pred, pred).simplify();
+        Self { bty: this.bty, idx: this.idx, pred }
     }
 
     pub fn to_ty(&self) -> Ty {

@@ -337,6 +337,8 @@ fn assemble_candidates_from_predicates(
 ) {
     for predicate in predicates {
         if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
+            // FIXME(nilehmann) make this matching resilient with respect to syntactic differences
+            // in refinements
             if &pred.projection_ty == obligation {
                 candidates.push(ctor(pred.clone()));
             }

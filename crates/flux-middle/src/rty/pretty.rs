@@ -142,12 +142,14 @@ impl Pretty for Sort {
                 w!("::sort")
             }
             Sort::Alias(AliasKind::Opaque, alias_ty) => {
-                w!(
-                    "Alias(Opaque, {:?}, [{:?}], [{:?}])::sort",
-                    alias_ty.def_id,
-                    join!(", ", &alias_ty.args),
-                    join!(", ", &alias_ty.refine_args)
-                )
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                if !alias_ty.refine_args.is_empty() {
+                    w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
+                }
+                w!("::sort")
             }
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
@@ -474,12 +476,14 @@ impl Pretty for BaseTy {
                 Ok(())
             }
             BaseTy::Alias(AliasKind::Opaque, alias_ty) => {
-                w!(
-                    "Alias(Opaque, {:?}, [{:?}], [{:?}])",
-                    alias_ty.def_id,
-                    join!(", ", &alias_ty.args),
-                    join!(", ", &alias_ty.refine_args)
-                )
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                if !alias_ty.refine_args.is_empty() {
+                    w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
+                }
+                Ok(())
             }
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),

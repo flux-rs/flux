@@ -1080,6 +1080,13 @@ impl fmt::Debug for Ty {
                 }
                 Ok(())
             }
+            TyKind::Alias(AliasKind::Opaque, alias_ty) => {
+                write!(f, "{}", def_id_to_string(alias_ty.def_id))?;
+                if !alias_ty.args.is_empty() {
+                    write!(f, "<{:?}>", alias_ty.args.iter().format(", "))?;
+                }
+                Ok(())
+            }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
                 let args = &alias_ty.args;
