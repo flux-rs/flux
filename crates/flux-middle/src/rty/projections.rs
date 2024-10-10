@@ -114,8 +114,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         )
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
-        let generics = self.genv.generics_of(self.def_id)?;
-        Ok(Refiner::default(self.genv, &generics)
+        Ok(Refiner::default(self.genv, self.def_id)?
             .refine_ty_or_base(&rustc_ty)?
             .into_ctor())
     }

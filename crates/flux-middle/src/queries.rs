@@ -486,8 +486,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .lower(genv.tcx())
                         .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
-                    let clauses = Refiner::default(genv, &genv.generics_of(def_id)?)
-                        .refine_clauses(&clauses)?;
+                    let clauses = Refiner::default(genv, def_id)?.refine_clauses(&clauses)?;
 
                     Ok(rty::EarlyBinder(clauses))
                 },
@@ -508,8 +507,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
                     let predicates = genv.lower_predicates_of(def_id)?;
-                    let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
-                        .refine_generic_predicates(&predicates)?;
+                    let predicates =
+                        Refiner::default(genv, def_id)?.refine_generic_predicates(&predicates)?;
                     Ok(rty::EarlyBinder(predicates))
                 },
             )
@@ -620,10 +619,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         DefKind::TyParam => genv.tcx().parent(def_id),
                         _ => def_id,
                     };
-                    let generics = genv.generics_of(generics_def_id)?;
                     let ty = genv.lower_type_of(def_id)?.skip_binder();
                     Ok(rty::EarlyBinder(
-                        Refiner::default(genv, &generics)
+                        Refiner::default(genv, generics_def_id)?
                             .refine_ty_or_base(&ty)?
                             .into_ctor(),
                     ))
@@ -650,8 +648,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .variants()
                         .indices()
                         .map(|variant_idx| {
-                            Refiner::default(genv, &genv.generics_of(def_id)?)
-                                .refine_variant_def(def_id, variant_idx)
+                            Refiner::default(genv, def_id)?.refine_variant_def(def_id, variant_idx)
                         })
                         .try_collect()?;
                     Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))
@@ -673,8 +670,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
-                    let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
-                        .refine_poly_fn_sig(&fn_sig)?;
+                    let fn_sig = Refiner::default(genv, def_id)?.refine_poly_fn_sig(&fn_sig)?;
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )

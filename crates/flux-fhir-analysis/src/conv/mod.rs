@@ -1159,11 +1159,10 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         };
 
         let trait_ref = {
-            let generics = self.generics_of_owner()?;
             let trait_ref = trait_ref
                 .lower(tcx)
                 .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
-            Refiner::default(self.genv, &generics).refine_trait_ref(&trait_ref)?
+            self.refiner()?.refine_trait_ref(&trait_ref)?
         };
 
         let assoc_item = self
@@ -1182,10 +1181,13 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     }
 
     /// Return the generics of the containing owner item
-    fn generics_of_owner(&self) -> QueryResult<rty::Generics> {
+    fn refiner(&self) -> QueryResult<Refiner<'genv, 'tcx>> {
         match self.owner() {
-            FluxOwnerId::Rust(owner_id) => self.genv.generics_of(owner_id),
-            FluxOwnerId::Flux(_) => Ok(rty::Generics::default()),
+            FluxOwnerId::Rust(owner_id) => {
+                let def_id = self.genv.maybe_extern_id(owner_id.def_id);
+                Refiner::default(self.genv, def_id.resolved_id())
+            }
+            FluxOwnerId::Flux(_) => Err(query_bug!("cannot refine types insicde flux item")),
         }
     }
 

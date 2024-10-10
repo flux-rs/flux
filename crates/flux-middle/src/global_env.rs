@@ -215,8 +215,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let trait_ref = trait_ref
             .lower(self.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
-        let impl_generics = self.generics_of(impl_id)?;
-        let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
+        let trait_ref = Refiner::default(self, impl_id)?.refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 
@@ -333,22 +332,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let parent = self.tcx().parent(def_id);
         let generics = self.tcx().generics_of(parent);
         generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
-    }
-
-    pub fn refine_default(
-        self,
-        generics: &rty::Generics,
-        rustc_ty: &ty::Ty,
-    ) -> QueryResult<rty::Ty> {
-        Refiner::default(self, generics).refine_ty(rustc_ty)
-    }
-
-    pub fn refine_with_holes(
-        self,
-        generics: &rty::Generics,
-        rustc_ty: &ty::Ty,
-    ) -> QueryResult<rty::Ty> {
-        Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
     pub(crate) fn cstore(self) -> &'genv CrateStoreDyn {

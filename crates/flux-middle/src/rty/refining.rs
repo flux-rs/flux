@@ -70,6 +70,7 @@ pub fn refine_generic_param_def_kind(
 
 pub struct Refiner<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
+    def_id: DefId,
     generics: rty::Generics,
     refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
 }
@@ -77,30 +78,27 @@ pub struct Refiner<'genv, 'tcx> {
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        generics: &rty::Generics,
+        def_id: DefId,
         refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
-    ) -> Self {
-        Self { genv, generics: generics.clone(), refine }
+    ) -> QueryResult<Self> {
+        let generics = genv.generics_of(def_id)?;
+        Ok(Self { genv, def_id, generics, refine })
     }
 
-    pub fn default(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
-        Self { genv, generics: generics.clone(), refine: refine_default }
+    pub fn default(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
+        Self::new(genv, def_id, refine_default)
     }
 
-    pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
-        Self {
-            genv,
-            generics: generics.clone(),
-            refine: |bty| {
-                let sort = bty.sort();
-                let constr = rty::SubsetTy::new(
-                    bty.shift_in_escaping(1),
-                    rty::Expr::nu(),
-                    rty::Expr::hole(rty::HoleKind::Pred),
-                );
-                rty::Binder::bind_with_sort(constr, sort)
-            },
-        }
+    pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
+        Self::new(genv, def_id, |bty| {
+            let sort = bty.sort();
+            let constr = rty::SubsetTy::new(
+                bty.shift_in_escaping(1),
+                rty::Expr::nu(),
+                rty::Expr::hole(rty::HoleKind::Pred),
+            );
+            rty::Binder::bind_with_sort(constr, sort)
+        })
     }
 
     pub(crate) fn refine_generic_predicates(

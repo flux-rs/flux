@@ -39,6 +39,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
+use refining::Refiner;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
@@ -1072,8 +1073,7 @@ impl Ty {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
 
         let generics = genv.generics_of(def_id)?;
-        let alloc_ty = genv.refine_default(
-            &generics,
+        let alloc_ty = Refiner::default(genv, def_id)?.refine_ty(
             &genv
                 .lower_type_of(generics.own_params[1].def_id)?
                 .skip_binder(),
