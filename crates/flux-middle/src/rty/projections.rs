@@ -15,7 +15,8 @@ use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     subst::{GenericsSubstDelegate, GenericsSubstFolder},
     AliasKind, AliasReft, AliasTy, BaseTy, Clause, ClauseKind, Const, EarlyBinder, Expr, ExprKind,
-    GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTyCtor, Ty, TyCtor, TyKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor, Ty, TyCtor,
+    TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -99,7 +100,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
     //       by suitably chasing down the super-trait predicates,
     //       see https://github.com/flux-rs/flux/issues/737
-    fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<TyCtor> {
+    fn normalize_projection_ty_with_rustc(
+        &mut self,
+        obligation: &AliasTy,
+    ) -> QueryResult<SubsetTyCtor> {
         let projection_ty = obligation.to_rustc(self.tcx());
         let cause = ObligationCause::dummy();
         let param_env = self.tcx().param_env(self.def_id);
@@ -116,17 +120,21 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         let rustc_ty = ty.lower(self.tcx()).unwrap();
         Ok(Refiner::default(self.genv, self.def_id)?
             .refine_ty_or_base(&rustc_ty)?
-            .into_ctor())
+            .expect_base())
     }
 
-    fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, TyCtor)> {
+    fn normalize_projection_ty(
+        &mut self,
+        obligation: &AliasTy,
+    ) -> QueryResult<(bool, SubsetTyCtor)> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            let orig_ty = BaseTy::Alias(AliasKind::Projection, obligation.clone()).to_ty_ctor();
+            let orig_ty =
+                BaseTy::Alias(AliasKind::Projection, obligation.clone()).to_subset_ty_ctor();
             let ty = self.normalize_projection_ty_with_rustc(obligation)?;
             return Ok((ty != orig_ty, ty));
         }
@@ -201,9 +209,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         &mut self,
         candidate: Candidate,
         obligation: &AliasTy,
-    ) -> QueryResult<TyCtor> {
+    ) -> QueryResult<SubsetTyCtor> {
         match candidate {
-            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term.to_ty_ctor()),
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) => {
                 // Given a projection obligation
                 //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
@@ -246,7 +254,8 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 Ok(self
                     .genv
                     .type_of(assoc_type_id)?
-                    .instantiate(tcx, &args, &[]))
+                    .instantiate(tcx, &args, &[])
+                    .expect_subset_ty_ctor())
             }
         }
     }
@@ -358,13 +367,11 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         }
     }
 
-    // As shown in https://github.com/flux-rs/flux/issues/711
-    // one round of `normalize_projections` can replace one
-    // projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item`
-    // with another e.g. `<Iter<[i32]> as Iterator>::Item`
-    // We want to compute a "fixpoint" i.e. keep going until
-    // no change, so that e.g. the above is normalized all the way to `i32`,
-    // which is what the `changed` is for.
+    // As shown in https://github.com/flux-rs/flux/issues/711 one round of `normalize_projections`
+    // can replace one projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item` with another e.g.
+    // `<Iter<[i32]> as Iterator>::Item` We want to compute a "fixpoint" i.e. keep going until no
+    // change, so that e.g. the above is normalized all the way to `i32`, which is what the `changed`
+    // is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) => {
@@ -372,11 +379,12 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
                     .genv
                     .type_of(alias_ty.def_id)?
                     .instantiate(self.genv.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .expect_ctor()
                     .replace_bound_reft(idx))
             }
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
-                let ty = ctor.replace_bound_reft(idx);
+                let ty = ctor.replace_bound_reft(idx).to_ty();
                 if changed {
                     ty.try_fold_with(self)
                 } else {
@@ -384,6 +392,30 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
                 }
             }
             _ => ty.try_super_fold_with(self),
+        }
+    }
+
+    fn try_fold_subset_ty(&mut self, constr: &SubsetTy) -> Result<SubsetTy, Self::Error> {
+        match &constr.bty {
+            BaseTy::Alias(AliasKind::Weak, _alias_ty) => {
+                // change comment if we rename subset ty to constr ty
+                let a = 0;
+                // Weak aliases are always expanded during conversion. We could in theory normalize
+                // them here but we don't guaranatee that type aliases expand to a subset ty. If
+                // we ever stop expanding aliases in conv we would need to guarantee that aliases
+                // used as a generic base expand to a subset type.
+                tracked_span_bug!()
+            }
+            BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+                let ty = ctor.replace_bound_reft(&constr.idx);
+                if changed {
+                    ty.try_fold_with(self)
+                } else {
+                    Ok(ty)
+                }
+            }
+            _ => constr.try_super_fold_with(self),
         }
     }
 

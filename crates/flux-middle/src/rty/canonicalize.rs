@@ -39,7 +39,7 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
-    Ty, TyCtor, TyKind,
+    Ty, TyCtor, TyKind, TyOrBase,
 };
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
@@ -233,6 +233,10 @@ impl CanonicalConstrTy {
     pub fn pred(&self) -> Expr {
         self.pred.clone()
     }
+
+    pub fn to_ty(&self) -> Ty {
+        Ty::constr(self.pred(), self.ty())
+    }
 }
 
 /// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
@@ -250,33 +254,33 @@ pub enum CanonicalTy {
 }
 
 impl CanonicalTy {
-    pub fn to_subset_ty_ctor(&self) -> Option<SubsetTyCtor> {
+    pub fn as_ty_or_base(&self) -> TyOrBase {
         match self {
-            CanonicalTy::Constr(constr) => {
-                if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
+            CanonicalTy::Constr(constr_ty) => {
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
                     let sort = bty.sort();
                     let constr = SubsetTy::new(
                         bty.shift_in_escaping(1),
                         Expr::nu(),
-                        Expr::and(&constr.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1))),
+                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1))),
                     );
-                    Some(Binder::bind_with_sort(constr, sort))
+                    TyOrBase::Base(Binder::bind_with_sort(constr, sort))
                 } else {
-                    None
+                    TyOrBase::Ty(constr_ty.to_ty())
                 }
             }
-            CanonicalTy::Exists(poly_constr) => {
-                let constr = poly_constr.as_ref().skip_binder();
+            CanonicalTy::Exists(poly_constr_ty) => {
+                let constr = poly_constr_ty.as_ref().skip_binder();
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind()
                     && idx.is_nu()
                 {
-                    let ctor = poly_constr
+                    let ctor = poly_constr_ty
                         .as_ref()
                         .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), &constr.pred));
-                    Some(ctor)
+                    TyOrBase::Base(ctor)
                 } else {
-                    None
+                    TyOrBase::Ty(Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty)))
                 }
             }
         }

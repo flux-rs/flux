@@ -1451,10 +1451,6 @@ impl BaseTy {
         Binder::bind_with_sort(SubsetTy::trivial(self.clone(), Expr::nu()), sort)
     }
 
-    fn to_ty_ctor(&self) -> TyCtor {
-        Binder::bind_with_sort(Ty::indexed(self.clone(), Expr::nu()), self.sort())
-    }
-
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
         if let BaseTy::Adt(adt_def, args) = self {
@@ -1762,6 +1758,15 @@ impl GenericArg {
     }
 }
 
+impl From<TyOrBase> for GenericArg {
+    fn from(v: TyOrBase) -> Self {
+        match v {
+            TyOrBase::Ty(ty) => GenericArg::Ty(ty),
+            TyOrBase::Base(ctor) => GenericArg::Base(ctor),
+        }
+    }
+}
+
 impl<'tcx> ToRustc<'tcx> for GenericArg {
     type T = rustc_middle::ty::GenericArg<'tcx>;
 
@@ -1808,18 +1813,63 @@ impl TyOrBase {
         }
     }
 
-    pub fn into_ctor(self) -> TyCtor {
-        match self {
-            TyOrBase::Ty(ty) => Binder::bind_with_vars(ty, List::empty()),
-            TyOrBase::Base(ctor) => ctor.map(|ty| ty.to_ty()),
-        }
-    }
-
     #[track_caller]
     pub fn expect_base(self) -> SubsetTyCtor {
         match self {
             TyOrBase::Base(ctor) => ctor,
             TyOrBase::Ty(_) => tracked_span_bug!("expected `TyOrBase::Base`"),
+        }
+    }
+
+    pub fn as_base(self) -> Option<SubsetTyCtor> {
+        match self {
+            TyOrBase::Base(ctor) => Some(ctor),
+            TyOrBase::Ty(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+pub enum TyOrCtor {
+    Ty(Ty),
+    Ctor(TyCtor),
+}
+
+impl TyOrCtor {
+    #[track_caller]
+    pub fn expect_ctor(self) -> TyCtor {
+        match self {
+            TyOrCtor::Ctor(ctor) => ctor,
+            TyOrCtor::Ty(_) => tracked_span_bug!("expected `TyOrCtor::Ctor`"),
+        }
+    }
+
+    pub fn expect_subset_ty_ctor(self) -> SubsetTyCtor {
+        self.expect_ctor().map(|ty| {
+            if let canonicalize::CanonicalTy::Constr(constr_ty) = ty.shallow_canonicalize()
+                && let TyKind::Indexed(bty, idx) = constr_ty.ty().kind()
+                && idx.is_nu()
+            {
+                SubsetTy::new(bty.clone(), Expr::nu(), &constr_ty.pred())
+            } else {
+                tracked_span_bug!()
+            }
+        })
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        match self {
+            TyOrCtor::Ctor(ctor) => ctor.to_ty(),
+            TyOrCtor::Ty(ty) => ty.clone(),
+        }
+    }
+}
+
+impl From<TyOrBase> for TyOrCtor {
+    fn from(v: TyOrBase) -> Self {
+        match v {
+            TyOrBase::Ty(ty) => TyOrCtor::Ty(ty),
+            TyOrBase::Base(ctor) => TyOrCtor::Ctor(ctor.to_ty_ctor()),
         }
     }
 }

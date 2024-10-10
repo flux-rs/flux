@@ -363,14 +363,19 @@ pub(crate) fn conv_qualifier(
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-pub(crate) fn conv_ty(
+pub(crate) fn conv_default_type_parameter(
     genv: GlobalEnv,
+    def_id: MaybeExternId,
     ty: &fhir::Ty,
     wfckresults: &WfckResults,
-) -> QueryResult<rty::Binder<rty::Ty>> {
+) -> QueryResult<rty::TyOrBase> {
     let mut env = Env::new(&[]);
-    let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
-    Ok(rty::Binder::bind_with_vars(ty, List::empty()))
+    let idx = genv.def_id_to_param_index(def_id.resolved_id());
+    let owner = ty_param_owner(genv, def_id.resolved_id());
+    let param = genv.generics_of(owner)?.param_at(idx as usize, genv)?;
+    let mut cx = ConvCtxt::new(genv, wfckresults);
+    let rty_ty = cx.conv_ty(&mut env, ty)?;
+    cx.try_to_ty_or_base(param.kind, ty.span, &rty_ty)
 }
 
 /// Conversion of definitions
@@ -714,7 +719,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         let self_param = generics.param_at(0, self.genv)?;
-        let mut args = vec![self.ty_to_generic_arg(self_param.kind, span, bounded_ty)?];
+        let mut args = vec![self
+            .try_to_ty_or_base(self_param.kind, span, bounded_ty)?
+            .into()];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
 
         let vars = poly_trait_ref
@@ -831,26 +838,15 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
 
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => self.conv_bty(env, bty),
+            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
             fhir::TyKind::Indexed(bty, idx) => {
                 let fhir_id = bty.fhir_id;
+                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
+                    return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
+                };
                 let idx = self.conv_refine_arg(env, idx)?;
-                match &bty.kind {
-                    fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
-                        debug_assert!(qself.is_none());
-                        let ty_ctor = self.conv_path(env, *qself, path)?;
-                        self.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
-                        Ok(ty_ctor.replace_bound_reft(&idx))
-                    }
-                    fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
-                        span_bug!(ty.span, "Indexed type relative paths are not yet supported");
-                    }
-                    fhir::BaseTyKind::Slice(ty) => {
-                        let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
-                        self.phase.insert_bty_sort(fhir_id, bty.sort());
-                        Ok(rty::Ty::indexed(bty, idx))
-                    }
-                }
+                self.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
+                Ok(ty_ctor.replace_bound_reft(&idx))
             }
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self.results(), 0, params);
@@ -1057,51 +1053,38 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         Ok(rty::Ty::dynamic(existential_predicates, region))
     }
 
-    pub(crate) fn conv_bty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
+    pub(crate) fn conv_bty(
+        &mut self,
+        env: &mut Env,
+        bty: &fhir::BaseTy,
+    ) -> QueryResult<rty::TyOrCtor> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
-                match path.res {
-                    fhir::Res::SelfTyParam { trait_ } => {
-                        let param = self.genv.generics_of(trait_)?.param_at(0, self.genv)?;
-                        if let rty::GenericParamDefKind::Type { .. } = param.kind {
-                            return Ok(rty::Ty::param(rty::SELF_PARAM_TY));
-                        }
-                    }
-                    fhir::Res::Def(DefKind::TyParam, def_id) => {
-                        let owner_id = self.genv.tcx().parent(def_id);
-                        let param_ty = def_id_to_param_ty(self.genv, def_id);
-                        let param = self
-                            .genv
-                            .generics_of(owner_id)?
-                            .param_at(param_ty.index as usize, self.genv)?;
-                        if let rty::GenericParamDefKind::Type { .. } = param.kind {
-                            return Ok(rty::Ty::param(param_ty));
-                        }
-                    }
-                    _ => {}
-                }
-                Ok(self.conv_path(env, *qself, path)?.to_ty())
+                self.conv_qpath(env, *qself, path)
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
-                self.conv_assoc_path(env, qself, segment)
+                let bty = self
+                    .conv_type_relative_path(env, qself, segment)?
+                    .shift_in_escaping(1);
+                let sort = bty.sort();
+                let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::Slice(ty) => {
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?).shift_in_escaping(1);
                 let sort = bty.sort();
-                Ok(rty::Ty::exists(rty::Binder::bind_with_sort(
-                    rty::Ty::indexed(bty, rty::Expr::nu()),
-                    sort,
-                )))
+                let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
         }
     }
 
-    fn conv_assoc_path(
+    fn conv_type_relative_path(
         &mut self,
         env: &mut Env,
         qself: &fhir::Ty,
         assoc_segment: &fhir::PathSegment,
-    ) -> QueryResult<rty::Ty> {
+    ) -> QueryResult<rty::BaseTy> {
         let tcx = self.genv.tcx();
         let assoc_ident = assoc_segment.ident;
         let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
@@ -1170,14 +1153,13 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .unwrap();
 
         let assoc_id = assoc_item.def_id;
-
         let mut args = trait_ref.args.to_vec();
         self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
 
         let args = List::from_vec(args);
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-        Ok(rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty).to_ty())
+        Ok(rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty))
     }
 
     /// Return the generics of the containing owner item
@@ -1286,12 +1268,12 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         }
     }
 
-    fn conv_path(
+    fn conv_qpath(
         &mut self,
         env: &mut Env,
         qself: Option<&fhir::Ty>,
         path: &fhir::Path,
-    ) -> QueryResult<rty::TyCtor> {
+    ) -> QueryResult<rty::TyOrCtor> {
         let bty = match path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -1311,18 +1293,30 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
-                let owner_id = self.genv.tcx().parent(def_id);
+                let owner_id = ty_param_owner(self.genv, def_id);
                 let param_ty = def_id_to_param_ty(self.genv, def_id);
                 let param = self
                     .genv
                     .generics_of(owner_id)?
                     .param_at(param_ty.index as usize, self.genv)?;
-                if let rty::GenericParamDefKind::Type { .. } = param.kind {
-                    return Err(self.emit(errors::RefinedUnrefinableType::new(path.span)))?;
+                match param.kind {
+                    rty::GenericParamDefKind::Type { .. } => {
+                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)))
+                    }
+                    rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(param_ty),
+                    _ => return Err(query_bug!("unexpected param kind")),
                 }
-                rty::BaseTy::Param(param_ty)
             }
-            fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
+            fhir::Res::SelfTyParam { trait_ } => {
+                let param = &self.genv.generics_of(trait_)?.own_params[0];
+                match param.kind {
+                    rty::GenericParamDefKind::Type { .. } => {
+                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)))
+                    }
+                    rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
+                    _ => return Err(query_bug!("unexpected param kind")),
+                }
+            }
             fhir::Res::SelfTyAlias { alias_to, .. } => {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv.type_of(alias_to)?.instantiate_identity());
@@ -1388,7 +1382,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         };
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
-        Ok(rty::Binder::bind_with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort))
+        let ctor = rty::Binder::bind_with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort);
+        Ok(rty::TyOrCtor::Ctor(ctor))
     }
 
     fn param_as_bound_var(
@@ -1488,12 +1483,14 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     | rty::GenericParamDefKind::Base { has_default: true }
             ));
             let span = self.genv.tcx().def_span(param.def_id);
+            // FIXME(nilehmann) we already know whether this is a type or a constructor so we could
+            // directly check if the constructor returns a subset type.
             let ty = self
                 .genv
                 .type_of(param.def_id)?
                 .instantiate(self.genv.tcx(), into, &[])
                 .to_ty();
-            into.push(self.ty_to_generic_arg(param.kind, span, &ty)?);
+            into.push(self.try_to_ty_or_base(param.kind, span, &ty)?.into());
         }
         Ok(())
     }
@@ -1505,22 +1502,20 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         ty: &fhir::Ty,
     ) -> QueryResult<rty::GenericArg> {
         let rty_ty = self.conv_ty(env, ty)?;
-        match &param.kind {
-            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(rty_ty)),
-            rty::GenericParamDefKind::Base { .. } => self.ty_to_base_generic(ty.span, &rty_ty),
-            _ => bug!("unexpected param `{param:?}`"),
-        }
+        Ok(self.try_to_ty_or_base(param.kind, ty.span, &rty_ty)?.into())
     }
 
-    fn ty_to_generic_arg(
+    fn try_to_ty_or_base(
         &self,
         kind: rty::GenericParamDefKind,
         span: Span,
         ty: &rty::Ty,
-    ) -> QueryResult<rty::GenericArg> {
+    ) -> QueryResult<rty::TyOrBase> {
         match kind {
-            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
-            rty::GenericParamDefKind::Base { .. } => self.ty_to_base_generic(span, ty),
+            rty::GenericParamDefKind::Type { .. } => Ok(rty::TyOrBase::Ty(ty.clone())),
+            rty::GenericParamDefKind::Base { .. } => {
+                Ok(rty::TyOrBase::Base(self.ty_to_subset_ty_ctor(span, ty)?))
+            }
             _ => span_bug!(span, "unexpected param kind `{kind:?}`"),
         }
     }
@@ -1536,7 +1531,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             rty::SubsetTyCtor::trait_object_dummy_self()
         } else {
             ty.shallow_canonicalize()
-                .to_subset_ty_ctor()
+                .as_ty_or_base()
+                .as_base()
                 .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(span)))?
         };
         Ok(ctor)
@@ -2053,6 +2049,17 @@ fn def_id_to_param_ty(genv: GlobalEnv, def_id: DefId) -> rty::ParamTy {
 
 fn def_id_to_param_const(genv: GlobalEnv, def_id: DefId) -> rty::ParamConst {
     rty::ParamConst { index: genv.def_id_to_param_index(def_id), name: ty_param_name(genv, def_id) }
+}
+
+fn ty_param_owner(genv: GlobalEnv, def_id: DefId) -> DefId {
+    let def_kind = genv.def_kind(def_id);
+    match def_kind {
+        DefKind::Trait | DefKind::TraitAlias => def_id,
+        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam => {
+            genv.tcx().parent(def_id)
+        }
+        _ => bug!("ty_param_owner: {:?} is a {:?} not a type parameter", def_id, def_kind),
+    }
 }
 
 fn ty_param_name(genv: GlobalEnv, def_id: DefId) -> Symbol {

@@ -115,7 +115,7 @@ pub struct Tables<K: Eq + Hash> {
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
-    type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
+    type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
 }
 
 impl CStore {
@@ -199,7 +199,7 @@ impl CrateStore for CStore {
         get!(self, variants, def_id)
     }
 
-    fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyCtor>> {
+    fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>> {
         get!(self, type_of, def_id)
     }
 

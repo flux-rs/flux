@@ -287,7 +287,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn type_of(
         self,
         def_id: impl IntoQueryParam<DefId>,
-    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
         self.inner.queries.type_of(self, def_id.into_query_param())
     }
 

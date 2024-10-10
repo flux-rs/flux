@@ -29,7 +29,7 @@ pub trait CrateStore {
         &self,
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;
-    fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyCtor>>;
+    fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

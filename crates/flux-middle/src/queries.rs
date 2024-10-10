@@ -134,7 +134,7 @@ pub struct Providers {
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
-    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
+    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
         LocalDefId,
@@ -215,7 +215,7 @@ pub struct Queries<'genv, 'tcx> {
     sort_of_assoc_reft:
         Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
-    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
+    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
@@ -606,7 +606,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
         run_with_cache(&self.type_of, def_id, || {
             dispatch_query(
                 genv,
@@ -623,7 +623,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     Ok(rty::EarlyBinder(
                         Refiner::default(genv, generics_def_id)?
                             .refine_ty_or_base(&ty)?
-                            .into_ctor(),
+                            .into(),
                     ))
                 },
             )
