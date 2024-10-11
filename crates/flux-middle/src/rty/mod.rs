@@ -1801,6 +1801,7 @@ impl GenericArgs {
     }
 }
 
+#[derive(Debug)]
 pub enum TyOrBase {
     Ty(Ty),
     Base(SubsetTyCtor),

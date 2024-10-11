@@ -464,15 +464,23 @@ impl GenericsSubstDelegate for &TVarSubst {
         }
     }
 
-    fn sort_for_param(
-        &mut self,
-        _param_ty: rustc_middle::ty::ParamTy,
-    ) -> Result<super::Sort, Self::Error> {
-        tracked_span_bug!()
+    fn sort_for_param(&mut self, param_ty: rustc_middle::ty::ParamTy) -> Result<Sort, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Base(ctor))) => Ok(ctor.sort()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
     }
 
-    fn ctor_for_param(&mut self, _param_ty: rustc_middle::ty::ParamTy) -> super::SubsetTyCtor {
-        tracked_span_bug!()
+    fn ctor_for_param(
+        &mut self,
+        param_ty: rustc_middle::ty::ParamTy,
+    ) -> Result<SubsetTyCtor, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Base(ctor))) => Ok(ctor.clone()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
     }
 
     fn region_for_param(&mut self, _ebr: rustc_middle::ty::EarlyParamRegion) -> Region {

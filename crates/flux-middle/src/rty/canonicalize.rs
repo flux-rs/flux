@@ -285,12 +285,18 @@ impl CanonicalTy {
             CanonicalTy::Constr(constr_ty) => {
                 if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+
+                    // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
+                    // some debug assertions fail. De assertions expect types to be unrefined so they
+                    // only check for syntactical equality. We should change those cases to handle
+                    // refined types and/or ensure some canonical representation for unrefined types.
+                    let pred = if idx.is_unit() {
+                        constr_ty.pred.clone()
+                    } else {
+                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1)))
+                    };
                     let sort = bty.sort();
-                    let constr = SubsetTy::new(
-                        bty.shift_in_escaping(1),
-                        Expr::nu(),
-                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1))),
-                    );
+                    let constr = SubsetTy::new(bty.shift_in_escaping(1), Expr::nu(), pred);
                     TyOrBase::Base(Binder::bind_with_sort(constr, sort))
                 } else {
                     TyOrBase::Ty(self.to_ty())

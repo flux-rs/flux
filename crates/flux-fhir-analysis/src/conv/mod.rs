@@ -1520,12 +1520,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         }
     }
 
-    /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
-    /// if the type cannot be converted into a [`rty::SubsetTy`].
-    fn ty_to_base_generic(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
-        Ok(rty::GenericArg::Base(self.ty_to_subset_ty_ctor(span, ty)?))
-    }
-
     fn ty_to_subset_ty_ctor(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::SubsetTyCtor> {
         let ctor = if ty == &rty::Ty::trait_object_dummy_self() {
             rty::SubsetTyCtor::trait_object_dummy_self()

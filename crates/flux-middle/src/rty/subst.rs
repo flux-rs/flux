@@ -335,7 +335,7 @@ pub trait GenericsSubstDelegate {
 
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, Self::Error>;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
@@ -366,9 +366,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         }
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(ctor)) => ctor.clone(),
+            Some(GenericArg::Base(ctor)) => Ok(ctor.clone()),
             Some(arg) => {
                 tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
             }
@@ -437,7 +437,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, E> {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -451,23 +451,6 @@ where
 
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         bug!("unexpected param_const {param_const:?}");
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
-
-impl ConstGenericArgs {
-    pub fn empty() -> Self {
-        Self(FxHashMap::default())
-    }
-
-    pub fn insert(&mut self, index: u32, expr: Expr) {
-        self.0.insert(index, expr);
-    }
-
-    pub fn lookup(&self, index: u32) -> Expr {
-        self.0.get(&index).unwrap().clone()
     }
 }
 
@@ -502,7 +485,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
                 let idx = idx.try_fold_with(self)?;
                 Ok(self
                     .delegate
-                    .ctor_for_param(*param_ty)
+                    .ctor_for_param(*param_ty)?
                     .replace_bound_reft(&idx)
                     .to_ty())
             }
@@ -514,7 +497,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
         if let BaseTy::Param(param_ty) = &sty.bty {
             Ok(self
                 .delegate
-                .ctor_for_param(*param_ty)
+                .ctor_for_param(*param_ty)?
                 .replace_bound_reft(&sty.idx)
                 .strengthen(&sty.pred))
         } else {
