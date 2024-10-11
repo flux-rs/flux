@@ -1060,21 +1060,21 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, args) => {
-                write!(f, "Closure {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
             TyKind::Coroutine(did, args) => {
-                write!(f, "Generator {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
             TyKind::CoroutineWitness(did, args) => {
-                write!(f, "GeneratorWitness {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }

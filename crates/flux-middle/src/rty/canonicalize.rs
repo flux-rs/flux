@@ -142,15 +142,16 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 match &ty_ctor.vars()[..] {
                     [BoundVariableKind::Refine(sort, ..)] => {
                         if sort.is_unit() {
-                            return ty_ctor.replace_bound_reft(&Expr::unit());
-                        }
-                        if let Some(def_id) = sort.is_unit_adt() {
-                            return ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id));
+                            ty_ctor.replace_bound_reft(&Expr::unit())
+                        } else if let Some(def_id) = sort.is_unit_adt() {
+                            ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id))
+                        } else {
+                            self.delegate.hoist_exists(ty_ctor)
                         }
                     }
-                    _ => {}
+                    _ => self.delegate.hoist_exists(ty_ctor),
                 }
-                self.delegate.hoist_exists(ty_ctor).fold_with(self)
+                .fold_with(self)
             }
             TyKind::Constr(pred, ty) => {
                 self.delegate.hoist_constr(pred.clone());

@@ -429,9 +429,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                let generic_args =
-                    instantiate_args_for_fun_call(self.genv, *func_id, &call_args.lowered)
-                        .with_src_info(terminator.source_info)?;
+                let generic_args = instantiate_args_for_fun_call(
+                    self.genv,
+                    self.def_id.to_def_id(),
+                    *func_id,
+                    &call_args.lowered,
+                )
+                .with_src_info(terminator.source_info)?;
 
                 let ret = self.check_call(
                     infcx,
@@ -1438,12 +1442,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
 fn instantiate_args_for_fun_call(
     genv: GlobalEnv,
+    caller_id: DefId,
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    let hole_refiner = Refiner::new(genv, callee_id, |bty| {
+    let hole_refiner = Refiner::new(genv, caller_id, |bty| {
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
         let constr = if !sort.is_unit() {
@@ -1453,7 +1458,7 @@ fn instantiate_args_for_fun_call(
         };
         Binder::bind_with_sort(constr, sort)
     })?;
-    let default_refiner = Refiner::default(genv, callee_id)?;
+    let default_refiner = Refiner::default(genv, caller_id)?;
 
     let callee_generics = genv.generics_of(callee_id)?;
     args.iter()
