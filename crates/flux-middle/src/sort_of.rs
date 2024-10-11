@@ -91,7 +91,15 @@ impl rty::BaseTy {
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
-            rty::BaseTy::Alias(kind, alias_ty) => rty::Sort::Alias(*kind, alias_ty.clone()),
+            rty::BaseTy::Alias(kind, alias_ty) => {
+                // HACK(nilehmann) Refinement arguments in the alias ty should not influence the
+                // sort but we must explicitly remove they can contain expression holes. If we
+                // don't remove them we would generate inference variables for them which we won't
+                // be able to solve.
+                let alias_ty =
+                    rty::AliasTy::new(alias_ty.def_id, alias_ty.args.clone(), List::empty());
+                rty::Sort::Alias(*kind, alias_ty)
+            }
             rty::BaseTy::Float(_)
             | rty::BaseTy::Char
             | rty::BaseTy::RawPtr(..)

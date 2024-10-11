@@ -812,9 +812,9 @@ impl TypeFoldable for SubsetTy {
 impl TypeSuperFoldable for SubsetTy {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(SubsetTy {
-            bty: self.bty.try_fold_with(folder)?,
-            idx: self.idx.try_fold_with(folder)?,
-            pred: self.pred.try_fold_with(folder)?,
+            bty: { self.bty.try_fold_with(folder)? },
+            idx: { self.idx.try_fold_with(folder)? },
+            pred: { self.pred.try_fold_with(folder)? },
         })
     }
 }

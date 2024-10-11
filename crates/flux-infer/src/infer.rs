@@ -191,7 +191,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) => {
-                assert!(binders.is_empty(), "TODO: implement evars under binders");
+                // We only use expression holes to infer early param arguments for opaque types
+                // at function calls. These should be well-scoped in the current scope, so we ignore
+                // the extra `binders` around the hole.
                 self.fresh_evars(&sort)
             }
         }
