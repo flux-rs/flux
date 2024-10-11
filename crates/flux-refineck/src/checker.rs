@@ -12,10 +12,10 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
-        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, canonicalize::CanonicalTy, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy,
+        Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput,
+        FnTraitPredicate, GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability,
+        PolyFnSig, PtrKind, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -555,31 +555,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
-            let (formal, pred) = formal.unconstr();
-            at.check_pred(&pred, ConstrReason::Call);
-            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
-            match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
-                    let ty1 = env.get(path1);
-                    at.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                    at.subtyping(&ty1, ty2, ConstrReason::Call)
+            let formal = formal.shallow_canonicalize();
+            if let CanonicalTy::Constr(constr_ty) = &formal {
+                at.check_pred(&constr_ty.pred(), ConstrReason::Call);
+                match (actual.kind(), constr_ty.ty().kind()) {
+                    (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                        let ty1 = env.get(path1);
+                        at.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                        at.subtyping(&ty1, ty2, ConstrReason::Call)
+                            .with_span(span)?;
+                        continue;
+                    }
+                    (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+                        env.ptr_to_ref(
+                            &mut at,
+                            ConstrReason::Call,
+                            *re,
+                            path,
+                            PtrToRefBound::Ty(bound.clone()),
+                        )
                         .with_span(span)?;
-                }
-                (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
-                    env.ptr_to_ref(
-                        &mut at,
-                        ConstrReason::Call,
-                        *re,
-                        path,
-                        PtrToRefBound::Ty(bound.clone()),
-                    )
-                    .with_span(span)?;
-                }
-                _ => {
-                    at.subtyping(&actual, &formal, ConstrReason::Call)
-                        .with_span(span)?;
+                        continue;
+                    }
+                    _ => {}
                 }
             }
+            at.subtyping(&actual, &formal.to_ty(), ConstrReason::Call)
+                .with_span(span)?;
         }
 
         let clauses = genv

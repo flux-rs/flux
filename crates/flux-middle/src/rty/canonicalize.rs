@@ -38,8 +38,8 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
-    Ty, TyCtor, TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
+    TyKind, TyOrBase,
 };
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
@@ -134,6 +134,22 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
             TyKind::Exists(ty_ctor) if self.existentials => {
+                // Avoid hoisting useless parameters for unit sorts. This is important for
+                // canonicalization because we assume mutable references won't be under a
+                // binder after we canonicalize them.
+                // FIXME(nilehmann) this same logic is repeated in a couple of places, e.g.,
+                // TyCtor::to_ty
+                match &ty_ctor.vars()[..] {
+                    [BoundVariableKind::Refine(sort, ..)] => {
+                        if sort.is_unit() {
+                            return ty_ctor.replace_bound_reft(&Expr::unit());
+                        }
+                        if let Some(def_id) = sort.is_unit_adt() {
+                            return ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id));
+                        }
+                    }
+                    _ => {}
+                }
                 self.delegate.hoist_exists(ty_ctor).fold_with(self)
             }
             TyKind::Constr(pred, ty) => {
@@ -254,6 +270,15 @@ pub enum CanonicalTy {
 }
 
 impl CanonicalTy {
+    pub fn to_ty(&self) -> Ty {
+        match self {
+            CanonicalTy::Constr(constr_ty) => constr_ty.to_ty(),
+            CanonicalTy::Exists(poly_constr_ty) => {
+                Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty))
+            }
+        }
+    }
+
     pub fn as_ty_or_base(&self) -> TyOrBase {
         match self {
             CanonicalTy::Constr(constr_ty) => {
@@ -267,7 +292,7 @@ impl CanonicalTy {
                     );
                     TyOrBase::Base(Binder::bind_with_sort(constr, sort))
                 } else {
-                    TyOrBase::Ty(constr_ty.to_ty())
+                    TyOrBase::Ty(self.to_ty())
                 }
             }
             CanonicalTy::Exists(poly_constr_ty) => {
@@ -280,7 +305,7 @@ impl CanonicalTy {
                         .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), &constr.pred));
                     TyOrBase::Base(ctor)
                 } else {
-                    TyOrBase::Ty(Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty)))
+                    TyOrBase::Ty(self.to_ty())
                 }
             }
         }

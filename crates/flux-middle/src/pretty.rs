@@ -172,7 +172,7 @@ pub struct PrettyCx<'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_binder: bool,
-    env: RefCell<Env>,
+    env: Env,
 }
 
 newtype_index! {
@@ -184,29 +184,30 @@ newtype_index! {
 #[derive(Default)]
 struct Env {
     name_gen: IndexGen<BoundVarName>,
-    layers: Vec<FxHashMap<BoundVar, BoundVarName>>,
+    layers: RefCell<Vec<FxHashMap<BoundVar, BoundVarName>>>,
 }
 
 impl Env {
     fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
-        self.layers
-            .get(self.layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+        let layers = self.layers.borrow();
+        layers
+            .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
             .get(&var)
             .copied()
     }
 
-    fn push_layer(&mut self, vars: &[BoundVariableKind]) {
+    fn push_layer(&self, vars: &[BoundVariableKind]) {
         let mut layer = FxHashMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
                 layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }
-        self.layers.push(layer);
+        self.layers.borrow_mut().push(layer);
     }
 
-    fn pop_layer(&mut self) {
-        self.layers.pop();
+    fn pop_layer(&self) {
+        self.layers.borrow_mut().pop();
     }
 }
 
@@ -271,7 +272,7 @@ impl PrettyCx<'_> {
             hide_refinements: false,
             hide_regions: false,
             hide_binder: false,
-            env: RefCell::new(Env::default()),
+            env: Env::default(),
         }
     }
 
@@ -297,9 +298,9 @@ impl PrettyCx<'_> {
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
-        self.env.borrow_mut().push_layer(vars);
+        self.env.push_layer(vars);
         let r = f();
-        self.env.borrow_mut().pop_layer();
+        self.env.pop_layer();
         r
     }
 
@@ -329,8 +330,7 @@ impl PrettyCx<'_> {
                     if print_infer_mode {
                         w!("{}", ^mode.prefix_str())?;
                     }
-                    if let Some(name) = self.env.borrow().lookup(INNERMOST, BoundVar::from_usize(i))
-                    {
+                    if let Some(name) = self.env.lookup(INNERMOST, BoundVar::from_usize(i)) {
                         w!("{:?}:{:?}", ^name, s)?;
                     } else {
                         w!("_:{:?}", s)?;
@@ -350,7 +350,7 @@ impl PrettyCx<'_> {
         define_scoped!(self, f);
         match breft.kind {
             BoundReftKind::Annon => {
-                if let Some(name) = self.env.borrow().lookup(debruijn, breft.var) {
+                if let Some(name) = self.env.lookup(debruijn, breft.var) {
                     w!("{name:?}")
                 } else {
                     w!("⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
