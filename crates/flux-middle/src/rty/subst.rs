@@ -48,6 +48,7 @@ impl RegionSubst {
         struct Folder<'a>(&'a RegionSubst);
         impl TypeFolder for Folder<'_> {
             fn fold_region(&mut self, re: &Region) -> Region {
+                // FIXME the map should always contain a region
                 if let ReVar(rvid) = re
                     && let Some(region) = self.0.map.get(rvid)
                 {
@@ -58,6 +59,14 @@ impl RegionSubst {
             }
         }
         t.fold_with(&mut Folder(self))
+    }
+
+    fn infer_from_fn_sig(&mut self, a: &FnSig, b: &ty::FnSig) {
+        debug_assert_eq!(a.inputs().len(), b.inputs().len());
+        for (ty_a, ty_b) in iter::zip(a.inputs(), b.inputs()) {
+            self.infer_from_ty(ty_a, ty_b);
+        }
+        self.infer_from_ty(&a.output().skip_binder_ref().ret, b.output());
     }
 
     fn infer_from_ty(&mut self, a: &Ty, b: &ty::Ty) {
@@ -85,24 +94,38 @@ impl RegionSubst {
 
     fn infer_from_bty(&mut self, a: &BaseTy, ty: &ty::Ty) {
         match (a, ty.kind()) {
-            (BaseTy::Ref(re_a, ty_a, _), ty::TyKind::Ref(re_b, ty_b, _)) => {
+            (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
+                self.infer_from_generic_args(args_a, args_b);
+            }
+            (BaseTy::Array(ty_a, _), ty::TyKind::Array(ty_b, _)) => {
+                self.infer_from_ty(ty_a, ty_b);
+            }
+            (BaseTy::Ref(re_a, ty_a, mutbl_a), ty::TyKind::Ref(re_b, ty_b, mutbl_b)) => {
+                debug_assert_eq!(mutbl_a, mutbl_b);
                 self.infer_from_region(*re_a, *re_b);
                 self.infer_from_ty(ty_a, ty_b);
             }
-            (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
-                self.infer_from_generic_args(args_a, args_b);
+            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
+                debug_assert_eq!(fields_a.len(), fields_b.len());
+                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
+                    self.infer_from_ty(ty_a, ty_b);
+                }
+            }
+            (BaseTy::Slice(ty_a), ty::TyKind::Slice(ty_b)) => {
+                self.infer_from_ty(ty_a, ty_b);
+            }
+            (BaseTy::FnPtr(poly_sig_a), ty::TyKind::FnPtr(poly_sig_b)) => {
+                self.infer_from_fn_sig(poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
+            }
+            (BaseTy::RawPtr(ty_a, mutbl_a), ty::TyKind::RawPtr(ty_b, mutbl_b)) => {
+                debug_assert_eq!(mutbl_a, mutbl_b);
+                self.infer_from_ty(ty_a, ty_b);
             }
             (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) => {
                 debug_assert_eq!(preds_a.len(), preds_b.len());
                 self.infer_from_region(*re_a, *re_b);
                 for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
                     self.infer_from_existential_pred(pred_a, pred_b);
-                }
-            }
-            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
-                debug_assert_eq!(fields_a.len(), fields_b.len());
-                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
-                    self.infer_from_ty(ty_a, ty_b);
                 }
             }
             _ => {}
@@ -258,7 +281,7 @@ where
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
-                        assert_eq!(debruijn1, INNERMOST);
+                        tracked_span_assert_eq!(debruijn1, INNERMOST);
                         Region::ReBound(debruijn, br)
                     } else {
                         region
@@ -311,7 +334,7 @@ pub trait GenericsSubstDelegate {
     type Error = !;
 
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
@@ -335,9 +358,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         }
     }
 
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(GenericArg::Ty(ty)) => Ok(ty.clone()),
             Some(arg) => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
             None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
         }
@@ -410,7 +433,7 @@ where
         (self.sort_for_param)(param_ty)
     }
 
-    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, E> {
         bug!("unexpected type param {param_ty:?}");
     }
 
@@ -474,7 +497,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, D::Error> {
         match ty.kind() {
-            TyKind::Param(param_ty) => Ok(self.delegate.ty_for_param(*param_ty)),
+            TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 let idx = idx.try_fold_with(self)?;
                 Ok(self

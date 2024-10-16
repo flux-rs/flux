@@ -1,5 +1,6 @@
 use std::{hash::Hash, sync::LazyLock};
 
+use flux_common::tracked_span_bug;
 use flux_infer::infer::ConstrReason;
 use flux_macros::primop_rules;
 use flux_middle::rty::{self, BaseTy, Expr};
@@ -45,7 +46,8 @@ struct RuleTable<Op: Eq + Hash, const N: usize> {
 
 impl<Op: Eq + Hash, const N: usize> RuleTable<Op, N> {
     fn match_inputs(&self, op: &Op, inputs: [(BaseTy, Expr); N]) -> MatchedRule {
-        (self.rules[op])(&inputs).unwrap()
+        (self.rules[op])(&inputs)
+            .unwrap_or_else(|| tracked_span_bug!("no primop rule for {inputs:?}"))
     }
 }
 
@@ -365,6 +367,9 @@ fn mk_neg_rules(check_overflow: bool) -> RuleMatcher<1> {
             fn(a: T) -> T[a.neg()]
             requires E::ne(a, E::int_min(int_ty)) => ConstrReason::Overflow
             if let &BaseTy::Int(int_ty) = T
+
+            fn(a: T) -> T[a.neg()]
+            if T.is_float()
         }
     } else {
         primop_rules! {

@@ -6,6 +6,7 @@
     closure_track_caller,
     if_let_guard,
     let_chains,
+    map_try_insert,
     min_specialization,
     never_type,
     precise_capturing,
@@ -43,12 +44,13 @@ mod sort_of;
 use std::sync::LazyLock;
 
 use flux_arc_interner::List;
+use flux_common::bug;
 use flux_config as config;
 use flux_macros::fluent_messages;
 pub use flux_rustc_bridge::def_id_to_string;
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
-    ty,
+    ty::{self, GenericArgsExt},
 };
 use flux_syntax::surface::{self, NodeId};
 use global_env::GlobalEnv;
@@ -388,14 +390,46 @@ pub struct Specs {
 }
 
 impl Specs {
-    pub fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) {
-        self.extern_id_to_local_id.insert(extern_id, local_id);
+    pub fn insert_extern_spec_id_mapping(
+        &mut self,
+        local_id: LocalDefId,
+        extern_id: DefId,
+    ) -> Result<(), ExternSpecMappingErr> {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "we are inserting the extern spec mapping and we want to ensure it's not point to a local item"
+        )]
+        if let Some(local) = extern_id.as_local() {
+            return Err(ExternSpecMappingErr::IsLocal(local));
+        }
+        if let Err(err) = self.extern_id_to_local_id.try_insert(extern_id, local_id) {
+            return Err(ExternSpecMappingErr::Dup(*err.entry.get()));
+        }
         self.local_id_to_extern_id.insert(local_id, extern_id);
+        Ok(())
     }
 
     pub fn insert_dummy(&mut self, owner_id: OwnerId) {
         self.dummy_extern.insert(owner_id.def_id);
     }
+}
+
+/// Represents errors that can occur when inserting a mapping between a `LocalDefId` and a `DefId`
+/// for an extern spec.
+pub enum ExternSpecMappingErr {
+    /// Indicates that the extern `DefId` being inserted is actually local. Returns the extern id as
+    /// a `LocalDefId`.
+    IsLocal(LocalDefId),
+
+    /// Indicates that there is an existing extern spec for the given extern id. Returns the existing
+    /// `LocalDefId` that maps to the extern id.
+    ///
+    /// NOTE: This currently only considers extern specs defined in the local crate. There could still
+    /// be duplicates if an extern spec is imported from an external crate. In such cases, the local
+    /// extern spec takes precedence. Probably, we should at least warn about this, but it's a bit
+    /// tricky because we need to look at the crate metadata which we don't currently have while
+    /// collecting specs.
+    Dup(LocalDefId),
 }
 
 #[derive(Default)]
@@ -415,7 +449,7 @@ pub struct ResolverOutput {
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
-/// This enum serves as a type-level reminder that local ids can refer to extern specs. The
+/// This enum serves as a type-level reminder that local ids can wrap an extern spec. The
 /// abstraction is not infallible, so one should still be careful and decide in each situation
 /// whether to use the [_local id_] or the [_resolved id_]. Although the construction of
 /// [`MaybeExternId`] is not encapsulated, it is recommended to use [`GlobalEnv::maybe_extern_id`]
@@ -431,8 +465,8 @@ pub struct ResolverOutput {
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),
-    /// An id for an external spec. The `Id` is the local id of item holding the extern spec. The
-    /// `Defid` is the resolved id for the external item.
+    /// A "dummy" local definition wrapping an external spec. The `Id` is the local id of a definition
+    /// corresponding to the extern spec. The `DefId` is the resolved id for the external definition.
     Extern(Id, DefId),
 }
 
@@ -447,6 +481,14 @@ impl<Id> MaybeExternId<Id> {
     pub fn local_id(self) -> Id {
         match self {
             MaybeExternId::Local(local_id) | MaybeExternId::Extern(local_id, _) => local_id,
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_local(self) -> Id {
+        match self {
+            MaybeExternId::Local(local_id) => local_id,
+            MaybeExternId::Extern(..) => bug!("expected `MaybeExternId::Local`"),
         }
     }
 
@@ -485,7 +527,7 @@ impl<Id> MaybeExternId<Id> {
 
 impl<Id: Into<DefId>> MaybeExternId<Id> {
     /// Returns the [`DefId`] this id _truly_ corresponds to, i.e, returns the [`DefId`] of the
-    /// extern item if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
+    /// extern definition if [`Extern`] or converts the local id into a [`DefId`] if [`Local`].
     ///
     /// [`Local`]: MaybeExternId::Local
     /// [`Extern`]: MaybeExternId::Extern
@@ -500,6 +542,39 @@ impl<Id: Into<DefId>> MaybeExternId<Id> {
 impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
     fn into_query_param(self) -> DefId {
         self.resolved_id()
+    }
+}
+
+/// Normally, a [`DefId`] is either local or external, and [`DefId::as_local`] can be used to
+/// distinguish between the two. However, extern specs introduce a third case: a local definition
+/// wrapping an extern spec. This enum is used to differentiate between the three cases.
+///
+/// The construction of [`ResolvedDefId`] is not encapsulated, but it is recommended to use
+/// [`GlobalEnv::resolve_id`] to create one.
+///
+/// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
+/// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
+#[derive(Clone, Copy)]
+pub enum ResolvedDefId {
+    /// A local definition. Corresponds to [`MaybeExternId::Local`].
+    Local(LocalDefId),
+    /// A "dummy" local definition wrapping an extern spec. The `LocalDefId` is for the local item,
+    /// and the `DefId` is the resolved id for the external spec. Corresponds to
+    /// [`MaybeExternId::Extern`].
+    ExternSpec(LocalDefId, DefId),
+    /// An external definition with no corresponding (local) extern spec.
+    Extern(DefId),
+}
+
+impl ResolvedDefId {
+    pub fn as_maybe_extern(self) -> Option<MaybeExternId> {
+        match self {
+            ResolvedDefId::Local(local_id) => Some(MaybeExternId::Local(local_id)),
+            ResolvedDefId::ExternSpec(local_id, def_id) => {
+                Some(MaybeExternId::Extern(local_id, def_id))
+            }
+            ResolvedDefId::Extern(_) => None,
+        }
     }
 }
 
@@ -573,7 +648,8 @@ impl PlaceTy {
                 Ok(ty.subst(args))
             }
             ty::TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
-            _ => Err(query_bug!("extracting field of non-tuple non-adt: {self:?}")),
+            ty::TyKind::Closure(_, args) => Ok(args.as_closure().upvar_tys()[f.index()].clone()),
+            _ => Err(query_bug!("extracting field of non-tuple non-adt non-closure: {self:?}")),
         }
     }
 }

@@ -18,7 +18,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKindsExt as _, ESpan, Lambda, List},
+    rty::{self, BoundVariableKind, ESpan, Lambda, List},
 };
 use itertools::Itertools;
 use liquid_fixpoint::FixpointResult;
@@ -210,8 +210,11 @@ impl SortEncodingCtxt {
             }
             rty::Sort::Func(sort) => self.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) => fixpoint::Sort::Var(k.index()),
+            rty::Sort::Alias(_) => {
+                tracked_span_bug!("TODO: implementt encoding of `Sort::Alias`: `{sort:?}`")
+            }
             rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {
-                bug!("unexpected sort {sort:?}")
+                tracked_span_bug!("unexpected sort `{sort:?}`")
             }
         }
     }
@@ -476,11 +479,11 @@ where
                 let cstr = self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag)?;
                 let vars = self.ecx.local_var_env.pop_layer();
 
-                let bindings = iter::zip(vars, &pred.vars().to_sort_list())
-                    .map(|(var, sort)| {
+                let bindings = iter::zip(vars, pred.vars())
+                    .map(|(var, kind)| {
                         fixpoint::Bind {
                             name: var.into(),
-                            sort: self.scx.sort_to_fixpoint(sort),
+                            sort: self.scx.sort_to_fixpoint(kind.expect_sort()),
                             pred: fixpoint::Pred::TRUE,
                         }
                     })
@@ -755,9 +758,13 @@ impl KVarGen {
         &self.kvars[kvid]
     }
 
-    /// Generate a fresh [kvar] under several layers of [binders]. The variables bound in the last
-    /// layer (last element of the `binders` slice) are used as the self arguments. The rest of the
-    /// binders are appended to the `scope`.
+    /// Generate a fresh [kvar] under several layers of [binders]. Each layer may contain any kind
+    /// of bound variable, but variables that are not of kind [`BoundVariableKind::Refine`] will
+    /// be filtered out.
+    ///
+    /// The variables bound in the last layer (last element of the `binders` slice) is expected to
+    /// have only [`BoundVariableKind::Refine`] and all its elements are used as the [self arguments].
+    /// The rest of the binders are appended to the `scope`.
     ///
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
@@ -767,9 +774,10 @@ impl KVarGen {
     /// [binders]: rty::Binder
     /// [kvar]: rty::KVar
     /// [`InferCtxt::fresh_kvar`]: crate::infer::InferCtxt::fresh_kvar
+    /// [self arguments]: rty::KVar::self_args
     pub fn fresh(
         &mut self,
-        binders: &[List<rty::Sort>],
+        binders: &[rty::BoundVariableKinds],
         scope: impl IntoIterator<Item = (rty::Var, rty::Sort)>,
         encoding: KVarEncoding,
     ) -> rty::Expr {
@@ -777,29 +785,36 @@ impl KVarGen {
             return rty::Expr::hole(rty::HoleKind::Pred);
         }
 
-        if binders.is_empty() {
+        let [.., last] = binders else {
             return self.fresh_inner(0, [], encoding);
-        }
+        };
+
+        debug_assert!(last.iter().all(BoundVariableKind::is_refine));
         let args = itertools::chain(
-            binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
+            binders.iter().rev().enumerate().flat_map(|(level, vars)| {
                 let debruijn = DebruijnIndex::from_usize(level);
-                sorts.iter().cloned().enumerate().map(move |(idx, sort)| {
-                    let var = rty::BoundReft {
-                        var: BoundVar::from_usize(idx),
-                        kind: rty::BoundReftKind::Annon,
-                    };
-                    (rty::Var::Bound(debruijn, var), sort)
-                })
+                vars.iter()
+                    .cloned()
+                    .enumerate()
+                    .flat_map(move |(idx, var)| {
+                        if let rty::BoundVariableKind::Refine(sort, _, kind) = var {
+                            let br = rty::BoundReft { var: BoundVar::from_usize(idx), kind };
+                            Some((rty::Var::Bound(debruijn, br), sort))
+                        } else {
+                            None
+                        }
+                    })
             }),
             scope,
         );
-        self.fresh_inner(binders.last().unwrap().len(), args, encoding)
+        self.fresh_inner(last.len(), args, encoding)
     }
 
     fn fresh_inner<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
     where
         A: IntoIterator<Item = (rty::Var, rty::Sort)>,
     {
+        // asset last one has things
         let mut sorts = vec![];
         let mut exprs = vec![];
 
@@ -944,14 +959,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, scx)?,
                 ]))
             }
-            rty::ExprKind::Alias(alias_pred, args) => {
+            rty::ExprKind::Alias(alias_reft, args) => {
                 let sort = self
                     .genv
-                    .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)?
+                    .sort_of_assoc_reft(alias_reft.trait_id, alias_reft.name)?
                     .unwrap();
                 let sort = sort.instantiate_identity();
                 let func = fixpoint::Expr::Var(
-                    self.register_const_for_alias_reft(alias_pred, sort, scx)
+                    self.register_const_for_alias_reft(alias_reft, sort, scx)
                         .into(),
                 );
                 let args = args
@@ -1301,7 +1316,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let comment = format!("lambda: {lam:?}");
                 let name = self.global_var_gen.fresh();
-                let sort = scx.func_sort_to_fixpoint(&lam.sort().to_poly());
+                let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
                 ConstInfo { name, comment, sort, val: None }
             })
             .name

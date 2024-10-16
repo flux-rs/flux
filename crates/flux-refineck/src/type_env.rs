@@ -2,22 +2,21 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
+use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        canonicalize::Hoister,
+        canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, BoundVariableKindsExt as _, Expr, ExprKind, FnSig,
-        GenericArg, HoleKind, Lambda, List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy,
-        Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
+        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -267,9 +266,8 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt, check_overflow: bool) {
         self.bindings.fmap_mut(|ty| {
             infcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(ty)
+                .hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(ty)
         });
     }
 
@@ -369,11 +367,11 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) => {
-                debug_assert!(!scope.has_free_vars(substs));
+            TyKind::Downcast(adt, args, ty, variant, fields) => {
+                debug_assert!(!scope.has_free_vars(args));
                 debug_assert!(!scope.has_free_vars(ty));
                 let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
-                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields)
             }
             TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             TyKind::Alias(..) => {
@@ -394,14 +392,13 @@ impl BasicBlockEnvShape {
 
     fn pack_bty(scope: &Scope, bty: &BaseTy) -> BaseTy {
         match bty {
-            BaseTy::Adt(adt_def, substs) => {
-                let substs = List::from_vec(
-                    substs
-                        .iter()
+            BaseTy::Adt(adt_def, args) => {
+                let args = List::from_vec(
+                    args.iter()
                         .map(|arg| Self::pack_generic_arg(scope, arg))
                         .collect(),
                 );
-                BaseTy::adt(adt_def.clone(), substs)
+                BaseTy::adt(adt_def.clone(), args)
             }
             BaseTy::FnDef(def_id, args) => {
                 let args = List::from_vec(
@@ -432,10 +429,14 @@ impl BasicBlockEnvShape {
             | BaseTy::Never
             | BaseTy::Closure(..)
             | BaseTy::Dynamic(..)
+            | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
             | BaseTy::Coroutine(..) => {
-                debug_assert!(!scope.has_free_vars(bty));
+                assert!(!scope.has_free_vars(bty));
                 bty.clone()
+            }
+            BaseTy::Infer(..) => {
+                tracked_span_bug!("unexpected infer type")
             }
         }
     }
@@ -492,7 +493,7 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idx)
                 } else {
                     let ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sorts(ty, &sorts))
+                    Ty::exists(Binder::bind_with_sorts(ty, &sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -505,18 +506,18 @@ impl BasicBlockEnvShape {
                 Ty::param(*param_ty1)
             }
             (
-                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
-                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
+                TyKind::Downcast(adt1, args1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, args2, ty2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
-                debug_assert_eq!(substs1, substs2);
+                debug_assert_eq!(args1, args2);
                 debug_assert!(ty1 == ty2 && !self.scope.has_free_vars(ty2));
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 let fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
-                Ty::downcast(adt1.clone(), substs1.clone(), ty1.clone(), *variant1, fields)
+                Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
             (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) => {
                 debug_assert_eq!(kind1, kind2);
@@ -562,11 +563,7 @@ impl BasicBlockEnvShape {
                     // FIXME(nilehmann) we shouldn't special case predicates here. Instead, we
                     // should differentiate between generics and indices.
                     let fsort = sort.expect_func().expect_mono();
-                    Expr::abs(Lambda::with_sorts(
-                        Expr::hole(HoleKind::Pred),
-                        fsort.inputs(),
-                        fsort.output().clone(),
-                    ))
+                    Expr::abs(Lambda::bind_with_fsort(Expr::hole(HoleKind::Pred), fsort))
                 } else {
                     bound_sorts.push(sort.clone());
                     Expr::bvar(
@@ -581,12 +578,12 @@ impl BasicBlockEnvShape {
 
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
-            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
+            (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) => {
                 debug_assert_eq!(def1.did(), def2.did());
-                let substs = iter::zip(substs1, substs2)
+                let args = iter::zip(args1, args2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
-                BaseTy::adt(def1.clone(), List::from_vec(substs))
+                BaseTy::adt(def1.clone(), List::from_vec(args))
             }
             (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) => {
                 let fields = iter::zip(fields1, fields2)
@@ -600,11 +597,12 @@ impl BasicBlockEnvShape {
                 BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
+                tracked_span_dbg_assert_eq!(len1, len2);
                 BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
+            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => BaseTy::Slice(self.join_ty(ty1, ty2)),
             _ => {
-                debug_assert_eq!(bty1, bty2);
+                tracked_span_dbg_assert_eq!(bty1, bty2);
                 bty1.clone()
             }
         }
@@ -625,7 +623,7 @@ impl BasicBlockEnvShape {
                     sty1.pred.clone()
                 };
                 let sort = bty.sort();
-                let ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
+                let ctor = Binder::bind_with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
                 GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(_re2)) => {
@@ -643,39 +641,38 @@ impl BasicBlockEnvShape {
     }
 
     pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
+        let mut delegate = LocalHoister::default();
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+
         let mut bindings = self.bindings;
-
-        let mut hoister = Hoister::default()
-            .hoist_inside_tuples(true)
-            .hoist_inside_shr_refs(true)
-            .hoist_inside_boxes(true);
         bindings.fmap_mut(|ty| hoister.hoist(ty));
-        let (vars, preds) = hoister.into_parts();
 
-        // Replace all holes with a single fresh kvar on all parameters
-        let mut constrs = preds
-            .into_iter()
-            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
-            .collect_vec();
+        BasicBlockEnv {
+            // We are relying on all the types in `bindings` not having escaping bvars, otherwise
+            // we would have to shift them in since we are creating a new binder.
+            data: delegate.bind(|vars, preds| {
+                // Replace all holes with a single fresh kvar on all parameters
+                let mut constrs = preds
+                    .into_iter()
+                    .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
+                    .collect_vec();
+                let kvar = kvar_gen.fresh(&[vars.clone()], self.scope.iter(), KVarEncoding::Conj);
+                constrs.push(kvar);
 
-        let outer_sorts = vars.to_sort_list();
+                // Replace remaining holes by fresh kvars
+                let mut kvar_gen = |binders: &[_], kind| {
+                    debug_assert_eq!(kind, HoleKind::Pred);
+                    let binders = std::iter::once(vars.clone())
+                        .chain(binders.iter().cloned())
+                        .collect_vec();
+                    kvar_gen.fresh(&binders, self.scope.iter(), KVarEncoding::Conj)
+                };
+                bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
-        let kvar = kvar_gen.fresh(&[outer_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
-        constrs.push(kvar);
-
-        // Replace remaining holes by fresh kvars
-        let mut kvar_gen = |sorts: &[_], kind| {
-            debug_assert_eq!(kind, HoleKind::Pred);
-            let sorts = std::iter::once(outer_sorts.clone())
-                .chain(sorts.iter().cloned())
-                .collect_vec();
-            kvar_gen.fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
-        };
-        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
-
-        let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
-
-        BasicBlockEnv { data: Binder::new(data, vars), scope: self.scope }
+                BasicBlockEnvData { constrs: constrs.into(), bindings }
+            }),
+            scope: self.scope,
+        }
     }
 }
 

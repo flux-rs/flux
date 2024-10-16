@@ -15,11 +15,38 @@ thread_local! {
 
 pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
     TRACKED_SPAN.with(|cell| {
+        if span.is_dummy() {
+            return f();
+        }
         let old = cell.replace(Some(span));
         let r = f();
         cell.set(old);
         r
     })
+}
+
+#[macro_export]
+macro_rules! tracked_span_dbg_assert_eq {
+    ($($arg:tt)*) => {
+        if core::cfg!(debug_assertions) {
+            $crate::tracked_span_assert_eq!($($arg)*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! tracked_span_assert_eq {
+    ($left:expr, $right:expr $(,)?) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    $crate::tracked_span_bug!(
+                        "assertion `left == right` failed\n  left: {left_val:?}\n right: {right_val:?}"
+                    )
+                }
+            }
+        }
+    };
 }
 
 #[macro_export]

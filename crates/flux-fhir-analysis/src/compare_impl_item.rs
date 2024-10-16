@@ -1,14 +1,11 @@
 use flux_common::result::ResultExt;
-use flux_middle::{def_id_to_string, global_env::GlobalEnv};
+use flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
 use rustc_hash::FxHashSet;
-use rustc_span::{
-    def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Symbol,
-};
+use rustc_span::{def_id::DefId, ErrorGuaranteed, Symbol};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
-    let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
+pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Result {
+    let trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(&genv)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(&genv)?;
@@ -35,7 +32,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
         if trait_assoc_refts.find(name).is_none() {
             let fhir_impl_assoc_reft = genv
                 .map()
-                .expect_item(impl_id)
+                .expect_item(impl_id.local_id())
                 .emit(&genv)?
                 .expect_impl()
                 .find_assoc_reft(name)
@@ -52,14 +49,15 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
     Ok(())
 }
 
-fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name: Symbol) -> Result {
-    let fake_impl_id = genv
-        .get_local_id_for_extern(impl_id.to_def_id())
-        .unwrap_or(impl_id);
-
+fn check_assoc_reft(
+    genv: GlobalEnv,
+    impl_id: MaybeExternId,
+    trait_id: DefId,
+    name: Symbol,
+) -> Result {
     let impl_span = genv
         .map()
-        .expect_item(fake_impl_id)
+        .expect_item(impl_id.local_id())
         .emit(&genv)?
         .expect_impl()
         .find_assoc_reft(name)
@@ -67,7 +65,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
         .span;
 
     let impl_trait_ref = genv
-        .impl_trait_ref(impl_id.to_def_id())
+        .impl_trait_ref(impl_id.resolved_id())
         .emit(&genv)?
         .unwrap()
         .instantiate_identity();

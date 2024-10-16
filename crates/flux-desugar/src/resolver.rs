@@ -1,7 +1,5 @@
 pub(crate) mod refinement_resolver;
 
-use std::collections::hash_map::Entry;
-
 use flux_common::{
     bug,
     result::{ErrorCollector, ResultExt},
@@ -10,10 +8,10 @@ use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
     global_env::GlobalEnv,
-    ResolverOutput, Specs,
+    MaybeExternId, ResolverOutput, Specs,
 };
-use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
-use hir::{def::DefKind, intravisit::Visitor as _, ItemId, ItemKind, OwnerId};
+use flux_syntax::surface::{self, visit::Visitor as _, Ident};
+use hir::{def::DefKind, ItemId, ItemKind, OwnerId};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -180,18 +178,20 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.ribs[ns].pop();
     }
 
-    fn define_generics(&mut self, generics: &hir::Generics) {
+    fn define_generics(&mut self, def_id: MaybeExternId<OwnerId>) {
+        let generics = self
+            .genv
+            .hir()
+            .get_generics(def_id.local_id().def_id)
+            .unwrap();
         for param in generics.params {
             let def_kind = self.genv.tcx().def_kind(param.def_id);
             if let ParamName::Plain(name) = param.name
                 && let Some(ns) = def_kind.ns()
             {
                 debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
-                self.define_res_in(
-                    name.name,
-                    hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
-                    ns,
-                );
+                let param_id = self.genv.maybe_extern_id(param.def_id).resolved_id();
+                self.define_res_in(name.name, hir::def::Res::Def(def_kind, param_id), ns);
             }
         }
     }
@@ -211,21 +211,21 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_trait(&mut self, owner_id: OwnerId) -> Result {
-        let trait_ = &self.specs.traits[&owner_id];
+    fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let trait_ = &self.specs.traits[&owner_id.local_id()];
         RefinementResolver::resolve_trait(self, trait_)
     }
 
-    fn resolve_impl(&mut self, owner_id: OwnerId) -> Result {
-        let impl_ = &self.specs.impls[&owner_id];
+    fn resolve_impl(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let impl_ = &self.specs.impls[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
         RefinementResolver::resolve_impl(self, impl_)
     }
 
-    fn resolve_type_alias(&mut self, owner_id: OwnerId) -> Result {
-        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
+    fn resolve_type_alias(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id.local_id()] {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })?;
@@ -234,24 +234,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn resolve_struct_def(&mut self, owner_id: OwnerId) -> Result {
-        let struct_def = &self.specs.structs[&owner_id];
+    fn resolve_struct_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let struct_def = &self.specs.structs[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })?;
         RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
-    fn resolve_enum_def(&mut self, owner_id: OwnerId) -> Result {
-        let enum_def = &self.specs.enums[&owner_id];
+    fn resolve_enum_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let enum_def = &self.specs.enums[&owner_id.local_id()];
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
         RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
-    fn resolve_fn_sig(&mut self, owner_id: OwnerId) -> Result {
-        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
+    fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id.local_id()].fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
@@ -352,7 +352,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             self.define_flux_global_items();
         }
 
-        // But we resolved names in them as if they were defined in their containing module
+        // But we resolve names in them as if they were defined in their containing module
         self.resolve_flux_items(hir_id.expect_owner());
 
         hir::intravisit::walk_mod(self, module, hir_id);
@@ -386,70 +386,70 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         if self.genv.is_dummy(item.owner_id.def_id) {
             return;
         }
+        let def_id = self
+            .genv
+            .maybe_extern_id(item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
         self.push_rib(ValueNS, RibKind::Normal);
 
         match item.kind {
-            ItemKind::Trait(_, _, generics, ..) => {
-                self.define_generics(generics);
+            ItemKind::Trait(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    hir::def::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
-                self.resolve_trait(item.owner_id).collect_err(&mut self.err);
+                self.resolve_trait(def_id).collect_err(&mut self.err);
             }
             ItemKind::Impl(impl_) => {
-                self.define_generics(impl_.generics);
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
                     TypeNS,
                 );
-                self.resolve_impl(item.owner_id).collect_err(&mut self.err);
+                self.resolve_impl(def_id).collect_err(&mut self.err);
             }
-            ItemKind::TyAlias(_, generics) => {
-                self.define_generics(generics);
-                self.resolve_type_alias(item.owner_id)
-                    .collect_err(&mut self.err);
+            ItemKind::TyAlias(..) => {
+                self.define_generics(def_id);
+                self.resolve_type_alias(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Enum(.., generics) => {
-                self.define_generics(generics);
+            ItemKind::Enum(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
                     TypeNS,
                 );
-                self.resolve_enum_def(item.owner_id)
-                    .collect_err(&mut self.err);
+                self.resolve_enum_def(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Struct(.., generics) => {
-                self.define_generics(generics);
+            ItemKind::Struct(..) => {
+                self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
-                        alias_to: item.owner_id.to_def_id(),
+                        alias_to: def_id.resolved_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
                     TypeNS,
                 );
-                self.resolve_struct_def(item.owner_id)
-                    .collect_err(&mut self.err);
+                self.resolve_struct_def(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Fn(_, generics, _) => {
-                self.define_generics(generics);
-                self.resolve_fn_sig(item.owner_id)
-                    .collect_err(&mut self.err);
+            ItemKind::Fn(..) => {
+                self.define_generics(def_id);
+                self.resolve_fn_sig(def_id).collect_err(&mut self.err);
             }
             _ => {}
         }
@@ -461,22 +461,30 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
+        let def_id = self
+            .genv
+            .maybe_extern_id(impl_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(impl_item.generics);
+        self.define_generics(def_id);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            self.resolve_fn_sig(impl_item.owner_id)
-                .collect_err(&mut self.err);
+            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
+        let def_id = self
+            .genv
+            .maybe_extern_id(trait_item.owner_id.def_id)
+            .map(|def_id| OwnerId { def_id });
+
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(trait_item.generics);
+        self.define_generics(def_id);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            self.resolve_fn_sig(trait_item.owner_id)
-                .collect_err(&mut self.err);
+            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
@@ -504,6 +512,7 @@ impl Rib {
 }
 
 fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
+    #[expect(clippy::disallowed_methods, reason = "modules cannot have extern specs")]
     if let Some(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
     } else {
@@ -563,64 +572,15 @@ impl Segment for Ident {
 }
 
 struct ItemResolver<'a, 'genv, 'tcx> {
-    table: NameResTable,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     errors: Errors<'genv>,
 }
 
-struct ResTableNode {
-    res: Res,
-    children: UnordMap<Symbol, ResTableNode>,
-}
-
-impl ResTableNode {
-    fn new(res: Res) -> Self {
-        Self { res, children: Default::default() }
-    }
-}
-
-#[derive(Default)]
-struct NameResTable {
-    nodes: UnordMap<Symbol, ResTableNode>,
-}
-
-impl NameResTable {
-    fn insert_ident(&mut self, ident: Ident, res: Res) {
-        self.nodes
-            .entry(ident.name)
-            .or_insert_with(|| ResTableNode::new(res));
-    }
-
-    fn insert_hir_path(&mut self, path: &hir::Path) {
-        let mut nodes = &mut self.nodes;
-        for segment in path.segments {
-            let node = match nodes.entry(segment.ident.name) {
-                Entry::Occupied(entry) => entry.into_mut(),
-                Entry::Vacant(entry) => {
-                    let Ok(res) = Res::try_from(segment.res) else { return };
-                    entry.insert(ResTableNode::new(res))
-                }
-            };
-            nodes = &mut node.children;
-        }
-    }
-
-    fn visit_path(&self, path: &surface::Path, mut f: impl FnMut(NodeId, Res)) -> bool {
-        let mut nodes = &self.nodes;
-        for segment in &path.segments {
-            let Some(node) = nodes.get(&segment.ident.name) else { return false };
-            f(segment.node_id, node.res);
-            nodes = &node.children;
-        }
-        true
-    }
-}
-
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn run(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        owner_id: OwnerId,
+        owner_id: MaybeExternId<OwnerId>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
         let mut item_resolver = ItemResolver::new(resolver, owner_id)?;
@@ -628,16 +588,19 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         item_resolver.errors.into_result()
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, owner_id: OwnerId) -> Result<Self> {
+    fn new(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: MaybeExternId<OwnerId>,
+    ) -> Result<Self> {
         let tcx = resolver.genv.tcx();
         let sess = resolver.genv.sess();
-        let (table, opaque) = match tcx.hir_owner_node(owner_id) {
-            hir::OwnerNode::Item(item) => NameResCollector::collect_item(tcx, sess, item)?,
+        let opaque = match tcx.hir_owner_node(owner_id.local_id()) {
+            hir::OwnerNode::Item(item) => OpaqueTypeCollector::collect_item(sess, item)?,
             hir::OwnerNode::ImplItem(impl_item) => {
-                NameResCollector::collect_impl_item(tcx, sess, impl_item)?
+                OpaqueTypeCollector::collect_impl_item(sess, impl_item)?
             }
             hir::OwnerNode::TraitItem(trait_item) => {
-                NameResCollector::collect_trait_item(tcx, sess, trait_item)?
+                OpaqueTypeCollector::collect_trait_item(sess, trait_item)?
             }
             node @ (hir::OwnerNode::ForeignItem(_)
             | hir::OwnerNode::Crate(_)
@@ -647,7 +610,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         };
 
         let errors = Errors::new(resolver.genv.sess());
-        Ok(Self { table, resolver, opaque, errors })
+        Ok(Self { resolver, opaque, errors })
     }
 
     fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) {
@@ -663,28 +626,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
-        // This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
-        // This is ok because we will only proceed to further stages if the entire path is resolved.
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
             self.resolver
                 .output
                 .path_res_map
                 .insert(path.node_id, partial_res);
-            return;
+        } else {
+            self.errors.emit(errors::UnresolvedPath::new(path));
         }
-        if self.resolve_path_with_table(path) {
-            return;
-        }
-        self.errors.emit(errors::UnresolvedPath::new(path));
-    }
-
-    fn resolve_path_with_table(&mut self, path: &surface::Path) -> bool {
-        self.table.visit_path(path, |segment_id, res| {
-            self.resolver
-                .output
-                .path_res_map
-                .insert(segment_id, fhir::PartialRes::new(res));
-        })
     }
 }
 
@@ -723,153 +672,47 @@ fn map_res(res: hir::def::Res<!>) -> hir::def::Res {
     }
 }
 
-struct NameResCollector<'sess, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    table: NameResTable,
+struct OpaqueTypeCollector<'sess> {
     opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     errors: Errors<'sess>,
 }
 
-impl<'sess, 'tcx> NameResCollector<'sess, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession) -> Self {
-        Self { tcx, table: NameResTable::default(), opaque: None, errors: Errors::new(sess) }
+impl<'sess> OpaqueTypeCollector<'sess> {
+    fn new(sess: &'sess FluxSession) -> Self {
+        Self { opaque: None, errors: Errors::new(sess) }
     }
 
-    fn collect_item(
-        tcx: TyCtxt<'tcx>,
-        sess: &'sess FluxSession,
-        item: &'tcx hir::Item,
-    ) -> Result<(NameResTable, Option<ItemId>)> {
-        let def_id = item.owner_id.def_id;
-
-        let mut collector = Self::new(tcx, sess);
-
-        match &item.kind {
-            ItemKind::Struct(variant, generics) => {
-                collector
-                    .table
-                    .insert_ident(item.ident, Res::Def(DefKind::Struct, def_id.to_def_id()));
-                collector.visit_generics(generics);
-                collector.visit_variant_data(variant);
-            }
-            ItemKind::Enum(enum_def, generics) => {
-                collector
-                    .table
-                    .insert_ident(item.ident, Res::Def(DefKind::Enum, def_id.to_def_id()));
-                collector.visit_generics(generics);
-                collector.visit_enum_def(enum_def, item.hir_id());
-            }
-            ItemKind::Fn(fn_sig, generics, _) => {
-                collector.visit_generics(generics);
-                collector.visit_fn_decl(fn_sig.decl);
-                collector.collect_from_opaque_impl()?;
-            }
-            ItemKind::TyAlias(ty, generics) => {
-                collector.visit_generics(generics);
-                collector.visit_ty(ty);
-            }
-            ItemKind::Impl(impl_) => {
-                collector.visit_generics(impl_.generics);
-                collector.visit_ty(impl_.self_ty);
-            }
-            _ => {}
-        }
+    fn collect_item(sess: &'sess FluxSession, item: &hir::Item) -> Result<Option<ItemId>> {
+        let mut collector = Self::new(sess);
+        hir::intravisit::walk_item(&mut collector, item);
         collector.into_result()
     }
 
     fn collect_impl_item(
-        tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
-        impl_item: &'tcx hir::ImplItem,
-    ) -> Result<(NameResTable, Option<ItemId>)> {
-        let def_id = impl_item.owner_id.def_id;
-
-        let mut collector = Self::new(tcx, sess);
-
-        match impl_item.kind {
-            hir::ImplItemKind::Fn(fn_sig, _) => {
-                collector.visit_generics(impl_item.generics);
-                collector.visit_fn_decl(fn_sig.decl);
-            }
-            hir::ImplItemKind::Const(_, _) | hir::ImplItemKind::Type(_) => {}
-        }
-
-        // Insert paths from parent impl
-        let impl_did = tcx.local_parent(def_id);
-        if let ItemKind::Impl(impl_) = &tcx.hir().expect_item(impl_did).kind {
-            if let Some(trait_ref) = impl_.of_trait {
-                collector.table.insert_hir_path(trait_ref.path);
-            }
-            collector.visit_generics(impl_.generics);
-            collector.visit_ty(impl_.self_ty);
-        }
-
-        match impl_item.kind {
-            hir::ImplItemKind::Fn(fn_sig, _) => {
-                collector.visit_generics(impl_item.generics);
-                collector.visit_fn_decl(fn_sig.decl);
-            }
-            hir::ImplItemKind::Const(_, _) | hir::ImplItemKind::Type(_) => {}
-        }
-
+        impl_item: &hir::ImplItem,
+    ) -> Result<Option<ItemId>> {
+        let mut collector = Self::new(sess);
+        hir::intravisit::walk_impl_item(&mut collector, impl_item);
         collector.into_result()
     }
 
     fn collect_trait_item(
-        tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
-        trait_item: &'tcx hir::TraitItem,
-    ) -> Result<(NameResTable, Option<ItemId>)> {
-        let def_id = trait_item.owner_id.def_id;
-
-        let mut collector = Self::new(tcx, sess);
-
-        // Insert generics from parent trait
-        if let Some(parent_impl_did) = tcx.trait_of_item(def_id.to_def_id()) {
-            let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
-
-            // Insert NAME of parent trait
-            if let ItemKind::Trait(..) = &parent_impl_item.kind {
-                collector.table.insert_ident(
-                    parent_impl_item.ident,
-                    Res::Def(DefKind::Trait, parent_impl_did),
-                );
-            }
-
-            if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                collector.visit_ty(parent.self_ty);
-            }
-        }
-
-        match &trait_item.kind {
-            rustc_hir::TraitItemKind::Fn(fn_sig, _) => {
-                collector.visit_generics(trait_item.generics);
-                collector.visit_fn_decl(fn_sig.decl);
-                collector.collect_from_opaque_impl()?;
-            }
-            rustc_hir::TraitItemKind::Const(..) | rustc_hir::TraitItemKind::Type(..) => {}
-        }
-
+        trait_item: &hir::TraitItem,
+    ) -> Result<Option<ItemId>> {
+        let mut collector = Self::new(sess);
+        hir::intravisit::walk_trait_item(&mut collector, trait_item);
         collector.into_result()
     }
 
-    fn collect_from_opaque_impl(&mut self) -> Result {
-        if let Some(item_id) = self.opaque {
-            let item = self.tcx.hir().item(item_id);
-            if let ItemKind::OpaqueTy(_) = item.kind {
-                self.visit_item(item);
-            }
-        }
-        Ok(())
-    }
-
-    fn into_result(self) -> Result<(NameResTable, Option<ItemId>)> {
+    fn into_result(self) -> Result<Option<ItemId>> {
         self.errors.into_result()?;
-        Ok((self.table, self.opaque))
+        Ok(self.opaque)
     }
 }
 
-impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
+impl<'tcx> hir::intravisit::Visitor<'tcx> for OpaqueTypeCollector<'_> {
     fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx>) {
         if let hir::TyKind::OpaqueDef(item_id, ..) = ty.kind {
             if self.opaque.is_some() {
@@ -882,11 +725,6 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
             }
         }
         hir::intravisit::walk_ty(self, ty);
-    }
-
-    fn visit_path(&mut self, path: &hir::Path<'tcx>, _id: hir::HirId) {
-        self.table.insert_hir_path(path);
-        hir::intravisit::walk_path(self, path);
     }
 }
 

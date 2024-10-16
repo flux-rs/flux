@@ -2,6 +2,7 @@ use std::fmt;
 
 use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
+use ty::{UnevaluatedConst, ValTree};
 
 use super::*;
 use crate::pretty::*;
@@ -107,6 +108,13 @@ impl Pretty for Sort {
                 } else {
                     w!("({:?})", join!(", ", sorts))
                 }
+            }
+            Sort::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                w!("::sort")
             }
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
@@ -315,8 +323,8 @@ impl Pretty for Ty {
                     join!(", ", &alias_ty.refine_args)
                 )
             }
-            TyKind::Infer(_) => {
-                w!("□")
+            TyKind::Infer(ty_vid) => {
+                w!("{ty_vid:?}")
             }
         }
     }
@@ -443,9 +451,16 @@ impl Pretty for BaseTy {
                     w!("({:?})", join!(", ", tys))
                 }
             }
+            BaseTy::Alias(alias_ty) => {
+                w!("{:?}", alias_ty.def_id)?;
+                if !alias_ty.args.is_empty() {
+                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                }
+                Ok(())
+            }
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),
-            BaseTy::Closure(did, args) => {
+            BaseTy::Closure(did, args, _) => {
                 w!("Closure {:?}<{:?}>", did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) => {
@@ -458,7 +473,28 @@ impl Pretty for BaseTy {
             BaseTy::Dynamic(preds, re) => {
                 w!("dyn {:?} + {:?}", join!(" + ", preds), re)
             }
+            BaseTy::Infer(ty_vid) => {
+                w!("{ty_vid:?}")
+            }
         }
+    }
+}
+
+impl Pretty for ValTree {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(_cx, f);
+        match self {
+            ValTree::Leaf(v) => w!("Leaf({v:?})"),
+            ValTree::Branch(children) => {
+                w!("Branch([{:?}])", join!(", ", children))
+            }
+        }
+    }
+}
+impl Pretty for UnevaluatedConst {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        w!("UnevaluatedConst({:?}[...])", self.def)
     }
 }
 
@@ -467,9 +503,9 @@ impl Pretty for Const {
         define_scoped!(_cx, f);
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
-            ConstKind::Value(_, v) => w!("{}", ^v),
+            ConstKind::Value(_, v) => w!("{v:?}"),
             ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
-            ConstKind::Unevaluated(_uneval_const) => w!("TODO:UNEVALCONST"),
+            ConstKind::Unevaluated(uneval_const) => w!("{:?}", uneval_const),
         }
     }
 }
@@ -525,4 +561,5 @@ impl_debug_with_default_cx!(
     SortCtor,
     SubsetTy,
     BvSize,
+    ExistentialPredicate,
 );

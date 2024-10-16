@@ -1,11 +1,11 @@
-use std::{fmt, sync::OnceLock};
+use std::{fmt, iter, sync::OnceLock};
 
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    ty::{Const, ConstKind},
+    ty::{Const, ConstKind, ValTree},
     ToRustc,
 };
 use itertools::Itertools;
@@ -21,8 +21,8 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, FuncSort,
-    GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs,
+    GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
     big_int::BigInt,
@@ -31,7 +31,7 @@ use crate::{
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        SortCtor,
+        BoundVariableKind, SortCtor,
     },
 };
 
@@ -44,28 +44,35 @@ pub struct Lambda {
 }
 
 impl Lambda {
-    pub fn with_vars(body: Expr, inputs: List<BoundVariableKind>, output: Sort) -> Self {
-        Self { body: Binder::new(body, inputs), output }
+    pub fn bind_with_vars(body: Expr, inputs: BoundVariableKinds, output: Sort) -> Self {
+        debug_assert!(inputs.iter().all(BoundVariableKind::is_refine));
+        Self { body: Binder::bind_with_vars(body, inputs), output }
     }
 
-    pub fn with_sorts(body: Expr, inputs: &[Sort], output: Sort) -> Self {
-        Self { body: Binder::with_sorts(body, inputs), output }
+    pub fn bind_with_fsort(body: Expr, fsort: FuncSort) -> Self {
+        Self { body: Binder::bind_with_sorts(body, fsort.inputs()), output: fsort.output().clone() }
     }
 
     pub fn apply(&self, args: &[Expr]) -> Expr {
         self.body.replace_bound_refts(args)
     }
 
-    pub fn inputs(&self) -> List<Sort> {
-        self.body.vars().to_sort_list()
+    pub fn vars(&self) -> &BoundVariableKinds {
+        self.body.vars()
     }
 
     pub fn output(&self) -> Sort {
         self.output.clone()
     }
 
-    pub fn sort(&self) -> FuncSort {
-        FuncSort::new(self.inputs().to_vec(), self.output())
+    pub fn fsort(&self) -> FuncSort {
+        let inputs_and_output = self
+            .vars()
+            .iter()
+            .map(|kind| kind.expect_sort().clone())
+            .chain(iter::once(self.output()))
+            .collect();
+        FuncSort { inputs_and_output }
     }
 }
 
@@ -299,10 +306,6 @@ newtype_index! {
 }
 
 impl ExprKind {
-    // pub fn intern_at_opt(self, espan: Option<ESpan>) -> Expr {
-    //     Expr { kind: Interned::new(self), espan }
-    // }
-
     fn intern(self) -> Expr {
         Expr { kind: Interned::new(self), espan: None }
     }
@@ -596,8 +599,11 @@ impl Expr {
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
         match &c.kind {
             ConstKind::Param(param_const) => Expr::const_generic(*param_const),
-            ConstKind::Value(ty, scalar) => {
+            ConstKind::Value(ty, ValTree::Leaf(scalar)) => {
                 Expr::constant(Constant::from_scalar_int(tcx, *scalar, ty).unwrap())
+            }
+            ConstKind::Value(_ty, ValTree::Branch(_)) => {
+                bug!("todo: ValTree::Branch {c:?}")
             }
             // We should have normalized away the unevaluated constants
             ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
@@ -706,12 +712,12 @@ impl Expr {
         matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
     }
 
-    pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
+    pub fn eta_expand_abs(&self, inputs: &BoundVariableKinds, output: Sort) -> Lambda {
         let args = (0..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect();
         let body = Expr::app(self, args);
-        Lambda::with_sorts(body, inputs, output)
+        Lambda::bind_with_vars(body, inputs.clone(), output)
     }
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {

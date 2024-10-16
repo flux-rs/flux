@@ -15,13 +15,14 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    BaseTy, Binder, Const, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate,
-    PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKinds, Const, Ensures, Expr, ExprKind, GenericArg, Name,
+    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
+    TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{expr::HoleKind, BoundVariableKindsExt, Var, VariantSig},
+    rty::{expr::HoleKind, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -253,15 +254,15 @@ pub trait TypeFoldable: TypeVisitable {
     ///
     /// [holes]: ExprKind::Hole
     /// [bound]: Binder
-    fn replace_holes(&self, f: impl FnMut(&[List<Sort>], HoleKind) -> Expr) -> Self {
-        struct ReplaceHoles<F>(F, Vec<List<Sort>>);
+    fn replace_holes(&self, f: impl FnMut(&[BoundVariableKinds], HoleKind) -> Expr) -> Self {
+        struct ReplaceHoles<F>(F, Vec<BoundVariableKinds>);
 
         impl<F> TypeFolder for ReplaceHoles<F>
         where
-            F: FnMut(&[List<Sort>], HoleKind) -> Expr,
+            F: FnMut(&[BoundVariableKinds], HoleKind) -> Expr,
         {
             fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.vars().to_sort_list());
+                self.1.push(t.vars().clone());
                 let t = t.super_fold_with(self);
                 self.1.pop();
                 t
@@ -430,6 +431,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
             Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
+            Sort::Alias(alias_ty) => alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -456,6 +458,7 @@ impl TypeSuperFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(ctor.clone(), sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
+            Sort::Alias(alias_ty) => Sort::Alias(alias_ty.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -515,7 +518,7 @@ where
     T: TypeFoldable,
 {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::new(
+        Ok(Binder::bind_with_vars(
             self.skip_binder_ref().try_fold_with(folder)?,
             self.vars().try_fold_with(folder)?,
         ))
@@ -720,21 +723,23 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
+            BaseTy::Alias(alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Coroutine(_, resume_ty, upvars) => {
                 resume_ty.visit_with(visitor)?;
                 upvars.visit_with(visitor)
             }
+            BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(_, _)
+            | BaseTy::Closure(_, _, _)
             | BaseTy::Never
+            | BaseTy::Infer(_)
             | BaseTy::Param(_) => ControlFlow::Continue(()),
-            BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
         }
     }
 }
@@ -757,18 +762,13 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::FnPtr(decl) => BaseTy::FnPtr(decl.try_fold_with(folder)?),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
+            BaseTy::Alias(alias_ty) => BaseTy::Alias(alias_ty.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
             }
-            BaseTy::Int(_)
-            | BaseTy::Param(_)
-            | BaseTy::Uint(_)
-            | BaseTy::Bool
-            | BaseTy::Float(_)
-            | BaseTy::Str
-            | BaseTy::Char
-            | BaseTy::Never => self.clone(),
-            BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
+            BaseTy::Closure(did, args, gen_args) => {
+                BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone())
+            }
             BaseTy::Coroutine(did, resume_ty, args) => {
                 BaseTy::Coroutine(
                     *did,
@@ -779,6 +779,15 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Dynamic(preds, region) => {
                 BaseTy::Dynamic(preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
+            BaseTy::Int(_)
+            | BaseTy::Param(_)
+            | BaseTy::Uint(_)
+            | BaseTy::Bool
+            | BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::Infer(_)
+            | BaseTy::Never => self.clone(),
         };
         Ok(bty)
     }

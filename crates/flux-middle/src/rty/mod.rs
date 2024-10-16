@@ -16,7 +16,7 @@ pub mod refining;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
 
-pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKindsExt, EarlyBinder};
+pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use evars::{EVar, EVarGen};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
@@ -24,7 +24,7 @@ pub use expr::{
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
@@ -43,10 +43,10 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{ParamConst, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
@@ -63,14 +63,27 @@ use crate::{
     rty::subst::SortSubst,
 };
 
+/// The definition of the data sort automatically generated for a struct, enum or type alias.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
+    /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
     def_id: DefId,
+    /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
+    ///
+    /// See [`fhir::RefinedBy::sort_params`] for more details. This is a version of that but using
+    /// [`ParamTy`] instead of [`DefId`].
+    ///
+    /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
+    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
     field_names: Vec<Symbol>,
+    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
     sorts: List<Sort>,
 }
 
@@ -97,16 +110,18 @@ impl AdtSortDef {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
-        let idx = self.field_index(name)?;
-        Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
+    pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
+        let idx = self.0.field_names.iter().position(|it| name == *it)?;
+        let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
+        let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
+        Some((proj, sort))
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+    pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
         let sorts = self
             .filter_generic_args(args)
             .map(|arg| arg.expect_base().sort())
@@ -125,10 +140,6 @@ impl AdtSortDef {
         (0..self.0.params.len())
             .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
-    }
-
-    pub fn field_index(&self, name: Symbol) -> Option<usize> {
-        self.0.field_names.iter().position(|it| name == *it)
     }
 }
 
@@ -388,16 +399,21 @@ impl FnTraitPredicate {
             abi::Abi::Rust,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::empty())
+        PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
-    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+    pub fn to_poly_fn_sig(
+        &self,
+        closure_id: DefId,
+        tys: List<Ty>,
+        args: &flux_rustc_bridge::ty::GenericArgs,
+    ) -> PolyFnSig {
         let mut vars = vec![];
 
-        let closure_ty = Ty::closure(closure_id, tys);
+        let closure_ty = Ty::closure(closure_id, tys, args);
         let env_ty = match self.kind {
             ClosureKind::Fn => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -426,10 +442,10 @@ impl FnTraitPredicate {
             abi::Abi::RustCall,
             List::empty(),
             inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, List::from(vars))
+        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
     }
 }
 
@@ -477,8 +493,8 @@ pub enum SortCtor {
 
 newtype_index! {
     /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params
-    /// in the [`PolyFuncSort`].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be <
+    /// than the number of params.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     #[debug_format = "?{}s"]
@@ -601,6 +617,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
+    Alias(AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -992,7 +1009,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+        Ty::exists(Binder::bind_with_sort(Ty::constr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -1085,8 +1102,12 @@ impl Ty {
         BaseTy::Array(ty, c).to_ty()
     }
 
-    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Closure(did, tys.into()).to_ty()
+    pub fn closure(
+        did: DefId,
+        tys: impl Into<List<Ty>>,
+        args: &flux_rustc_bridge::ty::GenericArgs,
+    ) -> Ty {
+        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
@@ -1225,7 +1246,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => bug!(),
+            | TyKind::Blocked(_) => bug!("TODO: to_rustc for `{self:?}`"),
         }
     }
 }
@@ -1278,12 +1299,14 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
+    Alias(AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
+    Infer(TyVid),
 }
 
 impl BaseTy {
@@ -1417,6 +1440,7 @@ impl BaseTy {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
             BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
+            BaseTy::Slice(_) => slice_invariants(overflow_checking),
             _ => &[],
         }
     }
@@ -1426,29 +1450,7 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self.clone(), Expr::unit())
         } else {
-            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
-        }
-    }
-
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
-            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
-            BaseTy::Str => Sort::Str,
-            BaseTy::Float(_)
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::FnPtr(..)
-            | BaseTy::FnDef(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Dynamic(_, _)
-            | BaseTy::Never => Sort::unit(),
+            Ty::exists(Binder::bind_with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
         }
     }
 
@@ -1495,15 +1497,14 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
+            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => {
-                bug!()
-            }
+            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
@@ -1518,6 +1519,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 // let args = tcx.mk_args_from_iter(args);
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             }
+            BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
         }
     }
 }
@@ -1526,10 +1528,10 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
     Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub struct AliasTy {
+    pub def_id: DefId,
     pub args: GenericArgs,
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
-    pub def_id: DefId,
 }
 
 pub type RefineArgs = List<Expr>;
@@ -1543,6 +1545,14 @@ pub type RefineArgs = List<Expr>;
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
+    /// This is the subset type version of [`Ty::trait_object_dummy_self`]
+    pub fn trait_object_dummy_self() -> Self {
+        SubsetTyCtor::bind_with_sort(
+            SubsetTy::trivial(BaseTy::Infer(TyVid::from_u32(0)), Expr::nu()),
+            Sort::Infer(SortInfer::SortVar(SortVid::from_u32(0))),
+        )
+    }
+
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }
@@ -1564,52 +1574,58 @@ impl SubsetTyCtor {
 ///
 /// These are mainly found under a [`Binder`] with a single variable of the base type's sort. This
 /// can be interpreted as a type constructor or an existial type. For example, under a binder with a
-/// variable `v` of sort `int`, we can interpret `{i32[v] | v > 0}` as a lambda `λv:int. {i32[v] | v > 0}`
-/// that "constructs" types when applied to ints, or as an existential type `∃v:int. {i32[v] | v > 0}`.
+/// variable `v` of sort `int`, we can interpret `{i32[v] | v > 0}` as:
+/// - A lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to ints, or
+/// - An existential type `∃v:int. {i32[v] | v > 0}`.
+///
 /// This second interpretation is the reason we call this a subset type, i.e., the type `∃v. {b[v] | p}`
-/// corresponds to the subset of values of (base) type `b` whose index satisfies `p`. In other words,
-/// these are the types written as `B{v: p}` in the surface syntax and correspond to the types
-/// supported in other refinement type systems like Liquid Haskell (with the difference that we are
-/// explicit about separating refinements from program values via an index).
+/// corresponds to the subset of values of  type `b` whose index satisfies `p`. These are the types
+/// written as `B{v: p}` in the surface syntax and correspond to the types supported in other
+/// refinement type systems like Liquid Haskell (with the difference that we are explicit
+/// about separating refinements from program values via an index).
 ///
 /// The main purpose for subset types is to be used as generic arguments of [kind base] when
-/// interpreted as type constructors. A subset type has two key properties that makes them suitable
-/// for that.
+/// interpreted as type constructors. They have two key properties that makes them suitable
+/// for this:
 ///
-/// First, because subset types are syntactically restricted, they make it easier to relate types
-/// structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and `S<λ. T2>`,
-/// since we know `T1` and `T2` must be subset types, we also know they match structurally
-/// (at least shallowly). The syntactic restriction also rules out more complex types like
-/// `S<λv. (i32[v], i32[0])>` which simplifies some operations on types.
+/// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
+///    relate them structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and
+///    `S<λ. T2>`, if `T1` and `T2` are subset types, we know they match structurally (at least
+///    shallowly). In particularly, the syntactic restriction rules out complex types like
+///    `S<λv. (i32[v], i32[v])>` simplifying some operations.
 ///
-/// Second, subset types can be eagerly canonicalized via [*strengthening*] during substitution. For
-/// example, suppose we have a function:
-/// ```text
-/// fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
-/// ```
-/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the lambda
-/// (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
-/// ```text
-/// fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
-/// ```
-/// Via *strengthening* we can canonicalize this to
-/// ```text
-/// fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
-/// ```
-/// As a result, we can guarantee the syntactic restriction through substitution.
+/// 2. **Eager Canonicalization**: Subset types can be eagerly canonicalized via [*strengthening*]
+///    during substitution. For example, suppose we have a function:
+///    ```text
+///    fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
+///    ```
+///    If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the
+///    lambda (the indexing syntax `T[a]` corresponds to an application of the lambda), we get:
+///    ```text
+///    fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
+///    ```
+///    Via *strengthening* we can canonicalize this to
+///    ```text
+///    fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
+///    ```
+///    As a result, we can guarantee the syntactic restriction through substitution.
 ///
 /// [kind base]: GenericParamDefKind::Base
 /// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SubsetTy {
-    /// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
+    /// The base type `b` in the subset type `{b[e] | p}`.
+    ///
+    /// **NOTE:** This is mostly going to be under a [`Binder`]. It is not yet clear to me whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
     /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
-    /// facilitate syntactic manipulation we may restrict this.
+    /// facilitate syntactic manipulation we may want to restrict this.
     pub bty: BaseTy,
-    /// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
-    /// going to be under a binder we expect it to be [`Expr::nu()`].
+    /// The refinement index `e` in the subset type `{b[e] | p}`. This can be an arbitrary expression,
+    /// which makes manipulation easier. However, since this is mostly found under a binder, we expect
+    /// it to be [`Expr::nu()`].
     pub idx: Expr,
+    /// The predicate `p` in the subset type `{b[e] | p}`.
     pub pred: Expr,
 }
 
@@ -1624,7 +1640,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
     }
 
     fn to_ty(&self) -> Ty {
@@ -1679,7 +1695,7 @@ impl GenericArg {
             GenericParamDefKind::Base => {
                 // λv. T[v]
                 let param_ty = ParamTy { index: param.index, name: param.name };
-                GenericArg::Base(Binder::with_sort(
+                GenericArg::Base(Binder::bind_with_sort(
                     SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
                     Sort::Param(param_ty),
                 ))
@@ -1732,7 +1748,7 @@ impl GenericArg {
         }
         for param in &generics.own_params {
             let kind = mk_kind(param, args);
-            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
+            tracked_span_assert_eq!(param.index as usize, args.len()); // "{args:#?}, {generics:#?}");
             args.push(kind);
         }
         Ok(())
@@ -1774,7 +1790,7 @@ impl GenericArgs {
 
 impl Clause {
     pub fn new(vars: impl Into<List<BoundVariableKind>>, kind: ClauseKind) -> Self {
-        Clause { kind: Binder::new(kind, vars.into()) }
+        Clause { kind: Binder::bind_with_vars(kind, vars.into()) }
     }
 
     pub fn kind(&self) -> Binder<ClauseKind> {
@@ -1802,9 +1818,10 @@ impl CoroutineObligPredicate {
         let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
 
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
-        let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
+        let output =
+            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(
+        PolyFnSig::bind_with_vars(
             FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
             List::from(vars),
         )
@@ -1946,7 +1963,7 @@ impl AdtDef {
     }
 
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
-        self.sort_def().sort(args)
+        self.sort_def().to_sort(args)
     }
 
     pub fn is_box(&self) -> bool {
@@ -2038,7 +2055,7 @@ impl EarlyBinder<PolyVariant> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
-                let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
+                let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
                 FnSig::new(
                     Safety::Safe,
                     abi::Abi::Rust,
@@ -2076,16 +2093,34 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     }
 }
 
-impl Binder<Expr> {
-    /// See [`Expr::is_trivially_true`]
-    pub fn is_trivially_true(&self) -> bool {
-        self.skip_binder_ref().is_trivially_true()
+/// returns the same invariants as for `usize` which is the length of a slice
+fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
+    static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
+        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+    });
+    static OVERFLOW: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
+        [
+            Invariant {
+                pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(Expr::nu(), Expr::uint_max(UintTy::Usize)),
+                    Sort::Int,
+                ),
+            },
+        ]
+    });
+    if overflow_checking {
+        &*OVERFLOW
+    } else {
+        &*DEFAULT
     }
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant { pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
+        [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
 
     static OVERFLOW: LazyLock<UnordMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
@@ -2094,10 +2129,10 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             .map(|uint_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
+                        pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::uint_max(uint_ty)),
                             Sort::Int,
                         ),
@@ -2123,13 +2158,13 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             .map(|int_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::ge(Expr::nu(), Expr::int_min(int_ty)),
                             Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::with_sort(
+                        pred: Binder::bind_with_sort(
                             Expr::le(Expr::nu(), Expr::int_max(int_ty)),
                             Sort::Int,
                         ),
@@ -2198,13 +2233,14 @@ pub use crate::_Ref as Ref;
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
-    record_ctors: ItemLocalMap<DefId>,
-    node_sorts: ItemLocalMap<Sort>,
     bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
+    field_projs: ItemLocalMap<FieldProj>,
+    node_sorts: ItemLocalMap<Sort>,
+    record_ctors: ItemLocalMap<DefId>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),
@@ -2227,27 +2263,12 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
-            record_ctors: ItemLocalMap::default(),
-            node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
+            field_projs: ItemLocalMap::default(),
+            node_sorts: ItemLocalMap::default(),
+            record_ctors: ItemLocalMap::default(),
         }
-    }
-
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
-    }
-
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
-        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
-    }
-
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
-    }
-
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
     pub fn bin_rel_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
@@ -2265,18 +2286,42 @@ impl WfckResults {
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
+
+    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<FieldProj> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.field_projs }
+    }
+
+    pub fn field_projs(&self) -> LocalTableInContext<FieldProj> {
+        LocalTableInContext { owner: self.owner, data: &self.field_projs }
+    }
+
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
+    }
+
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
+    }
 }
 
 impl<'a, T> LocalTableInContextMut<'a, T> {
     pub fn insert(&mut self, fhir_id: FhirId, value: T) {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.insert(fhir_id.local_id, value);
     }
 }
 
 impl<'a, T> LocalTableInContext<'a, T> {
     pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.get(&fhir_id.local_id)
     }
 }

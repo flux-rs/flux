@@ -10,7 +10,10 @@ use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
@@ -71,7 +74,7 @@ impl FluxCallbacks {
             let arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
                 if check_crate(genv).is_ok() {
-                    save_metadata(genv);
+                    encode_and_save_metadata(genv);
                 }
             });
             sess.finish_diagnostics();
@@ -114,12 +117,14 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
     }
 }
 
-fn save_metadata(genv: GlobalEnv) {
+fn encode_and_save_metadata(genv: GlobalEnv) {
+    // We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
+    // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which
+    // wraps `cargo check` and always passes `--emit=metadata`. Tests also explicitly pass this flag.
     let tcx = genv.tcx();
     if tcx
-        .sess
-        .opts
-        .output_types
+        .output_filenames(())
+        .outputs
         .contains_key(&OutputType::Metadata)
     {
         let path = flux_metadata::filename_for_metadata(tcx);
@@ -143,8 +148,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, cache: QueryCache::load(), checker_config }
     }
 
-    fn matches_check_def(&self, def_id: LocalDefId) -> bool {
-        let def_path = self.genv.tcx().def_path_str(def_id.to_def_id());
+    fn matches_check_def(&self, def_id: DefId) -> bool {
+        let def_path = self.genv.tcx().def_path_str(def_id);
         def_path.contains(config::check_def())
     }
 
@@ -155,10 +160,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if !self.matches_check_def(def_id) {
+        let def_id = self.genv.maybe_extern_id(def_id);
+
+        if !self.matches_check_def(def_id.resolved_id()) {
             return Ok(());
         }
-        if self.genv.ignored(def_id) || self.genv.is_dummy(def_id) {
+        if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
 
@@ -167,12 +174,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
                 let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let enum_def = self
                     .genv
                     .map()
-                    .expect_item(def_id)
+                    .expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_enum();
                 refineck::invariants::check_invariants(
@@ -185,12 +192,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
                 let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let struct_def = self
                     .genv
                     .map()
-                    .expect_item(def_id)
+                    .expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_struct();
                 if struct_def.is_opaque() {

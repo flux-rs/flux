@@ -56,3 +56,19 @@ driver_item_not_in_trait =
     invalid extern spec for trait
     .label = `{$name}` is not defined in extern trait
     .note = extern trait defined here
+
+driver_extern_spec_for_local_def =
+    cannot add extern specs to local definition
+    .note = `{$name}` defined here in the same crate
+
+driver_dup_extern_spec =
+    multiple extern specs for `{$name}`
+    .label = extern spec for `{$name}` redefined here
+    .note = previous extern spec for `{$name}` defined here
+
+driver_mismatched_generics =
+    invalid extern spec for {$def_descr}
+    .label = generic parameters don't match the external {$def_descr}
+    .extern_def_label = external {$def_descr} found here
+    .note = extern specs must exactly match the external definition, including the list of generic parameters and their names
+

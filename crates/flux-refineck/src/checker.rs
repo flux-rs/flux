@@ -5,7 +5,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot},
-    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -329,9 +329,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         source_info: SourceInfo,
     ) -> Result {
         let ty = infcx
-            .unpacker()
-            .assume_invariants(self.check_overflow())
-            .unpack(&ty);
+            .hoister(AssumeInvariants::yes(self.check_overflow()))
+            .hoist(&ty);
         env.assign(&mut infcx.at(source_info.span), place, ty)
             .with_src_info(source_info)
     }
@@ -630,12 +629,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        let def_id = gen_pred.def_id;
+        #[expect(clippy::disallowed_methods, reason = "generators cannot be extern speced")]
+        let def_id = gen_pred.def_id.expect_local();
         let span = self.genv.tcx().def_span(def_id);
-        let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
+        let body = self.genv.mir(def_id).with_span(span)?;
         Checker::run(
-            infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
-            gen_pred.def_id.expect_local(),
+            infcx.change_item(def_id, &body.infcx, snapshot),
+            def_id,
             self.inherited.reborrow(),
             gen_pred.to_poly_fn_sig(),
         )
@@ -730,13 +730,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // 5. OUTPUT subtyping (f_out <: g_out)
         // RJ: new `at` to avoid borrowing errors...!
-        // let mut at = infcx.at(span);
+        infcx.push_scope();
         let oblig_output = oblig_sig
             .output()
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
         infcx
             .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
             .with_span(span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
+        infcx.replace_evars(&evars_sol);
         assert!(output.ensures.is_empty()); // TODO
         assert!(oblig_output.ensures.is_empty()); // TODO
         Ok(())
@@ -751,14 +753,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(closure_id, tys)) => {
-                let span = self.genv.tcx().def_span(closure_id);
-                let body = self.genv.mir(closure_id.expect_local()).with_span(span)?;
+            Some(BaseTy::Closure(closure_id, tys, args)) => {
+                #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
+                let local_closure_id = closure_id.expect_local();
+                let span = self.genv.tcx().def_span(local_closure_id);
+                let body = self.genv.mir(local_closure_id).with_span(span)?;
                 Checker::run(
-                    infcx.change_item(closure_id.expect_local(), &body.infcx, snapshot),
-                    closure_id.expect_local(),
+                    infcx.change_item(local_closure_id, &body.infcx, snapshot),
+                    local_closure_id,
                     self.inherited.reborrow(),
-                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone()),
+                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
                 )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
@@ -877,7 +881,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         if remaining.len() == 1 {
-            let (_, variant_idx) = remaining.into_iter().next().unwrap();
+            let (_, variant_idx) = remaining
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| tracked_span_bug!());
             successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
         } else {
             successors.push((targets.otherwise(), Guard::None));
@@ -997,7 +1004,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
                 // HACK(nilehmann, mut-ref-unfolding) place should be unfolded here.
-                let (adt_def, ..) = ty.as_bty_skipping_existentials().unwrap().expect_adt();
+                let (adt_def, ..) = ty
+                    .as_bty_skipping_existentials()
+                    .unwrap_or_else(|| tracked_span_bug!())
+                    .expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
@@ -1023,7 +1033,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let tys = self.check_operands(infcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
+            Rvalue::Aggregate(AggregateKind::Closure(did, args), operands) => {
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, operands)?
                     .into_iter()
@@ -1042,7 +1052,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                Ok(Ty::closure(*did, upvar_tys))
+
+                Ok(Ty::closure(*did, upvar_tys, args))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1330,9 +1341,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(infcx
-            .unpacker()
-            .assume_invariants(self.check_overflow())
-            .unpack(&ty))
+            .hoister(AssumeInvariants::yes(self.check_overflow()))
+            .hoist(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> Result<Ty> {
@@ -1451,7 +1461,7 @@ fn instantiate_args_for_fun_call(
         } else {
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
-        Binder::with_sort(constr, sort)
+        Binder::bind_with_sort(constr, sort)
     });
     let default_refiner = Refiner::default(genv, caller_generics);
 
@@ -1579,7 +1589,9 @@ fn infer_under_mut_ref_hack(
             && let Ref!(_, ty, Mutability::Mut) = formal.kind()
             && let TyKind::Indexed(..) = ty.kind()
         {
-            rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
+            rcx.hoister(AssumeInvariants::No)
+                .hoist_inside_mut_refs(true)
+                .hoist(actual)
         } else {
             actual.clone()
         }
@@ -1614,7 +1626,7 @@ impl Mode for ShapeMode {
             Entry::Vacant(entry) => {
                 let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
                     .scope()
-                    .unwrap();
+                    .unwrap_or_else(|| tracked_span_bug!());
                 entry.insert(env.into_infer(scope).with_span(terminator_span)?);
                 true
             }
@@ -1659,7 +1671,12 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        debug_assert_eq!(
+            &ck.snapshot_at_dominator(target)
+                .scope()
+                .unwrap_or_else(|| tracked_span_bug!()),
+            bb_env.scope()
+        );
 
         dbg::refine_goto!(target, infcx, env, bb_env);
 
@@ -1741,8 +1758,13 @@ fn snapshot_at_dominator<'a>(
     snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
     bb: BasicBlock,
 ) -> &'a Snapshot {
-    let dominator = body.dominators().immediate_dominator(bb).unwrap();
-    snapshots[dominator].as_ref().unwrap()
+    let dominator = body
+        .dominators()
+        .immediate_dominator(bb)
+        .unwrap_or_else(|| tracked_span_bug!());
+    snapshots[dominator]
+        .as_ref()
+        .unwrap_or_else(|| tracked_span_bug!())
 }
 
 pub(crate) mod errors {
@@ -1779,6 +1801,7 @@ pub(crate) mod errors {
     }
 
     impl<'a> Diagnostic<'a> for CheckerError {
+        #[track_caller]
         fn into_diag(
             self,
             dcx: rustc_errors::DiagCtxtHandle<'a>,

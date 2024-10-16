@@ -17,13 +17,13 @@ flux-syntax.workspace = true
 
 liquid-fixpoint.workspace = true
 
+bumpalo.workspace = true
 dashmap.workspace = true
+ena.workspace = true
 hashbrown.workspace = true
 itertools.workspace = true
+toposort-scc.workspace = true
 
-bumpalo = "3.14.0"
-ena = "0.14.2"
-toposort-scc = "0.5.4"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

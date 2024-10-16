@@ -12,7 +12,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     query::IntoQueryParam,
-    ty::{ParamConst, TyCtxt, Variance},
+    ty::{TyCtxt, Variance},
 };
 pub use rustc_span::{symbol::Ident, Symbol};
 
@@ -21,7 +21,7 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
-    MaybeExternId,
+    MaybeExternId, ResolvedDefId,
 };
 
 #[derive(Clone, Copy)]
@@ -210,23 +210,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         impl_id: DefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let impl_id = self.resolve_maybe_extern_id(impl_id);
-
-        let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
-
-        let trait_ref = self.lower_trait_ref(poly_trait_ref.skip_binder())?;
+        let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
+        let trait_ref = trait_ref.skip_binder();
+        let trait_ref = trait_ref
+            .lower(self.tcx())
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
         let impl_generics = self.generics_of(impl_id)?;
         let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
-    }
-
-    pub fn lower_trait_ref(
-        self,
-        trait_ref: rustc_middle::ty::TraitRef<'tcx>,
-    ) -> QueryResult<ty::TraitRef> {
-        trait_ref
-            .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
     pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
@@ -246,16 +237,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn predicates_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        self.inner.queries.predicates_of(self, def_id.into())
+        self.inner
+            .queries
+            .predicates_of(self, def_id.into_query_param())
     }
 
     pub fn assoc_refinements_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::AssocRefinements> {
-        self.inner.queries.assoc_refinements_of(self, def_id.into())
+        self.inner
+            .queries
+            .assoc_refinements_of(self, def_id.into_query_param())
     }
 
     pub fn default_assoc_refinement_def(
@@ -278,31 +273,39 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn sort_of_assoc_reft(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         self.inner
             .queries
-            .sort_of_assoc_reft(self, def_id.into(), name)
+            .sort_of_assoc_reft(self, def_id.into_query_param(), name)
     }
 
     pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
-    pub fn type_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
-        self.inner.queries.type_of(self, def_id.into())
+    pub fn type_of(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+        self.inner.queries.type_of(self, def_id.into_query_param())
     }
 
-    pub fn fn_sig(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.inner.queries.fn_sig(self, def_id.into())
+    pub fn fn_sig(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+        self.inner.queries.fn_sig(self, def_id.into_query_param())
     }
 
     pub fn variants_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        self.inner.queries.variants_of(self, def_id.into())
+        self.inner
+            .queries
+            .variants_of(self, def_id.into_query_param())
     }
 
     pub fn variant_sig(
@@ -330,13 +333,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let parent = self.tcx().parent(def_id);
         let generics = self.tcx().generics_of(parent);
         generics.param_def_id_to_index(self.tcx(), def_id).unwrap()
-    }
-
-    pub fn def_id_to_param_const(&self, def_id: LocalDefId) -> ParamConst {
-        ParamConst {
-            index: self.def_id_to_param_index(def_id.to_def_id()),
-            name: self.tcx().hir().ty_param_name(def_id),
-        }
     }
 
     pub fn refine_default(
@@ -378,12 +374,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter_map(move |local_def_id| self.maybe_extern_id(local_def_id).as_extern())
     }
 
-    /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
-    pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
-        let Some(local_id) = def_id.as_local() else { return def_id };
-        self.maybe_extern_id(local_id).resolved_id()
-    }
-
     pub fn maybe_extern_id(self, local_id: LocalDefId) -> MaybeExternId {
         self.collect_specs()
             .local_id_to_extern_id
@@ -394,12 +384,20 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             )
     }
 
-    /// If `extern_def_id` is an extern spec return the corresponding local id.
-    pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.collect_specs()
+    #[expect(clippy::disallowed_methods)]
+    pub fn resolve_id(self, def_id: DefId) -> ResolvedDefId {
+        let maybe_extern_spec = self
+            .collect_specs()
             .extern_id_to_local_id
-            .get(&extern_def_id)
-            .copied()
+            .get(&def_id)
+            .copied();
+        if let Some(local_id) = maybe_extern_spec {
+            ResolvedDefId::ExternSpec(local_id, def_id)
+        } else if let Some(local_id) = def_id.as_local() {
+            ResolvedDefId::Local(local_id)
+        } else {
+            ResolvedDefId::Extern(def_id)
+        }
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
@@ -481,14 +479,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         } else {
             Ok(Some(self.node(def_id)?.generics()))
         }
-    }
-
-    pub fn get_generic_param(
-        self,
-        def_id: LocalDefId,
-    ) -> QueryResult<&'genv fhir::GenericParam<'genv>> {
-        let owner = self.genv.hir().ty_param_owner(def_id);
-        Ok(self.get_generics(owner)?.unwrap().get_param(def_id))
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {

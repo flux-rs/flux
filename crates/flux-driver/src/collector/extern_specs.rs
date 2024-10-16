@@ -1,8 +1,15 @@
+use std::iter;
+
+use flux_middle::ExternSpecMappingErr;
 use flux_rustc_bridge::lowering;
+use rustc_errors::Diagnostic;
 use rustc_hir as hir;
-use rustc_hir::{def_id::DefId, BodyId, OwnerId};
-use rustc_middle::ty::TyCtxt;
-use rustc_span::ErrorGuaranteed;
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    BodyId, OwnerId,
+};
+use rustc_middle::ty::{self, TyCtxt};
+use rustc_span::{symbol::kw, ErrorGuaranteed, Span};
 
 use super::{FluxAttrs, SpecCollector};
 
@@ -19,12 +26,18 @@ struct ExternImplItem {
     item_id: DefId,
 }
 
-impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
-    pub(super) fn collect(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result {
+impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, 'tcx> {
+    pub(super) fn collect(
+        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
+        body_id: BodyId,
+    ) -> Result {
         Self::new(inner, body_id)?.run()
     }
 
-    fn new(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result<Self> {
+    fn new(
+        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
+        body_id: BodyId,
+    ) -> Result<Self> {
         let body = inner.tcx.hir().body(body_id);
         if let hir::ExprKind::Block(block, _) = body.value.kind {
             Ok(Self { inner, block })
@@ -62,9 +75,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_fn_spec(item.owner_id, attrs)?;
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item.owner_id.def_id, extern_id);
+        self.insert_extern_id(item.owner_id.def_id, extern_id)?;
+        self.check_generics(item.owner_id, extern_id)?;
 
         Ok(())
     }
@@ -79,9 +91,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.specs.insert_dummy(dummy_struct.owner_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
-        self.inner
-            .specs
-            .insert_extern_id(struct_id.def_id, extern_id);
+        self.insert_extern_id(struct_id.def_id, extern_id)?;
+        self.check_generics(struct_id, extern_id)?;
 
         self.inner.collect_struct_def(struct_id, attrs, variant)?;
 
@@ -98,7 +109,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.specs.insert_dummy(dummy_struct.owner_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
-        self.inner.specs.insert_extern_id(enum_id.def_id, extern_id);
+        self.insert_extern_id(enum_id.def_id, extern_id)?;
+        self.check_generics(enum_id, extern_id)?;
 
         self.inner.collect_enum_def(enum_id, attrs, enum_def)?;
 
@@ -141,9 +153,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
 
         if let Some(extern_impl_id) = extern_impl_id {
-            self.inner
-                .specs
-                .insert_extern_id(impl_id.def_id, extern_impl_id);
+            self.check_generics(impl_id, extern_impl_id)?;
+            self.insert_extern_id(impl_id.def_id, extern_impl_id)?;
         }
 
         Ok(())
@@ -158,12 +169,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let item_id = item.id.owner_id;
         self.inner.collect_fn_spec(item_id, attrs)?;
 
-        let extern_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item_id.def_id, extern_item.item_id);
+        let extern_impl_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
+        self.insert_extern_id(item_id.def_id, extern_impl_item.item_id)?;
+        self.check_generics(item_id, extern_impl_item.item_id)?;
 
-        Ok(extern_item)
+        Ok(extern_impl_item)
     }
 
     fn collect_extern_trait(
@@ -176,9 +186,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_trait(trait_id, attrs)?;
 
         let extern_trait_id = self.extract_extern_id_from_trait(bounds)?;
-        self.inner
-            .specs
-            .insert_extern_id(trait_id.def_id, extern_trait_id);
+        self.insert_extern_id(trait_id.def_id, extern_trait_id)?;
+        self.check_generics(trait_id, extern_trait_id)?;
 
         for item in items {
             let item_id = item.id.owner_id.def_id;
@@ -203,9 +212,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_fn_spec(item_id, attrs)?;
 
         let extern_fn_id = self.extract_extern_id_from_trait_fn(extern_trait_id, item)?;
-        self.inner
-            .specs
-            .insert_extern_id(item.id.owner_id.def_id, extern_fn_id);
+        self.insert_extern_id(item.id.owner_id.def_id, extern_fn_id)?;
+        self.check_generics(item_id, extern_fn_id)?;
 
         Ok(())
     }
@@ -283,8 +291,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             {
                 Ok(callee_id)
             } else {
-                // I can't figure out how to trigger this with generated with the extern spec
-                // macro that type checks but leaving it here as a precaution.
+                // I can't figure out how to trigger this via code generated with the extern spec
+                // macro that also type checks but leaving it here as a precaution.
                 Err(self.item_not_in_trait(item.id.owner_id, callee_id, trait_id))
             }
         } else {
@@ -342,11 +350,68 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
+    fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) -> Result {
+        self.inner
+            .specs
+            .insert_extern_spec_id_mapping(local_id, extern_id)
+            .map_err(|err| {
+                match err {
+                    ExternSpecMappingErr::IsLocal(extern_id_local) => {
+                        self.emit(errors::ExternSpecForLocalDef {
+                            span: ident_or_def_span(self.tcx(), local_id),
+                            local_def_span: ident_or_def_span(self.tcx(), extern_id_local),
+                            name: self.tcx().def_path_str(extern_id),
+                        })
+                    }
+                    ExternSpecMappingErr::Dup(previous_extern_spec) => {
+                        self.emit(errors::DupExternSpec {
+                            span: ident_or_def_span(self.tcx(), local_id),
+                            previous_span: ident_or_def_span(self.tcx(), previous_extern_spec),
+                            name: self.tcx().def_path_str(extern_id),
+                        })
+                    }
+                }
+            })
+    }
+
+    fn check_generics(&mut self, local_id: OwnerId, extern_id: DefId) -> Result {
+        let tcx = self.tcx();
+        let local_params = &tcx.generics_of(local_id).own_params;
+        let extern_params = &tcx.generics_of(extern_id).own_params;
+
+        let mismatch = 'mismatch: {
+            if local_params.len() != extern_params.len() {
+                break 'mismatch true;
+            }
+            for (local_param, extern_param) in iter::zip(local_params, extern_params) {
+                if !cmp_generic_param_def(local_param, extern_param) {
+                    break 'mismatch true;
+                }
+                // We skip the self parameter because its id is the same as the trait's id, which
+                // has already been inserted.
+                if local_param.name != kw::SelfUpper {
+                    #[expect(clippy::disallowed_methods)]
+                    self.insert_extern_id(local_param.def_id.expect_local(), extern_param.def_id)?;
+                }
+            }
+            false
+        };
+        if mismatch {
+            let local_hir_generics = tcx.hir().get_generics(local_id.def_id).unwrap();
+            let span = local_hir_generics.span;
+            Err(self.emit(errors::MismatchedGenerics {
+                span,
+                extern_def: tcx.def_span(extern_id),
+                def_descr: tcx.def_descr(extern_id),
+            }))
+        } else {
+            Ok(())
+        }
+    }
+
     #[track_caller]
     fn malformed(&self) -> ErrorGuaranteed {
-        self.inner
-            .errors
-            .emit(errors::MalformedExternSpec::new(self.block.span))
+        self.emit(errors::MalformedExternSpec::new(self.block.span))
     }
 
     #[track_caller]
@@ -357,11 +422,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         extern_impl_id: DefId,
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
-        self.inner.errors.emit(errors::ItemNotInTraitImpl {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+        self.emit(errors::ItemNotInTraitImpl {
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_impl_span: tcx.def_span(extern_impl_id),
         })
@@ -373,11 +435,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         extern_id: DefId,
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
-        self.inner.errors.emit(errors::InvalidItemInInherentImpl {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+        self.emit(errors::InvalidItemInInherentImpl {
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_item_span: tcx.def_span(extern_id),
         })
@@ -385,16 +444,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
     #[track_caller]
     fn invalid_impl_block(&self) -> ErrorGuaranteed {
-        self.inner
-            .errors
-            .emit(errors::InvalidImplBlock { span: self.block.span })
+        self.emit(errors::InvalidImplBlock { span: self.block.span })
     }
 
     #[track_caller]
     fn cannot_resolve_trait_impl(&self) -> ErrorGuaranteed {
-        self.inner
-            .errors
-            .emit(errors::CannotResolveTraitImpl { span: self.block.span })
+        self.emit(errors::CannotResolveTraitImpl { span: self.block.span })
     }
 
     #[track_caller]
@@ -405,19 +460,41 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         extern_trait_id: DefId,
     ) -> ErrorGuaranteed {
         let tcx = self.tcx();
-        self.inner.errors.emit(errors::ItemNotInTrait {
-            span: self
-                .tcx()
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id)),
+        self.emit(errors::ItemNotInTrait {
+            span: ident_or_def_span(tcx, local_id),
             name: tcx.def_path_str(extern_id),
             extern_trait_span: tcx.def_span(extern_trait_id),
         })
     }
 
+    fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
+        self.inner.errors.emit(err)
+    }
+
     fn tcx(&self) -> TyCtxt<'tcx> {
         self.inner.tcx
     }
+}
+
+fn cmp_generic_param_def(a: &ty::GenericParamDef, b: &ty::GenericParamDef) -> bool {
+    if a.name != b.name {
+        return false;
+    }
+    if a.index != b.index {
+        return false;
+    }
+    matches!(
+        (&a.kind, &b.kind),
+        (ty::GenericParamDefKind::Lifetime, ty::GenericParamDefKind::Lifetime)
+            | (ty::GenericParamDefKind::Type { .. }, ty::GenericParamDefKind::Type { .. })
+            | (ty::GenericParamDefKind::Const { .. }, ty::GenericParamDefKind::Const { .. })
+    )
+}
+
+fn ident_or_def_span(tcx: TyCtxt, def_id: impl Into<DefId>) -> Span {
+    let def_id = def_id.into();
+    tcx.def_ident_span(def_id)
+        .unwrap_or_else(|| tcx.def_span(def_id))
 }
 
 mod errors {
@@ -485,5 +562,38 @@ mod errors {
         pub name: String,
         #[note]
         pub extern_trait_span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_extern_spec_for_local_def, code = E0999)]
+    pub(super) struct ExternSpecForLocalDef {
+        #[primary_span]
+        pub span: Span,
+        #[note]
+        pub local_def_span: Span,
+        pub name: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_dup_extern_spec, code = E0999)]
+    pub(super) struct DupExternSpec {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        #[note]
+        pub previous_span: Span,
+        pub name: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_mismatched_generics, code = E0999)]
+    #[note]
+    pub(super) struct MismatchedGenerics {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        #[label(driver_extern_def_label)]
+        pub extern_def: Span,
+        pub def_descr: &'static str,
     }
 }

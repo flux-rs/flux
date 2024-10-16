@@ -6,7 +6,7 @@ use std::fmt;
 
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::bug;
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use itertools::Itertools;
 use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
@@ -43,6 +43,23 @@ pub struct Binder<T>(T, List<BoundVariableKind>);
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
+}
+
+impl BoundVariableKind {
+    // We can't implement [`ToRustc`] on [`List<BoundVariableKind>`] because of coherence so we add
+    // it here
+    fn to_rustc<'tcx>(
+        vars: &[Self],
+        tcx: TyCtxt<'tcx>,
+    ) -> &'tcx rustc_middle::ty::List<rustc_middle::ty::BoundVariableKind> {
+        tcx.mk_bound_variable_kinds_from_iter(vars.iter().flat_map(|kind| {
+            match kind {
+                BoundVariableKind::Region(brk) => {
+                    Some(rustc_middle::ty::BoundVariableKind::Region(*brk))
+                }
+            }
+        }))
+    }
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
@@ -263,8 +280,24 @@ impl Const {
         Self {
             kind: ConstKind::Value(
                 Ty::mk_uint(UintTy::Usize),
-                ScalarInt::try_from_target_usize(v as u128, tcx).unwrap(),
+                ValTree::Leaf(ScalarInt::try_from_target_usize(v as u128, tcx).unwrap()),
             ),
+        }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for ValTree {
+    type T = rustc_middle::ty::ValTree<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::Leaf(*scalar),
+            ValTree::Branch(trees) => {
+                let trees = tcx
+                    .arena
+                    .alloc_from_iter(trees.iter().map(|tree| tree.to_rustc(tcx)));
+                rustc_middle::ty::ValTree::Branch(trees)
+            }
         }
     }
 }
@@ -275,11 +308,8 @@ impl<'tcx> ToRustc<'tcx> for Const {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
-            ConstKind::Value(ty, scalar_int) => {
-                rustc_ty::ConstKind::Value(
-                    ty.to_rustc(tcx),
-                    rustc_middle::ty::ValTree::Leaf(*scalar_int),
-                )
+            ConstKind::Value(ty, val) => {
+                rustc_ty::ConstKind::Value(ty.to_rustc(tcx), val.to_rustc(tcx))
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
             ConstKind::Unevaluated(uneval_const) => {
@@ -297,9 +327,15 @@ pub struct UnevaluatedConst {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ValTree {
+    Leaf(ScalarInt),
+    Branch(List<ValTree>),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
-    Value(Ty, ScalarInt),
+    Value(Ty, ValTree),
     Infer(InferConst),
     Unevaluated(UnevaluatedConst),
 }
@@ -452,6 +488,10 @@ impl<T> Binder<T> {
         self.0
     }
 
+    pub fn skip_binder_ref(&self) -> &T {
+        self.as_ref().skip_binder()
+    }
+
     pub fn as_ref(&self) -> Binder<&T> {
         Binder(&self.0, self.1.clone())
     }
@@ -494,6 +534,14 @@ impl GenericArg {
         } else {
             bug!("expected `GenericArg::Const`, found {:?}", self)
         }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for GenericArgs {
+    type T = rustc_middle::ty::GenericArgsRef<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
 
@@ -636,7 +684,7 @@ impl AdtDefData {
         } else {
             IndexVec::from_raw(vec![0])
         };
-        assert_eq!(discrs.len(), variants.len());
+        tracked_span_assert_eq!(discrs.len(), variants.len());
         Self { did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
     }
 }
@@ -745,7 +793,7 @@ impl Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
             TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty.clone(),
-            _ => bug!("deref projection of non-dereferenceable ty `{self:?}`"),
+            _ => tracked_span_bug!("deref projection of non-dereferenceable ty `{self:?}`"),
         }
     }
 
@@ -776,53 +824,123 @@ impl Ty {
     }
 }
 
+impl<'tcx, V> ToRustc<'tcx> for Binder<V>
+where
+    V: ToRustc<'tcx, T: rustc_middle::ty::TypeVisitable<TyCtxt<'tcx>>>,
+{
+    type T = rustc_middle::ty::Binder<'tcx, V::T>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        let vars = BoundVariableKind::to_rustc(self.vars(), tcx);
+        let value = self.skip_binder_ref().to_rustc(tcx);
+        rustc_middle::ty::Binder::bind_with_vars(value, vars)
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for FnSig {
+    type T = rustc_middle::ty::FnSig<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        tcx.mk_fn_sig(
+            self.inputs().iter().map(|ty| ty.to_rustc(tcx)),
+            self.output().to_rustc(tcx),
+            false,
+            self.safety,
+            self.abi,
+        )
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for AliasTy {
+    type T = rustc_middle::ty::AliasTy<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
+    type T = rustc_middle::ty::ExistentialPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ExistentialPredicate::Trait(trait_ref) => {
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
+                };
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
+            }
+            ExistentialPredicate::Projection(projection) => {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) => {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(*def_id)
+            }
+        }
+    }
+}
+
 impl<'tcx> ToRustc<'tcx> for Ty {
     type T = rustc_middle::ty::Ty<'tcx>;
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        let kind = match self.kind() {
-            TyKind::Bool => rustc_ty::TyKind::Bool,
-            TyKind::Str => rustc_ty::TyKind::Str,
-            TyKind::Char => rustc_ty::TyKind::Char,
-            TyKind::Never => rustc_ty::TyKind::Never,
-            TyKind::Float(float_ty) => rustc_ty::TyKind::Float(*float_ty),
-            TyKind::Int(int_ty) => rustc_ty::TyKind::Int(*int_ty),
-            TyKind::Uint(uint_ty) => rustc_ty::TyKind::Uint(*uint_ty),
+        match self.kind() {
+            TyKind::Bool => tcx.types.bool,
+            TyKind::Str => tcx.types.str_,
+            TyKind::Char => tcx.types.char,
+            TyKind::Never => tcx.types.never,
+            TyKind::Float(float_ty) => rustc_ty::Ty::new_float(tcx, *float_ty),
+            TyKind::Int(int_ty) => rustc_ty::Ty::new_int(tcx, *int_ty),
+            TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
             TyKind::Adt(adt_def, args) => {
                 let adt_def = adt_def.to_rustc(tcx);
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::Adt(adt_def, args)
+                rustc_ty::Ty::new_adt(tcx, adt_def, args)
             }
             TyKind::FnDef(def_id, args) => {
                 let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
-                rustc_ty::TyKind::FnDef(*def_id, args)
+                rustc_ty::Ty::new_fn_def(tcx, *def_id, args)
             }
             TyKind::Array(ty, len) => {
                 let ty = ty.to_rustc(tcx);
                 let len = len.to_rustc(tcx);
-                rustc_ty::TyKind::Array(ty, len)
+                rustc_ty::Ty::new_array_with_const_len(tcx, ty, len)
             }
-            TyKind::Param(pty) => {
-                let pty = rustc_ty::ParamTy::new(pty.index, pty.name);
-                rustc_ty::TyKind::Param(pty)
-            }
+            TyKind::Param(pty) => rustc_ty::Ty::new_param(tcx, pty.index, pty.name),
             TyKind::Ref(re, ty, mutbl) => {
-                rustc_ty::TyKind::Ref(re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+                rustc_ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
             }
             TyKind::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                rustc_ty::TyKind::Tuple(tcx.mk_type_list(&ts))
+                rustc_ty::Ty::new_tup(tcx, tcx.mk_type_list(&ts))
             }
-            TyKind::Slice(ty) => rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
-            TyKind::RawPtr(ty, mutbl) => rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), *mutbl),
-            TyKind::FnPtr(_)
-            | TyKind::Closure(_, _)
-            | TyKind::Coroutine(_, _)
-            | TyKind::CoroutineWitness(_, _)
-            | TyKind::Alias(_, _)
-            | TyKind::Dynamic(_, _) => bug!("TODO: to_rustc"),
-        };
-        rustc_ty::Ty::new(tcx, kind)
+            TyKind::Slice(ty) => rustc_ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
+            TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            TyKind::FnPtr(poly_sig) => rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
+            TyKind::Alias(kind, alias_ty) => {
+                rustc_ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
+            TyKind::Dynamic(exi_preds, re) => {
+                let preds = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+
+                let preds = tcx.mk_poly_existential_predicates(&preds);
+                rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_ty::DynKind::Dyn)
+            }
+            TyKind::Coroutine(_, _) | TyKind::CoroutineWitness(_, _) => {
+                bug!("TODO: to_rustc for `{self:?}`")
+            }
+        }
     }
 }
 
@@ -833,6 +951,7 @@ impl_slice_internable!(
     GenericParamDef,
     BoundVariableKind,
     Clause,
+    ValTree,
     Binder<ExistentialPredicate>,
 );
 
@@ -985,13 +1104,22 @@ impl fmt::Debug for Ty {
     }
 }
 
+impl fmt::Debug for ValTree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            ValTree::Leaf(scalar_int) => write!(f, "Leaf({scalar_int})"),
+            ValTree::Branch(vec) => write!(f, "Branch([{:?}])", vec.iter().format(", ")),
+        }
+    }
+}
+
 impl fmt::Debug for Const {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             ConstKind::Param(p) => write!(f, "{}", p.name.as_str()),
-            ConstKind::Value(_, v) => write!(f, "{v}"),
+            ConstKind::Value(_, v) => write!(f, "{v:?}"),
             ConstKind::Infer(infer_const) => write!(f, "{infer_const:?}"),
-            ConstKind::Unevaluated(_uneval_const) => write!(f, "TODO:UNEVALCONST"),
+            ConstKind::Unevaluated(uneval_const) => write!(f, "{uneval_const:?}"),
         }
     }
 }

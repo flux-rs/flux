@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
+pub const FLUX_FULL_COMPILATION: &str = "FLUX_FULL_COMPILATION";
 
 pub fn find_flux_path() -> PathBuf {
     let executable_name = if cfg!(windows) { "rustc-flux.exe" } else { "rustc-flux" };
@@ -9,7 +10,7 @@ pub fn find_flux_path() -> PathBuf {
 }
 
 /// Rustc flags to pass Flux when running tests
-pub fn rustc_flags() -> Vec<String> {
+pub fn default_rustc_flags() -> Vec<String> {
     vec!["--crate-type=rlib".to_string(), "--edition=2021".to_string()]
 }
 

@@ -226,16 +226,3 @@ impl CannotInferSort {
         Self { span }
     }
 }
-
-#[derive(Diagnostic)]
-#[diag(fhir_analysis_refined_unrefinable_type, code = E0999)]
-pub(super) struct RefinedUnrefinableType {
-    #[primary_span]
-    span: Span,
-}
-
-impl RefinedUnrefinableType {
-    pub(super) fn new(span: Span) -> Self {
-        Self { span }
-    }
-}

@@ -3,7 +3,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt},
-    refine_tree::RefineCtxt,
+    refine_tree::{AssumeInvariants, RefineCtxt},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -94,7 +94,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.0.unpacker().shallow(true).unpack(ty)
+        self.0.hoister(AssumeInvariants::No).shallow().hoist(ty)
     }
 
     fn downcast_struct(
@@ -169,7 +169,7 @@ impl PlacesTree {
                 PlaceElem::Field(f) => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), _)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                         | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
                         | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
@@ -224,7 +224,7 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                 | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     ty = &fields[f.as_usize()];
                 }
@@ -258,7 +258,7 @@ impl PlacesTree {
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
-        self.map.remove(loc).unwrap()
+        self.map.remove(loc).unwrap_or_else(|| tracked_span_bug!())
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&Loc, &Binding)> {
@@ -276,7 +276,7 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                 | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     for (idx, ty) in fields.iter().enumerate() {
                         proj.push(idx.into());
@@ -342,9 +342,8 @@ impl LookupResult<'_> {
             let mut unblocked = ty.unblocked();
             if self.is_strg {
                 unblocked = rcx
-                    .unpacker()
-                    .assume_invariants(check_overflow)
-                    .unpack(&unblocked);
+                    .hoister(AssumeInvariants::yes(check_overflow))
+                    .hoist(&unblocked);
             }
             unblocked
         });
@@ -475,7 +474,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unfold_strg_ref(&mut self, path: &Path, ty: &Ty) {
-        let loc = path.to_loc().unwrap();
+        let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
         let kind = match loc {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
@@ -505,10 +504,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(BaseTy::Tuple(fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
                 let mut upvar_tys = upvar_tys.to_vec();
                 upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
-                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys.into()), idx.clone())
+                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys.into(), args.clone()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
                 let mut upvar_tys = upvar_tys.to_vec();
@@ -570,18 +569,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
         self.infcx
-            .unpacker()
-            .assume_invariants(self.checker_conf.check_overflow)
-            .shallow(true)
-            .unpack(ty)
+            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .shallow()
+            .hoist(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.infcx.unpacker().shallow(true);
-        if self.in_ref == Some(Mutability::Mut) {
-            unpacker = unpacker.unpack_exists(false);
-        }
-        let ty = unpacker.unpack(ty);
+        let ty = self
+            .infcx
+            .hoister(AssumeInvariants::No)
+            .hoist_existentials(self.in_ref != Some(Mutability::Mut))
+            .hoist(ty);
         self.infcx
             .assume_invariants(&ty, self.checker_conf.check_overflow);
         ty
@@ -661,9 +659,9 @@ where
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
-                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys), idx.clone())
+                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys, args.clone()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
@@ -870,7 +868,7 @@ fn fold(
 ) -> CheckerResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
-            let loc = path.to_loc().unwrap();
+            let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
             let binding = bindings.remove(&loc);
             let LocKind::Box(alloc) = binding.kind else {
                 tracked_span_bug!("box pointer to non-box loc");
