@@ -11,7 +11,7 @@
 pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
