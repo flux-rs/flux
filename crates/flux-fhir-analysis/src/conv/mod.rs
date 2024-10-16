@@ -11,7 +11,7 @@
 mod struct_compat;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -1272,7 +1272,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
                 let args = self.conv_generic_args(env, *did, path.last_segment())?;
                 rty::BaseTy::adt(adt_def, args)
@@ -1297,8 +1297,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .type_of(*def_id)?
                     .instantiate(tcx, &generics, &refine));
             }
+            // fhir::Res::Def(DefKind::Union, def_id) => {
+            //     panic!("TODO: union types: {def_id:?}")
+            // }
             fhir::Res::Def(..) | fhir::Res::Err => {
-                span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
+                tracked_span_bug!("unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
         let sort = bty.sort();
