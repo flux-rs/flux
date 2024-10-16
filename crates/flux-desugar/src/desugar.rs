@@ -1161,12 +1161,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         match &bty.kind {
             surface::BaseTyKind::Path(qself, path) => {
                 let qpath = self.desugar_qpath(qself.as_deref(), path)?;
-                Ok(fhir::BaseTy::from(qpath))
+                Ok(fhir::BaseTy::from_qpath(qpath, self.next_fhir_id()))
             }
             surface::BaseTyKind::Slice(ty) => {
                 let ty = self.desugar_ty(ty)?;
                 let kind = fhir::BaseTyKind::Slice(self.genv().alloc(ty));
-                Ok(fhir::BaseTy { kind, span: bty.span })
+                Ok(fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: bty.span })
             }
         }
     }
@@ -1177,7 +1177,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         path: &surface::Path,
     ) -> Result<fhir::BaseTy<'genv>> {
         let qpath = self.desugar_qpath(qself, path)?;
-        Ok(fhir::BaseTy::from(qpath))
+        Ok(fhir::BaseTy::from_qpath(qpath, self.next_fhir_id()))
     }
 
     fn desugar_qpath(
@@ -1259,7 +1259,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {
-        fhir::Ty { span: qpath.span(), kind: fhir::TyKind::BaseTy(fhir::BaseTy::from(qpath)) }
+        fhir::Ty {
+            span: qpath.span(),
+            kind: fhir::TyKind::BaseTy(fhir::BaseTy::from_qpath(qpath, self.next_fhir_id())),
+        }
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {

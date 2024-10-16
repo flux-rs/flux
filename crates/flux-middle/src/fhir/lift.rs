@@ -284,7 +284,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             hir::TyKind::Slice(ty) => {
                 let ty = self.lift_ty(ty)?;
                 let kind = fhir::BaseTyKind::Slice(self.genv.alloc(ty));
-                let bty = fhir::BaseTy { kind, span: ty.span };
+                let bty = fhir::BaseTy { kind, fhir_id: self.next_fhir_id(), span: ty.span };
                 return Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: ty.span });
             }
             hir::TyKind::Array(ty, len) => {
@@ -305,7 +305,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
             hir::TyKind::Path(qpath) => {
                 let qpath = self.lift_qpath(qpath)?;
-                let bty = fhir::BaseTy::from(qpath);
+                let bty = fhir::BaseTy::from_qpath(qpath, self.next_fhir_id());
                 return Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: bty.span });
             }
             hir::TyKind::Ptr(mut_ty) => {

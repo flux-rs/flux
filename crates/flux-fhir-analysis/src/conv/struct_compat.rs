@@ -3,7 +3,7 @@
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
 //! infer types annotated with `_` in the surface syntax.
 
-use std::iter;
+use std::{fmt, iter};
 
 use flux_common::bug;
 use flux_errors::Errors;
@@ -26,15 +26,18 @@ use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 pub(crate) fn type_alias(
     genv: GlobalEnv,
     alias: &fhir::TyAlias,
-    ty: &rty::Ty,
+    alias_ty: &rty::TyCtor,
     def_id: MaybeExternId,
-) -> QueryResult<rty::Ty> {
+) -> QueryResult<rty::TyCtor> {
     let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_ty(&rust_ty)?;
     let mut zipper = Zipper::new(genv, def_id);
 
-    if zipper.zip_ty(ty, &expected).is_err() {
+    if zipper
+        .enter_a_binder(alias_ty, |zipper, ty| zipper.zip_ty(ty, &expected))
+        .is_err()
+    {
         zipper
             .errors
             .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
@@ -42,7 +45,7 @@ pub(crate) fn type_alias(
 
     zipper.errors.into_result()?;
 
-    Ok(zipper.holes.replace_holes(ty))
+    Ok(zipper.holes.replace_holes(alias_ty))
 }
 
 pub(crate) fn fn_sig(
@@ -200,8 +203,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_output(&mut self, a: &rty::FnOutput, b: &rty::FnOutput) -> Result<(), FnSigErr> {
-        self.zip_ty(&a.ret, &b.ret)
-            .map_err(|_| FnSigErr::FnOutput)?;
+        self.zip_ty(&a.ret, &b.ret).map_err(FnSigErr::FnOutput)?;
 
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
@@ -261,7 +263,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             ) => {
                 bug!("unexpected type {a:?}");
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -299,7 +301,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
             (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) => {
                 self.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
-                    .map_err(|_| Mismatch)
+                    .map_err(|_| Mismatch::new(poly_sig_a, poly_sig_b))
             }
             (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) => {
                 assert_eq_or_incompatible(tys_a.len(), tys_b.len())?;
@@ -327,7 +329,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -350,7 +352,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) => {
                 self.zip_const(ct_a, ct_b)
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -370,7 +372,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
                 assert_eq_or_incompatible(c1, c2)
             }
-            _ => Err(Mismatch),
+            _ => Err(Mismatch::new(a, b)),
         }
     }
 
@@ -414,7 +416,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
                     rty::ExistentialPredicate::AutoTrait(def_id_b),
                 ) => assert_eq_or_incompatible(def_id_a, def_id_b),
-                _ => Err(Mismatch),
+                _ => Err(Mismatch::new(a, b)),
             }
         })
     }
@@ -475,7 +477,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     i,
                 ));
             }
-            FnSigErr::FnOutput => {
+            FnSigErr::FnOutput(_) => {
                 self.errors.emit(errors::IncompatibleRefinement::fn_output(
                     self.genv,
                     self.owner_id,
@@ -495,20 +497,31 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 }
 
-fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Mismatch> {
+fn assert_eq_or_incompatible<T: Eq + fmt::Debug>(a: T, b: T) -> Result<(), Mismatch> {
     if a != b {
-        return Err(Mismatch);
+        return Err(Mismatch::new(a, b));
     }
     Ok(())
 }
 
-struct Mismatch;
+#[expect(dead_code, reason = "we use the the String for debugging")]
+struct Mismatch(String);
+
+impl Mismatch {
+    fn new<T: fmt::Debug>(a: T, b: T) -> Self {
+        Self(format!("{a:?} != {b:?}"))
+    }
+}
 
 enum FnSigErr {
     ArgCountMismatch,
     FnInput(usize),
-    FnOutput,
-    Ensures { i: usize, expected: rty::Ty },
+    #[expect(dead_code, reason = "we use the struct for debugging")]
+    FnOutput(Mismatch),
+    Ensures {
+        i: usize,
+        expected: rty::Ty,
+    },
 }
 
 mod errors {
@@ -524,19 +537,20 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    pub(super) struct IncompatibleRefinement {
+    #[note]
+    pub(super) struct IncompatibleRefinement<'tcx> {
         #[primary_span]
         #[label]
         span: Span,
         #[label(fhir_analysis_expected_label)]
         expected_span: Option<Span>,
-        expected_ty: String,
+        expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
     }
 
-    impl IncompatibleRefinement {
+    impl<'tcx> IncompatibleRefinement<'tcx> {
         pub(super) fn type_alias(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             def_id: MaybeExternId,
             type_alias: &fhir::TyAlias,
         ) -> Self {
@@ -545,57 +559,75 @@ mod errors {
                 span: type_alias.ty.span,
                 def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: Some(tcx.def_span(def_id)),
-                expected_ty: format!("{}", tcx.type_of(def_id).skip_binder()),
+                expected_ty: tcx.type_of(def_id).skip_binder(),
             }
         }
 
         pub(super) fn fn_input(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             pos: usize,
         ) -> Self {
-            let expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
+            let expected_span = match fn_id {
+                MaybeExternId::Local(local_id) => {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .and_then(|fn_decl| fn_decl.inputs.get(pos))
+                        .map(|input| input.span)
+                }
+                MaybeExternId::Extern(_, extern_id) => Some(genv.tcx().def_span(extern_id)),
+            };
 
-            let expected_ty = expected_decl.inputs[pos];
+            let expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .inputs()
+                .map_bound(|inputs| inputs[pos])
+                .skip_binder();
+
             Self {
                 span: decl.inputs[pos].span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: Some(expected_ty.span),
-                expected_ty: rustc_hir_pretty::ty_to_string(&genv.tcx(), &expected_ty),
+                expected_span,
+                expected_ty,
             }
         }
 
         pub(super) fn fn_output(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
         ) -> Self {
-            let expected_decl = genv
-                .tcx()
-                .hir_node_by_def_id(fn_id.local_id())
-                .fn_decl()
-                .unwrap();
-
-            let expected_ty = match expected_decl.output {
-                rustc_hir::FnRetTy::DefaultReturn(_) => "()".to_string(),
-                rustc_hir::FnRetTy::Return(ty) => rustc_hir_pretty::ty_to_string(&genv.tcx(), ty),
+            let expected_span = match fn_id {
+                MaybeExternId::Local(local_id) => {
+                    genv.tcx()
+                        .hir_node_by_def_id(local_id)
+                        .fn_decl()
+                        .map(|fn_decl| fn_decl.output.span())
+                }
+                MaybeExternId::Extern(_, extern_id) => Some(genv.tcx().def_span(extern_id)),
             };
+
+            let expected_ty = genv
+                .tcx()
+                .fn_sig(fn_id.resolved_id())
+                .skip_binder()
+                .output()
+                .skip_binder();
             let spec_span = decl.output.ret.span;
             Self {
                 span: spec_span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span: Some(expected_decl.output.span()),
+                expected_span,
                 expected_ty,
             }
         }
 
         pub(super) fn ensures(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
             expected: &rty::Ty,
@@ -609,12 +641,12 @@ mod errors {
                 span: ty.span,
                 def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: None,
-                expected_ty: format!("{}", expected.to_rustc(tcx)),
+                expected_ty: expected.to_rustc(tcx),
             }
         }
 
         pub(super) fn field(
-            genv: GlobalEnv,
+            genv: GlobalEnv<'_, 'tcx>,
             adt_id: MaybeExternId,
             variant_idx: VariantIdx,
             field_idx: FieldIdx,
@@ -642,7 +674,7 @@ mod errors {
                 span,
                 def_descr: tcx.def_descr(field_def.did),
                 expected_span: Some(tcx.def_span(field_def.did)),
-                expected_ty: format!("{}", tcx.type_of(field_def.did).skip_binder()),
+                expected_ty: tcx.type_of(field_def.did).skip_binder(),
             }
         }
     }

@@ -18,7 +18,7 @@ This is a WIP guide to writing specifications in `flux`.
   - `i32{v: v > 0}`: set of positive `i32` values.
   - `List<T>{v: v > 0}`: set of non-empty lists.
 
-- **Constraint Type**: A constraint type has the form `{T | r}` where `T` is any type (not just a base type). Intuitively, a value has type `{T | r}` if it has type `T` and also `r` holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter `n` to be less than `n`.
+- **Constraint Type**: A constraint type has the form `{T | r}` where `T` is any type (not just a base type). Intuitively, a value has type `{T | r}` if it has type `T` and also `r` holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter `n` to be less than `10`.
 
   `fn({i32[@n] | n < 10}) -> i32[n + 1]`
 
