@@ -1367,6 +1367,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => {
                 self.genv
                     .refine_default(&self.generics, to)

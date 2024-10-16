@@ -485,6 +485,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Some(crate::mir::PointerCast::MutToConstPointer)
             }
             rustc_adjustment::PointerCoercion::Unsize => Some(crate::mir::PointerCast::Unsize),
+            rustc_adjustment::PointerCoercion::ClosureFnPointer(_) => {
+                Some(crate::mir::PointerCast::ClosureFnPointer)
+            }
             _ => None,
         }
     }
