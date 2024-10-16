@@ -33,6 +33,7 @@ use super::{
 };
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
+    mir::CallKind,
     ty::{AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region},
 };
 
@@ -272,7 +273,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, generic_args) = {
+                let kind = {
                     let func_ty = func.ty(self.rustc_mir, self.tcx);
                     match func_ty.kind() {
                         rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
@@ -280,7 +281,15 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                                 .lower(self.tcx)
                                 .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
                                 .emit(self.sess)?;
-                            (*fn_def, CallArgs { orig: args, lowered })
+                            let def_id = *fn_def;
+                            let generic_args = CallArgs { orig: args, lowered };
+                            let (resolved_id, resolved_args) = self
+                                .resolve_call(def_id, generic_args.orig)
+                                .map_err(|reason| {
+                                    errors::UnsupportedMir::new(span, "terminator call", reason)
+                                })
+                                .emit(self.sess)?;
+                            CallKind::FnDef { def_id, generic_args, resolved_id, resolved_args }
                         }
                         _ => {
                             Err(errors::UnsupportedMir::terminator(
@@ -300,14 +309,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     })
                     .emit(self.sess)?;
 
-                let resolved_call = self
-                    .resolve_call(func, generic_args.orig)
-                    .map_err(|reason| errors::UnsupportedMir::new(span, "terminator call", reason))
-                    .emit(self.sess)?;
-
                 TerminatorKind::Call {
-                    func,
-                    generic_args,
+                    kind,
                     destination,
                     target: *target,
                     args: args
@@ -320,7 +323,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                         .try_collect()
                         .emit(self.sess)?,
                     unwind: *unwind,
-                    resolved_call,
                 }
             }
             rustc_mir::TerminatorKind::SwitchInt { discr, targets, .. } => {

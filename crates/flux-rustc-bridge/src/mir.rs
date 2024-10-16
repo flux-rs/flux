@@ -103,17 +103,25 @@ pub struct Instance {
     pub args: GenericArgs,
 }
 
+pub enum CallKind<'tcx> {
+    FnDef {
+        def_id: DefId,
+        generic_args: CallArgs<'tcx>,
+        resolved_id: DefId,
+        resolved_args: CallArgs<'tcx>,
+    },
+    FnPtr,
+}
+
 #[derive(Debug)]
 pub enum TerminatorKind<'tcx> {
     Return,
     Call {
-        func: DefId,
-        generic_args: CallArgs<'tcx>,
+        kind: CallKind<'tcx>,
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
         unwind: UnwindAction,
-        resolved_call: (DefId, CallArgs<'tcx>),
     },
     SwitchInt {
         discr: Operand,
@@ -478,26 +486,34 @@ impl fmt::Debug for Statement {
     }
 }
 
+impl<'tcx> fmt::Debug for CallKind<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*resolved_id);
+                    path.data.iter().join("::")
+                });
+                write!(f, "call {fname}")?;
+                if !resolved_args.lowered.is_empty() {
+                    write!(f, "<{:?}>", resolved_args.lowered.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            CallKind::FnPtr => write!(f, "FnPtr"),
+        }
+    }
+}
+
 impl<'tcx> fmt::Debug for Terminator<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { args, destination, target, unwind, resolved_call, .. } => {
-                let (func, generic_args) = resolved_call;
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*func);
-                    path.data.iter().join("::")
-                });
-                write!(f, "{destination:?} = call {fname}")?;
-
-                if !generic_args.lowered.is_empty() {
-                    write!(f, "::<{:?}>", generic_args.lowered.iter().format(", "))?;
-                }
-
+            TerminatorKind::Call { kind, args, destination, target, unwind, .. } => {
                 write!(
                     f,
-                    "({args:?}) -> [return: {target}, unwind: {unwind:?}]",
+                    "{destination:?} = call {kind:?}({args:?}) -> [return: {target}, unwind: {unwind:?}]",
                     args = args.iter().format(", "),
                     target = opt_bb_to_str(*target),
                 )

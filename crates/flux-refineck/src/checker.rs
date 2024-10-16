@@ -421,32 +421,35 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     Ok(Self::check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+            TerminatorKind::Call { kind, args, destination, target, .. } => {
                 let actuals = self.check_operands(infcx, env, terminator_span, args)?;
+                let ret = match kind {
+                    mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                        let fn_sig = self
+                            .genv
+                            .fn_sig(*resolved_id)
+                            .with_src_info(terminator.source_info)?;
 
-                let (func_id, call_args) = resolved_call;
-                let fn_sig = self
-                    .genv
-                    .fn_sig(*func_id)
-                    .with_src_info(terminator.source_info)?;
+                        let generic_args = instantiate_args_for_fun_call(
+                            self.genv,
+                            &self.generics,
+                            *resolved_id,
+                            &resolved_args.lowered,
+                        )
+                        .with_src_info(terminator.source_info)?;
 
-                let generic_args = instantiate_args_for_fun_call(
-                    self.genv,
-                    &self.generics,
-                    *func_id,
-                    &call_args.lowered,
-                )
-                .with_src_info(terminator.source_info)?;
-
-                let ret = self.check_call(
-                    infcx,
-                    env,
-                    terminator_span,
-                    *func_id,
-                    fn_sig,
-                    &generic_args,
-                    &actuals,
-                )?;
+                        self.check_call(
+                            infcx,
+                            env,
+                            terminator_span,
+                            *resolved_id,
+                            fn_sig,
+                            &generic_args,
+                            &actuals,
+                        )?
+                    }
+                    mir::CallKind::FnPtr => todo!(),
+                };
 
                 let ret = infcx.unpack(&ret);
                 infcx.assume_invariants(&ret, self.check_overflow());
