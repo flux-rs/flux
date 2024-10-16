@@ -1369,10 +1369,10 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 }
             }
             fhir::Res::Def(DefKind::Union, def_id) => {
-                tracked_span_bug!("TODO: union types: {def_id:?}")
+                span_bug!(path.span, "TODO: union types: {def_id:?}")
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
-                tracked_span_bug!("unexpected resolution in conv_ty_ctor: {:?}", path.res)
+                span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
         let sort = bty.sort();
