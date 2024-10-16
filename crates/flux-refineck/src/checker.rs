@@ -441,7 +441,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             infcx,
                             env,
                             terminator_span,
-                            *resolved_id,
+                            Some(*resolved_id),
                             fn_sig,
                             &generic_args,
                             &actuals,
@@ -519,13 +519,116 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, infcx.snapshot(), &obligations, span)
     }
 
+    // #[expect(clippy::too_many_arguments)]
+    // fn check_call(
+    //     &mut self,
+    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    //     env: &mut TypeEnv,
+    //     span: Span,
+    //     callee_def_id: DefId,
+    //     fn_sig: EarlyBinder<PolyFnSig>,
+    //     generic_args: &[GenericArg],
+    //     actuals: &[Ty],
+    // ) -> Result<Ty> {
+    //     let genv = self.genv;
+    //     let tcx = genv.tcx();
+
+    //     let actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
+
+    //     infcx.push_scope();
+    //     let snapshot = infcx.snapshot();
+
+    //     // Replace holes in generic arguments with fresh inference variables
+    //     let generic_args = infcx.instantiate_generic_args(generic_args);
+
+    //     // Generate fresh inference variables for refinement arguments
+    //     let refine_args = infcx
+    //         .instantiate_refine_args(callee_def_id)
+    //         .with_span(span)?;
+
+    //     // Instantiate function signature and normalize it
+    //     let fn_sig = fn_sig
+    //         .instantiate(tcx, &generic_args, &refine_args)
+    //         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+    //         .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+    //         .with_span(span)?;
+
+    //     let mut at = infcx.at(span);
+
+    //     // Check requires predicates
+    //     for requires in fn_sig.requires() {
+    //         at.check_pred(requires, ConstrReason::Call);
+    //     }
+
+    //     // Check arguments
+    //     for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
+    //         let (formal, pred) = formal.unconstr();
+    //         at.check_pred(&pred, ConstrReason::Call);
+    //         // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
+    //         match (actual.kind(), formal.kind()) {
+    //             (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+    //                 let ty1 = env.get(path1);
+    //                 at.unify_exprs(&path1.to_expr(), &path2.to_expr());
+    //                 at.subtyping(&ty1, ty2, ConstrReason::Call)
+    //                     .with_span(span)?;
+    //             }
+    //             (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+    //                 env.ptr_to_ref(
+    //                     &mut at,
+    //                     ConstrReason::Call,
+    //                     *re,
+    //                     path,
+    //                     PtrToRefBound::Ty(bound.clone()),
+    //                 )
+    //                 .with_span(span)?;
+    //             }
+    //             _ => {
+    //                 at.subtyping(&actual, &formal, ConstrReason::Call)
+    //                     .with_span(span)?;
+    //             }
+    //         }
+    //     }
+
+    //     let clauses = genv
+    //         .predicates_of(callee_def_id)
+    //         .with_span(span)?
+    //         .predicates()
+    //         .instantiate(tcx, &generic_args, &refine_args);
+
+    //     at.check_non_closure_clauses(&clauses, ConstrReason::Call)
+    //         .with_span(span)?;
+
+    //     // Replace evars
+    //     let evars_sol = infcx.pop_scope().with_span(span)?;
+    //     env.replace_evars(&evars_sol);
+    //     infcx.replace_evars(&evars_sol);
+
+    //     let output = fn_sig
+    //         .output()
+    //         .replace_evars(&evars_sol)
+    //         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+
+    //     for ensures in &output.ensures {
+    //         match ensures {
+    //             Ensures::Type(path, updated_ty) => {
+    //                 let updated_ty = infcx.unpack(updated_ty);
+    //                 infcx.assume_invariants(&updated_ty, self.check_overflow());
+    //                 env.update_path(path, updated_ty);
+    //             }
+    //             Ensures::Pred(e) => infcx.assume_pred(e),
+    //         }
+    //     }
+    //     self.check_closure_clauses(infcx, snapshot, &clauses, span)?;
+
+    //     Ok(output.ret)
+    // }
     #[expect(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
-        callee_def_id: DefId,
+        callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -542,9 +645,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
-        let refine_args = infcx
-            .instantiate_refine_args(callee_def_id)
-            .with_span(span)?;
+        let refine_args = match callee_def_id {
+            Some(callee_def_id) => {
+                infcx
+                    .instantiate_refine_args(callee_def_id)
+                    .with_span(span)?
+            }
+            None => {
+                vec![]
+            }
+        };
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -589,11 +699,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let clauses = genv
-            .predicates_of(callee_def_id)
-            .with_span(span)?
-            .predicates()
-            .instantiate(tcx, &generic_args, &refine_args);
+        let clauses = match callee_def_id {
+            Some(callee_def_id) => {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)?
+                    .predicates()
+                    .instantiate(tcx, &generic_args, &refine_args)
+            }
+            None => crate::rty::List::empty(),
+        };
 
         at.check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
@@ -1019,7 +1133,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .to_poly_fn_sig();
                 let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, *def_id, sig, &args, &actuals)
+                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(infcx, env, stmt_span, operands)?;
