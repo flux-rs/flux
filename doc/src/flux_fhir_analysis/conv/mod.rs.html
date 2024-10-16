@@ -2193,6 +2193,9 @@
 <a href="#2193" id="2193">2193</a>
 <a href="#2194" id="2194">2194</a>
 <a href="#2195" id="2195">2195</a>
+<a href="#2196" id="2196">2196</a>
+<a href="#2197" id="2197">2197</a>
+<a href="#2198" id="2198">2198</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2206,7 +2209,7 @@
 </span><span class="kw">pub mod </span>struct_compat;
 <span class="kw">use </span>std::{borrow::Borrow, iter};
 
-<span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
+<span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -3563,8 +3566,11 @@
                     })
                 }
             }
+            fhir::Res::Def(DefKind::Union, def_id) =&gt; {
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"TODO: union types: {def_id:?}"</span>)
+            }
             fhir::Res::Def(..) | fhir::Res::Err =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)
             }
         };
         <span class="kw">let </span>sort = bty.sort();

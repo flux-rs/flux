@@ -503,7 +503,7 @@
 //! types in [`rty`].
 
 </span><span class="kw">use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq};
 <span class="kw">use </span>flux_rustc_bridge::{ty, ty::GenericArgsExt <span class="kw">as _</span>};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
@@ -658,7 +658,7 @@
                 candidates.push(trait_pred);
             }
         }
-        <span class="macro">assert!</span>(candidates.len() == <span class="number">1</span>);
+        <span class="macro">tracked_span_assert_eq!</span>(candidates.len(), <span class="number">1</span>);
         <span class="kw">let </span>pred = candidates.first().unwrap();
 
         <span class="kw">let </span>pred = rty::FnTraitPredicate {

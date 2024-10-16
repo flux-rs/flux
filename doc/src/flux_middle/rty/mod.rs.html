@@ -2351,7 +2351,7 @@
 };
 <span class="kw">pub use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-<span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">pub use </span>flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
@@ -4075,8 +4075,8 @@
         }
         <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.own_params {
             <span class="kw">let </span>kind = mk_kind(param, args);
-            <span class="macro">assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len(), <span class="string">"{args:#?}, {generics:#?}"</span>);
-            args.push(kind);
+            <span class="macro">tracked_span_assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len()); <span class="comment">// "{args:#?}, {generics:#?}");
+            </span>args.push(kind);
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -4641,14 +4641,14 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContextMut&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, value: T) {
-        <span class="macro">assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
+        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
         <span class="self">self</span>.data.insert(fhir_id.local_id, value);
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt; {
-        <span class="macro">assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
+        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
         <span class="self">self</span>.data.get(<span class="kw-2">&amp;</span>fhir_id.local_id)
     }
 }

@@ -1154,7 +1154,7 @@
 
 <span class="kw">pub use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-<span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::{def_id::DefId, Safety};
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
@@ -1832,7 +1832,7 @@
         } <span class="kw">else </span>{
             IndexVec::from_raw(<span class="macro">vec!</span>[<span class="number">0</span>])
         };
-        <span class="macro">assert_eq!</span>(discrs.len(), variants.len());
+        <span class="macro">tracked_span_assert_eq!</span>(discrs.len(), variants.len());
         <span class="self">Self </span>{ did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
     }
 }

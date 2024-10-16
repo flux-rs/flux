@@ -774,7 +774,7 @@
 <a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
-<span class="kw">use </span>flux_common::{bug, tracked_span_dbg_assert_eq};
+<span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -1335,7 +1335,7 @@
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>), BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
             (BaseTy::Dynamic(preds_a, <span class="kw">_</span>), BaseTy::Dynamic(preds_b, <span class="kw">_</span>)) =&gt; {
-                <span class="macro">assert_eq!</span>(preds_a.erase_regions(), preds_b.erase_regions());
+                <span class="macro">tracked_span_assert_eq!</span>(preds_a.erase_regions(), preds_b.erase_regions());
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Closure(did1, tys_a, <span class="kw">_</span>), BaseTy::Closure(did2, tys_b, <span class="kw">_</span>)) <span class="kw">if </span>did1 == did2 =&gt; {
@@ -1346,7 +1346,7 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) =&gt; {
-                <span class="macro">assert_eq!</span>(sig_a, sig_b);
+                <span class="macro">tracked_span_assert_eq!</span>(sig_a, sig_b);
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible base types: `{a:?}` - `{b:?}`"</span>))<span class="question-mark">?</span>,

@@ -878,7 +878,7 @@
 <a href="#878" id="878">878</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
-<span class="kw">use </span>flux_common::tracked_span_bug;
+<span class="kw">use </span>flux_common::{tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt <span class="kw">as _</span>,
 };
@@ -1084,14 +1084,14 @@
         <span class="kw">match </span>env.projection(analysis.genv, place)<span class="question-mark">? </span>{
             ProjResult::None =&gt; {}
             ProjResult::Fold(place_ref) =&gt; {
-                <span class="macro">assert_eq!</span>(place_ref, place.as_ref());
+                <span class="macro">tracked_span_assert_eq!</span>(place_ref, place.as_ref());
                 <span class="kw">let </span>place = place.clone();
                 analysis
                     .mode
                     .insert_at(analysis.point, GhostStatement::Fold(place));
             }
             ProjResult::Unfold(place_ref) =&gt; {
-                <span class="macro">assert_eq!</span>(place_ref, place.as_ref());
+                <span class="macro">tracked_span_assert_eq!</span>(place_ref, place.as_ref());
                 <span class="kw">match </span>place_ref.last_projection() {
                     <span class="prelude-val">Some</span>((base, PlaceElem::Deref | PlaceElem::Field(..))) =&gt; {
                         analysis

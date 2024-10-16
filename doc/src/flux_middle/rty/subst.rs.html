@@ -884,7 +884,7 @@
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
-                        </span><span class="macro">assert_eq!</span>(debruijn1, INNERMOST);
+                        </span><span class="macro">tracked_span_assert_eq!</span>(debruijn1, INNERMOST);
                         Region::ReBound(debruijn, br)
                     } <span class="kw">else </span>{
                         region
