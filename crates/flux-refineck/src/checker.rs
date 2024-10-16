@@ -447,7 +447,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &actuals,
                         )?
                     }
-                    mir::CallKind::FnPtr { .. } => todo!("TODO: Call through function pointer"),
+                    mir::CallKind::FnPtr { operand, .. } => {
+                        let ty = self.check_operand(infcx, env, terminator_span, operand)?;
+                        if let Some(BaseTy::FnPtr(fn_sig)) = ty.as_bty_skipping_existentials() {
+                            self.check_call(
+                                infcx,
+                                env,
+                                terminator_span,
+                                None,
+                                EarlyBinder(fn_sig.clone()),
+                                &[],
+                                &actuals,
+                            )?
+                        } else {
+                            bug!("TODO: fnptr call {ty:?}")
+                        }
+                    }
                 };
 
                 let ret = infcx.unpack(&ret);

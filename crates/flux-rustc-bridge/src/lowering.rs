@@ -298,7 +298,17 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                                 .lower(self.tcx)
                                 .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
                                 .emit(self.sess)?;
-                            CallKind::FnPtr { fn_sig }
+                            let operand = self
+                                .lower_operand(func)
+                                .map_err(|reason| {
+                                    errors::UnsupportedMir::new(
+                                        span,
+                                        "function pointer target",
+                                        reason,
+                                    )
+                                })
+                                .emit(self.sess)?;
+                            CallKind::FnPtr { fn_sig, operand }
                         }
                         _ => {
                             Err(errors::UnsupportedMir::terminator(

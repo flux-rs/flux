@@ -115,6 +115,7 @@ pub enum CallKind<'tcx> {
     },
     FnPtr {
         fn_sig: Binder<FnSig>,
+        operand: Operand,
     },
 }
 
@@ -533,7 +534,7 @@ impl<'tcx> fmt::Debug for CallKind<'tcx> {
                 }
                 Ok(())
             }
-            CallKind::FnPtr { fn_sig } => write!(f, "FnPtr({fn_sig:?})"),
+            CallKind::FnPtr { fn_sig, operand } => write!(f, "FnPtr[{operand:?}]({fn_sig:?})"),
         }
     }
 }
