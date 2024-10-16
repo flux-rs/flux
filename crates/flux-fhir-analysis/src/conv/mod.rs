@@ -11,7 +11,7 @@
 pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -1369,10 +1369,10 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 }
             }
             fhir::Res::Def(DefKind::Union, def_id) => {
-                tracked_span_bug!("TODO: union types: {def_id:?}")
+                span_bug!(path.span, "TODO: union types: {def_id:?}")
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
-                tracked_span_bug!("unexpected resolution in conv_ty_ctor: {:?}", path.res)
+                span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
         let sort = bty.sort();
