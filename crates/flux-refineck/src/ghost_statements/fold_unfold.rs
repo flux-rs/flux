@@ -1,6 +1,6 @@
 use std::{collections::hash_map::Entry, fmt, iter};
 
-use flux_common::tracked_span_bug;
+use flux_common::{tracked_span_assert_eq, tracked_span_bug};
 use flux_middle::{
     def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt as _,
 };
@@ -206,14 +206,14 @@ impl Mode for Elaboration<'_> {
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
             ProjResult::Fold(place_ref) => {
-                assert_eq!(place_ref, place.as_ref());
+                tracked_span_assert_eq!(place_ref, place.as_ref());
                 let place = place.clone();
                 analysis
                     .mode
                     .insert_at(analysis.point, GhostStatement::Fold(place));
             }
             ProjResult::Unfold(place_ref) => {
-                assert_eq!(place_ref, place.as_ref());
+                tracked_span_assert_eq!(place_ref, place.as_ref());
                 match place_ref.last_projection() {
                     Some((base, PlaceElem::Deref | PlaceElem::Field(..))) => {
                         analysis
