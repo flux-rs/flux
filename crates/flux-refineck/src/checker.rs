@@ -447,7 +447,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &actuals,
                         )?
                     }
-                    mir::CallKind::FnPtr => todo!(),
+                    mir::CallKind::FnPtr { .. } => todo!("TODO: Call through function pointer"),
                 };
 
                 let ret = infcx.unpack(&ret);

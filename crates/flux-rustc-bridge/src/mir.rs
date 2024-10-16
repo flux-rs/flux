@@ -28,7 +28,10 @@ use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
-use crate::{def_id_to_string, ty::region_to_string};
+use crate::{
+    def_id_to_string,
+    ty::{region_to_string, Binder, FnSig},
+};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -110,7 +113,9 @@ pub enum CallKind<'tcx> {
         resolved_id: DefId,
         resolved_args: CallArgs<'tcx>,
     },
-    FnPtr,
+    FnPtr {
+        fn_sig: Binder<FnSig>,
+    },
 }
 
 #[derive(Debug)]
@@ -528,7 +533,7 @@ impl<'tcx> fmt::Debug for CallKind<'tcx> {
                 }
                 Ok(())
             }
-            CallKind::FnPtr => write!(f, "FnPtr"),
+            CallKind::FnPtr { fn_sig } => write!(f, "FnPtr({fn_sig:?})"),
         }
     }
 }

@@ -293,6 +293,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                                 .emit(self.sess)?;
                             CallKind::FnDef { def_id, generic_args, resolved_id, resolved_args }
                         }
+                        rustc_middle::ty::TyKind::FnPtr(fn_sig_tys, header) => {
+                            let fn_sig = fnptr_as_fnsig(fn_sig_tys, header)
+                                .lower(self.tcx)
+                                .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                                .emit(self.sess)?;
+                            CallKind::FnPtr { fn_sig }
+                        }
                         _ => {
                             Err(errors::UnsupportedMir::terminator(
                                 span,
@@ -799,15 +806,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_raw_ptr(ty, *mutbl))
             }
             rustc_ty::FnPtr(fn_sig_tys, header) => {
-                let fn_sig = fn_sig_tys.map_bound(|fn_sig_tys| {
-                    rustc_ty::FnSig {
-                        inputs_and_output: fn_sig_tys.inputs_and_output,
-                        c_variadic: header.c_variadic,
-                        safety: header.safety,
-                        abi: header.abi,
-                    }
-                });
-                let fn_sig = fn_sig.lower(tcx)?;
+                let fn_sig = fnptr_as_fnsig(fn_sig_tys, header).lower(tcx)?;
                 Ok(Ty::mk_fn_ptr(fn_sig))
             }
             rustc_ty::Closure(did, args) => {
@@ -843,6 +842,20 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
             _ => Err(UnsupportedReason::new(format!("unsupported type `{self:?}`"))),
         }
     }
+}
+
+fn fnptr_as_fnsig<'tcx>(
+    fn_sig_tys: &'tcx rustc_ty::Binder<'tcx, rustc_ty::FnSigTys<TyCtxt<'tcx>>>,
+    header: &'tcx rustc_ty::FnHeader<TyCtxt<'tcx>>,
+) -> rustc_ty::Binder<'tcx, rustc_ty::FnSig<'tcx>> {
+    fn_sig_tys.map_bound(|fn_sig_tys| {
+        rustc_ty::FnSig {
+            inputs_and_output: fn_sig_tys.inputs_and_output,
+            c_variadic: header.c_variadic,
+            safety: header.safety,
+            abi: header.abi,
+        }
+    })
 }
 
 impl<'tcx> Lower<'tcx> for rustc_ty::AliasTyKind {
