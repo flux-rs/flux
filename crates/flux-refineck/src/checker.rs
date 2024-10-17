@@ -1007,13 +1007,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
+            Rvalue::Aggregate(
+                AggregateKind::Adt(def_id, variant_idx, args, _, field_idx),
+                operands,
+            ) => {
                 let actuals = self.check_operands(infcx, env, stmt_span, operands)?;
                 let sig = genv
-                    .variant_sig(*def_id, *variant_idx)
+                    .variant_sig(*def_id, *variant_idx /* FIXME, *field_idx */)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_poly_fn_sig();
+                    .to_poly_fn_sig(*field_idx);
+
                 let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
                 self.check_call(infcx, env, stmt_span, *def_id, sig, &args, &actuals)
