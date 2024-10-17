@@ -218,7 +218,7 @@ pub enum PointerCast {
 
 #[derive(Debug)]
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, GenericArgs, Option<UserTypeAnnotationIndex>),
+    Adt(DefId, VariantIdx, GenericArgs, Option<UserTypeAnnotationIndex>, Option<FieldIdx>),
     Array(Ty),
     Tuple,
     Closure(DefId, GenericArgs),
@@ -637,7 +637,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
                     let fname = tcx.def_path(*def_id).data.iter().join("::");

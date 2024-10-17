@@ -314,6 +314,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
+        | DefKind::Union
         | DefKind::TyAlias { .. }
         | DefKind::OpaqueTy
         | DefKind::AssocFn

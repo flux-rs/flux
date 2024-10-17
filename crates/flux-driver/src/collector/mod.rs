@@ -6,6 +6,7 @@ use extern_specs::ExternSpecCollector;
 use flux_common::{
     iter::IterExt,
     result::{ErrorCollector, ResultExt},
+    tracked_span_assert_eq,
 };
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{Errors, FluxSession};
@@ -104,6 +105,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
             ItemKind::Struct(variant, ..) => {
+                self.collect_struct_def(owner_id, attrs, variant)?;
+            }
+            ItemKind::Union(variant, ..) => {
+                // currently no refinements on unions
+                tracked_span_assert_eq!(attrs.items().is_empty(), true);
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
             ItemKind::Enum(enum_def, ..) => {

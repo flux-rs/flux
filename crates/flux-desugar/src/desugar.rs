@@ -354,27 +354,29 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let kind = if struct_def.opaque {
             fhir::StructKind::Opaque
         } else {
-            let hir::ItemKind::Struct(variant_data, _) = &self
+            let kind = &self
                 .genv
                 .hir()
                 .expect_item(self.owner.local_id().def_id)
-                .kind
-            else {
-                bug!("expected struct")
-            };
-            debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
-            let fields = try_alloc_slice!(
-                self.genv,
-                iter::zip(&struct_def.fields, variant_data.fields()),
-                |(ty, hir_field)| {
-                    if let Some(ty) = ty {
-                        Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
-                    } else {
-                        self.as_lift_cx().lift_field_def(hir_field)
-                    }
-                },
-            )?;
-            fhir::StructKind::Transparent { fields }
+                .kind;
+            match kind {
+                hir::ItemKind::Struct(variant_data, _) | hir::ItemKind::Union(variant_data, _) => {
+                    debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
+                    let fields = try_alloc_slice!(
+                        self.genv,
+                        iter::zip(&struct_def.fields, variant_data.fields()),
+                        |(ty, hir_field)| {
+                            if let Some(ty) = ty {
+                                Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
+                            } else {
+                                self.as_lift_cx().lift_field_def(hir_field)
+                            }
+                        },
+                    )?;
+                    fhir::StructKind::Transparent { fields }
+                }
+                _ => bug!("expected struct or union"),
+            }
         };
 
         let params = self.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(&[]));

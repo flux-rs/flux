@@ -94,6 +94,18 @@ pub fn desugar<'genv>(
                         ),
                     );
                 }
+                hir::ItemKind::Union(..) => {
+                    let union_def = &specs.structs[&owner_id];
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::Item(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, None)
+                                    .desugar_struct_def(union_def)?,
+                            ),
+                        ),
+                    );
+                }
                 hir::ItemKind::Struct(..) => {
                     let struct_def = &specs.structs[&owner_id];
                     nodes.insert(
