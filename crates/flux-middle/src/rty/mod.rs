@@ -1978,6 +1978,10 @@ impl AdtDef {
         self.0.rustc.is_struct()
     }
 
+    pub fn is_union(&self) -> bool {
+        self.0.rustc.is_union()
+    }
+
     pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
         self.0.rustc.variants()
     }
