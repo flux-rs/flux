@@ -488,7 +488,11 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_adjustment::PointerCoercion::ClosureFnPointer(_) => {
                 Some(crate::mir::PointerCast::ClosureFnPointer)
             }
-            _ => None,
+            rustc_adjustment::PointerCoercion::ReifyFnPointer => {
+                Some(crate::mir::PointerCast::ReifyFnPointer)
+            }
+            rustc_adjustment::PointerCoercion::UnsafeFnPointer
+            | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
         }
     }
     fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {

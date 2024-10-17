@@ -229,6 +229,7 @@ pub enum PointerCast {
     MutToConstPointer,
     Unsize,
     ClosureFnPointer,
+    ReifyFnPointer,
 }
 
 #[derive(Debug)]
@@ -711,6 +712,7 @@ impl fmt::Debug for PointerCast {
             PointerCast::MutToConstPointer => write!(f, "MutToConstPointer"),
             PointerCast::Unsize => write!(f, "Unsize"),
             PointerCast::ClosureFnPointer => write!(f, "ClosureFnPointer"),
+            PointerCast::ReifyFnPointer => write!(f, "ReifyFnPointer"),
         }
     }
 }
