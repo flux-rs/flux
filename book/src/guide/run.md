@@ -47,19 +47,21 @@ To do so add the following to `Cargo.toml`:
 enabled = true
 ```
 
-### Refinement Annotations on a Package
+### Refinement Annotations on a Cargo Projects
 
-Adding refinement annotations to packages is simple. You can add `flux-rs` as a dependency in `Cargo.toml`
+Adding refinement annotations to cargo projects is simple. You can add `flux-rs` as a dependency in `Cargo.toml`
 
 ```toml
 [dependencies]
 flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 ```
 
-Then, add refinement annoations using the fully qualified path `flux_rs::`.
+Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
 
 ```rust
-#[flux_rs::sig(fn(x: i32) -> i32{v: x < v)]
+use flux_rs::*
+
+#[sig(fn(x: i32) -> i32{v: x < v)]
 fn inc(x: i32) -> i32 {
     x - 1
 }
@@ -186,13 +188,13 @@ was overridden by setting the environment variable `FLUX_DUMP_MIR=0`.
 
 ### Crate Config
 
-Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux::cfg]`.
+Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux_rs::cfg]`.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
 non-nightly compiler you have to put it under a `cfg_attr`.
 For example, to enable overflow checking:
 
 ```rust
-#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
 ```
 
 The only flag supported now is overflow checking.
