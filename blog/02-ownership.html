@@ -194,7 +194,7 @@ to it, which lets flux <em>update</em> the type whenever the location
 is changed. For example, consider the program</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn () -&gt; i32[3])]
+</span>#[flux_rs::sig(fn () -&gt; i32[3])]
 pub fn mk_three() -&gt; i32 {
     let mut r = 0;  // r: i32[0]
     r += 1;
@@ -214,7 +214,7 @@ then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
 we signed off with <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">previously</a></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
+</span>#[flux_rs::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;  // i: i32[0]
     let mut r = 1;  // r: i32[1]
@@ -245,7 +245,7 @@ access to a value of type <code>T</code>. For example, we might write <code>abs<
 a shared reference to an <code>i32</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
 pub fn abs(p: &amp;i32) -&gt; i32 {
     let n = *p;
     if 0 &lt;= n {
@@ -302,7 +302,7 @@ that <em>decrements</em> the value of a mutable reference while ensuring the
 data is non-negative:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
 pub fn decr(p: &amp;mut i32) {
     *p = *p - 1;
 }
@@ -322,7 +322,7 @@ code by guarding the update with a test that ensures the
 original contents are in fact <em>non-zero</em></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
 pub fn decr(p: &amp;mut i32) {
     let n = *p;
     if n != 0 {
@@ -337,7 +337,7 @@ pub fn decr(p: &amp;mut i32) {
 there may be aliasing. As an example, consider the function</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
+</span>#[flux_rs::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
 fn test_alias(z: bool) -&gt; i32 {
     let mut x = 1;  // x: i32[1]
     let mut y = 2;  // y: i32[2]
@@ -361,7 +361,7 @@ For example, consider the following function to increment a reference
 to a non-negative <code>i32</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
 fn incr(p: &amp;mut i32) {
   *p += 1
 }
@@ -383,7 +383,7 @@ the function exits<sup class="footnote-reference"><a href="#3">3</a></sup>. Thus
 type <code>incr</code> as</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
+</span>#[flux_rs::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
 fn incr(p: &amp;mut i32) {
   *p += 1
 }

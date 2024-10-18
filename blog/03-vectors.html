@@ -189,12 +189,12 @@ and ensure --- at compile time --- that vector accesses <em>cannot</em> fail at 
 around the standard <code>Vec</code> type</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::refined_by(len: int)]
+</span>#[flux_rs::refined_by(len: int)]
 pub struct RVec&lt;T&gt; {
     inner: Vec&lt;T&gt;,
 }
 <span class="boring">}</span></code></pre></pre>
-<p>The <code>#[flux::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
+<p>The <code>#[flux_rs::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
 is indexed by a <code>len</code> refinement which tracks the <em>size</em> of the underlying vector, just
 like the indices for <code>i32</code> and <code>bool</code> tracked the actual <em>value</em> of the underlying
 <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">integer or boolean</a>). The idea is that the type</p>
@@ -210,15 +210,15 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.</p
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; RVec&lt;T&gt; {
-    #[flux::trusted]
-    #[flux::sig(fn() -&gt; RVec&lt;T&gt;[0])]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn() -&gt; RVec&lt;T&gt;[0])]
     pub fn new() -&gt; Self {
         Self { inner: Vec::new() }
     }
 }
 <span class="boring">}</span></code></pre></pre>
 <p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
-The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
+The <code>#[flux_rs::trusted]</code> attribute tells Flux there is nothing to
 "check" here, as we are <em>defining</em> the API itself and trusting
 that the implementation (using <code>vec</code> is correct).
 However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
@@ -228,8 +228,8 @@ back a vector indexed with <code>0</code> i.e. an empty vector.</p>
 <p>To be of any use, we need to be able to <code>push</code> values into the container, like so</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
             ensures self: RVec&lt;T&gt;[n+1])]
 pub fn push(&amp;mut self, item: T) {
     self.inner.push(item);
@@ -247,8 +247,8 @@ of the vector. Aha, but what if the vector is empty? You could return an
 only be called with non-empty vectors.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
             ensures self: RVec&lt;T&gt;[n-1])]
 pub fn pop(&amp;mut self) -&gt; T {
   self.inner.pop().unwrap()
@@ -273,7 +273,7 @@ does not hold</p>
 note: this is the condition that cannot be proved
   --&gt; src/rvec.rs:78:47
    |
-78 |     #[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+78 |     #[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
    |                                               ^^^^^
 <span class="boring">}</span></code></pre></pre>
 <!--
@@ -287,8 +287,8 @@ we <code>pop</code> it. We can do that with a <code>len</code> method whose type
 is, in fact, the size of the input vector</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
 pub fn len(&amp;self) -&gt; usize {
     self.inner.len()
 }
@@ -306,12 +306,12 @@ called with a <em>valid index</em> that is between <code>0</code> and the
 vector's size</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+</span>#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
 pub fn get(&amp;self, i: usize) -&gt; &amp;T {
     &amp;self.inner[i]
 }
 
-#[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+#[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
 pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
     &amp;mut self.inner[i]
 }
@@ -327,14 +327,14 @@ the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> wh
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
     type Output = T;
-    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
+    #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
     fn index(&amp;self, index: usize) -&gt; &amp;T {
         self.get(index)
     }
 }
 
 impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
-    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
+    #[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
     fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
         self.get_mut(index)
     }
@@ -417,7 +417,7 @@ so the vector is empty! Once we add a test for that, flux is happy.</p>
 note: this is the condition that cannot be proved
    --&gt; src/rvec.rs:189:44
     |
-189 |     #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+189 |     #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
     |                                            ^^^^^
 
 error[FLUX]: arithmetic operation may overflow

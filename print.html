@@ -215,6 +215,16 @@ For example, the following command checks the file <code>test.rs</code>.</p>
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
+<h3 id="refinement-annotations-on-a-file"><a class="header" href="#refinement-annotations-on-a-file">Refinement Annotations on a File</a></h3>
+<p>When running flux on a file with <code>rustc-flux path/to/test.rs</code>, refinement annotations should be prefixed with <code>flux::</code>.</p>
+<p>For example, the refinement below will only work when running <code>rustc-flux</code> which is intended for use on a single file.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
 <pre><code class="language-bash">cargo flux
@@ -224,6 +234,21 @@ To do so add the following to <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[package.metadata.flux]
 enabled = true
 </code></pre>
+<h3 id="refinement-annotations-on-a-cargo-projects"><a class="header" href="#refinement-annotations-on-a-cargo-projects">Refinement Annotations on a Cargo Projects</a></h3>
+<p>Adding refinement annotations to cargo projects is simple. You can add <code>flux-rs</code> as a dependency in <code>Cargo.toml</code></p>
+<pre><code class="language-toml">[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+</code></pre>
+<p>Then, import attributes from <code>flux_rs</code> and add the appropriate refinement annoations.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*
+
+#[sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.
@@ -318,12 +343,12 @@ cache = true
 containing profiling information. It will <em>not</em> dump the MIR because that setting
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
-<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
+<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
 non-nightly compiler you have to put it under a <code>cfg_attr</code>.
 For example, to enable overflow checking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+</span>#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
 <span class="boring">fn main() {
 </span><span class="boring">}</span></code></pre></pre>
 <p>The only flag supported now is overflow checking.</p>
@@ -400,7 +425,7 @@ flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
 <p>To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.</p>
 <pre><code>#[extern_spec(std::mem)]
-#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
 fn swap(a: &amp;mut i32, b: &amp;mut i32);
 </code></pre>
 <ol>
@@ -408,8 +433,8 @@ fn swap(a: &amp;mut i32, b: &amp;mut i32);
 in the above example, this is <code>std::mem</code>. You can use this path to qualify
 the function. So in the above example, the function we are targeting has the
 full path of <code>std::mem::swap</code>.</li>
-<li>Add a <code>#[flux::sig(...)]</code> attribute. This is required for any extern spec on
-a function. This signature behaves as if the <code>#[flux::trusted]</code> attribute was
+<li>Add a <code>#[flux_rs::sig(...)]</code> attribute. This is required for any extern spec on
+a function. This signature behaves as if the <code>#[flux_rs::trusted]</code> attribute was
 added, because we can't actually check the implementation. We just verify
 some simple things, like that the function arguments have compatible types.</li>
 <li>Write a function stub that matches the external function.</li>
@@ -418,8 +443,8 @@ some simple things, like that the function arguments have compatible types.</li>
 above type.</p>
 <p>You shouldn't need to know the details, but here's how the macro works. It
 parses the <code>std::mem</code> into a module path and then transforms the function into</p>
-<pre><code>#[flux::extern_spec]
-#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+<pre><code>#[flux_rs::extern_spec]
+#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
 #[allow(unused, dead_code)]
 fn __flux_extern_spec_swap(a: &amp;mut i32, b: &amp;mut i32) {
     std::mem::swap(a, b)
@@ -436,7 +461,7 @@ A simpler example just involving structs can be found
 <p>The syntax for an extern spec on a struct is very similar to that for a
 function. Once again, each line in the example happens to correspond to a step.</p>
 <pre><code>#[extern_spec(std::string)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct String;
 </code></pre>
 <ol>
@@ -444,9 +469,9 @@ struct String;
 in the above example, this is <code>std::string</code>. You can use this path to qualify
 the function. So in the above example, the struct we are targeting has the
 full path of <code>std::string::String</code>.</li>
-<li>Add a <code>#[flux::refined_by(...)]</code> attribute. This is required for any extern
+<li>Add a <code>#[flux_rs::refined_by(...)]</code> attribute. This is required for any extern
 spec on a struct. Right now these attributes behave as if they were opaque
-(<code>#[flux::opaque]</code>), although we may support non-opaque extern structs.</li>
+(<code>#[flux_rs::opaque]</code>), although we may support non-opaque extern structs.</li>
 <li>Write a stub for the extern struct.</li>
 </ol>
 <p>If you do the above, you can use <code>std::string::String</code> as if it were refined by
@@ -455,10 +480,10 @@ an integer index.</p>
 structs.</p>
 <pre><code>#[extern_spec(std::string)]
 impl String {
-    #[flux::sig(fn() -&gt; String[0])]
+    #[flux_rs::sig(fn() -&gt; String[0])]
     fn new() -&gt; String;
 
-    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
     fn len(s: &amp;String) -&gt; usize;
 }
 </code></pre>
@@ -477,9 +502,9 @@ of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>
 they were refined.</p>
 <p>You shouldn't need to know the details, but here's how the above two macros expand.</p>
 <p>For structs:</p>
-<pre><code>#[flux::extern_spec]
+<pre><code>#[flux_rs::extern_spec]
 #[allow(unused, dead_code)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct __FluxExternSpecString(std::string::String);
 </code></pre>
 <p>For impls (this was translated manually so there might be some bugs):</p>
@@ -488,14 +513,14 @@ struct __FluxExternImplStructString;
 
 #[allow(unused, dead_code)]
 impl __FluxExternImplStructString {
-    #[flux::extern_spec]
-    #[flux::sig(fn() -&gt; String[0])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn() -&gt; String[0])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_new() -&gt; String {
        std::string::String::new::&lt;&gt;()
     }
-    #[flux::extern_spec]
-    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_len(s: &amp;String) -&gt; usize {
        std::string::String::len::&lt;&gt;(s)
@@ -524,21 +549,21 @@ impl __FluxExternImplStructString {
     | !r                    // negation
 </code></pre>
 <h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
-<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux::ignore]</code> and <code>#[flux::trusted]</code>.</p>
+<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
 <ul>
-<li><code>#[flux::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
-<li><code>#[flux::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
+<li><code>#[flux_rs::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
+<li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
 </ul>
 <p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
-<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
-the action of <code>#[flux::trusted]</code> can be reverted using <code>#[flux::trusted(no)]</code>.</p>
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::ignore]
+</span>#[flux_rs::ignore]
 mod A {
 
-   #[flux::ignore(no)]
+   #[flux_rs::ignore(no)]
    mod B {
       mod C {
          fn f1() {}
@@ -553,9 +578,9 @@ mod A {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
-<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
+<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
 <div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
-<p><code>#[flux::ignore]</code> (resp. <code>#[flux::trusted]</code>) is shorthand for <code>#[flux::ignore(yes)]</code> (resp. <code>#[flux::trusted(yes)]</code>).</p>
+<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>).</p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
@@ -786,7 +811,7 @@ code. For example we can write the following specification which says that
 the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; i32[10])]
+</span>#[flux_rs::sig(fn() -&gt; i32[10])]
 pub fn mk_ten() -&gt; i32 {
     5 + 4
 }
@@ -808,7 +833,7 @@ by replacing the body with <code>5 + 5</code> or just <code>10</code>.</p>
 the space of <em>inputs</em> that a function expects.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (b:bool[true]))]
+</span>#[flux_rs::sig(fn (b:bool[true]))]
 pub fn assert(b:bool) {
   if !b { panic!("assertion failed") }
 }
@@ -840,7 +865,7 @@ like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> 
 types by refinement <em>parameters</em>. For example, you can write</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
+</span>#[flux_rs::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
 pub fn is_pos(n: i32) -&gt; bool {
     if 0 &lt; n {
         true
@@ -880,7 +905,7 @@ with <em>assertions</em> <sup class="footnote-reference"><a href="#1">1</a></sup
 the value returned by <code>mk_ten</code> is positive.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; i32{v: 0 &lt; v})]
+</span>#[flux_rs::sig(fn() -&gt; i32{v: 0 &lt; v})]
 pub fn mk_ten() -&gt; i32 {
     5 + 5
 }
@@ -890,7 +915,7 @@ value of an <code>i32</code> with a type which says the result is non-negative <
 exceeds the input <code>n</code>.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
 pub fn abs(n: i32) -&gt; i32 {
     if 0 &lt;= n {
         n
@@ -902,7 +927,7 @@ pub fn abs(n: i32) -&gt; i32 {
 <p>As a last example, you might write a function to compute the factorial of <code>n</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;
     let mut res = 1;
@@ -962,7 +987,7 @@ to it, which lets flux <em>update</em> the type whenever the location
 is changed. For example, consider the program</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn () -&gt; i32[3])]
+</span>#[flux_rs::sig(fn () -&gt; i32[3])]
 pub fn mk_three() -&gt; i32 {
     let mut r = 0;  // r: i32[0]
     r += 1;
@@ -982,7 +1007,7 @@ then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
 we signed off with <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">previously</a></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
+</span>#[flux_rs::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;  // i: i32[0]
     let mut r = 1;  // r: i32[1]
@@ -1013,7 +1038,7 @@ access to a value of type <code>T</code>. For example, we might write <code>abs<
 a shared reference to an <code>i32</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
 pub fn abs(p: &amp;i32) -&gt; i32 {
     let n = *p;
     if 0 &lt;= n {
@@ -1070,7 +1095,7 @@ that <em>decrements</em> the value of a mutable reference while ensuring the
 data is non-negative:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
 pub fn decr(p: &amp;mut i32) {
     *p = *p - 1;
 }
@@ -1090,7 +1115,7 @@ code by guarding the update with a test that ensures the
 original contents are in fact <em>non-zero</em></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
 pub fn decr(p: &amp;mut i32) {
     let n = *p;
     if n != 0 {
@@ -1105,7 +1130,7 @@ pub fn decr(p: &amp;mut i32) {
 there may be aliasing. As an example, consider the function</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
+</span>#[flux_rs::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
 fn test_alias(z: bool) -&gt; i32 {
     let mut x = 1;  // x: i32[1]
     let mut y = 2;  // y: i32[2]
@@ -1129,7 +1154,7 @@ For example, consider the following function to increment a reference
 to a non-negative <code>i32</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
+</span>#[flux_rs::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
 fn incr(p: &amp;mut i32) {
   *p += 1
 }
@@ -1151,7 +1176,7 @@ the function exits<sup class="footnote-reference"><a href="#3">3</a></sup>. Thus
 type <code>incr</code> as</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
+</span>#[flux_rs::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
 fn incr(p: &amp;mut i32) {
   *p += 1
 }
@@ -1196,12 +1221,12 @@ and ensure --- at compile time --- that vector accesses <em>cannot</em> fail at 
 around the standard <code>Vec</code> type</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::refined_by(len: int)]
+</span>#[flux_rs::refined_by(len: int)]
 pub struct RVec&lt;T&gt; {
     inner: Vec&lt;T&gt;,
 }
 <span class="boring">}</span></code></pre></pre>
-<p>The <code>#[flux::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
+<p>The <code>#[flux_rs::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
 is indexed by a <code>len</code> refinement which tracks the <em>size</em> of the underlying vector, just
 like the indices for <code>i32</code> and <code>bool</code> tracked the actual <em>value</em> of the underlying
 <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">integer or boolean</a>). The idea is that the type</p>
@@ -1217,15 +1242,15 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.</p
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; RVec&lt;T&gt; {
-    #[flux::trusted]
-    #[flux::sig(fn() -&gt; RVec&lt;T&gt;[0])]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn() -&gt; RVec&lt;T&gt;[0])]
     pub fn new() -&gt; Self {
         Self { inner: Vec::new() }
     }
 }
 <span class="boring">}</span></code></pre></pre>
 <p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
-The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
+The <code>#[flux_rs::trusted]</code> attribute tells Flux there is nothing to
 "check" here, as we are <em>defining</em> the API itself and trusting
 that the implementation (using <code>vec</code> is correct).
 However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
@@ -1235,8 +1260,8 @@ back a vector indexed with <code>0</code> i.e. an empty vector.</p>
 <p>To be of any use, we need to be able to <code>push</code> values into the container, like so</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
             ensures self: RVec&lt;T&gt;[n+1])]
 pub fn push(&amp;mut self, item: T) {
     self.inner.push(item);
@@ -1254,8 +1279,8 @@ of the vector. Aha, but what if the vector is empty? You could return an
 only be called with non-empty vectors.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
             ensures self: RVec&lt;T&gt;[n-1])]
 pub fn pop(&amp;mut self) -&gt; T {
   self.inner.pop().unwrap()
@@ -1280,7 +1305,7 @@ does not hold</p>
 note: this is the condition that cannot be proved
   --&gt; src/rvec.rs:78:47
    |
-78 |     #[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+78 |     #[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
    |                                               ^^^^^
 <span class="boring">}</span></code></pre></pre>
 <!--
@@ -1294,8 +1319,8 @@ we <code>pop</code> it. We can do that with a <code>len</code> method whose type
 is, in fact, the size of the input vector</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
 pub fn len(&amp;self) -&gt; usize {
     self.inner.len()
 }
@@ -1313,12 +1338,12 @@ called with a <em>valid index</em> that is between <code>0</code> and the
 vector's size</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+</span>#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
 pub fn get(&amp;self, i: usize) -&gt; &amp;T {
     &amp;self.inner[i]
 }
 
-#[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+#[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
 pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
     &amp;mut self.inner[i]
 }
@@ -1334,14 +1359,14 @@ the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> wh
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
     type Output = T;
-    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
+    #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
     fn index(&amp;self, index: usize) -&gt; &amp;T {
         self.get(index)
     }
 }
 
 impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
-    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
+    #[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
     fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
         self.get_mut(index)
     }
@@ -1424,7 +1449,7 @@ so the vector is empty! Once we add a test for that, flux is happy.</p>
 note: this is the condition that cannot be proved
    --&gt; src/rvec.rs:189:44
     |
-189 |     #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+189 |     #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
     |                                            ^^^^^
 
 error[FLUX]: arithmetic operation may overflow

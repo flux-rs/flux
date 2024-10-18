@@ -185,6 +185,16 @@ For example, the following command checks the file <code>test.rs</code>.</p>
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
+<h3 id="refinement-annotations-on-a-file"><a class="header" href="#refinement-annotations-on-a-file">Refinement Annotations on a File</a></h3>
+<p>When running flux on a file with <code>rustc-flux path/to/test.rs</code>, refinement annotations should be prefixed with <code>flux::</code>.</p>
+<p>For example, the refinement below will only work when running <code>rustc-flux</code> which is intended for use on a single file.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
 <pre><code class="language-bash">cargo flux
@@ -194,6 +204,21 @@ To do so add the following to <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[package.metadata.flux]
 enabled = true
 </code></pre>
+<h3 id="refinement-annotations-on-a-cargo-projects"><a class="header" href="#refinement-annotations-on-a-cargo-projects">Refinement Annotations on a Cargo Projects</a></h3>
+<p>Adding refinement annotations to cargo projects is simple. You can add <code>flux-rs</code> as a dependency in <code>Cargo.toml</code></p>
+<pre><code class="language-toml">[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+</code></pre>
+<p>Then, import attributes from <code>flux_rs</code> and add the appropriate refinement annoations.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*
+
+#[sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.
@@ -288,12 +313,12 @@ cache = true
 containing profiling information. It will <em>not</em> dump the MIR because that setting
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
-<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
+<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
 non-nightly compiler you have to put it under a <code>cfg_attr</code>.
 For example, to enable overflow checking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+</span>#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
 <span class="boring">fn main() {
 </span><span class="boring">}</span></code></pre></pre>
 <p>The only flag supported now is overflow checking.</p>
