@@ -18,6 +18,19 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
+### Refinement Annotations on a File
+
+When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`. 
+
+For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
+
+```rust
+#[flux::sig(fn(x: i32) -> i32{v: x < v)]
+fn inc(x: i32) -> i32 {
+    x - 1
+}
+```
+
 ## Running on a package: `cargo-flux`
 
 Flux is integrated with `cargo` and can be invoked in a package as follows:
@@ -32,6 +45,24 @@ To do so add the following to `Cargo.toml`:
 ```toml
 [package.metadata.flux]
 enabled = true
+```
+
+### Refinement Annotations on a Package
+
+Adding refinement annotations to packages is simple. You can add `flux-rs` as a dependency in `Cargo.toml`
+
+```toml
+[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+```
+
+Then, add refinement annoations using the fully qualified path `flux_rs::`.
+
+```rust
+#[flux_rs::sig(fn(x: i32) -> i32{v: x < v)]
+fn inc(x: i32) -> i32 {
+    x - 1
+}
 ```
 
 ## A tiny example
