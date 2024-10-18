@@ -24,7 +24,7 @@ to it, which lets flux *update* the type whenever the location
 is changed. For example, consider the program
 
 ```rust
-#[flux::sig(fn () -> i32[3])]
+#[flux_rs::sig(fn () -> i32[3])]
 pub fn mk_three() -> i32 {
     let mut r = 0;  // r: i32[0]
     r += 1;
@@ -47,7 +47,7 @@ This exclusive ownership mechanism is at work in the `factorial` example
 we signed off with [previously][blog-intro]
 
 ```rust
-#[flux::sig(fn (n:i32{0 <= n}) -> i32{v:n <= v})]
+#[flux_rs::sig(fn (n:i32{0 <= n}) -> i32{v:n <= v})]
 pub fn factorial(n: i32) -> i32 {
     let mut i = 0;  // i: i32[0]
     let mut r = 1;  // r: i32[1]
@@ -83,7 +83,7 @@ access to a value of type `T`. For example, we might write `abs` to take
 a shared reference to an `i32`
 
 ```rust
-#[flux::sig(fn (p: &i32[@n]) -> i32{v:0<=v && n<=v})]
+#[flux_rs::sig(fn (p: &i32[@n]) -> i32{v:0<=v && n<=v})]
 pub fn abs(p: &i32) -> i32 {
     let n = *p;
     if 0 <= n {
@@ -151,7 +151,7 @@ that *decrements* the value of a mutable reference while ensuring the
 data is non-negative:
 
 ```rust
-#[flux::sig(fn(p: &mut i32{v:0 <= v}))]
+#[flux_rs::sig(fn(p: &mut i32{v:0 <= v}))]
 pub fn decr(p: &mut i32) {
     *p = *p - 1;
 }
@@ -173,7 +173,7 @@ code by guarding the update with a test that ensures the
 original contents are in fact *non-zero*
 
 ```rust
-#[flux::sig(fn(p: &mut i32{v:0 <= v}))]
+#[flux_rs::sig(fn(p: &mut i32{v:0 <= v}))]
 pub fn decr(p: &mut i32) {
     let n = *p;
     if n != 0 {
@@ -193,7 +193,7 @@ Flux uses Rust's borrowing rules to track invariants even when
 there may be aliasing. As an example, consider the function
 
 ```rust
-#[flux::sig(fn (bool) -> i32{v:0 <= v})]
+#[flux_rs::sig(fn (bool) -> i32{v:0 <= v})]
 fn test_alias(z: bool) -> i32 {
     let mut x = 1;  // x: i32[1]
     let mut y = 2;  // y: i32[2]
@@ -221,7 +221,7 @@ For example, consider the following function to increment a reference
 to a non-negative `i32`
 
 ```rust
-#[flux::sig(fn (p: &mut i32{v:0 <= v}))]
+#[flux_rs::sig(fn (p: &mut i32{v:0 <= v}))]
 fn incr(p: &mut i32) {
   *p += 1
 }
@@ -247,7 +247,7 @@ the function exits[^3]. Thus, we can use strong references to
 type `incr` as
 
 ```rust
-#[flux::sig(fn(p: &strg i32[@n]) ensures p:i32[n+1])]
+#[flux_rs::sig(fn(p: &strg i32[@n]) ensures p:i32[n+1])]
 fn incr(p: &mut i32) {
   *p += 1
 }
