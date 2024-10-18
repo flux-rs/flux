@@ -40,7 +40,7 @@ code. For example we can write the following specification which says that
 the value *returned* by `mk_ten` must in fact be `10`
 
 ```rust
-#[flux::sig(fn() -> i32[10])]
+#[flux_rs::sig(fn() -> i32[10])]
 pub fn mk_ten() -> i32 {
     5 + 4
 }
@@ -69,7 +69,7 @@ Here's a second example that shows how you can use an index to restrict
 the space of *inputs* that a function expects.
 
 ```rust
-#[flux::sig(fn (b:bool[true]))]
+#[flux_rs::sig(fn (b:bool[true]))]
 pub fn assert(b:bool) {
   if !b { panic!("assertion failed") }
 }
@@ -108,7 +108,7 @@ like `10` or `true`. To be more useful, `flux` lets you index
 types by refinement *parameters*. For example, you can write
 
 ```rust
-#[flux::sig(fn(n:i32) -> bool[0 < n])]
+#[flux_rs::sig(fn(n:i32) -> bool[0 < n])]
 pub fn is_pos(n: i32) -> bool {
     if 0 < n {
         true
@@ -154,7 +154,7 @@ with *assertions* [^1] that constrain the value. For example, we can rewrite
 the value returned by `mk_ten` is positive.
 
 ```rust
-#[flux::sig(fn() -> i32{v: 0 < v})]
+#[flux_rs::sig(fn() -> i32{v: 0 < v})]
 pub fn mk_ten() -> i32 {
     5 + 5
 }
@@ -165,7 +165,7 @@ value of an `i32` with a type which says the result is non-negative *and*
 exceeds the input `n`.
 
 ```rust
-#[flux::sig(fn (n:i32) -> i32{v:0<=v && n<=v})]
+#[flux_rs::sig(fn (n:i32) -> i32{v:0<=v && n<=v})]
 pub fn abs(n: i32) -> i32 {
     if 0 <= n {
         n
@@ -178,7 +178,7 @@ pub fn abs(n: i32) -> i32 {
 As a last example, you might write a function to compute the factorial of `n`
 
 ```rust
-#[flux::sig(fn (n:i32) -> i32{v:1<=v && n<=v})]
+#[flux_rs::sig(fn (n:i32) -> i32{v:1<=v && n<=v})]
 pub fn factorial(n: i32) -> i32 {
     let mut i = 0;
     let mut res = 1;

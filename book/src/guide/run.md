@@ -18,6 +18,19 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
+### Refinement Annotations on a File
+
+When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`. 
+
+For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
+
+```rust
+#[flux::sig(fn(x: i32) -> i32{v: x < v)]
+fn inc(x: i32) -> i32 {
+    x - 1
+}
+```
+
 ## Running on a package: `cargo-flux`
 
 Flux is integrated with `cargo` and can be invoked in a package as follows:
@@ -32,6 +45,26 @@ To do so add the following to `Cargo.toml`:
 ```toml
 [package.metadata.flux]
 enabled = true
+```
+
+### Refinement Annotations on a Cargo Projects
+
+Adding refinement annotations to cargo projects is simple. You can add `flux-rs` as a dependency in `Cargo.toml`
+
+```toml
+[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+```
+
+Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
+
+```rust
+use flux_rs::*
+
+#[sig(fn(x: i32) -> i32{v: x < v)]
+fn inc(x: i32) -> i32 {
+    x - 1
+}
 ```
 
 ## A tiny example
@@ -155,13 +188,13 @@ was overridden by setting the environment variable `FLUX_DUMP_MIR=0`.
 
 ### Crate Config
 
-Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux::cfg]`.
+Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux_rs::cfg]`.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
 non-nightly compiler you have to put it under a `cfg_attr`.
 For example, to enable overflow checking:
 
 ```rust
-#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
 ```
 
 The only flag supported now is overflow checking.
