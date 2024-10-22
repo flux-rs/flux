@@ -451,7 +451,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let ty = self.check_operand(infcx, env, terminator_span, operand)?;
                         if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
                         {
-                            // ty.as_bty_skipping_existentials() {
                             self.check_call(
                                 infcx,
                                 env,
