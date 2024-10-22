@@ -517,12 +517,19 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, None) => {
+            rustc_mir::AggregateKind::Adt(
+                def_id,
+                variant_idx,
+                args,
+                user_type_annot_idx,
+                field_idx,
+            ) => {
                 Ok(AggregateKind::Adt(
                     *def_id,
                     *variant_idx,
                     args.lower(self.tcx)?,
                     *user_type_annot_idx,
+                    *field_idx,
                 ))
             }
             rustc_mir::AggregateKind::Array(ty) => Ok(AggregateKind::Array(ty.lower(self.tcx)?)),
@@ -536,7 +543,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(AggregateKind::Coroutine(*did, args))
             }
             rustc_mir::AggregateKind::RawPtr(_, _)
-            | rustc_mir::AggregateKind::Adt(..)
             | rustc_mir::AggregateKind::CoroutineClosure(..) => {
                 Err(UnsupportedReason::new(format!(
                     "unsupported aggregate kind `{aggregate_kind:?}`"

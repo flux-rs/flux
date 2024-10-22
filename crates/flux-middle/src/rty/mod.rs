@@ -1978,6 +1978,10 @@ impl AdtDef {
         self.0.rustc.is_struct()
     }
 
+    pub fn is_union(&self) -> bool {
+        self.0.rustc.is_union()
+    }
+
     pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
         self.0.rustc.variants()
     }
@@ -2051,18 +2055,19 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
+    // The field_idx is `Some(i)` when we have the `i`-th field of a `union`, in which case,
+    // the `inputs` are _just_ the `i`-th type (and not all the types...)
+    pub fn to_poly_fn_sig(&self, field_idx: Option<crate::FieldIdx>) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(
-                    Safety::Safe,
-                    abi::Abi::Rust,
-                    List::empty(),
-                    variant.fields.clone(),
-                    output,
-                )
+                let inputs = match field_idx {
+                    None => variant.fields.clone(),
+                    Some(i) => List::singleton(variant.fields[i.index()].clone()),
+                };
+                let requires = List::empty();
+                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
             })
         })
     }
