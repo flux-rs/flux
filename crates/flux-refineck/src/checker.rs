@@ -449,7 +449,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self.check_operand(infcx, env, terminator_span, operand)?;
-                        if let Some(BaseTy::FnPtr(fn_sig)) = ty.as_bty_skipping_existentials() {
+                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
+                        {
+                            // ty.as_bty_skipping_existentials() {
                             self.check_call(
                                 infcx,
                                 env,
