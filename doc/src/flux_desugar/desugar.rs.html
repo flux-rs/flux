@@ -1572,6 +1572,8 @@
 <a href="#1572" id="1572">1572</a>
 <a href="#1573" id="1573">1573</a>
 <a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -1928,27 +1930,29 @@
         <span class="kw">let </span>kind = <span class="kw">if </span>struct_def.opaque {
             fhir::StructKind::Opaque
         } <span class="kw">else </span>{
-            <span class="kw">let </span>hir::ItemKind::Struct(variant_data, <span class="kw">_</span>) = <span class="kw-2">&amp;</span><span class="self">self
+            <span class="kw">let </span>kind = <span class="kw-2">&amp;</span><span class="self">self
                 </span>.genv
                 .hir()
                 .expect_item(<span class="self">self</span>.owner.local_id().def_id)
-                .kind
-            <span class="kw">else </span>{
-                <span class="macro">bug!</span>(<span class="string">"expected struct"</span>)
-            };
-            <span class="macro">debug_assert_eq!</span>(struct_def.fields.len(), variant_data.fields().len());
-            <span class="kw">let </span>fields = <span class="macro">try_alloc_slice!</span>(
-                <span class="self">self</span>.genv,
-                iter::zip(<span class="kw-2">&amp;</span>struct_def.fields, variant_data.fields()),
-                |(ty, hir_field)| {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = ty {
-                        <span class="prelude-val">Ok</span>(fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>, lifted: <span class="bool-val">false </span>})
-                    } <span class="kw">else </span>{
-                        <span class="self">self</span>.as_lift_cx().lift_field_def(hir_field)
-                    }
-                },
-            )<span class="question-mark">?</span>;
-            fhir::StructKind::Transparent { fields }
+                .kind;
+            <span class="kw">match </span>kind {
+                hir::ItemKind::Struct(variant_data, <span class="kw">_</span>) | hir::ItemKind::Union(variant_data, <span class="kw">_</span>) =&gt; {
+                    <span class="macro">debug_assert_eq!</span>(struct_def.fields.len(), variant_data.fields().len());
+                    <span class="kw">let </span>fields = <span class="macro">try_alloc_slice!</span>(
+                        <span class="self">self</span>.genv,
+                        iter::zip(<span class="kw-2">&amp;</span>struct_def.fields, variant_data.fields()),
+                        |(ty, hir_field)| {
+                            <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = ty {
+                                <span class="prelude-val">Ok</span>(fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>, lifted: <span class="bool-val">false </span>})
+                            } <span class="kw">else </span>{
+                                <span class="self">self</span>.as_lift_cx().lift_field_def(hir_field)
+                            }
+                        },
+                    )<span class="question-mark">?</span>;
+                    fhir::StructKind::Transparent { fields }
+                }
+                <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct or union"</span>),
+            }
         };
 
         <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(<span class="kw-2">&amp;</span>[]));

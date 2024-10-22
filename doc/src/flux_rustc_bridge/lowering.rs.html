@@ -1176,6 +1176,12 @@
 <a href="#1176" id="1176">1176</a>
 <a href="#1177" id="1177">1177</a>
 <a href="#1178" id="1178">1178</a>
+<a href="#1179" id="1179">1179</a>
+<a href="#1180" id="1180">1180</a>
+<a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a>
+<a href="#1184" id="1184">1184</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -1695,12 +1701,19 @@
         aggregate_kind: <span class="kw-2">&amp;</span>rustc_mir::AggregateKind&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;AggregateKind, UnsupportedReason&gt; {
         <span class="kw">match </span>aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, <span class="prelude-val">None</span>) =&gt; {
+            rustc_mir::AggregateKind::Adt(
+                def_id,
+                variant_idx,
+                args,
+                user_type_annot_idx,
+                field_idx,
+            ) =&gt; {
                 <span class="prelude-val">Ok</span>(AggregateKind::Adt(
                     <span class="kw-2">*</span>def_id,
                     <span class="kw-2">*</span>variant_idx,
                     args.lower(<span class="self">self</span>.tcx)<span class="question-mark">?</span>,
                     <span class="kw-2">*</span>user_type_annot_idx,
+                    <span class="kw-2">*</span>field_idx,
                 ))
             }
             rustc_mir::AggregateKind::Array(ty) =&gt; <span class="prelude-val">Ok</span>(AggregateKind::Array(ty.lower(<span class="self">self</span>.tcx)<span class="question-mark">?</span>)),
@@ -1714,7 +1727,6 @@
                 <span class="prelude-val">Ok</span>(AggregateKind::Coroutine(<span class="kw-2">*</span>did, args))
             }
             rustc_mir::AggregateKind::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)
-            | rustc_mir::AggregateKind::Adt(..)
             | rustc_mir::AggregateKind::CoroutineClosure(..) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
                     <span class="string">"unsupported aggregate kind `{aggregate_kind:?}`"

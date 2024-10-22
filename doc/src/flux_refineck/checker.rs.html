@@ -1890,6 +1890,10 @@
 <a href="#1890" id="1890">1890</a>
 <a href="#1891" id="1891">1891</a>
 <a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2929,13 +2933,17 @@
                     .expect_adt();
                 <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
+            Rvalue::Aggregate(
+                AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>, field_idx),
+                operands,
+            ) =&gt; {
                 <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(infcx, env, stmt_span, operands)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sig = genv
                     .variant_sig(<span class="kw-2">*</span>def_id, <span class="kw-2">*</span>variant_idx)
                     .with_span(stmt_span)<span class="question-mark">?
                     </span>.ok_or_else(|| CheckerError::opaque_struct(<span class="kw-2">*</span>def_id, stmt_span))<span class="question-mark">?
-                    </span>.to_poly_fn_sig();
+                    </span>.to_poly_fn_sig(<span class="kw-2">*</span>field_idx);
+
                 <span class="kw">let </span>args = instantiate_args_for_constructor(genv, <span class="kw-2">&amp;</span><span class="self">self</span>.generics, <span class="kw-2">*</span>def_id, args)
                     .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_call(infcx, env, stmt_span, <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id), sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)

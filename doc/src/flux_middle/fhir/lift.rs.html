@@ -549,6 +549,7 @@
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -601,9 +602,10 @@
     <span class="kw">pub fn </span>lift_refined_by&lt;<span class="lifetime">'fhir</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::RefinedBy&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().expect_item(<span class="self">self</span>.local_id());
         <span class="kw">match </span>item.kind {
-            hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) =&gt; {
-                fhir::RefinedBy::trivial()
-            }
+            hir::ItemKind::TyAlias(..)
+            | hir::ItemKind::Struct(..)
+            | hir::ItemKind::Enum(..)
+            | hir::ItemKind::Union(..) =&gt; fhir::RefinedBy::trivial(),
             <span class="kw">_ </span>=&gt; {
                 <span class="macro">bug!</span>(<span class="string">"expected struct, enum, or type alias"</span>);
             }

@@ -581,6 +581,7 @@
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -897,6 +898,7 @@
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
+        | DefKind::Union
         | DefKind::TyAlias { .. }
         | DefKind::OpaqueTy
         | DefKind::AssocFn

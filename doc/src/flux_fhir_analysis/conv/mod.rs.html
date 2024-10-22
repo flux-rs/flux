@@ -2193,9 +2193,6 @@
 <a href="#2193" id="2193">2193</a>
 <a href="#2194" id="2194">2194</a>
 <a href="#2195" id="2195">2195</a>
-<a href="#2196" id="2196">2196</a>
-<a href="#2197" id="2197">2197</a>
-<a href="#2198" id="2198">2198</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3516,7 +3513,7 @@
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) =&gt; {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
             }
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) =&gt; {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) =&gt; {
                 <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(did)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = <span class="self">self</span>.conv_generic_args(env, did, path.last_segment())<span class="question-mark">?</span>;
                 rty::BaseTy::adt(adt_def, args)
@@ -3565,9 +3562,6 @@
                         refine_args: List::from(refine_args),
                     })
                 }
-            }
-            fhir::Res::Def(DefKind::Union, def_id) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">"TODO: union types: {def_id:?}"</span>)
             }
             fhir::Res::Def(..) | fhir::Res::Err =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)

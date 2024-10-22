@@ -2325,6 +2325,11 @@
 <a href="#2325" id="2325">2325</a>
 <a href="#2326" id="2326">2326</a>
 <a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -4305,6 +4310,10 @@
         <span class="self">self</span>.<span class="number">0</span>.rustc.is_struct()
     }
 
+    <span class="kw">pub fn </span>is_union(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.rustc.is_union()
+    }
+
     <span class="kw">pub fn </span>variants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>IndexSlice&lt;VariantIdx, VariantDef&gt; {
         <span class="self">self</span>.<span class="number">0</span>.rustc.variants()
     }
@@ -4378,18 +4387,19 @@
 }
 
 <span class="kw">impl </span>EarlyBinder&lt;PolyVariant&gt; {
-    <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;PolyFnSig&gt; {
+    <span class="comment">// The field_idx is `Some(i)` when we have the `i`-th field of a `union`, in which case,
+    // the `inputs` are _just_ the `i`-th type (and not all the types...)
+    </span><span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, field_idx: <span class="prelude-ty">Option</span>&lt;<span class="kw">crate</span>::FieldIdx&gt;) -&gt; EarlyBinder&lt;PolyFnSig&gt; {
         <span class="self">self</span>.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 <span class="kw">let </span>ret = variant.ret().shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>output = Binder::bind_with_vars(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-                FnSig::new(
-                    Safety::Safe,
-                    abi::Abi::Rust,
-                    List::empty(),
-                    variant.fields.clone(),
-                    output,
-                )
+                <span class="kw">let </span>inputs = <span class="kw">match </span>field_idx {
+                    <span class="prelude-val">None </span>=&gt; variant.fields.clone(),
+                    <span class="prelude-val">Some</span>(i) =&gt; List::singleton(variant.fields[i.index()].clone()),
+                };
+                <span class="kw">let </span>requires = List::empty();
+                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
             })
         })
     }

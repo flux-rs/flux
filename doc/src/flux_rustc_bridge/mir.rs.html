@@ -999,7 +999,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>AggregateKind {
-    Adt(DefId, VariantIdx, GenericArgs, <span class="prelude-ty">Option</span>&lt;UserTypeAnnotationIndex&gt;),
+    Adt(DefId, VariantIdx, GenericArgs, <span class="prelude-ty">Option</span>&lt;UserTypeAnnotationIndex&gt;, <span class="prelude-ty">Option</span>&lt;FieldIdx&gt;),
     Array(Ty),
     Tuple,
     Closure(DefId, GenericArgs),
@@ -1426,7 +1426,7 @@
             Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
             Rvalue::NullaryOp(null_op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{null_op:?}({ty:?})"</span>),
             Rvalue::UnaryOp(un_op, op) =&gt; <span class="macro">write!</span>(f, <span class="string">"{un_op:?}({op:?})"</span>),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>, <span class="kw">_</span>), operands) =&gt; {
                 <span class="kw">let </span>(fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     <span class="kw">let </span>variant_name = tcx.adt_def(<span class="kw-2">*</span>def_id).variant(<span class="kw-2">*</span>variant_idx).name;
                     <span class="kw">let </span>fname = tcx.def_path(<span class="kw-2">*</span>def_id).data.iter().join(<span class="string">"::"</span>);

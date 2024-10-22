@@ -977,6 +977,7 @@
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1794,7 +1795,8 @@
     genv: GlobalEnv,
     def_id: DefId,
 ) -&gt; CheckerResult&lt;EarlyBinder&lt;Binder&lt;VariantSig&gt;&gt;&gt; {
-    <span class="macro">debug_assert!</span>(genv.adt_def(def_id)<span class="question-mark">?</span>.is_struct());
+    <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
+    <span class="macro">debug_assert!</span>(adt_def.is_struct() || adt_def.is_union());
     genv.variant_sig(def_id, VariantIdx::from_u32(<span class="number">0</span>))<span class="question-mark">?
         </span>.ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
 }
