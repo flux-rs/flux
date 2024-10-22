@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, tracked_span_dbg_assert_eq};
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -568,7 +568,7 @@ impl Sub {
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
-                assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
+                tracked_span_assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
             }
             (BaseTy::Closure(did1, tys_a, _), BaseTy::Closure(did2, tys_b, _)) if did1 == did2 => {
@@ -579,7 +579,7 @@ impl Sub {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                assert_eq!(sig_a, sig_b);
+                tracked_span_assert_eq!(sig_a, sig_b);
                 Ok(())
             }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,

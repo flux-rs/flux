@@ -4,7 +4,7 @@
 //! types in [`rty`].
 
 use flux_arc_interner::List;
-use flux_common::bug;
+use flux_common::{bug, tracked_span_assert_eq};
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
 use rustc_hir::{def::DefKind, def_id::DefId};
@@ -179,7 +179,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 candidates.push(trait_pred);
             }
         }
-        assert!(candidates.len() == 1);
+        tracked_span_assert_eq!(candidates.len(), 1);
         let pred = candidates.first().unwrap();
 
         let pred = rty::FnTraitPredicate {

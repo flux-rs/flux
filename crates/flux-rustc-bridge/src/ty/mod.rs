@@ -6,7 +6,7 @@ use std::fmt;
 
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use itertools::Itertools;
 use rustc_hir::{def_id::DefId, Safety};
 use rustc_index::{IndexSlice, IndexVec};
@@ -686,7 +686,7 @@ impl AdtDefData {
         } else {
             IndexVec::from_raw(vec![0])
         };
-        assert_eq!(discrs.len(), variants.len());
+        tracked_span_assert_eq!(discrs.len(), variants.len());
         Self { did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
     }
 }

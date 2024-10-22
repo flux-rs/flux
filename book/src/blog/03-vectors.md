@@ -21,13 +21,13 @@ To begin with, we will defined a *refined* vector type which is simply a wrapper
 around the standard `Vec` type
 
 ```rust
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 pub struct RVec<T> {
     inner: Vec<T>,
 }
 ```
 
-The `#[flux::refined_by(len: int)]` attribute tells flux that the type `RVec<T>` struct
+The `#[flux_rs::refined_by(len: int)]` attribute tells flux that the type `RVec<T>` struct
 is indexed by a `len` refinement which tracks the *size* of the underlying vector, just
 like the indices for `i32` and `bool` tracked the actual *value* of the underlying
 [integer or boolean][blog-intro]). The idea is that the type
@@ -44,8 +44,8 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.
 
 ```rust
 impl<T> RVec<T> {
-    #[flux::trusted]
-    #[flux::sig(fn() -> RVec<T>[0])]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn() -> RVec<T>[0])]
     pub fn new() -> Self {
         Self { inner: Vec::new() }
     }
@@ -53,7 +53,7 @@ impl<T> RVec<T> {
 ```
 
 The above implements `RVec::new` as a wrapper around `Vec::new`.
-The `#[flux::trusted]` attribute tells Flux there is nothing to
+The `#[flux_rs::trusted]` attribute tells Flux there is nothing to
 "check" here, as we are *defining* the API itself and trusting
 that the implementation (using `vec` is correct).
 However, the signature says that *callers* of the `RVec::new` get
@@ -66,8 +66,8 @@ An empty vector is a rather desolate thing.
 To be of any use, we need to be able to `push` values into the container, like so
 
 ```rust
-#[flux::trusted]
-#[flux::sig(fn(self: &strg RVec<T>[@n], T)
+#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &strg RVec<T>[@n], T)
             ensures self: RVec<T>[n+1])]
 pub fn push(&mut self, item: T) {
     self.inner.push(item);
@@ -90,8 +90,8 @@ of the vector. Aha, but what if the vector is empty? You could return an
 only be called with non-empty vectors.
 
 ```rust
-#[flux::trusted]
-#[flux::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
+#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
             ensures self: RVec<T>[n-1])]
 pub fn pop(&mut self) -> T {
   self.inner.pop().unwrap()
@@ -120,7 +120,7 @@ error[FLUX]: precondition might not hold
 note: this is the condition that cannot be proved
   --> src/rvec.rs:78:47
    |
-78 |     #[flux::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
+78 |     #[flux_rs::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
    |                                               ^^^^^
 ```
 <!--
@@ -137,8 +137,8 @@ we `pop` it. We can do that with a `len` method whose type says that the returne
 is, in fact, the size of the input vector
 
 ```rust
-#[flux::trusted]
-#[flux::sig(fn(&RVec<T>[@n]) -> usize[n])]
+#[flux_rs::trusted]
+#[flux_rs::sig(fn(&RVec<T>[@n]) -> usize[n])]
 pub fn len(&self) -> usize {
     self.inner.len()
 }
@@ -160,12 +160,12 @@ called with a *valid index* that is between `0` and the
 vector's size
 
 ```rust
-#[flux::sig(fn(&RVec<T>[@n], i: usize{i < n}) -> &T)]
+#[flux_rs::sig(fn(&RVec<T>[@n], i: usize{i < n}) -> &T)]
 pub fn get(&self, i: usize) -> &T {
     &self.inner[i]
 }
 
-#[flux::sig(fn(&mut RVec<T>[@n], i: usize{i < n}) -> &mut T)]
+#[flux_rs::sig(fn(&mut RVec<T>[@n], i: usize{i < n}) -> &mut T)]
 pub fn get_mut(&mut self, i: usize) -> &mut T {
     &mut self.inner[i]
 }
@@ -184,14 +184,14 @@ the `Index` and `IndexMut` traits for `RVec` which allows us to use the
 ```rust
 impl<T> std::ops::Index<usize> for RVec<T> {
     type Output = T;
-    #[flux::sig(fn(&RVec<T>[@n], i:usize{i < n}) -> &T)]
+    #[flux_rs::sig(fn(&RVec<T>[@n], i:usize{i < n}) -> &T)]
     fn index(&self, index: usize) -> &T {
         self.get(index)
     }
 }
 
 impl<T> std::ops::IndexMut<usize> for RVec<T> {
-    #[flux::sig(fn(&mut RVec<T>[@n], i:usize{i < n}) -> &mut T)]
+    #[flux_rs::sig(fn(&mut RVec<T>[@n], i:usize{i < n}) -> &mut T)]
     fn index_mut(&mut self, index: usize) -> &mut T {
         self.get_mut(index)
     }
@@ -286,7 +286,7 @@ error[FLUX]: precondition might not hold
 note: this is the condition that cannot be proved
    --> src/rvec.rs:189:44
     |
-189 |     #[flux::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
+189 |     #[flux_rs::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
     |                                            ^^^^^
 
 error[FLUX]: arithmetic operation may overflow

@@ -281,7 +281,7 @@ where
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
-                        assert_eq!(debruijn1, INNERMOST);
+                        tracked_span_assert_eq!(debruijn1, INNERMOST);
                         Region::ReBound(debruijn, br)
                     } else {
                         region

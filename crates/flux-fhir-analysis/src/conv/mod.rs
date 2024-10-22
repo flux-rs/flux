@@ -1376,6 +1376,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     )
                 }
             }
+            fhir::Res::Def(DefKind::Union, def_id) => {
+                span_bug!(path.span, "TODO: union types: {def_id:?}")
+            }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
