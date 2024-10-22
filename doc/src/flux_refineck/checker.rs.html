@@ -1858,6 +1858,38 @@
 <a href="#1858" id="1858">1858</a>
 <a href="#1859" id="1859">1859</a>
 <a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2280,32 +2312,51 @@
                     <span class="prelude-val">Ok</span>(<span class="self">Self</span>::check_match(<span class="kw-2">&amp;</span>discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { args, destination, target, resolved_call, .. } =&gt; {
+            TerminatorKind::Call { kind, args, destination, target, .. } =&gt; {
                 <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(infcx, env, terminator_span, args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ret = <span class="kw">match </span>kind {
+                    mir::CallKind::FnDef { resolved_id, resolved_args, .. } =&gt; {
+                        <span class="kw">let </span>fn_sig = <span class="self">self
+                            </span>.genv
+                            .fn_sig(<span class="kw-2">*</span>resolved_id)
+                            .with_src_info(terminator.source_info)<span class="question-mark">?</span>;
 
-                <span class="kw">let </span>(func_id, call_args) = resolved_call;
-                <span class="kw">let </span>fn_sig = <span class="self">self
-                    </span>.genv
-                    .fn_sig(<span class="kw-2">*</span>func_id)
-                    .with_src_info(terminator.source_info)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>generic_args = instantiate_args_for_fun_call(
+                            <span class="self">self</span>.genv,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.generics,
+                            <span class="kw-2">*</span>resolved_id,
+                            <span class="kw-2">&amp;</span>resolved_args.lowered,
+                        )
+                        .with_src_info(terminator.source_info)<span class="question-mark">?</span>;
 
-                <span class="kw">let </span>generic_args = instantiate_args_for_fun_call(
-                    <span class="self">self</span>.genv,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.generics,
-                    <span class="kw-2">*</span>func_id,
-                    <span class="kw-2">&amp;</span>call_args.lowered,
-                )
-                .with_src_info(terminator.source_info)<span class="question-mark">?</span>;
-
-                <span class="kw">let </span>ret = <span class="self">self</span>.check_call(
-                    infcx,
-                    env,
-                    terminator_span,
-                    <span class="kw-2">*</span>func_id,
-                    fn_sig,
-                    <span class="kw-2">&amp;</span>generic_args,
-                    <span class="kw-2">&amp;</span>actuals,
-                )<span class="question-mark">?</span>;
+                        <span class="self">self</span>.check_call(
+                            infcx,
+                            env,
+                            terminator_span,
+                            <span class="prelude-val">Some</span>(<span class="kw-2">*</span>resolved_id),
+                            fn_sig,
+                            <span class="kw-2">&amp;</span>generic_args,
+                            <span class="kw-2">&amp;</span>actuals,
+                        )<span class="question-mark">?
+                    </span>}
+                    mir::CallKind::FnPtr { operand, .. } =&gt; {
+                        <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(infcx, env, terminator_span, operand)<span class="question-mark">?</span>;
+                        <span class="kw">if let </span>TyKind::Indexed(BaseTy::FnPtr(fn_sig), <span class="kw">_</span>) = infcx.unpack(<span class="kw-2">&amp;</span>ty).kind()
+                        {
+                            <span class="self">self</span>.check_call(
+                                infcx,
+                                env,
+                                terminator_span,
+                                <span class="prelude-val">None</span>,
+                                EarlyBinder(fn_sig.clone()),
+                                <span class="kw-2">&amp;</span>[],
+                                <span class="kw-2">&amp;</span>actuals,
+                            )<span class="question-mark">?
+                        </span>} <span class="kw">else </span>{
+                            <span class="macro">bug!</span>(<span class="string">"TODO: fnptr call {ty:?}"</span>)
+                        }
+                    }
+                };
 
                 <span class="kw">let </span>ret = infcx.unpack(<span class="kw-2">&amp;</span>ret);
                 infcx.assume_invariants(<span class="kw-2">&amp;</span>ret, <span class="self">self</span>.check_overflow());
@@ -2382,7 +2433,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
-        callee_def_id: DefId,
+        callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
         fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         actuals: <span class="kw-2">&amp;</span>[Ty],
@@ -2399,9 +2450,16 @@
         </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
 
         <span class="comment">// Generate fresh inference variables for refinement arguments
-        </span><span class="kw">let </span>refine_args = infcx
-            .instantiate_refine_args(callee_def_id)
-            .with_span(span)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>refine_args = <span class="kw">match </span>callee_def_id {
+            <span class="prelude-val">Some</span>(callee_def_id) =&gt; {
+                infcx
+                    .instantiate_refine_args(callee_def_id)
+                    .with_span(span)<span class="question-mark">?
+            </span>}
+            <span class="prelude-val">None </span>=&gt; {
+                <span class="macro">vec!</span>[]
+            }
+        };
 
         <span class="comment">// Instantiate function signature and normalize it
         </span><span class="kw">let </span>fn_sig = fn_sig
@@ -2446,11 +2504,15 @@
             }
         }
 
-        <span class="kw">let </span>clauses = genv
-            .predicates_of(callee_def_id)
-            .with_span(span)<span class="question-mark">?
-            </span>.predicates()
-            .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args);
+        <span class="kw">let </span>clauses = <span class="kw">match </span>callee_def_id {
+            <span class="prelude-val">Some</span>(callee_def_id) =&gt; {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)<span class="question-mark">?
+                    </span>.predicates()
+                    .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
+            }
+            <span class="prelude-val">None </span>=&gt; <span class="kw">crate</span>::rty::List::empty(),
+        };
 
         at.check_non_closure_clauses(<span class="kw-2">&amp;</span>clauses, ConstrReason::Call)
             .with_span(span)<span class="question-mark">?</span>;
@@ -2876,7 +2938,7 @@
                     </span>.to_poly_fn_sig();
                 <span class="kw">let </span>args = instantiate_args_for_constructor(genv, <span class="kw-2">&amp;</span><span class="self">self</span>.generics, <span class="kw-2">*</span>def_id, args)
                     .with_span(stmt_span)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_call(infcx, env, stmt_span, <span class="kw-2">*</span>def_id, sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)
+                <span class="self">self</span>.check_call(infcx, env, stmt_span, <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id), sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) =&gt; {
                 <span class="kw">let </span>args = <span class="self">self</span>.check_operands(infcx, env, stmt_span, operands)<span class="question-mark">?</span>;
@@ -3095,6 +3157,8 @@
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
+            | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance =&gt; {
                 <span class="self">self</span>.genv
                     .refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, to)

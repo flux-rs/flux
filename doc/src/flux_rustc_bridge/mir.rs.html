@@ -737,6 +737,32 @@
 <a href="#737" id="737">737</a>
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -767,7 +793,10 @@
 <span class="kw">pub use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 <span class="kw">use </span><span class="kw">super</span>::ty::{Const, GenericArg, GenericArgs, Region, Ty};
-<span class="kw">use crate</span>::{def_id_to_string, ty::region_to_string};
+<span class="kw">use crate</span>::{
+    def_id_to_string,
+    ty::{region_to_string, Binder, FnSig},
+};
 
 <span class="kw">pub struct </span>Body&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>basic_blocks: IndexVec&lt;BasicBlock, BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
@@ -842,17 +871,28 @@
     <span class="kw">pub </span>args: GenericArgs,
 }
 
+<span class="kw">pub enum </span>CallKind&lt;<span class="lifetime">'tcx</span>&gt; {
+    FnDef {
+        def_id: DefId,
+        generic_args: CallArgs&lt;<span class="lifetime">'tcx</span>&gt;,
+        resolved_id: DefId,
+        resolved_args: CallArgs&lt;<span class="lifetime">'tcx</span>&gt;,
+    },
+    FnPtr {
+        fn_sig: Binder&lt;FnSig&gt;,
+        operand: Operand,
+    },
+}
+
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>TerminatorKind&lt;<span class="lifetime">'tcx</span>&gt; {
     Return,
     Call {
-        func: DefId,
-        generic_args: CallArgs&lt;<span class="lifetime">'tcx</span>&gt;,
+        kind: CallKind&lt;<span class="lifetime">'tcx</span>&gt;,
         args: Vec&lt;Operand&gt;,
         destination: Place,
         target: <span class="prelude-ty">Option</span>&lt;BasicBlock&gt;,
         unwind: UnwindAction,
-        resolved_call: (DefId, CallArgs&lt;<span class="lifetime">'tcx</span>&gt;),
     },
     SwitchInt {
         discr: Operand,
@@ -953,6 +993,8 @@
 </span><span class="kw">pub enum </span>PointerCast {
     MutToConstPointer,
     Unsize,
+    ClosureFnPointer,
+    ReifyFnPointer,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1245,26 +1287,34 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; fmt::Debug <span class="kw">for </span>CallKind&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            CallKind::FnDef { resolved_id, resolved_args, .. } =&gt; {
+                <span class="kw">let </span>fname = rustc_middle::ty::tls::with(|tcx| {
+                    <span class="kw">let </span>path = tcx.def_path(<span class="kw-2">*</span>resolved_id);
+                    path.data.iter().join(<span class="string">"::"</span>)
+                });
+                <span class="macro">write!</span>(f, <span class="string">"call {fname}"</span>)<span class="question-mark">?</span>;
+                <span class="kw">if </span>!resolved_args.lowered.is_empty() {
+                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, resolved_args.lowered.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+            CallKind::FnPtr { fn_sig, operand } =&gt; <span class="macro">write!</span>(f, <span class="string">"FnPtr[{operand:?}]({fn_sig:?})"</span>),
+        }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; fmt::Debug <span class="kw">for </span>Terminator&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             TerminatorKind::Return =&gt; <span class="macro">write!</span>(f, <span class="string">"return"</span>),
             TerminatorKind::Unreachable =&gt; <span class="macro">write!</span>(f, <span class="string">"unreachable"</span>),
-            TerminatorKind::Call { args, destination, target, unwind, resolved_call, .. } =&gt; {
-                <span class="kw">let </span>(func, generic_args) = resolved_call;
-                <span class="kw">let </span>fname = rustc_middle::ty::tls::with(|tcx| {
-                    <span class="kw">let </span>path = tcx.def_path(<span class="kw-2">*</span>func);
-                    path.data.iter().join(<span class="string">"::"</span>)
-                });
-                <span class="macro">write!</span>(f, <span class="string">"{destination:?} = call {fname}"</span>)<span class="question-mark">?</span>;
-
-                <span class="kw">if </span>!generic_args.lowered.is_empty() {
-                    <span class="macro">write!</span>(f, <span class="string">"::&lt;{:?}&gt;"</span>, generic_args.lowered.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
-                }
-
+            TerminatorKind::Call { kind, args, destination, target, unwind, .. } =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">"({args:?}) -&gt; [return: {target}, unwind: {unwind:?}]"</span>,
+                    <span class="string">"{destination:?} = call {kind:?}({args:?}) -&gt; [return: {target}, unwind: {unwind:?}]"</span>,
                     args = args.iter().format(<span class="string">", "</span>),
                     target = opt_bb_to_str(<span class="kw-2">*</span>target),
                 )
@@ -1426,6 +1476,8 @@
         <span class="kw">match </span><span class="self">self </span>{
             PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"MutToConstPointer"</span>),
             PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">"Unsize"</span>),
+            PointerCast::ClosureFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ClosureFnPointer"</span>),
+            PointerCast::ReifyFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ReifyFnPointer"</span>),
         }
     }
 }

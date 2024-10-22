@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["lower_place","resolve_call_query","resolve_trait_ref_impl_id","trait_ref_impl_id"],"mod":["errors"],"struct":["MirLoweringCtxt","UnsupportedErr","UnsupportedReason"],"trait":["Lower"]};
+window.SIDEBAR_ITEMS = {"fn":["fnptr_as_fnsig","lower_place","resolve_call_query","resolve_trait_ref_impl_id","trait_ref_impl_id"],"mod":["errors"],"struct":["MirLoweringCtxt","UnsupportedErr","UnsupportedReason"],"trait":["Lower"]};
