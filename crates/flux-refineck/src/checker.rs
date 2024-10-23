@@ -206,6 +206,62 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
+// fn find_trait_item(tcx: TyCtxt<'_>, impl_id: DefId, item_id: DefId) -> Option<DefId> {
+//     let foo = tcx
+//         .impl_item_implementor_ids(impl_id)
+//         .items()
+//         .filter_map(|(key, val)| if *val == item_id { Some(*key) } else { None })
+//         .collect();
+
+//     foo
+
+//     // let foo = tcx.impl_item_implementor_ids(key)
+//     // for (key, val) in tcx
+//     //     .impl_item_implementor_ids(impl_id)
+//     //     .to_sorted_stable_ord()
+//     // {
+//     //     if val == item_id {
+//     //         return Some(key);
+//     //     }
+//     // }
+//     // return None;
+// }
+
+fn find_trait_item(genv: &GlobalEnv<'_, '_>, def_id: LocalDefId) -> Option<DefId> {
+    let tcx = genv.tcx();
+    let def_id = def_id.to_def_id();
+    if let Some(impl_id) = tcx.impl_of_method(def_id)
+        && let Some(trait_id) = tcx.trait_id_of_impl(impl_id)
+    {
+        let trait_item_ids = tcx.associated_item_def_ids(trait_id);
+        let impl_item_ids = tcx.impl_item_implementor_ids(impl_id);
+
+        for trait_item_id in trait_item_ids {
+            if def_id == *impl_item_ids.get(&trait_item_id).unwrap() {
+                return Some(*trait_item_id);
+            }
+        }
+        // .get(&callee_id)?;
+        // let
+        // 1. get the assocItems of the trait
+        // 2. loop over trait_item_ids to find the one that matches `def_id`
+
+        // let assoc_id = tcx.impl_item_implementor_ids(impl_id).get(&callee_id)?;
+        // let assoc_item = tcx.associated_item(assoc_id);
+        // println!(
+        //     "TRACE: checker::is_impl_method {def_id:?} => {impl_id:?} implements {trait_id:?}"
+        // );
+        // return true;
+    }
+    return None;
+
+    // if let Some(parent) = genv.tcx().opt_parent(def_id.to_def_id())
+    //     && let DefKind::Impl { .. } = genv.tcx().def_kind(parent)
+    // {
+    //     return true;
+    // }
+}
+
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -263,6 +319,24 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             ck.check_basic_block(infcx, env, bb)?;
         }
 
+        // Trait subtyping check
+        if let Some(trait_method_id) = find_trait_item(&genv, def_id) {
+            let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
+
+            TODO("see line 497 in checker.rs")
+
+            ck.check_oblig_fn_def(
+                &mut infcx,
+                &def_id.to_def_id(),
+                &[], /* TODO */
+                trait_fn_sig,
+                span,
+            );
+            println!(
+                "TRACE: checker::run {def_id:?} => is_impl = {:?}",
+                find_trait_item(&genv, def_id)
+            );
+        }
         Ok(())
     }
 
