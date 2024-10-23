@@ -322,21 +322,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Trait subtyping check
         if let Some(trait_method_id) = find_trait_item(&genv, def_id) {
             let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
-
-            TODO("see line 497 in checker.rs")
-
+            // println!("TRACE: impl-subtyping {def_id:?} <: {trait_fn_sig:?}");
             ck.check_oblig_fn_def(
                 &mut infcx,
                 &def_id.to_def_id(),
-                &[], /* TODO */
+                &[], // TODO: instantiate_args_for_fun_call(..); see line 497 in checker.rs
                 trait_fn_sig,
+                false,
                 span,
-            );
-            println!(
-                "TRACE: checker::run {def_id:?} => is_impl = {:?}",
-                find_trait_item(&genv, def_id)
-            );
+            )?;
         }
+
         Ok(())
     }
 
@@ -760,7 +756,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: &DefId,
         generic_args: &[GenericArg],
-        oblig_sig: rty::PolyFnSig,
+        oblig_sig: EarlyBinder<rty::PolyFnSig>,
+        normalize_oblig_sig: bool,
         span: Span,
     ) -> Result {
         let mut infcx = infcx.at(span);
@@ -769,9 +766,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
 
         let oblig_sig = oblig_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
-            .with_span(span)?;
+            .instantiate_identity()
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
+
+        let oblig_sig = if normalize_oblig_sig {
+            oblig_sig
+                .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+                .with_span(span)?
+        } else {
+            oblig_sig
+        };
 
         // 1. Unpack `T_g` input types
         let actuals = oblig_sig
@@ -870,11 +874,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let oblig_sig = fn_trait_pred
-                    .fndef_poly_sig()
-                    .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                    .with_span(self.body.span())?;
-                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, span)?;
+                let oblig_sig = fn_trait_pred.fndef_poly_sig();
+
+                // .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                // .with_span(self.body.span())?;
+                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, true, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
