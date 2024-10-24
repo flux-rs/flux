@@ -1417,6 +1417,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn try_parse_int_lit(&self, span: Span, s: &str) -> Result<i128> {
+        let s = s.replace("_", "");
         let parsed_int = if s.len() <= 2 {
             s.parse::<i128>()
         } else {
