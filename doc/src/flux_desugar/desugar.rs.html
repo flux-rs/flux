@@ -1574,6 +1574,7 @@
 <a href="#1574" id="1574">1574</a>
 <a href="#1575" id="1575">1575</a>
 <a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -2993,6 +2994,7 @@
     }
 
     <span class="kw">fn </span>try_parse_int_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;i128&gt; {
+        <span class="kw">let </span>s = s.replace(<span class="string">"_"</span>, <span class="string">""</span>);
         <span class="kw">let </span>parsed_int = <span class="kw">if </span>s.len() &lt;= <span class="number">2 </span>{
             s.parse::&lt;i128&gt;()
         } <span class="kw">else </span>{
