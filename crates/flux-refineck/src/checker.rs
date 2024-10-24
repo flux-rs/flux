@@ -227,39 +227,26 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 //     // return None;
 // }
 
-fn find_trait_item(genv: &GlobalEnv<'_, '_>, def_id: LocalDefId) -> Option<DefId> {
+fn find_trait_item(
+    genv: &GlobalEnv<'_, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<Option<(crate::rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
     let def_id = def_id.to_def_id();
     if let Some(impl_id) = tcx.impl_of_method(def_id)
-        && let Some(trait_id) = tcx.trait_id_of_impl(impl_id)
+        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
     {
+        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+        let trait_id = impl_trait_ref.def_id;
         let trait_item_ids = tcx.associated_item_def_ids(trait_id);
         let impl_item_ids = tcx.impl_item_implementor_ids(impl_id);
-
         for trait_item_id in trait_item_ids {
             if def_id == *impl_item_ids.get(&trait_item_id).unwrap() {
-                return Some(*trait_item_id);
+                return Ok(Some((impl_trait_ref, *trait_item_id)));
             }
         }
-        // .get(&callee_id)?;
-        // let
-        // 1. get the assocItems of the trait
-        // 2. loop over trait_item_ids to find the one that matches `def_id`
-
-        // let assoc_id = tcx.impl_item_implementor_ids(impl_id).get(&callee_id)?;
-        // let assoc_item = tcx.associated_item(assoc_id);
-        // println!(
-        //     "TRACE: checker::is_impl_method {def_id:?} => {impl_id:?} implements {trait_id:?}"
-        // );
-        // return true;
     }
-    return None;
-
-    // if let Some(parent) = genv.tcx().opt_parent(def_id.to_def_id())
-    //     && let DefKind::Impl { .. } = genv.tcx().def_kind(parent)
-    // {
-    //     return true;
-    // }
+    return Ok(None);
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
@@ -320,7 +307,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         // Trait subtyping check
-        if let Some(trait_method_id) = find_trait_item(&genv, def_id) {
+        if let Some((trait_ref, trait_method_id)) =
+            find_trait_item(&genv, def_id).with_span(span)?
+        {
             let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
             // println!("TRACE: impl-subtyping {def_id:?} <: {trait_fn_sig:?}");
             ck.check_oblig_fn_def(
@@ -328,6 +317,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 &def_id.to_def_id(),
                 &[], // TODO: instantiate_args_for_fun_call(..); see line 497 in checker.rs
                 trait_fn_sig,
+                Some(&trait_ref.args),
                 false,
                 span,
             )?;
@@ -757,7 +747,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         def_id: &DefId,
         generic_args: &[GenericArg],
         oblig_sig: EarlyBinder<rty::PolyFnSig>,
-        normalize_oblig_sig: bool,
+        oblig_args: Option<&[GenericArg]>,
+        _normalize_oblig_sig: bool,
         span: Span,
     ) -> Result {
         let mut infcx = infcx.at(span);
@@ -765,11 +756,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
 
-        let oblig_sig = oblig_sig
-            .instantiate_identity()
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
+        let oblig_sig = if let Some(oblig_args) = oblig_args {
+            oblig_sig.instantiate(tcx, oblig_args, &[])
+        } else {
+            oblig_sig.instantiate_identity()
+        };
+        let oblig_sig =
+            oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
-        let oblig_sig = if normalize_oblig_sig {
+        // println!("TRACE: check_oblig_fn_def {oblig_sig:?}");
+
+        let oblig_sig = if true
+        /* normalize_oblig_sig */
+        {
             oblig_sig
                 .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
                 .with_span(span)?
@@ -787,6 +786,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
         infcx.push_scope();
         let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
+        println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
         let fn_def_sig = fn_def_sig
             .instantiate(tcx, generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
@@ -878,7 +878,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 // .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
                 // .with_span(self.body.span())?;
-                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, true, span)?;
+                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, None, true, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
