@@ -58,7 +58,7 @@ pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut QueryCache,
     def_id: MaybeExternId,
-    config: CheckerConfig,
+    mut config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -85,6 +85,11 @@ pub fn check_fn(
     // Skip trusted functions
     if genv.trusted(local_id) {
         return Ok(());
+    }
+
+    // Since we still want the global check overflow, just override it here if it's set
+    if genv.check_overflow(local_id) {
+        config.check_overflow = true;
     }
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
