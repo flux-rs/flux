@@ -88,8 +88,14 @@ pub fn check_fn(
     }
 
     // Since we still want the global check overflow, just override it here if it's set
-    if genv.check_overflow(local_id) {
-        config.check_overflow = true;
+    if let Some(check_overflow) = genv.check_overflow(local_id) {
+        if check_overflow {
+            config.check_overflow = true;
+        } else if config.check_overflow {
+            // In this case, an item was explicitly marked as check_overflow(no)
+            // but the cfg attribute is set so we need to override it
+            config.check_overflow = false;
+        }
     }
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
