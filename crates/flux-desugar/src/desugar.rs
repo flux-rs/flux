@@ -1436,6 +1436,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
     }
 
+    /// Desugar surface literal
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit> {
         match lit.kind {
             surface::LitKind::Integer => {
@@ -1451,6 +1452,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
             surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
+            surface::LitKind::Char => {
+                Ok(fhir::Lit::Char(u32::from(lit.symbol.as_str().parse::<char>().unwrap())))
+            } 
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }
