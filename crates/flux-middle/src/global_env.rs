@@ -401,6 +401,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item requires an
+    /// overflow check or not.
+    /// If no explicit annotation is found, return `false`.
+    pub fn check_overflow(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| self.collect_specs().check_overflows.get(&did))
+            .is_some_and(|check_overflow| check_overflow.to_bool())
+    }
+
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
