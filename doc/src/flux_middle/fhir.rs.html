@@ -1513,6 +1513,32 @@
 <a href="#1513" id="1513">1513</a>
 <a href="#1514" id="1514">1514</a>
 <a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1605,6 +1631,32 @@
             Trusted::Yes
         } <span class="kw">else </span>{
             Trusted::No
+        }
+    }
+}
+
+<span class="doccomment">/// A boolean-like enum used to mark whether some code should be checked for overflows
+</span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+</span><span class="kw">pub enum </span>CheckOverflow {
+    Yes,
+    No,
+}
+
+<span class="kw">impl </span>CheckOverflow {
+    <span class="kw">pub fn </span>to_bool(<span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            CheckOverflow::Yes =&gt; <span class="bool-val">true</span>,
+            CheckOverflow::No =&gt; <span class="bool-val">false</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>CheckOverflow {
+    <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
+        <span class="kw">if </span>value {
+            CheckOverflow::Yes
+        } <span class="kw">else </span>{
+            CheckOverflow::No
         }
     }
 }

@@ -565,6 +565,30 @@
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
 <a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -965,6 +989,30 @@
         } <span class="kw">else </span>{
             ResolvedDefId::Extern(def_id)
         }
+    }
+
+    <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
+    /// explicity annotation and whether it requires an overflow check or not.
+    /// If no explicit annotation is found, return None
+    ///
+    /// Note:
+    ///
+    /// This uses Option since we want to be explicit about whether or not the
+    /// check_overflow attribute was actually on an item
+    ///
+    /// This is relevant in cases where Flux is configured to check overflows globally
+    /// but an item is marked `check_overflow(no)` explicitly.
+    ///
+    /// i.e. in these cases we need to know that
+    /// 1. `check_overflow` was explicitly marked on an item
+    /// 2. `check_overflow` boolean representation is false (`check_overflow(no)`)
+    ///
+    </span><span class="kw">pub fn </span>check_overflow(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
+        <span class="prelude-val">Some</span>(
+            <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().check_overflows.get(<span class="kw-2">&amp;</span>did))<span class="question-mark">?
+                </span>.to_bool(),
+        )
     }
 
     <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
