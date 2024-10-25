@@ -6,11 +6,12 @@ use extern_specs::ExternSpecCollector;
 use flux_common::{
     iter::IterExt,
     result::{ErrorCollector, ResultExt},
+    tracked_span_assert_eq,
 };
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{Ignored, Trusted},
+    fhir::{CheckOverflow, Ignored, Trusted},
     Specs,
 };
 use flux_syntax::{surface, ParseResult, ParseSess};
@@ -84,6 +85,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
+        self.collect_check_overflow(&mut attrs, CRATE_DEF_ID);
         self.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
@@ -98,12 +100,18 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
+        self.collect_check_overflow(&mut attrs, owner_id.def_id);
 
         match &item.kind {
             ItemKind::Fn(..) => {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
             ItemKind::Struct(variant, ..) => {
+                self.collect_struct_def(owner_id, attrs, variant)?;
+            }
+            ItemKind::Union(variant, ..) => {
+                // currently no refinements on unions
+                tracked_span_assert_eq!(attrs.items().is_empty(), true);
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
             ItemKind::Enum(enum_def, ..) => {
@@ -137,7 +145,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-
+        self.collect_check_overflow(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
         }
@@ -150,6 +158,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
+        self.collect_check_overflow(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
@@ -438,6 +447,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                         .into(),
                 )
             }
+            ("check_overflow", _) => {
+                FluxAttrKind::CheckOverflow(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|_| invalid_attr_err(self))?
+                        .into(),
+                )
+            }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", AttrArgs::Empty) => FluxAttrKind::ShouldFail,
@@ -481,6 +497,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
         if let Some(trusted) = attrs.trusted() {
             self.specs.trusted.insert(def_id, trusted);
+        }
+    }
+
+    fn collect_check_overflow(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
+        if let Some(check_overflow) = attrs.check_overflow() {
+            self.specs.check_overflows.insert(def_id, check_overflow);
         }
     }
 }
@@ -557,6 +579,7 @@ enum FluxAttrKind {
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
+    CheckOverflow(CheckOverflow),
 }
 
 macro_rules! read_flag {
@@ -673,6 +696,10 @@ impl FluxAttrs {
     fn should_fail(&self) -> bool {
         read_flag!(self, ShouldFail)
     }
+
+    fn check_overflow(&mut self) -> Option<CheckOverflow> {
+        read_attr!(self, CheckOverflow)
+    }
 }
 
 impl FluxAttrKind {
@@ -695,6 +722,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::CheckOverflow(_) => attr_name!(CheckOverflow),
         }
     }
 }

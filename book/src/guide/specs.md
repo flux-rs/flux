@@ -18,7 +18,7 @@ This is a WIP guide to writing specifications in `flux`.
   - `i32{v: v > 0}`: set of positive `i32` values.
   - `List<T>{v: v > 0}`: set of non-empty lists.
 
-- **Constraint Type**: A constraint type has the form `{T | r}` where `T` is any type (not just a base type). Intuitively, a value has type `{T | r}` if it has type `T` and also `r` holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter `n` to be less than `n`.
+- **Constraint Type**: A constraint type has the form `{T | r}` where `T` is any type (not just a base type). Intuitively, a value has type `{T | r}` if it has type `T` and also `r` holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter `n` to be less than `10`.
 
   `fn({i32[@n] | n < 10}) -> i32[n + 1]`
 
@@ -86,7 +86,7 @@ happen to correspond to each of the below lines.
 
 ```
 #[extern_spec(std::mem)]
-#[flux::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
+#[flux_rs::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
 fn swap(a: &mut i32, b: &mut i32);
 ```
 
@@ -94,8 +94,8 @@ fn swap(a: &mut i32, b: &mut i32);
    in the above example, this is `std::mem`. You can use this path to qualify
    the function. So in the above example, the function we are targeting has the
    full path of `std::mem::swap`.
-2. Add a `#[flux::sig(...)]` attribute. This is required for any extern spec on
-   a function. This signature behaves as if the `#[flux::trusted]` attribute was
+2. Add a `#[flux_rs::sig(...)]` attribute. This is required for any extern spec on
+   a function. This signature behaves as if the `#[flux_rs::trusted]` attribute was
    added, because we can't actually check the implementation. We just verify
    some simple things, like that the function arguments have compatible types.
 3. Write a function stub that matches the external function.
@@ -107,8 +107,8 @@ You shouldn't need to know the details, but here's how the macro works. It
 parses the `std::mem` into a module path and then transforms the function into
 
 ```
-#[flux::extern_spec]
-#[flux::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
+#[flux_rs::extern_spec]
+#[flux_rs::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
 #[allow(unused, dead_code)]
 fn __flux_extern_spec_swap(a: &mut i32, b: &mut i32) {
     std::mem::swap(a, b)
@@ -131,7 +131,7 @@ function. Once again, each line in the example happens to correspond to a step.
 
 ```
 #[extern_spec(std::string)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct String;
 ```
 
@@ -139,9 +139,9 @@ struct String;
    in the above example, this is `std::string`. You can use this path to qualify
    the function. So in the above example, the struct we are targeting has the
    full path of `std::string::String`.
-2. Add a `#[flux::refined_by(...)]` attribute. This is required for any extern
+2. Add a `#[flux_rs::refined_by(...)]` attribute. This is required for any extern
    spec on a struct. Right now these attributes behave as if they were opaque
-   (`#[flux::opaque]`), although we may support non-opaque extern structs.
+   (`#[flux_rs::opaque]`), although we may support non-opaque extern structs.
 3. Write a stub for the extern struct.
 
 If you do the above, you can use `std::string::String` as if it were refined by
@@ -153,10 +153,10 @@ structs.
 ```
 #[extern_spec(std::string)]
 impl String {
-    #[flux::sig(fn() -> String[0])]
+    #[flux_rs::sig(fn() -> String[0])]
     fn new() -> String;
 
-    #[flux::sig(fn(&String[@n]) -> usize[n])]
+    #[flux_rs::sig(fn(&String[@n]) -> usize[n])]
     fn len(s: &String) -> usize;
 }
 ```
@@ -179,9 +179,9 @@ You shouldn't need to know the details, but here's how the above two macros expa
 
 For structs:
 ```
-#[flux::extern_spec]
+#[flux_rs::extern_spec]
 #[allow(unused, dead_code)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct __FluxExternSpecString(std::string::String);
 ```
 
@@ -192,14 +192,14 @@ struct __FluxExternImplStructString;
 
 #[allow(unused, dead_code)]
 impl __FluxExternImplStructString {
-    #[flux::extern_spec]
-    #[flux::sig(fn() -> String[0])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn() -> String[0])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_new() -> String {
        std::string::String::new::<>()
     }
-    #[flux::extern_spec]
-    #[flux::sig(fn(&String[@n]) -> usize[n])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn(&String[@n]) -> usize[n])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_len(s: &String) -> usize {
        std::string::String::len::<>(s)
@@ -233,23 +233,23 @@ r ::= n                     // numbers 1,2,3...
 
 ## Ignored and trusted code
 
-Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux::ignore]` and `#[flux::trusted]`.
+Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux_rs::ignore]` and `#[flux_rs::trusted]`.
 
-* `#[flux::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
-* `#[flux::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
+* `#[flux_rs::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
+* `#[flux_rs::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
 
 The above means that an *ignored* function can only be called from ignored or trusted code, while a *trusted* function can also be called from analyzed code.
 
-Both attributes apply recursively. For instance, if a module is marked as `#[flux::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis. Similarly,
-the action of `#[flux::trusted]` can be reverted using `#[flux::trusted(no)]`.
+Both attributes apply recursively. For instance, if a module is marked as `#[flux_rs::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux_rs::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis. Similarly,
+the action of `#[flux_rs::trusted]` can be reverted using `#[flux_rs::trusted(no)]`.
 
 Consider the following example:
 
 ```rust
-#[flux::ignore]
+#[flux_rs::ignore]
 mod A {
 
-   #[flux::ignore(no)]
+   #[flux_rs::ignore(no)]
    mod B {
       mod C {
          fn f1() {}
@@ -266,6 +266,6 @@ mod A {
 
 In this scenario, functions `f2` and `f3` will be ignored, while `f1` will be analyzed.
 
-A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute `#![flux::ignore]` at the top of the crate) and then selectively include specific sections for analysis.
+A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute `#![flux_rs::ignore]` at the top of the crate) and then selectively include specific sections for analysis.
 
-[^ignore-shorthand]: `#[flux::ignore]` (resp. `#[flux::trusted]`) is shorthand for `#[flux::ignore(yes)]` (resp. `#[flux::trusted(yes)]`).
+[^ignore-shorthand]: `#[flux_rs::ignore]` (resp. `#[flux_rs::trusted]`) is shorthand for `#[flux_rs::ignore(yes)]` (resp. `#[flux_rs::trusted(yes)]`).

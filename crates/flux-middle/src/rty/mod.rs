@@ -24,7 +24,7 @@ pub use expr::{
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
@@ -1760,7 +1760,7 @@ impl GenericArg {
         }
         for param in &generics.own_params {
             let kind = mk_kind(param, args);
-            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
+            tracked_span_assert_eq!(param.index as usize, args.len()); // "{args:#?}, {generics:#?}");
             args.push(kind);
         }
         Ok(())
@@ -1990,6 +1990,10 @@ impl AdtDef {
         self.0.rustc.is_struct()
     }
 
+    pub fn is_union(&self) -> bool {
+        self.0.rustc.is_union()
+    }
+
     pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
         self.0.rustc.variants()
     }
@@ -2063,18 +2067,19 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
+    // The field_idx is `Some(i)` when we have the `i`-th field of a `union`, in which case,
+    // the `inputs` are _just_ the `i`-th type (and not all the types...)
+    pub fn to_poly_fn_sig(&self, field_idx: Option<crate::FieldIdx>) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(
-                    Safety::Safe,
-                    abi::Abi::Rust,
-                    List::empty(),
-                    variant.fields.clone(),
-                    output,
-                )
+                let inputs = match field_idx {
+                    None => variant.fields.clone(),
+                    Some(i) => List::singleton(variant.fields[i.index()].clone()),
+                };
+                let requires = List::empty();
+                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
             })
         })
     }
@@ -2326,14 +2331,14 @@ impl WfckResults {
 
 impl<'a, T> LocalTableInContextMut<'a, T> {
     pub fn insert(&mut self, fhir_id: FhirId, value: T) {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.insert(fhir_id.local_id, value);
     }
 }
 
 impl<'a, T> LocalTableInContext<'a, T> {
     pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
-        assert_eq!(self.owner, fhir_id.owner);
+        tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.get(&fhir_id.local_id)
     }
 }

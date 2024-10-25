@@ -58,7 +58,7 @@ pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut QueryCache,
     def_id: MaybeExternId,
-    config: CheckerConfig,
+    mut config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -85,6 +85,17 @@ pub fn check_fn(
     // Skip trusted functions
     if genv.trusted(local_id) {
         return Ok(());
+    }
+
+    // Since we still want the global check overflow, just override it here if it's set
+    if let Some(check_overflow) = genv.check_overflow(local_id) {
+        if check_overflow {
+            config.check_overflow = true;
+        } else if config.check_overflow {
+            // In this case, an item was explicitly marked as check_overflow(no)
+            // but the cfg attribute is set so we need to override it
+            config.check_overflow = false;
+        }
     }
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {

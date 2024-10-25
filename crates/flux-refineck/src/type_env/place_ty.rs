@@ -815,7 +815,8 @@ fn struct_variant(
     genv: GlobalEnv,
     def_id: DefId,
 ) -> CheckerResult<EarlyBinder<Binder<VariantSig>>> {
-    debug_assert!(genv.adt_def(def_id)?.is_struct());
+    let adt_def = genv.adt_def(def_id)?;
+    debug_assert!(adt_def.is_struct() || adt_def.is_union());
     genv.variant_sig(def_id, VariantIdx::from_u32(0))?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
 }

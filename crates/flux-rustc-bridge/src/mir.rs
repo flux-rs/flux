@@ -28,7 +28,10 @@ use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
-use crate::{def_id_to_string, ty::region_to_string};
+use crate::{
+    def_id_to_string,
+    ty::{region_to_string, Binder, FnSig},
+};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -103,17 +106,28 @@ pub struct Instance {
     pub args: GenericArgs,
 }
 
+pub enum CallKind<'tcx> {
+    FnDef {
+        def_id: DefId,
+        generic_args: CallArgs<'tcx>,
+        resolved_id: DefId,
+        resolved_args: CallArgs<'tcx>,
+    },
+    FnPtr {
+        fn_sig: Binder<FnSig>,
+        operand: Operand,
+    },
+}
+
 #[derive(Debug)]
 pub enum TerminatorKind<'tcx> {
     Return,
     Call {
-        func: DefId,
-        generic_args: CallArgs<'tcx>,
+        kind: CallKind<'tcx>,
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
         unwind: UnwindAction,
-        resolved_call: (DefId, CallArgs<'tcx>),
     },
     SwitchInt {
         discr: Operand,
@@ -214,11 +228,13 @@ pub enum CastKind {
 pub enum PointerCast {
     MutToConstPointer,
     Unsize,
+    ClosureFnPointer,
+    ReifyFnPointer,
 }
 
 #[derive(Debug)]
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, GenericArgs, Option<UserTypeAnnotationIndex>),
+    Adt(DefId, VariantIdx, GenericArgs, Option<UserTypeAnnotationIndex>, Option<FieldIdx>),
     Array(Ty),
     Tuple,
     Closure(DefId, GenericArgs),
@@ -505,26 +521,34 @@ impl fmt::Debug for Statement {
     }
 }
 
+impl<'tcx> fmt::Debug for CallKind<'tcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                let fname = rustc_middle::ty::tls::with(|tcx| {
+                    let path = tcx.def_path(*resolved_id);
+                    path.data.iter().join("::")
+                });
+                write!(f, "call {fname}")?;
+                if !resolved_args.lowered.is_empty() {
+                    write!(f, "<{:?}>", resolved_args.lowered.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            CallKind::FnPtr { fn_sig, operand } => write!(f, "FnPtr[{operand:?}]({fn_sig:?})"),
+        }
+    }
+}
+
 impl<'tcx> fmt::Debug for Terminator<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { args, destination, target, unwind, resolved_call, .. } => {
-                let (func, generic_args) = resolved_call;
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*func);
-                    path.data.iter().join("::")
-                });
-                write!(f, "{destination:?} = call {fname}")?;
-
-                if !generic_args.lowered.is_empty() {
-                    write!(f, "::<{:?}>", generic_args.lowered.iter().format(", "))?;
-                }
-
+            TerminatorKind::Call { kind, args, destination, target, unwind, .. } => {
                 write!(
                     f,
-                    "({args:?}) -> [return: {target}, unwind: {unwind:?}]",
+                    "{destination:?} = call {kind:?}({args:?}) -> [return: {target}, unwind: {unwind:?}]",
                     args = args.iter().format(", "),
                     target = opt_bb_to_str(*target),
                 )
@@ -636,7 +660,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
                     let fname = tcx.def_path(*def_id).data.iter().join("::");
@@ -686,6 +710,8 @@ impl fmt::Debug for PointerCast {
         match self {
             PointerCast::MutToConstPointer => write!(f, "MutToConstPointer"),
             PointerCast::Unsize => write!(f, "Unsize"),
+            PointerCast::ClosureFnPointer => write!(f, "ClosureFnPointer"),
+            PointerCast::ReifyFnPointer => write!(f, "ReifyFnPointer"),
         }
     }
 }

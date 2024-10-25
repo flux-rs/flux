@@ -420,32 +420,51 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     Ok(Self::check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+            TerminatorKind::Call { kind, args, destination, target, .. } => {
                 let actuals = self.check_operands(infcx, env, terminator_span, args)?;
+                let ret = match kind {
+                    mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                        let fn_sig = self
+                            .genv
+                            .fn_sig(*resolved_id)
+                            .with_src_info(terminator.source_info)?;
 
-                let (func_id, call_args) = resolved_call;
-                let fn_sig = self
-                    .genv
-                    .fn_sig(*func_id)
-                    .with_src_info(terminator.source_info)?;
+                        let generic_args = instantiate_args_for_fun_call(
+                            self.genv,
+                            &self.generics,
+                            *resolved_id,
+                            &resolved_args.lowered,
+                        )
+                        .with_src_info(terminator.source_info)?;
 
-                let generic_args = instantiate_args_for_fun_call(
-                    self.genv,
-                    &self.generics,
-                    *func_id,
-                    &call_args.lowered,
-                )
-                .with_src_info(terminator.source_info)?;
-
-                let ret = self.check_call(
-                    infcx,
-                    env,
-                    terminator_span,
-                    *func_id,
-                    fn_sig,
-                    &generic_args,
-                    &actuals,
-                )?;
+                        self.check_call(
+                            infcx,
+                            env,
+                            terminator_span,
+                            Some(*resolved_id),
+                            fn_sig,
+                            &generic_args,
+                            &actuals,
+                        )?
+                    }
+                    mir::CallKind::FnPtr { operand, .. } => {
+                        let ty = self.check_operand(infcx, env, terminator_span, operand)?;
+                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
+                        {
+                            self.check_call(
+                                infcx,
+                                env,
+                                terminator_span,
+                                None,
+                                EarlyBinder(fn_sig.clone()),
+                                &[],
+                                &actuals,
+                            )?
+                        } else {
+                            bug!("TODO: fnptr call {ty:?}")
+                        }
+                    }
+                };
 
                 let ret = infcx.unpack(&ret);
                 infcx.assume_invariants(&ret, self.check_overflow());
@@ -522,7 +541,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
-        callee_def_id: DefId,
+        callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -539,9 +558,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
-        let refine_args = infcx
-            .instantiate_refine_args(callee_def_id)
-            .with_span(span)?;
+        let refine_args = match callee_def_id {
+            Some(callee_def_id) => {
+                infcx
+                    .instantiate_refine_args(callee_def_id)
+                    .with_span(span)?
+            }
+            None => {
+                vec![]
+            }
+        };
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -586,11 +612,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let clauses = genv
-            .predicates_of(callee_def_id)
-            .with_span(span)?
-            .predicates()
-            .instantiate(tcx, &generic_args, &refine_args);
+        let clauses = match callee_def_id {
+            Some(callee_def_id) => {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)?
+                    .predicates()
+                    .instantiate(tcx, &generic_args, &refine_args)
+            }
+            None => crate::rty::List::empty(),
+        };
 
         at.check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
@@ -1016,16 +1046,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
+            Rvalue::Aggregate(
+                AggregateKind::Adt(def_id, variant_idx, args, _, field_idx),
+                operands,
+            ) => {
                 let actuals = self.check_operands(infcx, env, stmt_span, operands)?;
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_poly_fn_sig();
+                    .to_poly_fn_sig(*field_idx);
+
                 let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, *def_id, sig, &args, &actuals)
+                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(infcx, env, stmt_span, operands)?;
@@ -1244,6 +1278,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
+            | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance => {
                 self.genv
                     .refine_default(&self.generics, to)

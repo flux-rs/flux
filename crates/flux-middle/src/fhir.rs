@@ -94,6 +94,32 @@ impl From<bool> for Trusted {
     }
 }
 
+/// A boolean-like enum used to mark whether some code should be checked for overflows
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum CheckOverflow {
+    Yes,
+    No,
+}
+
+impl CheckOverflow {
+    pub fn to_bool(self) -> bool {
+        match self {
+            CheckOverflow::Yes => true,
+            CheckOverflow::No => false,
+        }
+    }
+}
+
+impl From<bool> for CheckOverflow {
+    fn from(value: bool) -> Self {
+        if value {
+            CheckOverflow::Yes
+        } else {
+            CheckOverflow::No
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
