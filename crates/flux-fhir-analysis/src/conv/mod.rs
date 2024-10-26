@@ -1961,9 +1961,24 @@ fn conv_sort_path(
     next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> QueryResult<rty::Sort> {
     let ctor = match path.res {
-        fhir::SortRes::PrimSort(fhir::PrimSort::Int) => return Ok(rty::Sort::Int),
-        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => return Ok(rty::Sort::Bool),
-        fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return Ok(rty::Sort::Real),
+        fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
+            if !path.args.is_empty() {
+                return Err(emit_prim_sort_generics_error(genv, path, "int", 0))?;
+            }
+            return Ok(rty::Sort::Int);
+        }
+        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
+            if !path.args.is_empty() {
+                return Err(emit_prim_sort_generics_error(genv, path, "bool", 0))?;
+            }
+            return Ok(rty::Sort::Bool);
+        }
+        fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
+            if !path.args.is_empty() {
+                return Err(emit_prim_sort_generics_error(genv, path, "real", 0))?;
+            }
+            return Ok(rty::Sort::Real);
+        }
         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) => {
             return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)))
@@ -1974,11 +1989,33 @@ fn conv_sort_path(
                 .sort_of_self_ty_alias(alias_to)?
                 .unwrap_or(rty::Sort::Err))
         }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Set) => rty::SortCtor::Set,
-        fhir::SortRes::PrimSort(fhir::PrimSort::Map) => rty::SortCtor::Map,
+        fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
+            if path.args.len() != 1 {
+                // Has to have one argument
+                return Err(emit_prim_sort_generics_error(genv, path, "Set", 1))?;
+            }
+            rty::SortCtor::Set
+        }
+        fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
+            if path.args.len() != 2 {
+                // Has to have two arguments
+                return Err(emit_prim_sort_generics_error(genv, path, "Map", 2))?;
+            }
+            rty::SortCtor::Map
+        }
         fhir::SortRes::User { name } => rty::SortCtor::User { name },
         fhir::SortRes::Adt(def_id) => {
             let sort_def = genv.adt_sort_def_of(def_id)?;
+            if path.args.len() > sort_def.param_count() {
+                let err = errors::TooManyGenericsOnSort::new(
+                    genv,
+                    def_id,
+                    path.segments.last().unwrap().span,
+                    path.args.len(),
+                    sort_def.param_count(),
+                );
+                return Err(genv.sess().emit_err(err))?;
+            }
             rty::SortCtor::Adt(sort_def)
         }
     };
@@ -1987,7 +2024,23 @@ fn conv_sort_path(
         .iter()
         .map(|t| conv_sort(genv, t, next_infer_sort))
         .try_collect()?;
+
     Ok(rty::Sort::app(ctor, args))
+}
+
+fn emit_prim_sort_generics_error(
+    genv: GlobalEnv,
+    path: &fhir::SortPath,
+    name: &'static str,
+    expected: usize,
+) -> ErrorGuaranteed {
+    let err = errors::GenericsOnPrimitiveSort::new(
+        path.segments.last().unwrap().span,
+        name,
+        path.args.len(),
+        expected,
+    );
+    genv.sess().emit_err(err)
 }
 
 fn conv_poly_func_sort(
@@ -2190,6 +2243,46 @@ mod errors {
     impl RefinedUnrefinableType {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_primitive_sort, code = E0999)]
+    pub(super) struct GenericsOnPrimitiveSort {
+        #[primary_span]
+        #[label]
+        span: Span,
+        name: &'static str,
+        found: usize,
+        expected: usize,
+    }
+
+    impl GenericsOnPrimitiveSort {
+        pub(super) fn new(span: Span, name: &'static str, found: usize, expected: usize) -> Self {
+            Self { span, found, expected, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_too_many_generics_on_sort, code = E0999)]
+    pub(super) struct TooManyGenericsOnSort {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        max: usize,
+        def_descr: &'static str,
+    }
+
+    impl TooManyGenericsOnSort {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            span: Span,
+            found: usize,
+            max: usize,
+        ) -> Self {
+            Self { span, found, max, def_descr: genv.tcx().def_descr(def_id) }
         }
     }
 }
