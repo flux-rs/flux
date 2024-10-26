@@ -24,7 +24,8 @@ pub trait Silly {
 }
 
 impl Silly for i32 {
+    #[flux::sig(fn(&Self) -> i32{v:1000 < v})]
     fn bloop(&self) -> i32 {
-        0
+        1001
     }
 }
