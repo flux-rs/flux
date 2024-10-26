@@ -1070,6 +1070,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         Ok((self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&constraints)))
     }
 
+    // This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`]
+    // These are similar representations.
+    // The most important bit in this translation is that refinement parameters are explicitly in FHIR
+    // and are not implicit like in surface. They are implicitly scoped in surface.
     fn desugar_ty(&mut self, ty: &surface::Ty) -> Result<fhir::Ty<'genv>> {
         let node_id = ty.node_id;
         let span = ty.span;

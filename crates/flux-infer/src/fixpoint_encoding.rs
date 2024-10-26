@@ -597,6 +597,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
         rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
         rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
+        rty::Constant::Char(c) => panic!(),//fixpoint::Constant::Numeral(c as BigInt),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
     }
 }

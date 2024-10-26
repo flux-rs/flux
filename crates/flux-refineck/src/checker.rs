@@ -876,14 +876,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         idx.clone()
                     }
                 }
-                TyKind::Indexed(BaseTy::Char, idx) => {
-                    if bits == 0 {
-                        idx.not()
-                    } else {
-                        idx.clone()
-                    }
-                }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Char), idx) => {
                     Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
