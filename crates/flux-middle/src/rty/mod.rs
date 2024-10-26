@@ -1536,6 +1536,20 @@ pub struct AliasTy {
 
 pub type RefineArgs = List<Expr>;
 
+#[extension(pub trait RefineArgsExt)]
+impl RefineArgs {
+    fn identity_for_item(genv: &GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
+        let reft_generics = genv.refinement_generics_of(def_id)?;
+        let mut args = vec![];
+        for i in 0..reft_generics.count() {
+            let param = reft_generics.param_at(i, *genv)?;
+            let var = Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name });
+            args.push(Expr::var(var))
+        }
+        Ok(List::from_vec(args))
+    }
+}
+
 /// A type constructor meant to be used as generic a argument of [kind base]. This is just an alias
 /// to [`Binder<SubsetTy>`], but we expect the binder to have a single bound variable of the sort of
 /// the underlying [base type].
@@ -1785,6 +1799,21 @@ impl GenericArgs {
     // We can't implement [`ToRustc`] because of coherence so we add it here
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
+    }
+
+    fn rebase_onto<'tcx>(
+        &self,
+        tcx: &TyCtxt<'tcx>,
+        source_ancestor: DefId,
+        target_args: &GenericArgs,
+    ) -> List<GenericArg> {
+        let defs = tcx.generics_of(source_ancestor);
+        List::from_iter(
+            target_args
+                .iter()
+                .chain(self.iter().skip(defs.count()))
+                .cloned(),
+        )
     }
 }
 

@@ -5,7 +5,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot},
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -14,8 +14,9 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
-        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgs, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig,
+        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -311,13 +312,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             find_trait_item(&genv, def_id).with_span(span)?
         {
             let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
-            // println!("TRACE: impl-subtyping {def_id:?} <: {trait_fn_sig:?}");
+            let tcx = genv.tcx();
+            let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+            let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
+            let trait_to_impl_args = &trait_ref.args;
+            let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
+            let refine_args =
+                RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
+            // impl-id-args =
             ck.check_oblig_fn_def(
                 &mut infcx,
                 &def_id.to_def_id(),
-                &[], // TODO: instantiate_args_for_fun_call(..); see line 497 in checker.rs
+                &impl_args,
                 trait_fn_sig,
-                Some(&trait_ref.args),
+                Some((&trait_args, &refine_args)),
                 false,
                 span,
             )?;
@@ -747,7 +755,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         def_id: &DefId,
         generic_args: &[GenericArg],
         oblig_sig: EarlyBinder<rty::PolyFnSig>,
-        oblig_args: Option<&[GenericArg]>,
+        oblig_args: Option<(&GenericArgs, &RefineArgs)>,
         _normalize_oblig_sig: bool,
         span: Span,
     ) -> Result {
@@ -756,24 +764,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
         let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
 
-        let oblig_sig = if let Some(oblig_args) = oblig_args {
-            oblig_sig.instantiate(tcx, oblig_args, &[])
+        let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
+            oblig_sig.instantiate(tcx, oblig_args, refine_args)
         } else {
             oblig_sig.instantiate_identity()
         };
         let oblig_sig =
             oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
-        // println!("TRACE: check_oblig_fn_def {oblig_sig:?}");
-
-        let oblig_sig = if true
-        /* normalize_oblig_sig */
-        {
+        let oblig_sig = {
             oblig_sig
                 .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
                 .with_span(span)?
-        } else {
-            oblig_sig
         };
 
         // 1. Unpack `T_g` input types
@@ -782,13 +784,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .iter()
             .map(|ty| infcx.unpack(ty))
             .collect_vec();
+        let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], fn_def_sig.as_ref());
 
         // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
         infcx.push_scope();
         let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-        println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
+        // println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
+        let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
         let fn_def_sig = fn_def_sig
-            .instantiate(tcx, generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
@@ -1682,7 +1685,7 @@ fn all_predicates_of(
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
 /// mutable references.
 fn infer_under_mut_ref_hack(
-    rcx: &mut RefineCtxt,
+    rcx: &mut InferCtxt,
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {
