@@ -1868,7 +1868,7 @@ fn snapshot_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_string, queries::QueryErr};
+    use flux_middle::{def_id_to_parent_span, def_id_to_string, queries::QueryErr};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
@@ -1917,6 +1917,8 @@ pub(crate) mod errors {
                 CheckerErrKind::OpaqueStruct(def_id) => {
                     let mut diag =
                         dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
+                    let parent_span = def_id_to_parent_span(def_id);
+                    diag.span_help(parent_span, fluent::refineck_opaque_struct_help);
                     diag.arg("struct", def_id_to_string(def_id));
                     diag.code(E0999);
                     diag

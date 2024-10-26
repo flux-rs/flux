@@ -48,3 +48,7 @@ impl<'tcx> ToRustc<'tcx> for rustc_middle::ty::Ty<'tcx> {
 pub fn def_id_to_string(def_id: DefId) -> String {
     rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(def_id))
 }
+
+pub fn def_id_to_parent_span(def_id: DefId) -> rustc_span::Span {
+    rustc_middle::ty::tls::with(|tcx| tcx.def_span(def_id))
+}

@@ -47,7 +47,7 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_config as config;
 use flux_macros::fluent_messages;
-pub use flux_rustc_bridge::def_id_to_string;
+pub use flux_rustc_bridge::{def_id_to_parent_span, def_id_to_string};
 use flux_rustc_bridge::{
     mir::{LocalDecls, PlaceElem},
     ty::{self, GenericArgsExt},

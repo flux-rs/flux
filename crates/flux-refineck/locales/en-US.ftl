@@ -38,7 +38,10 @@ refineck_overflow_error =
     arithmetic operation may overflow
 
 refineck_opaque_struct_error =
-    cannot access fields of opaque struct `{$struct}`
+    cannot access fields of opaque struct `{$struct}`. 
+
+refineck_opaque_struct_help =
+    If you'd like to use fields of `{$struct}` in methods, use `flux::trusted` instead of `flux::opaque`.
 
 refineck_unsupported_call =
     unsupported type in function call
