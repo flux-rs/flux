@@ -4,10 +4,9 @@ pub trait MyTrait {
     fn foo1(&self) -> Self;
 }
 
-impl MyTrait for i32 {
-    // TODO: error-message when below is missing (currently: fixpoint crash!)
-    // #[flux::sig(fn[hrn p: Self -> bool](&Self{v: p(v)}) -> Self{v: p(v)})]
+impl MyTrait for u32 {
     fn foo1(&self) -> Self {
+        //~^ ERROR refinement type
         *self
     }
 }

@@ -317,10 +317,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
             let trait_to_impl_args = &trait_ref.args;
             let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
-            let refine_args =
-                RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
-            // impl-id-args =
-            ck.check_oblig_fn_def(
+            let refine_args = RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
+                if param.mode == rty::InferMode::KVar {
+                    infcx.define_vars(&param.sort)
+                } else {
+                    Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
+                        index: i as u32,
+                        name: param.name,
+                    }))
+                }
+            })
+            .with_span(span)?;
+
+            ck.check_fn_subtyping(
                 &mut infcx,
                 &def_id.to_def_id(),
                 &impl_args,
@@ -736,7 +745,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         )
     }
 
-    /// The function `check_oblig_fn_def` does a function subtyping check between
+    /// The function `check_fn_subtyping` does a function subtyping check between
     /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
     /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
     /// as akin to the code
@@ -749,7 +758,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ///      f(x1,...,xn)
     ///  }
     /// TODO: copy rules from SLACK.
-    fn check_oblig_fn_def(
+    fn check_fn_subtyping(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: &DefId,
@@ -878,10 +887,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-
-                // .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                // .with_span(self.body.span())?;
-                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, None, true, span)?;
+                self.check_fn_subtyping(infcx, def_id, args, oblig_sig, None, true, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
