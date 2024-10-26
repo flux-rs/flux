@@ -307,7 +307,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             ck.check_basic_block(infcx, env, bb)?;
         }
 
-        // Trait subtyping check
+        ck.check_trait_impl_subtyping(infcx, def_id, span)?;
+
+        Ok(())
+    }
+
+    // Trait subtyping check, which makes sure that the
+    // type for an impl method (def_id) is a subtype of
+    // the corresponding trait method.
+    fn check_trait_impl_subtyping(
+        &mut self,
+        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        span: Span,
+    ) -> Result {
+        let genv = infcx.genv;
         if let Some((trait_ref, trait_method_id)) =
             find_trait_item(&genv, def_id).with_span(span)?
         {
@@ -317,29 +331,31 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
             let trait_to_impl_args = &trait_ref.args;
             let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
-            let refine_args = RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
-                if param.mode == rty::InferMode::KVar {
-                    infcx.define_vars(&param.sort)
-                } else {
-                    Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
-                        index: i as u32,
-                        name: param.name,
-                    }))
-                }
-            })
-            .with_span(span)?;
+            let trait_refine_args =
+                RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
+                    if param.mode == rty::InferMode::KVar {
+                        // See `tests/pos/surface/trait13.rs` for an example
+                        // we need to "define_var" the KVar in the trait's super-type
+                        // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
+                        infcx.define_vars(&param.sort)
+                    } else {
+                        Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
+                            index: i as u32,
+                            name: param.name,
+                        }))
+                    }
+                })
+                .with_span(span)?;
 
-            ck.check_fn_subtyping(
+            self.check_fn_subtyping(
                 &mut infcx,
                 &def_id.to_def_id(),
                 &impl_args,
                 trait_fn_sig,
-                Some((&trait_args, &refine_args)),
-                false,
+                Some((&trait_args, &trait_refine_args)),
                 span,
             )?;
         }
-
         Ok(())
     }
 
@@ -765,7 +781,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         generic_args: &[GenericArg],
         oblig_sig: EarlyBinder<rty::PolyFnSig>,
         oblig_args: Option<(&GenericArgs, &RefineArgs)>,
-        _normalize_oblig_sig: bool,
         span: Span,
     ) -> Result {
         let mut infcx = infcx.at(span);
@@ -887,7 +902,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                self.check_fn_subtyping(infcx, def_id, args, oblig_sig, None, true, span)?;
+                self.check_fn_subtyping(infcx, def_id, args, oblig_sig, None, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
