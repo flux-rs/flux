@@ -191,7 +191,7 @@
 <p>binds <code>n</code> over the entire scope of the function to specify that it takes an <code>i32</code> equal to <code>n</code> and returns an <code>i32</code> equal to <code>n + 1</code>. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type <code>a -&gt; a</code> in Haskell is polymorphic on the type <code>a</code> which is bound for the scope of the entire function type.</p>
 </li>
 <li>
-<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[x]</code>.</p>
+<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[a]</code>.</p>
 <ul>
 <li><code>i32{v: v &gt; 0}</code>: set of positive <code>i32</code> values.</li>
 <li><code>List&lt;T&gt;{v: v &gt; 0}</code>: set of non-empty lists.</li>
