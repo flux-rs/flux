@@ -1,6 +1,6 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
@@ -242,7 +242,7 @@ fn find_trait_item(
         let trait_item_ids = tcx.associated_item_def_ids(trait_id);
         let impl_item_ids = tcx.impl_item_implementor_ids(impl_id);
         for trait_item_id in trait_item_ids {
-            if def_id == *impl_item_ids.get(trait_item_id).unwrap() {
+            if Some(def_id) == impl_item_ids.get(trait_item_id).copied() {
                 return Ok(Some((impl_trait_ref, *trait_item_id)));
             }
         }
@@ -312,9 +312,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn has_trusted_impl(genv: &GlobalEnv, trait_method_id: DefId) -> bool {
+    fn has_trusted_impl(genv: &GlobalEnv, def_id: DefId) -> bool {
         if let Some(did) = genv
-            .resolve_id(trait_method_id)
+            .resolve_id(def_id)
             .as_maybe_extern()
             .map(|id| id.local_id())
         {
@@ -324,9 +324,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    // Trait subtyping check, which makes sure that the
-    // type for an impl method (def_id) is a subtype of
-    // the corresponding trait method.
+    /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
+    /// is a subtype of the corresponding trait method.
     fn check_trait_impl_subtyping(
         &mut self,
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -338,7 +337,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let Some((trait_ref, trait_method_id)) =
             find_trait_item(&genv, def_id).with_span(span)?
         {
-            if Self::has_trusted_impl(&genv, trait_method_id) {
+            // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
+            if Self::has_trusted_impl(&genv, trait_method_id)
+                || Self::has_trusted_impl(&genv, def_id.to_def_id())
+            {
                 return Ok(());
             }
 
@@ -842,7 +844,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // for requires in fn_def_sig.requires() {
         //     at.check_pred(requires, ConstrReason::Call);
         // }
-        assert!(fn_def_sig.requires().is_empty()); // TODO
+        if !fn_def_sig.requires().is_empty() {
+            span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
+        }
         for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(&pred, ConstrReason::Call);
