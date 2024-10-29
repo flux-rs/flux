@@ -342,7 +342,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 return Ok(());
             }
 
-            println!("TRACE: bah! {def_id:?}");
             let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
             let tcx = genv.tcx();
             let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
