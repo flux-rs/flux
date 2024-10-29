@@ -114,10 +114,16 @@ jobs:
           git clone https://github.com/PLSysSec/tock
           cp rust-toolchain tock/rust-toolchain.toml
 
+      - name: Patch flux-rs dependency if in pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          echo '[patch.crates-io]' >> tock/Cargo.toml
+          echo 'flux-rs = { path = "../" }' >> tock/Cargo.toml
+
       - name: Check tock/kernel
         run: |
-          cd tock/kernel
-          cargo flux
+          cd tock
+          cargo flux -p kernel
 
   rustfmt:
     runs-on: ubuntu-latest
