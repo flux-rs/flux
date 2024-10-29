@@ -118,7 +118,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           echo '[patch.crates-io]' >> tock/Cargo.toml
-          echo 'flux-rs = { path = "../" }' >> tock/Cargo.toml
+          echo 'flux-rs = { path = "../lib/flux-rs" }' >> tock/Cargo.toml
 
       - name: Check tock/kernel
         run: |
