@@ -10,9 +10,9 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::sig(fn() -> i32[1])]
-fn ok() -> i32 {
+#[flux::sig(fn() -> i32[2])]
+fn bad() -> i32 {
     let mut x = 0;
     x.foo1();
-    x
+    x //~ ERROR refinement type
 }

@@ -312,6 +312,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
+    fn has_trusted_impl(genv: &GlobalEnv, trait_method_id: DefId) -> bool {
+        if let Some(did) = genv
+            .resolve_id(trait_method_id)
+            .as_maybe_extern()
+            .map(|id| id.local_id())
+        {
+            genv.trusted_impl(did)
+        } else {
+            false
+        }
+    }
+
     // Trait subtyping check, which makes sure that the
     // type for an impl method (def_id) is a subtype of
     // the corresponding trait method.
@@ -322,9 +334,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result {
         let genv = infcx.genv;
+
         if let Some((trait_ref, trait_method_id)) =
             find_trait_item(&genv, def_id).with_span(span)?
         {
+            if Self::has_trusted_impl(&genv, trait_method_id) {
+                return Ok(());
+            }
+
+            println!("TRACE: bah! {def_id:?}");
             let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
             let tcx = genv.tcx();
             let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();

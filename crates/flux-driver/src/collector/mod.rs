@@ -447,6 +447,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                         .into(),
                 )
             }
+            ("trusted_impl", _) => {
+                FluxAttrKind::TrustedImpl(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|_| invalid_attr_err(self))?
+                        .into(),
+                )
+            }
             ("check_overflow", _) => {
                 FluxAttrKind::CheckOverflow(
                     parse_yes_no_with_reason(attr_item)
@@ -497,6 +504,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
         if let Some(trusted) = attrs.trusted() {
             self.specs.trusted.insert(def_id, trusted);
+        }
+        if let Some(trusted_impl) = attrs.trusted_impl() {
+            self.specs.trusted_impl.insert(def_id, trusted_impl);
         }
     }
 
@@ -563,6 +573,7 @@ struct FluxAttr {
 #[derive(Debug)]
 enum FluxAttrKind {
     Trusted(Trusted),
+    TrustedImpl(Trusted),
     Opaque,
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
@@ -631,6 +642,10 @@ impl FluxAttrs {
 
     fn trusted(&mut self) -> Option<Trusted> {
         read_attr!(self, Trusted)
+    }
+
+    fn trusted_impl(&mut self) -> Option<Trusted> {
+        read_attr!(self, TrustedImpl)
     }
 
     fn ignore(&mut self) -> Option<Ignored> {
@@ -706,6 +721,7 @@ impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
+            FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),

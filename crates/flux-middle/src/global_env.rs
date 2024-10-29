@@ -432,6 +432,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .is_some_and(|trusted| trusted.to_bool())
     }
 
+    pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
+        self.collect_specs()
+            .trusted_impl
+            .get(&def_id)
+            .is_some_and(|trusted| trusted.to_bool())
+    }
+
     /// Whether the item is a dummy item created by the extern spec macro.
     ///
     /// See [`crate::Specs::dummy_extern`]
