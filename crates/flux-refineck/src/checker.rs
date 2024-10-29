@@ -242,12 +242,12 @@ fn find_trait_item(
         let trait_item_ids = tcx.associated_item_def_ids(trait_id);
         let impl_item_ids = tcx.impl_item_implementor_ids(impl_id);
         for trait_item_id in trait_item_ids {
-            if def_id == *impl_item_ids.get(&trait_item_id).unwrap() {
+            if def_id == *impl_item_ids.get(trait_item_id).unwrap() {
                 return Ok(Some((impl_trait_ref, *trait_item_id)));
             }
         }
     }
-    return Ok(None);
+    Ok(None)
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {

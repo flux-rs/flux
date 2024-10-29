@@ -1544,7 +1544,7 @@ impl RefineArgs {
         for i in 0..reft_generics.count() {
             let param = reft_generics.param_at(i, *genv)?;
             let var = Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name });
-            args.push(Expr::var(var))
+            args.push(Expr::var(var));
         }
         Ok(List::from_vec(args))
     }
@@ -1561,7 +1561,7 @@ impl RefineArgs {
         let mut args = vec![];
         for i in 0..reft_generics.count() {
             let param = reft_generics.param_at(i, *genv)?;
-            args.push(mk_expr(i, param))
+            args.push(mk_expr(i, param));
         }
         Ok(List::from_vec(args))
     }
@@ -1818,9 +1818,9 @@ impl GenericArgs {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 
-    fn rebase_onto<'tcx>(
+    fn rebase_onto(
         &self,
-        tcx: &TyCtxt<'tcx>,
+        tcx: &TyCtxt,
         source_ancestor: DefId,
         target_args: &GenericArgs,
     ) -> List<GenericArg> {
