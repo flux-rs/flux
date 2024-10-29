@@ -1815,12 +1815,11 @@ impl GenericArgs {
         target_args: &GenericArgs,
     ) -> List<GenericArg> {
         let defs = tcx.generics_of(source_ancestor);
-        List::from_iter(
-            target_args
-                .iter()
-                .chain(self.iter().skip(defs.count()))
-                .cloned(),
-        )
+        target_args
+            .iter()
+            .chain(self.iter().skip(defs.count()))
+            .cloned()
+            .collect()
     }
 }
 
