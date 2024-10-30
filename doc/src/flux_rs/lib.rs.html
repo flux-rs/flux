@@ -167,6 +167,13 @@
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
 </span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
 <span class="attr">#[cfg(flux_sysroot)]
@@ -216,6 +223,11 @@
 <span class="attr">#[proc_macro_attribute]
 </span><span class="kw">pub fn </span>trusted(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
     attr_impl::trusted(attr, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>trusted_impl(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::trusted_impl(attr, tokens)
 }
 
 <span class="attr">#[proc_macro_attribute]
@@ -288,6 +300,7 @@
         invariant,
         opaque,
         trusted,
+        trusted_impl,
         generics,
         assoc,
         ignore,
@@ -330,6 +343,7 @@
         constant,
         opaque,
         trusted,
+        trusted_impl,
         generics,
         assoc,
         ignore,

@@ -772,6 +772,7 @@
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
 <a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -784,8 +785,8 @@
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
-        Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability, PolyVariant,
-        Sort, Ty, TyKind, Var,
+        Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Mutability,
+        PolyVariant, Sort, Ty, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
@@ -843,25 +844,26 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxtRoot&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>new(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        root_id: LocalDefId,
+        root_id: DefId,
         kvar_gen: KVarGen,
+        args: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GenericArgs&gt;,
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree: RefineTree::new(genv, root_id)<span class="question-mark">?</span>,
+            refine_tree: RefineTree::new(genv, root_id, args)<span class="question-mark">?</span>,
         })
     }
 
     <span class="kw">pub fn </span>infcx&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
+        def_id: DefId,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         InferCtxt::new(
             <span class="self">self</span>.genv,
             region_infcx,
-            def_id.to_def_id(),
+            def_id,
             <span class="self">self</span>.refine_tree.refine_ctxt_at_root(),
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner,
         )

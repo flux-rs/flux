@@ -125,7 +125,7 @@
     invariant: <span class="kw-2">&amp;</span>rty::Invariant,
     checker_config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(genv, def_id.local_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(genv, def_id.local_id().into(), <span class="prelude-val">None</span>).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">for </span>variant_idx <span class="kw">in </span>adt_def.variants().indices() {
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();

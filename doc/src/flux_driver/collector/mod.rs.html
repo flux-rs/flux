@@ -932,6 +932,22 @@
 <a href="#932" id="932">932</a>
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
@@ -1381,6 +1397,13 @@
                         </span>.into(),
                 )
             }
+            (<span class="string">"trusted_impl"</span>, <span class="kw">_</span>) =&gt; {
+                FluxAttrKind::TrustedImpl(
+                    parse_yes_no_with_reason(attr_item)
+                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
+                        </span>.into(),
+                )
+            }
             (<span class="string">"check_overflow"</span>, <span class="kw">_</span>) =&gt; {
                 FluxAttrKind::CheckOverflow(
                     parse_yes_no_with_reason(attr_item)
@@ -1431,6 +1454,9 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(trusted) = attrs.trusted() {
             <span class="self">self</span>.specs.trusted.insert(def_id, trusted);
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(trusted_impl) = attrs.trusted_impl() {
+            <span class="self">self</span>.specs.trusted_impl.insert(def_id, trusted_impl);
         }
     }
 
@@ -1497,6 +1523,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>FluxAttrKind {
     Trusted(Trusted),
+    TrustedImpl(Trusted),
     Opaque,
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
@@ -1565,6 +1592,10 @@
 
     <span class="kw">fn </span>trusted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Trusted&gt; {
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Trusted)
+    }
+
+    <span class="kw">fn </span>trusted_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Trusted&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, TrustedImpl)
     }
 
     <span class="kw">fn </span>ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ignored&gt; {
@@ -1640,6 +1671,7 @@
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             FluxAttrKind::Trusted(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Trusted),
+            FluxAttrKind::TrustedImpl(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TrustedImpl),
             FluxAttrKind::Opaque =&gt; <span class="macro">attr_name!</span>(Opaque),
             FluxAttrKind::FnSig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(FnSig),
             FluxAttrKind::TraitAssocReft(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TraitAssocReft),
