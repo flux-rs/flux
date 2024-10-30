@@ -1538,16 +1538,6 @@ pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]
 impl RefineArgs {
-    fn identity_for_item_old(genv: &GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
-        let reft_generics = genv.refinement_generics_of(def_id)?;
-        let mut args = vec![];
-        for i in 0..reft_generics.count() {
-            let param = reft_generics.param_at(i, *genv)?;
-            let var = Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name });
-            args.push(Expr::var(var));
-        }
-        Ok(List::from_vec(args))
-    }
 
     fn identity_for_item<F>(
         genv: &GlobalEnv,
@@ -1825,12 +1815,11 @@ impl GenericArgs {
         target_args: &GenericArgs,
     ) -> List<GenericArg> {
         let defs = tcx.generics_of(source_ancestor);
-        List::from_iter(
-            target_args
-                .iter()
-                .chain(self.iter().skip(defs.count()))
-                .cloned(),
-        )
+        target_args
+            .iter()
+            .chain(self.iter().skip(defs.count()))
+            .cloned()
+            .collect()
     }
 }
 

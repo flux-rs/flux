@@ -207,27 +207,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
-// fn find_trait_item(tcx: TyCtxt<'_>, impl_id: DefId, item_id: DefId) -> Option<DefId> {
-//     let foo = tcx
-//         .impl_item_implementor_ids(impl_id)
-//         .items()
-//         .filter_map(|(key, val)| if *val == item_id { Some(*key) } else { None })
-//         .collect();
-
-//     foo
-
-//     // let foo = tcx.impl_item_implementor_ids(key)
-//     // for (key, val) in tcx
-//     //     .impl_item_implementor_ids(impl_id)
-//     //     .to_sorted_stable_ord()
-//     // {
-//     //     if val == item_id {
-//     //         return Some(key);
-//     //     }
-//     // }
-//     // return None;
-// }
-
 fn find_trait_item(
     genv: &GlobalEnv<'_, '_>,
     def_id: LocalDefId,
