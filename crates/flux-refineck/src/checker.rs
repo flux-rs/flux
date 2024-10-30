@@ -340,15 +340,14 @@ pub fn trait_impl_subtyping(
     def_id: LocalDefId,
     span: Span,
 ) -> Result<Option<(RefineTree, KVarGen)>> {
+    // Skip the check if this is not an impl method
     let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? else {
         return Ok(None);
     };
-
     // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
     if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
         return Ok(None);
     }
-
     let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
     let mut root_ctxt =
@@ -356,31 +355,14 @@ pub fn trait_impl_subtyping(
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv.tcx().infer_ctxt().build();
-        // let mut infcx = root_ctxt.infcx(def_id, &rustc_infcx);
         let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
-
         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
         let tcx = genv.tcx();
         let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
         let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
-        let trait_to_impl_args = &trait_ref.args;
-        let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
+        let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
         let trait_refine_args =
-            // RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
-            //     if param.mode == rty::InferMode::KVar {
-            //         // See `tests/pos/surface/trait13.rs` for an example
-            //         // we need to "define_var" the KVar in the trait's super-type
-            //         // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
-            //         infcx.define_vars(&param.sort)
-            //     } else {
-            //         Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
-            //             index: i as u32,
-            //             name: param.name,
-            //         }))
-            //     }
-            // })
-            RefineArgs::identity_for_item_new(&genv, trait_method_id)
-            .with_span(span)?;
+            RefineArgs::identity_for_item_new(&genv, trait_method_id).with_span(span)?;
 
         check_fn_subtyping(
             genv,
