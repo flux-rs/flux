@@ -72,6 +72,7 @@ impl<T> List<T> {
 }
 
 impl<T> Drop for List<T> {
+    #[flux::trusted]
     #[flux::sig(fn(self: &strg List<T>[@n]) ensures self: List<T>[0])]
     fn drop(&mut self) {
         let mut cur = replace(&mut self.head, Link::Empty);

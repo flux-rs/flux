@@ -1,5 +1,5 @@
 struct MyStruct {
-    inner: u32
+    inner: u32,
 }
 
 trait MyTrait {

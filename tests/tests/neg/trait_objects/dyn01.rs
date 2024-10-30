@@ -12,6 +12,7 @@ trait Shape {
 struct Circle {}
 
 impl Shape for Circle {
+    #[flux::sig(fn(self: _) -> i32{v: 0 <= v})]
     fn vertices(&self) -> i32 {
         0
     }

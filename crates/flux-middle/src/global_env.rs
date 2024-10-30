@@ -355,6 +355,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &*self.inner.cstore
     }
 
+    pub fn has_trusted_impl(&self, def_id: DefId) -> bool {
+        if let Some(did) = self
+            .resolve_id(def_id)
+            .as_maybe_extern()
+            .map(|id| id.local_id())
+        {
+            self.trusted_impl(did)
+        } else {
+            false
+        }
+    }
+
     pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
@@ -429,6 +441,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
+            .is_some_and(|trusted| trusted.to_bool())
+    }
+
+    pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
+        self.collect_specs()
+            .trusted_impl
+            .get(&def_id)
             .is_some_and(|trusted| trusted.to_bool())
     }
 

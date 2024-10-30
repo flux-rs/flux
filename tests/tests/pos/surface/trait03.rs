@@ -1,18 +1,19 @@
 //! Normalization with lifetimes
 
-struct S<'a> {
-    x: &'a i32,
-}
-
 trait Trait {
     type Item;
     fn method(&self) -> <Self as Trait>::Item;
+}
+
+struct S<'a> {
+    x: &'a i32,
 }
 
 impl<'a> Trait for S<'a> {
     type Item = &'a i32;
 
     fn method(&self) -> <Self as Trait>::Item {
+    
         self.x
     }
 }

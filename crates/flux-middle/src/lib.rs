@@ -374,6 +374,7 @@ pub struct Specs {
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
+    pub trusted_impl: UnordMap<LocalDefId, fhir::Trusted>,
     pub check_overflows: UnordMap<LocalDefId, fhir::CheckOverflow>,
     pub crate_config: Option<config::CrateConfig>,
     pub should_fail: UnordSet<LocalDefId>,
