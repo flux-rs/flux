@@ -279,7 +279,7 @@ fn check_fn_subtyping<'genv, 'tcx>(
     let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
     let fn_def_sig = fn_def_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+        .normalize_projections(genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
 
     // 3. INPUT subtyping (g-input <: f-input)
