@@ -31,15 +31,13 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::collections::HashMap;
-
 pub use checker::CheckerConfig;
-use checker::{errors::CheckerError, trait_impl_subtyping, Checker};
+use checker::{trait_impl_subtyping, Checker};
 use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixpointCtxt, KVarGen},
-    infer::{ConstrReason, InferCtxtRoot, Tag},
+    infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
 use flux_macros::fluent_messages;
@@ -51,12 +49,8 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::LocalDefId;
-use rustc_infer::infer::TyCtxtInferExt;
-use rustc_middle::mir::BasicBlock;
 use rustc_span::Span;
-use type_env::BasicBlockEnv;
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
@@ -172,11 +166,15 @@ pub fn check_fn(
         report_fixpoint_errors(genv, local_id, errors)?;
 
         // PHASE 4: subtyping check for trait-method implementations
-        let (refine_tree, kvars) = trait_impl_subtyping(genv, local_id, span).emit(&genv)?;
-        tracing::info!("check_fn::refine-subtyping");
-        let errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub")?;
-        tracing::info!("check_fn::fixpoint-subtyping");
-        report_fixpoint_errors(genv, local_id, errors)
+        if let Some((refine_tree, kvars)) =
+            trait_impl_subtyping(genv, local_id, span).emit(&genv)?
+        {
+            tracing::info!("check_fn::refine-subtyping");
+            let errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub")?;
+            tracing::info!("check_fn::fixpoint-subtyping");
+            report_fixpoint_errors(genv, local_id, errors)?;
+        }
+        Ok(())
     })?;
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| Ok(()))

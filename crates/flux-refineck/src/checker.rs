@@ -223,16 +223,191 @@ fn find_trait_item(
     Ok(None)
 }
 
+/// The function `check_fn_subtyping` does a function subtyping check between
+/// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
+/// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
+/// as akin to the code
+///
+///   T_f := (S1,...,Sn) -> S
+///   T_g := (T1,...,Tn) -> T
+///   T_f <: T_g
+///
+///  fn g(x1:T1,...,xn:Tn) -> T {
+///      f(x1,...,xn)
+///  }
+/// TODO: copy rules from SLACK.
+fn check_fn_subtyping<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    def_id: &DefId,
+    generic_args: &[GenericArg],
+    oblig_sig: EarlyBinder<rty::PolyFnSig>,
+    oblig_args: Option<(&GenericArgs, &RefineArgs)>,
+    span: Span,
+) -> Result {
+    let mut infcx = infcx.at(span);
+    let tcx = genv.tcx();
+    let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
+
+    let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
+        oblig_sig.instantiate(tcx, oblig_args, refine_args)
+    } else {
+        oblig_sig.instantiate_identity()
+    };
+    let oblig_sig =
+        oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
+
+    let oblig_sig = {
+        oblig_sig
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .with_span(span)?
+    };
+
+    // 1. Unpack `T_g` input types
+    let actuals = oblig_sig
+        .inputs()
+        .iter()
+        .map(|ty| infcx.unpack(ty))
+        .collect_vec();
+    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], fn_def_sig.as_ref());
+
+    // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+    infcx.push_scope();
+    let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
+    // println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
+    let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
+    let fn_def_sig = fn_def_sig
+        .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+        .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+        .with_span(span)?;
+
+    // 3. INPUT subtyping (g-input <: f-input)
+    // TODO: Check requires predicates (?)
+    // for requires in fn_def_sig.requires() {
+    //     at.check_pred(requires, ConstrReason::Call);
+    // }
+    if !fn_def_sig.requires().is_empty() {
+        span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
+    }
+    for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
+        let (formal, pred) = formal.unconstr();
+        infcx.check_pred(&pred, ConstrReason::Call);
+        // see: TODO(pack-closure)
+        match (actual.kind(), formal.kind()) {
+            (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
+                bug!("Not yet handled: FnDef subtyping with Ptr");
+            }
+            _ => {
+                infcx
+                    .subtyping(&actual, &formal, ConstrReason::Call)
+                    .with_span(span)?;
+            }
+        }
+    }
+
+    // // TODO: (RJ) this doesn't feel right to me... can one even *have* clauses here?
+    // let clauses = self
+    //     .genv
+    //     .predicates_of(*def_id)
+    //     .with_span(span)?
+    //     .predicates()
+    //     .instantiate(self.genv.tcx(), &generic_args, &refine_args);
+    // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
+    //     .with_span(span)?;
+
+    // 4. Plug in the EVAR solution / replace evars
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
+    let output = fn_def_sig
+        .output()
+        .replace_evars(&evars_sol)
+        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+
+    // 5. OUTPUT subtyping (f_out <: g_out)
+    // RJ: new `at` to avoid borrowing errors...!
+    infcx.push_scope();
+    let oblig_output = oblig_sig
+        .output()
+        .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+    infcx
+        .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+        .with_span(span)?;
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
+    assert!(output.ensures.is_empty()); // TODO
+    assert!(oblig_output.ensures.is_empty()); // TODO
+    Ok(())
+}
+
+// fn check_trait_impl_subtyping(mut infcx: InferCtxt, def_id: LocalDefId, span: Span) -> Result {
+//     let genv = infcx.genv;
+
+//     if let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? {
+//         // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
+//         if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
+//             return Ok(());
+//         }
+
+//         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
+//         let tcx = genv.tcx();
+//         let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+//         let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
+//         let trait_to_impl_args = &trait_ref.args;
+//         let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
+//         let trait_refine_args =
+//             RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
+//                 if param.mode == rty::InferMode::KVar {
+//                     // See `tests/pos/surface/trait13.rs` for an example
+//                     // we need to "define_var" the KVar in the trait's super-type
+//                     // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
+//                     infcx.define_vars(&param.sort)
+//                 } else {
+//                     Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
+//                         index: i as u32,
+//                         name: param.name,
+//                     }))
+//                 }
+//             })
+//             .with_span(span)?;
+
+//         check_fn_subtyping(
+//             genv,
+//             &mut infcx,
+//             &def_id.to_def_id(),
+//             &impl_args,
+//             trait_fn_sig,
+//             Some((&trait_args, &trait_refine_args)),
+//             span,
+//         )?;
+//     }
+//     Ok(())
+// }
+
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-fn check_trait_impl_subtyping(mut infcx: InferCtxt, def_id: LocalDefId, span: Span) -> Result {
-    let genv = infcx.genv;
+pub fn trait_impl_subtyping(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+    span: Span,
+) -> Result<Option<(RefineTree, KVarGen)>> {
+    let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? else {
+        return Ok(None);
+    };
 
-    if let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? {
-        // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-        if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
-            return Ok(());
-        }
+    // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
+    if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
+        return Ok(None);
+    }
+
+    let kvars = KVarGen::new();
+    let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
+    let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+
+    dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
+        let rustc_infcx = genv.tcx().infer_ctxt().build();
+        let mut infcx = root_ctxt.infcx(def_id, &rustc_infcx);
+
+        //  ck.check_trait_impl_subtyping(infcx, def_id, span)?;
 
         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
         let tcx = genv.tcx();
@@ -256,7 +431,7 @@ fn check_trait_impl_subtyping(mut infcx: InferCtxt, def_id: LocalDefId, span: Sp
             })
             .with_span(span)?;
 
-        Checker::check_fn_subtyping(
+        check_fn_subtyping(
             genv,
             &mut infcx,
             &def_id.to_def_id(),
@@ -264,68 +439,9 @@ fn check_trait_impl_subtyping(mut infcx: InferCtxt, def_id: LocalDefId, span: Sp
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
             span,
-        )?;
-    }
-    Ok(())
-}
-pub fn trait_impl_subtyping(
-    genv: GlobalEnv,
-    def_id: LocalDefId,
-    span: Span,
-) -> Result<(RefineTree, KVarGen)> {
-    let mut kvars = KVarGen::new();
-    let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
-    let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
-
-    dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-        let rustc_infcx = genv.tcx().infer_ctxt().build();
-        let infcx = root_ctxt.infcx(def_id, &rustc_infcx);
-
-        //  ck.check_trait_impl_subtyping(infcx, def_id, span)?;
-
-        if let Some((trait_ref, trait_method_id)) =
-            find_trait_item(&genv, def_id).with_span(span)?
-        {
-            // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-            if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
-                return Ok(());
-            }
-
-            let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
-            let tcx = genv.tcx();
-            let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-            let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
-            let trait_to_impl_args = &trait_ref.args;
-            let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
-            let trait_refine_args =
-                RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
-                    if param.mode == rty::InferMode::KVar {
-                        // See `tests/pos/surface/trait13.rs` for an example
-                        // we need to "define_var" the KVar in the trait's super-type
-                        // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
-                        infcx.define_vars(&param.sort)
-                    } else {
-                        Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
-                            index: i as u32,
-                            name: param.name,
-                        }))
-                    }
-                })
-                .with_span(span)?;
-
-            Checker::check_fn_subtyping(
-                genv,
-                &mut infcx,
-                &def_id.to_def_id(),
-                &impl_args,
-                trait_fn_sig,
-                Some((&trait_args, &trait_refine_args)),
-                span,
-            )?;
-        }
-        Ok(())
-    });
-    Ok(root_ctxt.split())
+        )
+    })?;
+    Ok(Some(root_ctxt.split()))
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
@@ -792,122 +908,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         )
     }
 
-    /// The function `check_fn_subtyping` does a function subtyping check between
-    /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
-    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
-    /// as akin to the code
-    ///
-    ///   T_f := (S1,...,Sn) -> S
-    ///   T_g := (T1,...,Tn) -> T
-    ///   T_f <: T_g
-    ///
-    ///  fn g(x1:T1,...,xn:Tn) -> T {
-    ///      f(x1,...,xn)
-    ///  }
-    /// TODO: copy rules from SLACK.
-    fn check_fn_subtyping(
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        def_id: &DefId,
-        generic_args: &[GenericArg],
-        oblig_sig: EarlyBinder<rty::PolyFnSig>,
-        oblig_args: Option<(&GenericArgs, &RefineArgs)>,
-        span: Span,
-    ) -> Result {
-        let mut infcx = infcx.at(span);
-        let tcx = genv.tcx();
-        let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
-
-        let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
-            oblig_sig.instantiate(tcx, oblig_args, refine_args)
-        } else {
-            oblig_sig.instantiate_identity()
-        };
-        let oblig_sig =
-            oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
-
-        let oblig_sig = {
-            oblig_sig
-                .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
-                .with_span(span)?
-        };
-
-        // 1. Unpack `T_g` input types
-        let actuals = oblig_sig
-            .inputs()
-            .iter()
-            .map(|ty| infcx.unpack(ty))
-            .collect_vec();
-        let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], fn_def_sig.as_ref());
-
-        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-        infcx.push_scope();
-        let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-        // println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
-        let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
-        let fn_def_sig = fn_def_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
-            .with_span(span)?;
-
-        // 3. INPUT subtyping (g-input <: f-input)
-        // TODO: Check requires predicates (?)
-        // for requires in fn_def_sig.requires() {
-        //     at.check_pred(requires, ConstrReason::Call);
-        // }
-        if !fn_def_sig.requires().is_empty() {
-            span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
-        }
-        for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
-            let (formal, pred) = formal.unconstr();
-            infcx.check_pred(&pred, ConstrReason::Call);
-            // see: TODO(pack-closure)
-            match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
-                    bug!("Not yet handled: FnDef subtyping with Ptr");
-                }
-                _ => {
-                    infcx
-                        .subtyping(&actual, &formal, ConstrReason::Call)
-                        .with_span(span)?;
-                }
-            }
-        }
-
-        // // TODO: (RJ) this doesn't feel right to me... can one even *have* clauses here?
-        // let clauses = self
-        //     .genv
-        //     .predicates_of(*def_id)
-        //     .with_span(span)?
-        //     .predicates()
-        //     .instantiate(self.genv.tcx(), &generic_args, &refine_args);
-        // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
-        //     .with_span(span)?;
-
-        // 4. Plug in the EVAR solution / replace evars
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
-        let output = fn_def_sig
-            .output()
-            .replace_evars(&evars_sol)
-            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
-
-        // 5. OUTPUT subtyping (f_out <: g_out)
-        // RJ: new `at` to avoid borrowing errors...!
-        infcx.push_scope();
-        let oblig_output = oblig_sig
-            .output()
-            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-        infcx
-            .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
-            .with_span(span)?;
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
-        assert!(output.ensures.is_empty()); // TODO
-        assert!(oblig_output.ensures.is_empty()); // TODO
-        Ok(())
-    }
-
     fn check_oblig_fn_trait_pred(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -934,7 +934,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                Self::check_fn_subtyping(self.genv, infcx, def_id, args, oblig_sig, None, span)?;
+                check_fn_subtyping(self.genv, infcx, def_id, args, oblig_sig, None, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
