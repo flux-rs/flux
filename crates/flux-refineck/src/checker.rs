@@ -261,7 +261,7 @@ fn check_fn_subtyping<'genv, 'tcx>(
 
     let oblig_sig = {
         oblig_sig
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .normalize_projections(genv, infcx.region_infcx, *def_id)
             .with_span(span)?
     };
 
