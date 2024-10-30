@@ -312,18 +312,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn has_trusted_impl(genv: &GlobalEnv, def_id: DefId) -> bool {
-        if let Some(did) = genv
-            .resolve_id(def_id)
-            .as_maybe_extern()
-            .map(|id| id.local_id())
-        {
-            genv.trusted_impl(did)
-        } else {
-            false
-        }
-    }
-
     /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
     /// is a subtype of the corresponding trait method.
     fn check_trait_impl_subtyping(
@@ -338,9 +326,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             find_trait_item(&genv, def_id).with_span(span)?
         {
             // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-            if Self::has_trusted_impl(&genv, trait_method_id)
-                || Self::has_trusted_impl(&genv, def_id.to_def_id())
-            {
+            if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
                 return Ok(());
             }
 
@@ -366,7 +352,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 })
                 .with_span(span)?;
 
-            self.check_fn_subtyping(
+            Self::check_fn_subtyping(
+                self.genv,
                 &mut infcx,
                 &def_id.to_def_id(),
                 &impl_args,
@@ -794,7 +781,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ///  }
     /// TODO: copy rules from SLACK.
     fn check_fn_subtyping(
-        &mut self,
+        genv: GlobalEnv<'genv, 'tcx>,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: &DefId,
         generic_args: &[GenericArg],
@@ -803,9 +790,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result {
         let mut infcx = infcx.at(span);
-        let genv = self.genv;
         let tcx = genv.tcx();
-        let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
+        let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
 
         let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
             oblig_sig.instantiate(tcx, oblig_args, refine_args)
@@ -923,7 +909,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                self.check_fn_subtyping(infcx, def_id, args, oblig_sig, None, span)?;
+                Self::check_fn_subtyping(self.genv, infcx, def_id, args, oblig_sig, None, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
