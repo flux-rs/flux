@@ -434,8 +434,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             ck.check_basic_block(infcx, env, bb)?;
         }
 
-        // MICKEYMOUSE ck.check_trait_impl_subtyping(infcx, def_id, span)?;
-
         Ok(())
     }
 
