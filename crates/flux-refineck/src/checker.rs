@@ -156,7 +156,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             // In shape mode we don't care about kvars
             let kvars = KVarGen::dummy();
             let mut root_ctxt =
-                InferCtxtRoot::new(genv, def_id.to_def_id(), kvars).with_span(span)?;
+                InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
@@ -187,7 +187,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let mut kvars = fixpoint_encoding::KVarGen::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id.to_def_id(), kvars).with_span(span)?;
+        let mut root_ctxt =
+            InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
@@ -275,7 +276,6 @@ fn check_fn_subtyping<'genv, 'tcx>(
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
     infcx.push_scope();
     let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-    // println!("TRACE: check_oblig_fn_def {fn_def_sig:?} with {generic_args:?}");
     let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
     let fn_def_sig = fn_def_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
@@ -306,16 +306,6 @@ fn check_fn_subtyping<'genv, 'tcx>(
         }
     }
 
-    // // TODO: (RJ) this doesn't feel right to me... can one even *have* clauses here?
-    // let clauses = self
-    //     .genv
-    //     .predicates_of(*def_id)
-    //     .with_span(span)?
-    //     .predicates()
-    //     .instantiate(self.genv.tcx(), &generic_args, &refine_args);
-    // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
-    //     .with_span(span)?;
-
     // 4. Plug in the EVAR solution / replace evars
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
@@ -335,8 +325,11 @@ fn check_fn_subtyping<'genv, 'tcx>(
         .with_span(span)?;
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
-    assert!(output.ensures.is_empty()); // TODO
-    assert!(oblig_output.ensures.is_empty()); // TODO
+
+    if !output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
+        span_bug!(span, "Not yet handled: subtyping with ensures predicates {def_id:?}");
+    }
+
     Ok(())
 }
 
@@ -359,7 +352,7 @@ pub fn trait_impl_subtyping(
     let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
     let mut root_ctxt =
-        InferCtxtRoot::new_at(genv, trait_method_id, kvars, &trait_ref.args).with_span(span)?;
+        InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args)).with_span(span)?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv.tcx().infer_ctxt().build();

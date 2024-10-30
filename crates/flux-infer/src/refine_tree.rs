@@ -213,6 +213,8 @@ impl RefineTree {
         )
         .collect::<QueryResult<_>>()?;
 
+        // We have `generic_args` when want to instantiate a generic trait method at a particular
+        // impl's type, e.g. when doing impl-trait subtyping.
         let params = if let Some(generic_args) = args {
             params
                 .iter()

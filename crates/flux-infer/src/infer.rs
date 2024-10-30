@@ -71,25 +71,26 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         root_id: DefId,
         kvar_gen: KVarGen,
+        args: Option<&GenericArgs>,
     ) -> QueryResult<Self> {
         Ok(Self {
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree: RefineTree::new(genv, root_id, None)?,
+            refine_tree: RefineTree::new(genv, root_id, args)?,
         })
     }
-    pub fn new_at(
-        genv: GlobalEnv<'genv, 'tcx>,
-        root_id: DefId,
-        kvar_gen: KVarGen,
-        at: &GenericArgs,
-    ) -> QueryResult<Self> {
-        Ok(Self {
-            genv,
-            inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree: RefineTree::new(genv, root_id, Some(at))?,
-        })
-    }
+    // pub fn new_at(
+    //     genv: GlobalEnv<'genv, 'tcx>,
+    //     root_id: DefId,
+    //     kvar_gen: KVarGen,
+    //     args: &GenericArgs,
+    // ) -> QueryResult<Self> {
+    //     Ok(Self {
+    //         genv,
+    //         inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
+    //         refine_tree: RefineTree::new(genv, root_id, Some(args))?,
+    //     })
+    // }
 
     pub fn infcx<'a>(
         &'a mut self,
