@@ -362,7 +362,7 @@ pub fn trait_impl_subtyping(
         let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
         let trait_refine_args =
-            RefineArgs::identity_for_item_new(&genv, trait_method_id).with_span(span)?;
+            RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
 
         check_fn_subtyping(
             genv,
