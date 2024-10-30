@@ -170,7 +170,8 @@ pub fn check_fn(
             trait_impl_subtyping(genv, local_id, span).emit(&genv)?
         {
             tracing::info!("check_fn::refine-subtyping");
-            let errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub")?;
+            let errors =
+                invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub.fluxc")?;
             tracing::info!("check_fn::fixpoint-subtyping");
             report_fixpoint_errors(genv, local_id, errors)?;
         }

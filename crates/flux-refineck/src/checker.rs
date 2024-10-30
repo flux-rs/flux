@@ -155,12 +155,13 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             // In shape mode we don't care about kvars
             let kvars = KVarGen::dummy();
-            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+            let mut root_ctxt =
+                InferCtxtRoot::new(genv, def_id.to_def_id(), kvars).with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
@@ -186,14 +187,14 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let mut kvars = fixpoint_encoding::KVarGen::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+        let mut root_ctxt = InferCtxtRoot::new(genv, def_id.to_def_id(), kvars).with_span(span)?;
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
             let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
@@ -339,50 +340,6 @@ fn check_fn_subtyping<'genv, 'tcx>(
     Ok(())
 }
 
-// fn check_trait_impl_subtyping(mut infcx: InferCtxt, def_id: LocalDefId, span: Span) -> Result {
-//     let genv = infcx.genv;
-
-//     if let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? {
-//         // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-//         if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
-//             return Ok(());
-//         }
-
-//         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
-//         let tcx = genv.tcx();
-//         let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-//         let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
-//         let trait_to_impl_args = &trait_ref.args;
-//         let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
-//         let trait_refine_args =
-//             RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
-//                 if param.mode == rty::InferMode::KVar {
-//                     // See `tests/pos/surface/trait13.rs` for an example
-//                     // we need to "define_var" the KVar in the trait's super-type
-//                     // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
-//                     infcx.define_vars(&param.sort)
-//                 } else {
-//                     Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
-//                         index: i as u32,
-//                         name: param.name,
-//                     }))
-//                 }
-//             })
-//             .with_span(span)?;
-
-//         check_fn_subtyping(
-//             genv,
-//             &mut infcx,
-//             &def_id.to_def_id(),
-//             &impl_args,
-//             trait_fn_sig,
-//             Some((&trait_args, &trait_refine_args)),
-//             span,
-//         )?;
-//     }
-//     Ok(())
-// }
-
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 pub fn trait_impl_subtyping(
@@ -401,13 +358,13 @@ pub fn trait_impl_subtyping(
 
     let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
-    let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+    let mut root_ctxt =
+        InferCtxtRoot::new_at(genv, trait_method_id, kvars, &trait_ref.args).with_span(span)?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv.tcx().infer_ctxt().build();
-        let mut infcx = root_ctxt.infcx(def_id, &rustc_infcx);
-
-        //  ck.check_trait_impl_subtyping(infcx, def_id, span)?;
+        // let mut infcx = root_ctxt.infcx(def_id, &rustc_infcx);
+        let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
 
         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
         let tcx = genv.tcx();
@@ -416,19 +373,20 @@ pub fn trait_impl_subtyping(
         let trait_to_impl_args = &trait_ref.args;
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, trait_to_impl_args);
         let trait_refine_args =
-            RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
-                if param.mode == rty::InferMode::KVar {
-                    // See `tests/pos/surface/trait13.rs` for an example
-                    // we need to "define_var" the KVar in the trait's super-type
-                    // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
-                    infcx.define_vars(&param.sort)
-                } else {
-                    Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
-                        index: i as u32,
-                        name: param.name,
-                    }))
-                }
-            })
+            // RefineArgs::identity_for_item(&genv, trait_method_id, |i, param| {
+            //     if param.mode == rty::InferMode::KVar {
+            //         // See `tests/pos/surface/trait13.rs` for an example
+            //         // we need to "define_var" the KVar in the trait's super-type
+            //         // TODO: maybe the `trait_refine_args` business can be done inside the `check_fn_subtyping`?
+            //         infcx.define_vars(&param.sort)
+            //     } else {
+            //         Expr::var(rty::Var::EarlyParam(rty::EarlyReftParam {
+            //             index: i as u32,
+            //             name: param.name,
+            //         }))
+            //     }
+            // })
+            RefineArgs::identity_for_item_new(&genv, trait_method_id)
             .with_span(span)?;
 
         check_fn_subtyping(

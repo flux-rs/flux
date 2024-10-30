@@ -12,11 +12,12 @@ use flux_middle::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyReftParam, Expr, Name, Sort, Ty, TyCtor, TyKind, Var,
+        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, Ty, TyCtor, TyKind,
+        Var,
     },
 };
 use itertools::Itertools;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::DefId;
 
 use crate::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
@@ -191,11 +192,15 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<RefineTree> {
+    pub fn new(
+        genv: GlobalEnv,
+        def_id: DefId,
+        args: Option<&GenericArgs>,
+    ) -> QueryResult<RefineTree> {
         let generics = genv.generics_of(def_id)?;
         let reft_generics = genv.refinement_generics_of(def_id)?;
 
-        let params = itertools::chain(
+        let params: Vec<(Var, Sort)> = itertools::chain(
             generics
                 .const_params(genv)?
                 .into_iter()
@@ -208,6 +213,16 @@ impl RefineTree {
         )
         .collect::<QueryResult<_>>()?;
 
+        let params = if let Some(generic_args) = args {
+            params
+                .iter()
+                .map(|(var, sort)| {
+                    (*var, EarlyBinder(sort.clone()).instantiate(genv.tcx(), generic_args, &[]))
+                })
+                .collect()
+        } else {
+            params
+        };
         let root =
             Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
