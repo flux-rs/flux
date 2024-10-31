@@ -14,9 +14,9 @@ use flux_middle::{
     rty::{
         self, canonicalize::CanonicalTy, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy,
         Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Generics, Int, IntTy,
-        Mutability, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability,
+        PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{

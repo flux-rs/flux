@@ -168,6 +168,14 @@ pub trait TypeVisitable: Sized {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy>;
 
     fn has_escaping_bvars(&self) -> bool {
+        self.has_escaping_bvars_at_or_above(INNERMOST)
+    }
+
+    /// Returns `true` if `self` has any late-bound vars that are either
+    /// bound by `binder` or bound by some binder outside of `binder`.
+    /// If `binder` is `ty::INNERMOST`, this indicates whether
+    /// there are any late-bound vars that appear free.
+    fn has_escaping_bvars_at_or_above(&self, binder: DebruijnIndex) -> bool {
         struct HasEscapingVars {
             /// Anything bound by `outer_index` or "above" is escaping.
             outer_index: DebruijnIndex,
@@ -197,7 +205,7 @@ pub trait TypeVisitable: Sized {
                 }
             }
         }
-        let mut visitor = HasEscapingVars { outer_index: INNERMOST };
+        let mut visitor = HasEscapingVars { outer_index: binder };
         self.visit_with(&mut visitor).is_break()
     }
 
@@ -958,42 +966,8 @@ where
     }
 }
 
-pub struct BottomUpFolder<F, G, H>
-where
-    F: FnMut(Ty) -> Ty,
-    G: FnMut(Region) -> Region,
-    H: FnMut(Const) -> Const,
-{
-    pub ty_op: F,
-    pub lt_op: G,
-    pub ct_op: H,
-}
-
-impl<F, G, H> TypeFolder for BottomUpFolder<F, G, H>
-where
-    F: FnMut(Ty) -> Ty,
-    G: FnMut(Region) -> Region,
-    H: FnMut(Const) -> Const,
-{
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        let t = ty.super_fold_with(self);
-        (self.ty_op)(t)
-    }
-
-    fn fold_region(&mut self, r: &Region) -> Region {
-        // This one is a little different, because `super_fold_with` is not
-        // implemented on non-recursive `Region`.
-        (self.lt_op)(*r)
-    }
-
-    fn fold_const(&mut self, ct: &Const) -> Const {
-        let ct = ct.super_fold_with(self);
-        (self.ct_op)(ct)
-    }
-}
-
-/// Used for types that are `Copy` and which **do not care arena
-/// allocated data** (i.e., don't need to be folded).
+/// Used for types that are `Copy` and which **do not care arena allocated data** (i.e., don't need
+/// to be folded).
 macro_rules! TrivialTypeTraversalImpls {
     ($($ty:ty,)+) => {
         $(

@@ -16,7 +16,8 @@ use flux_middle::{
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        INNERMOST,
     },
     PlaceExt as _,
 };
@@ -31,7 +32,7 @@ use rustc_type_ir::BoundVar;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
-use crate::{checker::errors::CheckerErrKind, rty::VariantIdx, CheckerConfig};
+use crate::{checker::errors::CheckerErrKind, CheckerConfig};
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 

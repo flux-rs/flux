@@ -397,7 +397,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
-    /// explicity annotation and whether it requires an overflow check or not.
+    /// explicitly annotation and whether it requires an overflow check or not.
     /// If no explicit annotation is found, return None
     ///
     /// Note:

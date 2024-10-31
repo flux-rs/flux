@@ -2,7 +2,6 @@ use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::{bug, tracked_span_bug};
 use flux_rustc_bridge::ty;
-use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 

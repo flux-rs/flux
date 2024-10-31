@@ -53,6 +53,7 @@ use crate::compare_impl_item::errors::InvalidAssocReft;
 pub struct ConvCtxt<'genv, 'tcx, P> {
     genv: GlobalEnv<'genv, 'tcx>,
     phase: P,
+    next_sort_index: u32,
     next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
@@ -384,8 +385,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         Self {
             genv,
             phase: mode,
-            // We start from 1 to skip the trait object dummy self type.
-            // See [`rty::Ty::trait_object_dummy_self`]
+            // We start sorts and types from 1 to skip the trait object dummy self type.
+            // See [`rty::Ty::trait_object_dummy_self`] and [`rty::SubsetTyCtor::trait_object_dummy_self`]
+            next_sort_index: 1,
             next_type_index: 1,
             next_region_index: 0,
             next_const_index: 0,
@@ -1471,7 +1473,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     }
 
     fn fill_generic_args_defaults(
-        &self,
+        &mut self,
         def_id: DefId,
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
@@ -1506,7 +1508,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     }
 
     fn try_to_ty_or_base(
-        &self,
+        &mut self,
         kind: rty::GenericParamDefKind,
         span: Span,
         ty: &rty::Ty,
@@ -1520,9 +1522,15 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         }
     }
 
-    fn ty_to_subset_ty_ctor(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::SubsetTyCtor> {
-        let ctor = if ty == &rty::Ty::trait_object_dummy_self() {
-            rty::SubsetTyCtor::trait_object_dummy_self()
+    fn ty_to_subset_ty_ctor(&mut self, span: Span, ty: &rty::Ty) -> QueryResult<rty::SubsetTyCtor> {
+        let ctor = if let rty::TyKind::Infer(vid) = ty.kind() {
+            // do not generate sort holes for dummy self types
+            let sort_vid =
+                if vid.as_u32() == 0 { rty::SortVid::from_u32(0) } else { self.next_sort_vid() };
+            rty::SubsetTyCtor::bind_with_sort(
+                rty::SubsetTy::trivial(rty::BaseTy::Infer(*vid), rty::Expr::nu()),
+                rty::Sort::Infer(rty::SortInfer::SortVar(sort_vid)),
+            )
         } else {
             ty.shallow_canonicalize()
                 .as_ty_or_base()
@@ -1530,6 +1538,11 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(span)))?
         };
         Ok(ctor)
+    }
+
+    fn next_sort_vid(&mut self) -> rty::SortVid {
+        self.next_sort_index = self.next_sort_index.checked_add(1).unwrap();
+        rty::SortVid::from_u32(self.next_sort_index - 1)
     }
 
     fn next_type_vid(&mut self) -> rty::TyVid {
