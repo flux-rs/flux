@@ -1,11 +1,11 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot},
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -14,8 +14,9 @@ use flux_middle::{
     rty::{
         self, canonicalize::CanonicalTy, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy,
         Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability,
-        PolyFnSig, PtrKind, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Generics, Int, IntTy,
+        Mutability, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty,
+        TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -35,6 +36,7 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_index::bit_set::BitSet;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
@@ -61,8 +63,6 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     /// [`LocalDefId`] of the function-like item being checked.
     def_id: LocalDefId,
-    /// [`Generics`] of the function being checked.
-    generics: Generics,
     inherited: Inherited<'ck, M>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
@@ -153,12 +153,13 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             // In shape mode we don't care about kvars
             let kvars = KVarGen::dummy();
-            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+            let mut root_ctxt =
+                InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
@@ -184,26 +185,194 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let mut kvars = fixpoint_encoding::KVarGen::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+        let mut root_ctxt =
+            InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
+            // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
-
             let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
                 .instantiate_identity()
                 .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
                 .with_span(span)?;
-
             Checker::run(infcx, def_id, inherited, poly_sig)?;
 
             Ok(root_ctxt.split())
         })
     }
+}
+
+fn find_trait_item(
+    genv: &GlobalEnv<'_, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<Option<(crate::rty::TraitRef, DefId)>> {
+    let tcx = genv.tcx();
+    let def_id = def_id.to_def_id();
+    if let Some(impl_id) = tcx.impl_of_method(def_id)
+        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
+    {
+        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
+        return Ok(Some((impl_trait_ref, trait_item_id)));
+    }
+    Ok(None)
+}
+
+/// The function `check_fn_subtyping` does a function subtyping check between
+/// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
+/// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
+/// as akin to the code
+///
+///   T_f := (S1,...,Sn) -> S
+///   T_g := (T1,...,Tn) -> T
+///   T_f <: T_g
+///
+///  fn g(x1:T1,...,xn:Tn) -> T {
+///      f(x1,...,xn)
+///  }
+/// TODO: copy rules from SLACK.
+fn check_fn_subtyping<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
+    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    def_id: &DefId,
+    generic_args: &[GenericArg],
+    oblig_sig: EarlyBinder<rty::PolyFnSig>,
+    oblig_args: Option<(&GenericArgs, &RefineArgs)>,
+    span: Span,
+) -> Result {
+    let mut infcx = infcx.at(span);
+    let tcx = genv.tcx();
+    let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
+
+    let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
+        oblig_sig.instantiate(tcx, oblig_args, refine_args)
+    } else {
+        oblig_sig.instantiate_identity()
+    };
+    let oblig_sig =
+        oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
+
+    let oblig_sig = {
+        oblig_sig
+            .normalize_projections(genv, infcx.region_infcx, *def_id)
+            .with_span(span)?
+    };
+
+    // 1. Unpack `T_g` input types
+    let actuals = oblig_sig
+        .inputs()
+        .iter()
+        .map(|ty| infcx.unpack(ty))
+        .collect_vec();
+    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], fn_def_sig.as_ref());
+
+    // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+    infcx.push_scope();
+    let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
+    let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
+    let fn_def_sig = fn_def_sig
+        .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+        .normalize_projections(genv, infcx.region_infcx, *def_id)
+        .with_span(span)?;
+
+    // 3. INPUT subtyping (g-input <: f-input)
+    // TODO: Check requires predicates (?)
+    // for requires in fn_def_sig.requires() {
+    //     at.check_pred(requires, ConstrReason::Call);
+    // }
+    if !fn_def_sig.requires().is_empty() {
+        span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
+    }
+    for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
+        let (formal, pred) = formal.unconstr();
+        infcx.check_pred(&pred, ConstrReason::Call);
+        // see: TODO(pack-closure)
+        match (actual.kind(), formal.kind()) {
+            (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
+                bug!("Not yet handled: FnDef subtyping with Ptr");
+            }
+            _ => {
+                infcx
+                    .subtyping(&actual, &formal, ConstrReason::Call)
+                    .with_span(span)?;
+            }
+        }
+    }
+
+    // 4. Plug in the EVAR solution / replace evars
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
+    let output = fn_def_sig
+        .output()
+        .replace_evars(&evars_sol)
+        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+
+    // 5. OUTPUT subtyping (f_out <: g_out)
+    // RJ: new `at` to avoid borrowing errors...!
+    infcx.push_scope();
+    let oblig_output = oblig_sig
+        .output()
+        .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+    infcx
+        .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+        .with_span(span)?;
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
+
+    if !output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
+        span_bug!(span, "Not yet handled: subtyping with ensures predicates {def_id:?}");
+    }
+
+    Ok(())
+}
+
+/// Trait subtyping check, which makes sure that the type for an impl method (def_id)
+/// is a subtype of the corresponding trait method.
+pub fn trait_impl_subtyping(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+    span: Span,
+) -> Result<Option<(RefineTree, KVarGen)>> {
+    // Skip the check if this is not an impl method
+    let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? else {
+        return Ok(None);
+    };
+    // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
+    if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
+        return Ok(None);
+    }
+    let kvars = KVarGen::new();
+    let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
+    let mut root_ctxt =
+        InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args)).with_span(span)?;
+
+    dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
+        let rustc_infcx = genv.tcx().infer_ctxt().build();
+        let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
+        let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
+        let tcx = genv.tcx();
+        let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+        let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
+        let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
+        let trait_refine_args =
+            RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
+
+        check_fn_subtyping(
+            genv,
+            &mut infcx,
+            &def_id.to_def_id(),
+            &impl_args,
+            trait_fn_sig,
+            Some((&trait_args, &trait_refine_args)),
+            span,
+        )
+    })?;
+    Ok(Some(root_ctxt.split()))
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
@@ -217,7 +386,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
-        let generics = genv.generics_of(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
@@ -237,7 +405,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut ck = Checker {
             def_id,
             genv,
-            generics,
             inherited,
             body: &body,
             resume_ty,
@@ -420,32 +587,51 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     Ok(Self::check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+            TerminatorKind::Call { kind, args, destination, target, .. } => {
                 let actuals = self.check_operands(infcx, env, terminator_span, args)?;
+                let ret = match kind {
+                    mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                        let fn_sig = self
+                            .genv
+                            .fn_sig(*resolved_id)
+                            .with_src_info(terminator.source_info)?;
 
-                let (func_id, call_args) = resolved_call;
-                let fn_sig = self
-                    .genv
-                    .fn_sig(*func_id)
-                    .with_src_info(terminator.source_info)?;
+                        let generic_args = instantiate_args_for_fun_call(
+                            self.genv,
+                            self.def_id.to_def_id(),
+                            *resolved_id,
+                            &resolved_args.lowered,
+                        )
+                        .with_src_info(terminator.source_info)?;
 
-                let generic_args = instantiate_args_for_fun_call(
-                    self.genv,
-                    self.def_id.to_def_id(),
-                    *func_id,
-                    &call_args.lowered,
-                )
-                .with_src_info(terminator.source_info)?;
-
-                let ret = self.check_call(
-                    infcx,
-                    env,
-                    terminator_span,
-                    *func_id,
-                    fn_sig,
-                    &generic_args,
-                    &actuals,
-                )?;
+                        self.check_call(
+                            infcx,
+                            env,
+                            terminator_span,
+                            Some(*resolved_id),
+                            fn_sig,
+                            &generic_args,
+                            &actuals,
+                        )?
+                    }
+                    mir::CallKind::FnPtr { operand, .. } => {
+                        let ty = self.check_operand(infcx, env, terminator_span, operand)?;
+                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
+                        {
+                            self.check_call(
+                                infcx,
+                                env,
+                                terminator_span,
+                                None,
+                                EarlyBinder(fn_sig.clone()),
+                                &[],
+                                &actuals,
+                            )?
+                        } else {
+                            bug!("TODO: fnptr call {ty:?}")
+                        }
+                    }
+                };
 
                 let ret = infcx.unpack(&ret);
                 infcx.assume_invariants(&ret, self.check_overflow());
@@ -522,7 +708,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
-        callee_def_id: DefId,
+        callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -539,9 +725,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
-        let refine_args = infcx
-            .instantiate_refine_args(callee_def_id)
-            .with_span(span)?;
+        let refine_args = match callee_def_id {
+            Some(callee_def_id) => {
+                infcx
+                    .instantiate_refine_args(callee_def_id)
+                    .with_span(span)?
+            }
+            None => {
+                vec![]
+            }
+        };
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -588,11 +781,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .with_span(span)?;
         }
 
-        let clauses = genv
-            .predicates_of(callee_def_id)
-            .with_span(span)?
-            .predicates()
-            .instantiate(tcx, &generic_args, &refine_args);
+        let clauses = match callee_def_id {
+            Some(callee_def_id) => {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)?
+                    .predicates()
+                    .instantiate(tcx, &generic_args, &refine_args)
+            }
+            None => crate::rty::List::empty(),
+        };
 
         at.check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
@@ -640,109 +837,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         )
     }
 
-    /// The function `check_oblig_fn_def` does a function subtyping check between
-    /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
-    /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
-    /// as akin to the code
-    ///
-    ///   T_f := (S1,...,Sn) -> S
-    ///   T_g := (T1,...,Tn) -> T
-    ///   T_f <: T_g
-    ///
-    ///  fn g(x1:T1,...,xn:Tn) -> T {
-    ///      f(x1,...,xn)
-    ///  }
-    /// TODO: copy rules from SLACK.
-    fn check_oblig_fn_def(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        def_id: &DefId,
-        generic_args: &[GenericArg],
-        oblig_sig: rty::PolyFnSig,
-        span: Span,
-    ) -> Result {
-        let mut infcx = infcx.at(span);
-        let genv = self.genv;
-        let tcx = genv.tcx();
-        let fn_def_sig = self.genv.fn_sig(*def_id).with_span(span)?;
-
-        let oblig_sig = oblig_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
-            .with_span(span)?;
-
-        // 1. Unpack `T_g` input types
-        let actuals = oblig_sig
-            .inputs()
-            .iter()
-            .map(|ty| infcx.unpack(ty))
-            .collect_vec();
-
-        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-        infcx.push_scope();
-        let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-        let fn_def_sig = fn_def_sig
-            .instantiate(tcx, generic_args, &refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
-            .with_span(span)?;
-
-        // 3. INPUT subtyping (g-input <: f-input)
-        // TODO: Check requires predicates (?)
-        // for requires in fn_def_sig.requires() {
-        //     at.check_pred(requires, ConstrReason::Call);
-        // }
-        assert!(fn_def_sig.requires().is_empty()); // TODO
-        for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
-            let (formal, pred) = formal.unconstr();
-            infcx.check_pred(&pred, ConstrReason::Call);
-            // see: TODO(pack-closure)
-            match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
-                    bug!("Not yet handled: FnDef subtyping with Ptr");
-                }
-                _ => {
-                    infcx
-                        .subtyping(&actual, &formal, ConstrReason::Call)
-                        .with_span(span)?;
-                }
-            }
-        }
-
-        // // TODO: (RJ) this doesn't feel right to me... can one even *have* clauses here?
-        // let clauses = self
-        //     .genv
-        //     .predicates_of(*def_id)
-        //     .with_span(span)?
-        //     .predicates()
-        //     .instantiate(self.genv.tcx(), &generic_args, &refine_args);
-        // at.check_non_closure_clauses(&clauses, ConstrReason::Call)
-        //     .with_span(span)?;
-
-        // 4. Plug in the EVAR solution / replace evars
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
-        let output = fn_def_sig
-            .output()
-            .replace_evars(&evars_sol)
-            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
-
-        // 5. OUTPUT subtyping (f_out <: g_out)
-        // RJ: new `at` to avoid borrowing errors...!
-        infcx.push_scope();
-        let oblig_output = oblig_sig
-            .output()
-            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-        infcx
-            .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
-            .with_span(span)?;
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
-        assert!(output.ensures.is_empty()); // TODO
-        assert!(oblig_output.ensures.is_empty()); // TODO
-        Ok(())
-    }
-
     fn check_oblig_fn_trait_pred(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -768,11 +862,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                let oblig_sig = fn_trait_pred
-                    .fndef_poly_sig()
-                    .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
-                    .with_span(self.body.span())?;
-                self.check_oblig_fn_def(infcx, def_id, args, oblig_sig, span)?;
+                let oblig_sig = fn_trait_pred.fndef_poly_sig();
+                check_fn_subtyping(self.genv, infcx, def_id, args, oblig_sig, None, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1005,17 +1096,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
+            Rvalue::Aggregate(
+                AggregateKind::Adt(def_id, variant_idx, args, _, field_idx),
+                operands,
+            ) => {
                 let actuals = self.check_operands(infcx, env, stmt_span, operands)?;
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_poly_fn_sig();
+                    .to_poly_fn_sig(*field_idx);
+
                 let args =
                     instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
                         .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, *def_id, sig, &args, &actuals)
+                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(infcx, env, stmt_span, operands)?;
@@ -1228,6 +1323,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
+            | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance => {
                 self.refine_default(to).with_span(self.body.span())?
             }
@@ -1567,7 +1664,7 @@ fn all_predicates_of(
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
 /// mutable references.
 fn infer_under_mut_ref_hack(
-    rcx: &mut RefineCtxt,
+    rcx: &mut InferCtxt,
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {

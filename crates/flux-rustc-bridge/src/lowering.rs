@@ -33,6 +33,7 @@ use super::{
 };
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
+    mir::CallKind,
     ty::{AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region},
 };
 
@@ -274,7 +275,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, generic_args) = {
+                let kind = {
                     let func_ty = func.ty(self.rustc_mir, self.tcx);
                     match func_ty.kind() {
                         rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
@@ -282,7 +283,32 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                                 .lower(self.tcx)
                                 .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
                                 .emit(self.sess)?;
-                            (*fn_def, CallArgs { orig: args, lowered })
+                            let def_id = *fn_def;
+                            let generic_args = CallArgs { orig: args, lowered };
+                            let (resolved_id, resolved_args) = self
+                                .resolve_call(def_id, generic_args.orig)
+                                .map_err(|reason| {
+                                    errors::UnsupportedMir::new(span, "terminator call", reason)
+                                })
+                                .emit(self.sess)?;
+                            CallKind::FnDef { def_id, generic_args, resolved_id, resolved_args }
+                        }
+                        rustc_middle::ty::TyKind::FnPtr(fn_sig_tys, header) => {
+                            let fn_sig = fnptr_as_fnsig(fn_sig_tys, header)
+                                .lower(self.tcx)
+                                .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                                .emit(self.sess)?;
+                            let operand = self
+                                .lower_operand(func)
+                                .map_err(|reason| {
+                                    errors::UnsupportedMir::new(
+                                        span,
+                                        "function pointer target",
+                                        reason,
+                                    )
+                                })
+                                .emit(self.sess)?;
+                            CallKind::FnPtr { fn_sig, operand }
                         }
                         _ => {
                             Err(errors::UnsupportedMir::terminator(
@@ -302,14 +328,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     })
                     .emit(self.sess)?;
 
-                let resolved_call = self
-                    .resolve_call(func, generic_args.orig)
-                    .map_err(|reason| errors::UnsupportedMir::new(span, "terminator call", reason))
-                    .emit(self.sess)?;
-
                 TerminatorKind::Call {
-                    func,
-                    generic_args,
+                    kind,
                     destination,
                     target: *target,
                     args: args
@@ -322,7 +342,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                         .try_collect()
                         .emit(self.sess)?,
                     unwind: *unwind,
-                    resolved_call,
                 }
             }
             rustc_mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
@@ -466,7 +485,14 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Some(crate::mir::PointerCast::MutToConstPointer)
             }
             rustc_adjustment::PointerCoercion::Unsize => Some(crate::mir::PointerCast::Unsize),
-            _ => None,
+            rustc_adjustment::PointerCoercion::ClosureFnPointer(_) => {
+                Some(crate::mir::PointerCast::ClosureFnPointer)
+            }
+            rustc_adjustment::PointerCoercion::ReifyFnPointer => {
+                Some(crate::mir::PointerCast::ReifyFnPointer)
+            }
+            rustc_adjustment::PointerCoercion::UnsafeFnPointer
+            | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
         }
     }
     fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {
@@ -491,12 +517,19 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, None) => {
+            rustc_mir::AggregateKind::Adt(
+                def_id,
+                variant_idx,
+                args,
+                user_type_annot_idx,
+                field_idx,
+            ) => {
                 Ok(AggregateKind::Adt(
                     *def_id,
                     *variant_idx,
                     args.lower(self.tcx)?,
                     *user_type_annot_idx,
+                    *field_idx,
                 ))
             }
             rustc_mir::AggregateKind::Array(ty) => Ok(AggregateKind::Array(ty.lower(self.tcx)?)),
@@ -510,7 +543,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(AggregateKind::Coroutine(*did, args))
             }
             rustc_mir::AggregateKind::RawPtr(_, _)
-            | rustc_mir::AggregateKind::Adt(..)
             | rustc_mir::AggregateKind::CoroutineClosure(..) => {
                 Err(UnsupportedReason::new(format!(
                     "unsupported aggregate kind `{aggregate_kind:?}`"
@@ -797,15 +829,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_raw_ptr(ty, *mutbl))
             }
             rustc_ty::FnPtr(fn_sig_tys, header) => {
-                let fn_sig = fn_sig_tys.map_bound(|fn_sig_tys| {
-                    rustc_ty::FnSig {
-                        inputs_and_output: fn_sig_tys.inputs_and_output,
-                        c_variadic: header.c_variadic,
-                        safety: header.safety,
-                        abi: header.abi,
-                    }
-                });
-                let fn_sig = fn_sig.lower(tcx)?;
+                let fn_sig = fnptr_as_fnsig(fn_sig_tys, header).lower(tcx)?;
                 Ok(Ty::mk_fn_ptr(fn_sig))
             }
             rustc_ty::Closure(did, args) => {
@@ -841,6 +865,20 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
             _ => Err(UnsupportedReason::new(format!("unsupported type `{self:?}`"))),
         }
     }
+}
+
+fn fnptr_as_fnsig<'tcx>(
+    fn_sig_tys: &'tcx rustc_ty::Binder<'tcx, rustc_ty::FnSigTys<TyCtxt<'tcx>>>,
+    header: &'tcx rustc_ty::FnHeader<TyCtxt<'tcx>>,
+) -> rustc_ty::Binder<'tcx, rustc_ty::FnSig<'tcx>> {
+    fn_sig_tys.map_bound(|fn_sig_tys| {
+        rustc_ty::FnSig {
+            inputs_and_output: fn_sig_tys.inputs_and_output,
+            c_variadic: header.c_variadic,
+            safety: header.safety,
+            abi: header.abi,
+        }
+    })
 }
 
 impl<'tcx> Lower<'tcx> for rustc_ty::AliasTyKind {

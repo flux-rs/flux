@@ -14,7 +14,7 @@ This is a WIP guide to writing specifications in `flux`.
 
   binds `n` over the entire scope of the function to specify that it takes an `i32` equal to `n` and returns an `i32` equal to `n + 1`. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type `a -> a` in Haskell is polymorphic on the type `a` which is bound for the scope of the entire function type.
 
-- **Existential Type**: An existential type `B{v: r(v)}` is composed of a base type `B`, a refinement variable `v` and a refinement predicate `r` on `v`. Intuitively, a Rust value `x` has type `B{v: r(v)}` if there exists a refinement value `a` such that `r(a)` holds and `x` has type `B[x]`.
+- **Existential Type**: An existential type `B{v: r(v)}` is composed of a base type `B`, a refinement variable `v` and a refinement predicate `r` on `v`. Intuitively, a Rust value `x` has type `B{v: r(v)}` if there exists a refinement value `a` such that `r(a)` holds and `x` has type `B[a]`.
   - `i32{v: v > 0}`: set of positive `i32` values.
   - `List<T>{v: v > 0}`: set of non-empty lists.
 

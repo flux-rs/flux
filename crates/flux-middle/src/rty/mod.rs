@@ -393,7 +393,7 @@ pub struct FnTraitPredicate {
 }
 
 impl FnTraitPredicate {
-    pub fn fndef_poly_sig(&self) -> PolyFnSig {
+    pub fn fndef_poly_sig(&self) -> EarlyBinder<PolyFnSig> {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
 
         let fn_sig = FnSig::new(
@@ -404,7 +404,7 @@ impl FnTraitPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::bind_with_vars(fn_sig, List::empty())
+        EarlyBinder(PolyFnSig::bind_with_vars(fn_sig, List::empty()))
     }
 
     pub fn to_poly_fn_sig(
@@ -1535,6 +1535,21 @@ pub struct AliasTy {
 
 pub type RefineArgs = List<Expr>;
 
+#[extension(pub trait RefineArgsExt)]
+impl RefineArgs {
+    fn identity_for_item(genv: &GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
+        let reft_generics = genv.refinement_generics_of(def_id)?;
+        let mut args = vec![];
+        for i in 0..reft_generics.count() {
+            let param = reft_generics.param_at(i, *genv)?;
+            let expr =
+                Expr::var(Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name }));
+            args.push(expr);
+        }
+        Ok(List::from_vec(args))
+    }
+}
+
 /// A type constructor meant to be used as generic a argument of [kind base]. This is just an alias
 /// to [`Binder<SubsetTy>`], but we expect the binder to have a single bound variable of the sort of
 /// the underlying [base type].
@@ -1798,6 +1813,20 @@ impl GenericArgs {
     // We can't implement [`ToRustc`] because of coherence so we add it here
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
         tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
+    }
+
+    fn rebase_onto(
+        &self,
+        tcx: &TyCtxt,
+        source_ancestor: DefId,
+        target_args: &GenericArgs,
+    ) -> List<GenericArg> {
+        let defs = tcx.generics_of(source_ancestor);
+        target_args
+            .iter()
+            .chain(self.iter().skip(defs.count()))
+            .cloned()
+            .collect()
     }
 }
 
@@ -2066,6 +2095,10 @@ impl AdtDef {
         self.0.rustc.is_struct()
     }
 
+    pub fn is_union(&self) -> bool {
+        self.0.rustc.is_union()
+    }
+
     pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
         self.0.rustc.variants()
     }
@@ -2139,18 +2172,19 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
+    // The field_idx is `Some(i)` when we have the `i`-th field of a `union`, in which case,
+    // the `inputs` are _just_ the `i`-th type (and not all the types...)
+    pub fn to_poly_fn_sig(&self, field_idx: Option<crate::FieldIdx>) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(
-                    Safety::Safe,
-                    abi::Abi::Rust,
-                    List::empty(),
-                    variant.fields.clone(),
-                    output,
-                )
+                let inputs = match field_idx {
+                    None => variant.fields.clone(),
+                    Some(i) => List::singleton(variant.fields[i.index()].clone()),
+                };
+                let requires = List::empty();
+                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
             })
         })
     }

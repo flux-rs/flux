@@ -10,8 +10,8 @@ use flux_middle::{
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen,
-        EarlyBinder, Expr, ExprKind, GenericArg, HoleKind, InferMode, Lambda, List, Mutability,
-        PolyVariant, Sort, Ty, TyKind, Var,
+        EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List,
+        Mutability, PolyVariant, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -69,25 +69,26 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        root_id: LocalDefId,
+        root_id: DefId,
         kvar_gen: KVarGen,
+        args: Option<&GenericArgs>,
     ) -> QueryResult<Self> {
         Ok(Self {
             genv,
             inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree: RefineTree::new(genv, root_id)?,
+            refine_tree: RefineTree::new(genv, root_id, args)?,
         })
     }
 
     pub fn infcx<'a>(
         &'a mut self,
-        def_id: LocalDefId,
+        def_id: DefId,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     ) -> InferCtxt<'a, 'genv, 'tcx> {
         InferCtxt::new(
             self.genv,
             region_infcx,
-            def_id.to_def_id(),
+            def_id,
             self.refine_tree.refine_ctxt_at_root(),
             &self.inner,
         )

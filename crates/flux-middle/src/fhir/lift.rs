@@ -50,9 +50,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     pub fn lift_refined_by<'fhir>(&self) -> fhir::RefinedBy<'fhir> {
         let item = self.genv.hir().expect_item(self.local_id());
         match item.kind {
-            hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-                fhir::RefinedBy::trivial()
-            }
+            hir::ItemKind::TyAlias(..)
+            | hir::ItemKind::Struct(..)
+            | hir::ItemKind::Enum(..)
+            | hir::ItemKind::Union(..) => fhir::RefinedBy::trivial(),
             _ => {
                 bug!("expected struct, enum, or type alias");
             }

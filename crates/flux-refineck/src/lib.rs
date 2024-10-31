@@ -17,6 +17,7 @@ extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_index;
+extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_mir_dataflow;
 extern crate rustc_span;
@@ -30,13 +31,14 @@ mod primops;
 mod queue;
 mod type_env;
 
-use checker::Checker;
 pub use checker::CheckerConfig;
+use checker::{trait_impl_subtyping, Checker};
 use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::FixpointCtxt,
+    fixpoint_encoding::{FixpointCtxt, KVarGen},
     infer::{ConstrReason, Tag},
+    refine_tree::RefineTree,
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -54,11 +56,55 @@ use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_sta
 
 fluent_messages! { "../locales/en-US.ftl" }
 
+fn report_fixpoint_errors(
+    genv: GlobalEnv,
+    local_id: LocalDefId,
+    errors: Vec<Tag>,
+) -> Result<(), ErrorGuaranteed> {
+    #[expect(clippy::collapsible_else_if, reason = "it looks better")]
+    if genv.should_fail(local_id) {
+        if errors.is_empty() {
+            report_expected_neg(genv, local_id)
+        } else {
+            Ok(())
+        }
+    } else {
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            report_errors(genv, errors)
+        }
+    }
+}
+
+fn invoke_fixpoint(
+    genv: GlobalEnv,
+    cache: &mut QueryCache,
+    local_id: LocalDefId,
+    mut refine_tree: RefineTree,
+    kvars: KVarGen,
+    config: CheckerConfig,
+    ext: &str,
+) -> Result<Vec<Tag>, ErrorGuaranteed> {
+    if config::dump_constraint() {
+        dbg::dump_item_info(genv.tcx(), local_id, ext, &refine_tree).unwrap();
+    }
+    refine_tree.simplify();
+    let simp_ext = format!("simp.{}", ext);
+    if config::dump_constraint() {
+        dbg::dump_item_info(genv.tcx(), local_id, simp_ext, &refine_tree).unwrap();
+    }
+
+    let mut fcx = FixpointCtxt::new(genv, local_id, kvars);
+    let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
+    fcx.check(cache, cstr, config.scrape_quals).emit(&genv)
+}
+
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut QueryCache,
     def_id: MaybeExternId,
-    config: CheckerConfig,
+    mut config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -87,6 +133,17 @@ pub fn check_fn(
         return Ok(());
     }
 
+    // Since we still want the global check overflow, just override it here if it's set
+    if let Some(check_overflow) = genv.check_overflow(local_id) {
+        if check_overflow {
+            config.check_overflow = true;
+        } else if config.check_overflow {
+            // In this case, an item was explicitly marked as check_overflow(no)
+            // but the cfg attribute is set so we need to override it
+            config.check_overflow = false;
+        }
+    }
+
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
@@ -98,39 +155,30 @@ pub fn check_fn(
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
-        let (mut refine_tree, kvars) =
+        let (refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, config)
                 .emit(&genv)?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
-        if config::dump_constraint() {
-            dbg::dump_item_info(genv.tcx(), local_id, "fluxc", &refine_tree).unwrap();
-        }
-        refine_tree.simplify();
-        if config::dump_constraint() {
-            dbg::dump_item_info(genv.tcx(), local_id, "simp.fluxc", &refine_tree).unwrap();
-        }
-        let mut fcx = FixpointCtxt::new(genv, local_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
-        let errors = fcx.check(cache, cstr, config.scrape_quals).emit(&genv)?;
-
+        let errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "fluxc")?;
         tracing::info!("check_fn::fixpoint");
-        #[expect(clippy::collapsible_else_if, reason = "it looks better")]
-        if genv.should_fail(local_id) {
-            if errors.is_empty() {
-                report_expected_neg(genv, local_id)
-            } else {
-                Ok(())
-            }
-        } else {
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                report_errors(genv, errors)
-            }
+        report_fixpoint_errors(genv, local_id, errors)?;
+
+        // PHASE 4: subtyping check for trait-method implementations
+        if let Some((refine_tree, kvars)) =
+            trait_impl_subtyping(genv, local_id, span).emit(&genv)?
+        {
+            tracing::info!("check_fn::refine-subtyping");
+            let errors =
+                invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub.fluxc")?;
+            tracing::info!("check_fn::fixpoint-subtyping");
+            report_fixpoint_errors(genv, local_id, errors)?;
         }
-    })
+        Ok(())
+    })?;
+
+    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| Ok(()))
 }
 
 fn force_conv(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {

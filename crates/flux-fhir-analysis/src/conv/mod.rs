@@ -1287,7 +1287,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
             }
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) => {
                 let adt_def = self.genv.adt_def(did)?;
                 let args = self.conv_generic_args(env, did, path.last_segment())?;
                 rty::BaseTy::adt(adt_def, args)
@@ -1375,9 +1375,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                         },
                     )
                 }
-            }
-            fhir::Res::Def(DefKind::Union, def_id) => {
-                span_bug!(path.span, "TODO: union types: {def_id:?}")
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)

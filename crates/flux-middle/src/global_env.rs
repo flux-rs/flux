@@ -338,6 +338,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &*self.inner.cstore
     }
 
+    pub fn has_trusted_impl(&self, def_id: DefId) -> bool {
+        if let Some(did) = self
+            .resolve_id(def_id)
+            .as_maybe_extern()
+            .map(|id| id.local_id())
+        {
+            self.trusted_impl(did)
+        } else {
+            false
+        }
+    }
+
     pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
@@ -384,10 +396,41 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
+    /// explicity annotation and whether it requires an overflow check or not.
+    /// If no explicit annotation is found, return None
+    ///
+    /// Note:
+    ///
+    /// This uses Option since we want to be explicit about whether or not the
+    /// check_overflow attribute was actually on an item
+    ///
+    /// This is relevant in cases where Flux is configured to check overflows globally
+    /// but an item is marked `check_overflow(no)` explicitly.
+    ///
+    /// i.e. in these cases we need to know that
+    /// 1. `check_overflow` was explicitly marked on an item
+    /// 2. `check_overflow` boolean representation is false (`check_overflow(no)`)
+    ///
+    pub fn check_overflow(self, def_id: LocalDefId) -> Option<bool> {
+        Some(
+            self.traverse_parents(def_id, |did| self.collect_specs().check_overflows.get(&did))?
+                .to_bool(),
+        )
+    }
+
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
+            .is_some_and(|trusted| trusted.to_bool())
+    }
+
+    pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
+        self.collect_specs()
+            .trusted_impl
+            .get(&def_id)
             .is_some_and(|trusted| trusted.to_bool())
     }
 

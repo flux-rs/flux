@@ -55,6 +55,7 @@ pub enum Token {
     Type,
     Ignore,
     Trusted,
+    TrustedImpl,
     Check,
     If,
     Else,
