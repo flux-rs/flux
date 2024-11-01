@@ -401,27 +401,25 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         }
     }
 
-    fn try_fold_subset_ty(&mut self, constr: &SubsetTy) -> Result<SubsetTy, Self::Error> {
-        match &constr.bty {
+    fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
+        match &sty.bty {
             BaseTy::Alias(AliasKind::Weak, _alias_ty) => {
-                // change comment if we rename subset ty to constr ty
-                let a = 0;
                 // Weak aliases are always expanded during conversion. We could in theory normalize
-                // them here but we don't guaranatee that type aliases expand to a subset ty. If
-                // we ever stop expanding aliases in conv we would need to guarantee that aliases
+                // them here but we don't guaranatee that type aliases expand to a subset ty. If we
+                // ever stop expanding aliases during conv we would need to guarantee that aliases
                 // used as a generic base expand to a subset type.
                 tracked_span_bug!()
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
-                let ty = ctor.replace_bound_reft(&constr.idx);
+                let ty = ctor.replace_bound_reft(&sty.idx);
                 if changed {
                     ty.try_fold_with(self)
                 } else {
                     Ok(ty)
                 }
             }
-            _ => constr.try_super_fold_with(self),
+            _ => sty.try_super_fold_with(self),
         }
     }
 
