@@ -7,6 +7,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
@@ -353,7 +354,7 @@ impl LookupResult<'_> {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> CheckerResult<Ty> {
+    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> QueryResult<Ty> {
         let ty = fold(self.bindings, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
@@ -866,7 +867,7 @@ fn fold(
     infcx: &mut InferCtxtAt,
     ty: &Ty,
     is_strg: bool,
-) -> CheckerResult<Ty> {
+) -> QueryResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
             let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());

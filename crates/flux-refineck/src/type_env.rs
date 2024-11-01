@@ -5,7 +5,7 @@ use std::{iter, ops::ControlFlow};
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 use flux_middle::{
@@ -184,7 +184,7 @@ impl<'a> TypeEnv<'a> {
         re: Region,
         path: &Path,
         bound: PtrToRefBound,
-    ) -> Result<Ty> {
+    ) -> InferResult<Ty> {
         infcx.push_scope();
 
         // ℓ: t1
@@ -345,6 +345,23 @@ pub(crate) enum PtrToRefBound {
     Ty(Ty),
     Infer,
     Identity,
+}
+
+impl flux_infer::infer::LocEnv for TypeEnv<'_> {
+    fn ptr_to_ref(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: &Path,
+        bound: Ty,
+    ) -> InferResult<Ty> {
+        self.ptr_to_ref(infcx, reason, re, path, PtrToRefBound::Ty(bound))
+    }
+
+    fn get(&self, path: &Path) -> Ty {
+        self.get(path)
+    }
 }
 
 impl BasicBlockEnvShape {

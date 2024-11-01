@@ -9,9 +9,9 @@ use flux_middle::{
         self,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasKind, AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen,
-        EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List,
-        Mutability, PolyVariant, Sort, Ty, TyKind, Var,
+        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
+        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
+        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -223,6 +223,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
     }
 
+    fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
+    where
+        T: TypeFoldable,
+    {
+        self.push_scope();
+        let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
+        let t = f(self, t);
+        self.pop_scope_without_solving_evars();
+        t
+    }
+
     pub fn push_scope(&mut self) {
         let scope = self.scope();
         self.inner.borrow_mut().evars.enter_context(scope);
@@ -272,6 +283,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
+
     pub fn check_pred(&mut self, pred: impl Into<Expr>, reason: ConstrReason) {
         let tag = self.tag(reason);
         self.infcx.check_pred(pred, tag);
@@ -305,16 +317,28 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         Ok(())
     }
 
-    /// Relate types via subtyping and returns coroutine obligations. See comment for
-    /// [`Sub::obligations`].
+    /// Relate types via subtyping for a function call. This is the same as [`InferCtxtAt::subtyping`]
+    /// except that we also consider strong references.
+    pub fn fun_arg_subtyping(
+        &mut self,
+        env: &mut impl LocEnv,
+        a: &Ty,
+        b: &Ty,
+        reason: ConstrReason,
+    ) -> InferResult {
+        let mut sub = Sub::new(reason, self.span);
+        sub.fun_args(self.infcx, env, a, b)
+    }
+
+    /// Relate types via subtyping and returns coroutine obligations. See comment for [`Sub::obligations`].
     pub fn subtyping(
         &mut self,
-        ty1: &Ty,
-        ty2: &Ty,
+        a: &Ty,
+        b: &Ty,
         reason: ConstrReason,
     ) -> InferResult<Vec<rty::Clause>> {
-        let mut sub = Sub { span: self.span, reason, obligations: vec![] };
-        sub.tys(self.infcx, ty1, ty2)?;
+        let mut sub = Sub::new(reason, self.span);
+        sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
     }
 
@@ -403,7 +427,20 @@ impl fmt::Debug for TypeTrace {
     }
 }
 
-/// Context to relate two types `a` and `b` via subtyping
+pub trait LocEnv {
+    fn ptr_to_ref(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: &Path,
+        bound: Ty,
+    ) -> InferResult<Ty>;
+
+    fn get(&self, path: &Path) -> Ty;
+}
+
+/// Context used to relate two types `a` and `b` via subtyping
 struct Sub {
     reason: ConstrReason,
     span: Span,
@@ -415,8 +452,41 @@ struct Sub {
 }
 
 impl Sub {
+    fn new(reason: ConstrReason, span: Span) -> Self {
+        Self { reason, span, obligations: vec![] }
+    }
+
     fn tag(&self) -> Tag {
         Tag::new(self.reason, self.span)
+    }
+
+    fn fun_args(
+        &mut self,
+        infcx: &mut InferCtxt,
+        env: &mut impl LocEnv,
+        a: &Ty,
+        b: &Ty,
+    ) -> InferResult {
+        match (a.kind(), b.kind()) {
+            (_, TyKind::Exists(ctor_b)) => {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, &a, &ty_b))
+            }
+            (_, TyKind::Constr(pred_b, ty_b)) => {
+                infcx.check_pred(pred_b, self.tag());
+                self.fun_args(infcx, env, &a, ty_b)
+            }
+            (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                let ty1 = env.get(path1);
+                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                self.tys(infcx, &ty1, ty2)
+            }
+            (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+                let mut at = infcx.at(self.span);
+                env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
+                Ok(())
+            }
+            _ => self.tys(infcx, a, b),
+        }
     }
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
@@ -436,13 +506,12 @@ impl Sub {
             (TyKind::Constr(..), _) => {
                 bug!("constraint types should removed by the unpacking");
             }
-            (_, TyKind::Exists(ty_b)) => {
-                infcx.push_scope();
-                let ty_b = ty_b
-                    .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                self.tys(infcx, &a, &ty_b)?;
-                infcx.pop_scope_without_solving_evars();
-                Ok(())
+            (_, TyKind::Exists(ctor_b)) => {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))
+            }
+            (_, TyKind::Constr(pred_b, ty_b)) => {
+                infcx.check_pred(pred_b, self.tag());
+                self.tys(infcx, &a, ty_b)
             }
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
                 self.btys(infcx, bty_a, bty_b)?;
@@ -459,10 +528,6 @@ impl Sub {
                 Ok(())
             }
             (_, TyKind::Uninit) => Ok(()),
-            (_, TyKind::Constr(pred_b, ty_b)) => {
-                infcx.check_pred(pred_b, self.tag());
-                self.tys(infcx, &a, ty_b)
-            }
             (TyKind::Downcast(.., fields_a), TyKind::Downcast(.., fields_b)) => {
                 debug_assert_eq!(fields_a.len(), fields_b.len());
                 for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
@@ -744,13 +809,13 @@ fn mk_coroutine_obligations(
 
 #[derive(Debug)]
 pub enum InferErr {
-    Inference,
+    UnsolvedEvar(EVar),
     Query(QueryErr),
 }
 
 impl From<UnsolvedEvar> for InferErr {
-    fn from(_: UnsolvedEvar) -> Self {
-        InferErr::Inference
+    fn from(err: UnsolvedEvar) -> Self {
+        InferErr::UnsolvedEvar(err.evar)
     }
 }
 
