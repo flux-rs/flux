@@ -533,7 +533,7 @@ where
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
-                // because we are weakining the context, i.e., anything true without the assumption
+                // because we are weakening the context, i.e., anything true without the assumption
                 // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
@@ -555,9 +555,7 @@ where
         let kvids = self.kcx.encode(kvar.kvid, decl, &mut self.scx);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| -> QueryResult<_> {
-                self.ecx.imm(arg, sort, &mut self.scx, bindings)
-            })
+            .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
             .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get

@@ -181,7 +181,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         }
         tracked_span_assert_eq!(candidates.len(), 1);
         let pred = candidates.first().unwrap();
-
         let pred = rty::FnTraitPredicate {
             kind,
             self_ty: self.refine_ty(trait_ref.args[0].expect_type())?,

@@ -467,6 +467,8 @@ impl Sub {
         a: &Ty,
         b: &Ty,
     ) -> InferResult {
+        // infcx.push_trace(TypeTrace::tys(a, b));
+
         match (a.kind(), b.kind()) {
             (_, TyKind::Exists(ctor_b)) => {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, &a, &ty_b))

@@ -196,9 +196,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             for p in resolved {
                 let obligation = &p.projection_ty;
                 let (_, ctor) = self.normalize_projection_ty(obligation)?;
-                // is this right?
-                let a = 0;
-                subst.tys(&p.term.to_ty(), &ctor.to_ty());
+                subst.subset_tys(&p.term, &ctor);
             }
             projection_preds = unresolved;
         }

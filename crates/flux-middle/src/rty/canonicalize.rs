@@ -6,13 +6,12 @@
 //! not permitted to hoist an existential out of a generic argument. For example, in `Vec<∃v. i32[v]>`
 //! the existential inside the `Vec` cannot be hoisted out.
 //!
-//! However, some type constructors are more lenient with respect to hoisting. Consider the tuple
+//! However, some type constructors are more "lenient" with respect to hoisting. Consider the tuple
 //! `(∃a. i32[a], ∃b. i32[b])`. Hoisting the existentials results in `∃a,b. (i32[a], i32[b])` which
 //! is an equivalent type (in the sense that subtyping holds both ways). The same applies to shared
 //! references: `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We refer to this class of type
 //! constructors as *transparent*. Hoisting existential out of transparent type constructors is useful
-//! as it allows the logical information to be extracted from the type. We try to eagerly do so as
-//! much as possible.
+//! as it allows the logical information to be extracted from the type.
 //!
 //! And important case is mutable references. In some situations, it is sound to hoist out of mutable
 //! references. For example, if we have a variable in the environment of type `&mut ∃v. T[v]`, it is
@@ -54,6 +53,7 @@ pub struct Hoister<D> {
     in_downcast: bool,
     in_mut_refs: bool,
     in_shr_refs: bool,
+    in_strg_refs: bool,
     in_tuples: bool,
     existentials: bool,
 }
@@ -70,6 +70,7 @@ impl<D> Hoister<D> {
             in_tuples: false,
             in_shr_refs: false,
             in_mut_refs: false,
+            in_strg_refs: false,
             in_boxes: false,
             in_downcast: false,
             existentials: true,
@@ -83,6 +84,11 @@ impl<D> Hoister<D> {
 
     pub fn hoist_inside_mut_refs(mut self, mut_refs: bool) -> Self {
         self.in_mut_refs = mut_refs;
+        self
+    }
+
+    pub fn hoist_inside_strg_refs(mut self, strg_refs: bool) -> Self {
+        self.in_strg_refs = strg_refs;
         self
     }
 
@@ -111,6 +117,7 @@ impl<D> Hoister<D> {
             .hoist_inside_downcast(true)
             .hoist_inside_mut_refs(false)
             .hoist_inside_shr_refs(true)
+            .hoist_inside_strg_refs(true)
             .hoist_inside_tuples(true)
     }
 
@@ -119,6 +126,7 @@ impl<D> Hoister<D> {
             .hoist_inside_downcast(false)
             .hoist_inside_mut_refs(false)
             .hoist_inside_shr_refs(false)
+            .hoist_inside_strg_refs(false)
             .hoist_inside_tuples(false)
     }
 }
@@ -157,7 +165,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 self.delegate.hoist_constr(pred.clone());
                 ty.fold_with(self)
             }
-            TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
+            TyKind::StrgRef(..) if self.in_strg_refs => ty.super_fold_with(self),
             TyKind::Downcast(..) if self.in_downcast => ty.super_fold_with(self),
             _ => ty.clone(),
         }

@@ -482,8 +482,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         };
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
-        self.insertions
-            .push((loc, place, Binding { kind, ty: ty.clone() }));
+        let ty = self
+            .infcx
+            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .hoist(ty);
+        self.insertions.push((loc, place, Binding { kind, ty }));
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {

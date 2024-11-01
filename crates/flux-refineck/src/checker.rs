@@ -769,7 +769,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         // Replace evars
-        let evars_sol = infcx.pop_scope().with_span(span)?;
+        // let evars_sol = infcx.pop_scope().with_span(span)?;
+        let evars_sol = infcx.pop_scope().unwrap();
         env.replace_evars(&evars_sol);
         infcx.replace_evars(&evars_sol);
 
