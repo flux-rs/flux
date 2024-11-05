@@ -3,7 +3,6 @@
 fhir_analysis_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
-
 fhir_analysis_arg_count_mismatch =
     this {$thing} takes {$expected ->
         [one] {$expected} refinement argument
@@ -201,8 +200,44 @@ fhir_analysis_too_many_generic_args =
         *[other] arguments
     }
 
+fhir_analysis_generics_on_primitive_sort = 
+    primitive sort {$name} expects {$expected -> 
+        [0] no generics
+        [one] exactly one generic argument
+        *[other] exactly {$expected} generic arguments
+    } but found {$found}
+    .label = incorrect generics on primitive sort
+
+fhir_analysis_too_many_generics_on_sort =
+    sorts associated with this {$def_descr} should have {$max ->  
+        [0] no generic arguments
+        [one] at most one generic argument
+        *[other] at most {$max} generic arguments
+    } but {$found} generic {$found ->
+        [one] argument
+        *[other] arguments
+    } supplied
+    .label = expected {$max ->
+        [0] no generic arguments
+        [one] at most one generic argument
+        *[other] at most {$max} generic arguments
+    } on sort
+
+fhir_analysis_generics_on_type_parameter = 
+    type parameter expects no generics but found {$found}
+    .label = found generics on sort type parameter
+
+fhir_analysis_generics_on_self_alias = 
+    type alias Self expects no generics but found {$found}
+    .label = found generics on type `Self`
+
+fhir_analysis_generics_on_opaque_sort = 
+    user defined opaque sorts have no generics but found {$found}
+    .label = found generics on user defined opaque sort
+
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined
+
 
 # Check impl against trait errors
 
