@@ -197,3 +197,10 @@ Flux will try to catch and recover from panics emitted with one of the bug macro
 in an inconsistent state, so there are no guarantees that Flux will behave correctly after recovering
 from a panic. However, this may still be useful to gather as many errors as possible. Code can
 be selectively ignored later.
+
+## Dumping the Checker Trace
+
+```
+cargo x install --debug
+FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
+```

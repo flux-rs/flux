@@ -747,6 +747,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
+        // println!("TRACE: check_call {callee_def_id:?} => {fn_sig:?}");
+
         let mut at = infcx.at(span);
 
         // Check requires predicates
