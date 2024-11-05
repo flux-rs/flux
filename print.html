@@ -745,6 +745,11 @@ Flux will try to catch and recover from panics emitted with one of the bug macro
 in an inconsistent state, so there are no guarantees that Flux will behave correctly after recovering
 from a panic. However, this may still be useful to gather as many errors as possible. Code can
 be selectively ignored later.</p>
+<h2 id="dumping-the-checker-trace"><a class="header" href="#dumping-the-checker-trace">Dumping the Checker Trace</a></h2>
+<pre><code>cargo x install --debug
+FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
+python3  path/to/flux/tools/logreader.py
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
 <h2 id="crates"><a class="header" href="#crates">Crates</a></h2>
