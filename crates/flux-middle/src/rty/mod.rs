@@ -1110,6 +1110,10 @@ impl Ty {
         BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
+    pub fn fn_ptr(sig: PolyFnSig) -> Ty {
+        BaseTy::FnPtr(sig).to_ty()
+    }
+
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
         BaseTy::Coroutine(did, resume_ty, upvar_tys).to_ty()
     }

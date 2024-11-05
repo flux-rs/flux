@@ -576,7 +576,11 @@ impl Sub {
                 tracked_span_assert_eq!(sig_a, sig_b);
                 Ok(())
             }
-            _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
+            (BaseTy::FnDef(def_id, args), BaseTy::FnPtr(sig_b)) => {
+                // println!("TRACE: subtyping! {def_id:?}@{args:?} <: {sig_b:?}");
+                Ok(())
+            }
+            _ => panic!("incompatible types: `{a:?}` - `{b:?}`"), // Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
 
