@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["AmbiguousAssocType","AssocTypeNotFound","GenericArgCountMismatch","InvalidBaseInstance","RefinedUnrefinableType","TooFewGenericArgs","TooManyGenericArgs"]};
+window.SIDEBAR_ITEMS = {"struct":["AmbiguousAssocType","AssocTypeNotFound","GenericArgCountMismatch","GenericsOnPrimitiveSort","GenericsOnSelf","GenericsOnTyParam","GenericsOnUserDefinedOpaqueSort","InvalidBaseInstance","RefinedUnrefinableType","TooFewGenericArgs","TooManyGenericArgs","TooManyGenericsOnSort"]};

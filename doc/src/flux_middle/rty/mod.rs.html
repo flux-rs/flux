@@ -2359,6 +2359,11 @@
 <a href="#2359" id="2359">2359</a>
 <a href="#2360" id="2360">2360</a>
 <a href="#2361" id="2361">2361</a>
+<a href="#2362" id="2362">2362</a>
+<a href="#2363" id="2363">2363</a>
+<a href="#2364" id="2364">2364</a>
+<a href="#2365" id="2365">2365</a>
+<a href="#2366" id="2366">2366</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2501,6 +2506,11 @@
         (<span class="number">0</span>..<span class="self">self</span>.<span class="number">0</span>.params.len())
             .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
+    }
+
+    <span class="doccomment">/// Gives the number of sort variables bound by this definition.
+    </span><span class="kw">pub fn </span>param_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0</span>.params.len()
     }
 }
 
