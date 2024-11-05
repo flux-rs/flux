@@ -1981,13 +1981,27 @@ fn conv_sort_path(
         }
         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) => {
-            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)))
+            if !path.args.is_empty() {
+                let err = errors::GenericsOnTyParam::new(
+                    path.segments.last().unwrap().span,
+                    path.args.len(),
+                );
+                return Err(genv.sess().emit_err(err))?;
+            }
+            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
         }
         fhir::SortRes::SelfParam { .. } => return Ok(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } => {
+            if !path.args.is_empty() {
+                let err = errors::GenericsOnSelfAlias::new(
+                    path.segments.last().unwrap().span,
+                    path.args.len(),
+                );
+                return Err(genv.sess().emit_err(err))?;
+            }
             return Ok(genv
                 .sort_of_self_ty_alias(alias_to)?
-                .unwrap_or(rty::Sort::Err))
+                .unwrap_or(rty::Sort::Err));
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
             if path.args.len() != 1 {
@@ -2003,7 +2017,16 @@ fn conv_sort_path(
             }
             rty::SortCtor::Map
         }
-        fhir::SortRes::User { name } => rty::SortCtor::User { name },
+        fhir::SortRes::User { name } => {
+            if !path.args.is_empty() {
+                let err = errors::GenericsOnUserDefinedOpaqueSort::new(
+                    path.segments.last().unwrap().span,
+                    path.args.len(),
+                );
+                return Err(genv.sess().emit_err(err))?;
+            }
+            rty::SortCtor::User { name }
+        }
         fhir::SortRes::Adt(def_id) => {
             let sort_def = genv.adt_sort_def_of(def_id)?;
             if path.args.len() > sort_def.param_count() {
@@ -2283,6 +2306,51 @@ mod errors {
             max: usize,
         ) -> Self {
             Self { span, found, max, def_descr: genv.tcx().def_descr(def_id) }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
+    pub(super) struct GenericsOnTyParam {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+    }
+
+    impl GenericsOnTyParam {
+        pub(super) fn new(span: Span, found: usize) -> Self {
+            Self { span, found }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
+    pub(super) struct GenericsOnSelfAlias {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+    }
+
+    impl GenericsOnSelfAlias {
+        pub(super) fn new(span: Span, found: usize) -> Self {
+            Self { span, found }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
+    pub(super) struct GenericsOnUserDefinedOpaqueSort {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+    }
+
+    impl GenericsOnUserDefinedOpaqueSort {
+        pub(super) fn new(span: Span, found: usize) -> Self {
+            Self { span, found }
         }
     }
 }

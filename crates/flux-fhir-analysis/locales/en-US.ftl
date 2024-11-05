@@ -206,7 +206,7 @@ fhir_analysis_generics_on_primitive_sort =
         [one] exactly one generic argument
         *[other] exactly {$expected} generic arguments
     } but found {$found}
-    .label = Incorrect generics on primitive sort
+    .label = incorrect generics on primitive sort
 
 fhir_analysis_too_many_generics_on_sort =
     sorts associated with this {$def_descr} should have {$max ->  
@@ -222,6 +222,18 @@ fhir_analysis_too_many_generics_on_sort =
         [one] at most one generic argument
         *[other] at most {$max} generic arguments
     } on sort
+
+fhir_analysis_generics_on_type_parameter = 
+    type parameter expects no generics but found {$found}
+    .label = found generics on sort type parameter
+
+fhir_analysis_generics_on_self_alias = 
+    type alias `Self` expect not generics but found {$found}
+    .label = found generics on type `Self`
+
+fhir_analysis_generics_on_opaque_sort = 
+    user defined opaque sorts have no generics but found {$found}
+    .label = found generics on user defined opaque sort
 
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined
