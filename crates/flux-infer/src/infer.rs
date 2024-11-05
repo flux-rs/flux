@@ -713,6 +713,7 @@ impl Sub {
             (BaseTy::FnDef(def_id, args), BaseTy::FnPtr(sig_b)) => {
                 let current_did = infcx.def_id;
                 let sub_sig = infcx.genv.fn_sig(*def_id)?;
+                // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
                 let super_sig = EarlyBinder(sig_b.clone());
                 check_fn_subtyping(infcx, &current_did, sub_sig, args, super_sig, None, self.span)
             }
