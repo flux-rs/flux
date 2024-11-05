@@ -640,7 +640,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
-        // println!("TRACE: check_call: {callee_def_id:?} ==> {fn_sig:?} |  {actuals:?}");
         let mut at = infcx.at(span);
 
         // Check requires predicates
@@ -1238,11 +1237,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             CastKind::Pointer(mir::PointerCast::ReifyFnPointer) => {
                 if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind() {
-                    // let fn_sig = self.genv.fn_sig(*def_id).with_span(self.body.span())?;
+                    // leave this as FnDef, and handle later during check_fn_subtyping
                     BaseTy::fn_def(*def_id, args.clone()).to_ty()
-                    // .with_span(self.body.span())?
-                    // .instantiate(self.genv.tcx(), args, &[]);
-                    // println!("TRACE: ReifyFnPointer {def_id:?} [{args:?}] ===> {to:?}");
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
                 }
