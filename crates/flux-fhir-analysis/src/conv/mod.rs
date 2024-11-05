@@ -1990,10 +1990,19 @@ fn conv_sort_path(
             }
             return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
         }
-        fhir::SortRes::SelfParam { .. } => return Ok(rty::Sort::Param(rty::SELF_PARAM_TY)),
+        fhir::SortRes::SelfParam { .. } => {
+            if !path.args.is_empty() {
+                let err = errors::GenericsOnSelf::new(
+                    path.segments.last().unwrap().span,
+                    path.args.len(),
+                );
+                return Err(genv.sess().emit_err(err))?;
+            }
+            return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
+        }
         fhir::SortRes::SelfAlias { alias_to } => {
             if !path.args.is_empty() {
-                let err = errors::GenericsOnSelfAlias::new(
+                let err = errors::GenericsOnSelf::new(
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
@@ -2325,22 +2334,22 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
-    pub(super) struct GenericsOnSelfAlias {
+    #[diag(fhir_analysis_generics_on_self_alias, code = E0999)]
+    pub(super) struct GenericsOnSelf {
         #[primary_span]
         #[label]
         span: Span,
         found: usize,
     }
 
-    impl GenericsOnSelfAlias {
+    impl GenericsOnSelf {
         pub(super) fn new(span: Span, found: usize) -> Self {
             Self { span, found }
         }
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
+    #[diag(fhir_analysis_generics_on_opaque_sort, code = E0999)]
     pub(super) struct GenericsOnUserDefinedOpaqueSort {
         #[primary_span]
         #[label]

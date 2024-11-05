@@ -228,7 +228,7 @@ fhir_analysis_generics_on_type_parameter =
     .label = found generics on sort type parameter
 
 fhir_analysis_generics_on_self_alias = 
-    type alias `Self` expect not generics but found {$found}
+    type alias Self expects no generics but found {$found}
     .label = found generics on type `Self`
 
 fhir_analysis_generics_on_opaque_sort = 
