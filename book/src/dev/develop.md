@@ -203,4 +203,5 @@ be selectively ignored later.
 ```
 cargo x install --debug
 FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
+python3  path/to/flux/tools/logreader.py
 ```
