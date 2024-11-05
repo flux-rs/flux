@@ -1,10 +1,10 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot},
+    infer::{check_fn_subtyping, infer_under_mut_ref_hack, ConstrReason, InferCtxt, InferCtxtRoot},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -14,9 +14,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        GenericArg, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
+        RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -225,114 +224,6 @@ fn find_trait_item(
     Ok(None)
 }
 
-/// The function `check_fn_subtyping` does a function subtyping check between
-/// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
-/// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
-/// as akin to the code
-///
-///   T_f := (S1,...,Sn) -> S
-///   T_g := (T1,...,Tn) -> T
-///   T_f <: T_g
-///
-///  fn g(x1:T1,...,xn:Tn) -> T {
-///      f(x1,...,xn)
-///  }
-/// TODO: copy rules from SLACK.
-fn check_fn_subtyping<'genv, 'tcx>(
-    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    def_id: &DefId,
-    sub_sig: EarlyBinder<rty::PolyFnSig>,
-    sub_args: &[GenericArg],
-    super_sig: EarlyBinder<rty::PolyFnSig>,
-    super_args: Option<(&GenericArgs, &RefineArgs)>,
-    span: Span,
-) -> Result {
-    let mut infcx = infcx.at(span);
-    let tcx = infcx.genv.tcx();
-    // let sub_sig = genv.fn_sig(*def_id).with_span(span)?;
-
-    let super_sig = if let Some((oblig_args, refine_args)) = super_args {
-        super_sig.instantiate(tcx, oblig_args, refine_args)
-    } else {
-        super_sig.instantiate_identity()
-    };
-    let super_sig =
-        super_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
-
-    let super_sig = {
-        super_sig
-            .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
-            .with_span(span)?
-    };
-
-    // 1. Unpack `T_g` input types
-    let actuals = super_sig
-        .inputs()
-        .iter()
-        .map(|ty| infcx.unpack(ty))
-        .collect_vec();
-    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
-
-    // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-    infcx.push_scope();
-    let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-    let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
-    let sub_sig = sub_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
-        .with_span(span)?;
-
-    // 3. INPUT subtyping (g-input <: f-input)
-    // TODO: Check requires predicates (?)
-    // for requires in fn_def_sig.requires() {
-    //     at.check_pred(requires, ConstrReason::Call);
-    // }
-    if !sub_sig.requires().is_empty() {
-        span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
-    }
-    for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-        let (formal, pred) = formal.unconstr();
-        infcx.check_pred(&pred, ConstrReason::Call);
-        // see: TODO(pack-closure)
-        match (actual.kind(), formal.kind()) {
-            (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
-                bug!("Not yet handled: FnDef subtyping with Ptr");
-            }
-            _ => {
-                infcx
-                    .subtyping(&actual, &formal, ConstrReason::Call)
-                    .with_span(span)?;
-            }
-        }
-    }
-
-    // 4. Plug in the EVAR solution / replace evars
-    let evars_sol = infcx.pop_scope().with_span(span)?;
-    infcx.replace_evars(&evars_sol);
-    let output = sub_sig
-        .output()
-        .replace_evars(&evars_sol)
-        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
-
-    // 5. OUTPUT subtyping (f_out <: g_out)
-    // RJ: new `at` to avoid borrowing errors...!
-    infcx.push_scope();
-    let oblig_output = super_sig
-        .output()
-        .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-    infcx
-        .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
-        .with_span(span)?;
-    let evars_sol = infcx.pop_scope().with_span(span)?;
-    infcx.replace_evars(&evars_sol);
-
-    if !output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
-        span_bug!(span, "Not yet handled: subtyping with ensures predicates {def_id:?}");
-    }
-
-    Ok(())
-}
-
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 pub fn trait_impl_subtyping(
@@ -364,7 +255,7 @@ pub fn trait_impl_subtyping(
         let trait_refine_args =
             RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
         let impl_sig = genv.fn_sig(def_id).with_span(span)?;
-        check_fn_subtyping(
+        let res = check_fn_subtyping(
             &mut infcx,
             &def_id.to_def_id(),
             impl_sig,
@@ -373,6 +264,8 @@ pub fn trait_impl_subtyping(
             Some((&trait_args, &trait_refine_args)),
             span,
         )
+        .with_span(span)?;
+        Ok(res)
     })?;
     Ok(Some(root_ctxt.split()))
 }
@@ -867,7 +760,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)?;
+                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)
+                    .with_span(span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1674,39 +1568,6 @@ fn all_predicates_of(
         })
     })
     .flatten()
-}
-
-/// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
-/// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
-/// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
-/// mutable references.
-fn infer_under_mut_ref_hack(
-    rcx: &mut InferCtxt,
-    actuals: &[Ty],
-    fn_sig: EarlyBinder<&PolyFnSig>,
-) -> Vec<Ty> {
-    iter::zip(
-        actuals,
-        fn_sig
-            .as_ref()
-            .skip_binder()
-            .as_ref()
-            .skip_binder()
-            .inputs(),
-    )
-    .map(|(actual, formal)| {
-        if let Ref!(.., Mutability::Mut) = actual.kind()
-            && let Ref!(_, ty, Mutability::Mut) = formal.kind()
-            && let TyKind::Indexed(..) = ty.kind()
-        {
-            rcx.hoister(AssumeInvariants::No)
-                .hoist_inside_mut_refs(true)
-                .hoist(actual)
-        } else {
-            actual.clone()
-        }
-    })
-    .collect()
 }
 
 impl Mode for ShapeMode {
