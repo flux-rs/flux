@@ -255,7 +255,7 @@ pub fn trait_impl_subtyping(
         let trait_refine_args =
             RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
         let impl_sig = genv.fn_sig(def_id).with_span(span)?;
-        let res = check_fn_subtyping(
+        check_fn_subtyping(
             &mut infcx,
             &def_id.to_def_id(),
             impl_sig,
@@ -265,7 +265,7 @@ pub fn trait_impl_subtyping(
             span,
         )
         .with_span(span)?;
-        Ok(res)
+        Ok(())
     })?;
     Ok(Some(root_ctxt.split()))
 }

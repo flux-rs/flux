@@ -446,8 +446,8 @@ pub fn infer_under_mut_ref_hack(
 ///      f(x1,...,xn)
 ///  }
 /// TODO: copy rules from SLACK.
-pub fn check_fn_subtyping<'genv, 'tcx>(
-    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+pub fn check_fn_subtyping(
+    infcx: &mut InferCtxt,
     def_id: &DefId,
     sub_sig: EarlyBinder<rty::PolyFnSig>,
     sub_args: &[GenericArg],
