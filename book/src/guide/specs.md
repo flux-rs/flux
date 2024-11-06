@@ -269,3 +269,57 @@ In this scenario, functions `f2` and `f3` will be ignored, while `f1` will be an
 A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute `#![flux_rs::ignore]` at the top of the crate) and then selectively include specific sections for analysis.
 
 [^ignore-shorthand]: `#[flux_rs::ignore]` (resp. `#[flux_rs::trusted]`) is shorthand for `#[flux_rs::ignore(yes)]` (resp. `#[flux_rs::trusted(yes)]`).
+
+## Opaque 
+
+Flux offers an attribute `opaque` which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, `RMap` (see below) defines a refined HashMap, indexed by a `Map` - a primitive sort defined by flux.
+
+```rust
+use flux_rs::*;
+
+#[opaque]
+#[refined_by(vals: Map<K, V>)]
+pub struct RMap<K, V> {
+    inner: std::collections::HashMap<K, V>,
+}
+```
+
+__Note that opaque structs **can not** have refined fields.__
+
+Now, we can define `get` for our refined map as follows:
+
+```rust
+#[generics(K as base, V as base)]
+impl<K, V> RMap<K, V> {
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_select(m.vals, k)]>)]
+    pub fn get(&self, k: &K) -> Option<&V>
+    where
+        K: Eq + Hash,
+    {
+        self.inner.get(k)
+    }
+
+}
+```
+
+Note that if we do not mark methods on structs marked `opaque`, we will get an error that looks like...
+
+```rust
+error[E0999]: cannot access fields of opaque struct `RMap`.
+  --> ../opaque.rs:22:9
+   |
+22 |         self.inner.get(k)
+   |         ^^^^^^^^^^
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
+   |
+help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
+  --> ../opaque.rs:18:5
+   |
+18 | /     pub fn get(&self, k: &K) -> Option<&V>
+19 | |     where
+20 | |         K: Eq + std::hash::Hash,
+   | |________________________________^
+   = note: fields of opaque structs can only be accessed inside trusted code
+```
