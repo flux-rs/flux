@@ -169,7 +169,7 @@ pub fn check_fn(
 
         // PHASE 4: subtyping check for trait-method implementations
         if let Some((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, span).emit(&genv)?
+            trait_impl_subtyping(genv, local_id, span).map_err(|err| err.emit_err(&genv, def_id))?
         {
             tracing::info!("check_fn::refine-subtyping");
             let errors =
