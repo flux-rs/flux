@@ -420,6 +420,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
+
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
@@ -1868,20 +1869,26 @@ fn snapshot_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_parent_span, def_id_to_string, queries::QueryErr};
+    use flux_middle::{def_id_to_string, queries::QueryErr};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
 
+    #[derive(Debug)]
     pub struct CheckerError {
         kind: CheckerErrKind,
         span: Span,
+        fn_span: Option<Span>,
     }
 
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span, fn_span: None }
+        }
+
+        pub fn with_fn_span(self, span: Span) -> CheckerError {
+            Self { fn_span: Some(span), ..self }
         }
     }
 
@@ -1894,7 +1901,7 @@ pub(crate) mod errors {
 
     impl CheckerErrKind {
         pub fn at(self, span: Span) -> CheckerError {
-            CheckerError { kind: self, span }
+            CheckerError { kind: self, span, fn_span: None }
         }
     }
 
@@ -1917,8 +1924,10 @@ pub(crate) mod errors {
                 CheckerErrKind::OpaqueStruct(def_id) => {
                     let mut diag =
                         dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
-                    let parent_span = def_id_to_parent_span(def_id);
-                    diag.span_help(parent_span, fluent::refineck_opaque_struct_help);
+                    if let Some(fn_span) = self.fn_span {
+                        diag.span_help(fn_span, fluent::refineck_opaque_struct_help);
+                        diag.note(fluent::refineck_opaque_struct_note);
+                    }
                     diag.arg("struct", def_id_to_string(def_id));
                     diag.code(E0999);
                     diag

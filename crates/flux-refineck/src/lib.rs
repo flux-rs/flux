@@ -150,8 +150,11 @@ pub fn check_fn(
             .emit(&genv)?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        let shape_result =
-            Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, config).emit(&genv)?;
+        let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, config)
+            // Augment the possible CheckError with the functions span so we can report
+            // helpful error messages for opaque struct field accesses
+            .map_err(|x| x.with_fn_span(genv.tcx().def_span(def_id)))
+            .emit(&genv)?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint

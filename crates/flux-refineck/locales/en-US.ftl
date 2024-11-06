@@ -1,7 +1,6 @@
 # Refinememt checking errors
 
-refineck_goto_error =
-    error jumping to join point
+refineck_goto_error = error jumping to join point
 
 refineck_assign_error =
     assignment might be unsafe
@@ -41,7 +40,10 @@ refineck_opaque_struct_error =
     cannot access fields of opaque struct `{$struct}`. 
 
 refineck_opaque_struct_help =
-    If you'd like to use fields of `{$struct}` in methods, use `flux::trusted` instead of `flux::opaque`.
+    if you'd like to use fields of `{$struct}`, try annotating this method with `#[flux::trusted]`
+
+refineck_opaque_struct_note = 
+    fields of opaque structs can only be accessed inside trusted code
 
 refineck_unsupported_call =
     unsupported type in function call
