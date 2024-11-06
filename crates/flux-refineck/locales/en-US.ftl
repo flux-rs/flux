@@ -43,7 +43,7 @@ refineck_opaque_struct_help =
     if you'd like to use fields of `{$struct}`, try annotating this method with `#[flux::trusted]`
 
 refineck_opaque_struct_note = 
-    fields of opaque structs can only be accessed inside trusted code
+    fields of opaque structs can only be accessed inside trusted code (see: https://flux-rs.github.io/flux/guide/specs.html#opaque)
 
 refineck_unsupported_call =
     unsupported type in function call
