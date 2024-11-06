@@ -147,20 +147,19 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
-            .emit(&genv)?;
+            .map_err(|err| err.emit_err(&genv, def_id))?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, config)
             // Augment the possible CheckError with the functions span so we can report
             // helpful error messages for opaque struct field accesses
-            .map_err(|x| x.with_fn_span(genv.tcx().def_span(def_id)))
-            .emit(&genv)?;
+            .map_err(|err| err.emit_err(&genv, def_id))?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let (refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, config)
-                .emit(&genv)?;
+                .map_err(|err| err.emit_err(&genv, def_id))?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint

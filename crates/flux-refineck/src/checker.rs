@@ -1869,26 +1869,49 @@ fn snapshot_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_string, queries::QueryErr};
+    use flux_middle::{def_id_to_string, global_env::GlobalEnv, queries::QueryErr, MaybeExternId};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
 
+    use crate::fluent_generated as fluent;
+
     #[derive(Debug)]
     pub struct CheckerError {
         kind: CheckerErrKind,
         span: Span,
-        fn_span: Option<Span>,
     }
 
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span, fn_span: None }
+            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
 
-        pub fn with_fn_span(self, span: Span) -> CheckerError {
-            Self { fn_span: Some(span), ..self }
+        pub fn emit_err(self, genv: &GlobalEnv, fn_def_id: MaybeExternId) -> ErrorGuaranteed {
+            let dcx = genv.sess().dcx().handle();
+            match self.kind {
+                CheckerErrKind::Inference => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
+                    diag.code(E0999);
+                    diag.emit()
+                }
+                CheckerErrKind::OpaqueStruct(def_id) => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
+                    let fn_span = genv.tcx().def_span(fn_def_id);
+                    diag.span_help(fn_span, fluent::refineck_opaque_struct_help);
+                    diag.note(fluent::refineck_opaque_struct_note);
+                    diag.arg("struct", def_id_to_string(def_id));
+                    diag.code(E0999);
+                    diag.emit()
+                }
+                CheckerErrKind::Query(err) => {
+                    let level = rustc_errors::Level::Error;
+                    err.at(self.span).into_diag(dcx, level).emit()
+                }
+            }
         }
     }
 
@@ -1901,39 +1924,7 @@ pub(crate) mod errors {
 
     impl CheckerErrKind {
         pub fn at(self, span: Span) -> CheckerError {
-            CheckerError { kind: self, span, fn_span: None }
-        }
-    }
-
-    impl<'a> Diagnostic<'a> for CheckerError {
-        #[track_caller]
-        fn into_diag(
-            self,
-            dcx: rustc_errors::DiagCtxtHandle<'a>,
-            level: rustc_errors::Level,
-        ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
-            use crate::fluent_generated as fluent;
-
-            match self.kind {
-                CheckerErrKind::Inference => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
-                    diag.code(E0999);
-                    diag
-                }
-                CheckerErrKind::OpaqueStruct(def_id) => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
-                    if let Some(fn_span) = self.fn_span {
-                        diag.span_help(fn_span, fluent::refineck_opaque_struct_help);
-                        diag.note(fluent::refineck_opaque_struct_note);
-                    }
-                    diag.arg("struct", def_id_to_string(def_id));
-                    diag.code(E0999);
-                    diag
-                }
-                CheckerErrKind::Query(err) => err.at(self.span).into_diag(dcx, level),
-            }
+            CheckerError { kind: self, span }
         }
     }
 
