@@ -350,6 +350,8 @@
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -499,17 +501,19 @@
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| {
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
-            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+            .map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        </span><span class="kw">let </span>shape_result =
-            Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, config).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, config)
+            <span class="comment">// Augment the possible CheckError with the functions span so we can report
+            // helpful error messages for opaque struct field accesses
+            </span>.map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
         </span><span class="kw">let </span>(refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, config)
-                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+                .map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
@@ -519,7 +523,7 @@
 
         <span class="comment">// PHASE 4: subtyping check for trait-method implementations
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, span).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
+            trait_impl_subtyping(genv, local_id, span).map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?
         </span>{
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
             <span class="kw">let </span>errors =

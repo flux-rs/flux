@@ -1959,6 +1959,8 @@
 <a href="#1959" id="1959">1959</a>
 <a href="#1960" id="1960">1960</a>
 <a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
@@ -2381,6 +2383,7 @@
         ck.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, Point::FunEntry, body.span())<span class="question-mark">?</span>;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)<span class="question-mark">?</span>;
+
         <span class="kw">while let </span><span class="prelude-val">Some</span>(bb) = ck.queue.pop() {
             <span class="kw">if </span>ck.visited.contains(bb) {
                 <span class="kw">let </span>snapshot = ck.snapshot_at_dominator(bb);
@@ -3829,13 +3832,16 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{def_id_to_string, queries::QueryErr};
+    <span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, queries::QueryErr, MaybeExternId};
     <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_middle::mir::SourceInfo;
     <span class="kw">use </span>rustc_span::Span;
 
-    <span class="kw">pub struct </span>CheckerError {
+    <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
+
+    <span class="attr">#[derive(Debug)]
+    </span><span class="kw">pub struct </span>CheckerError {
         kind: CheckerErrKind,
         span: Span,
     }
@@ -3843,6 +3849,32 @@
     <span class="kw">impl </span>CheckerError {
         <span class="kw">pub fn </span>opaque_struct(def_id: DefId, span: Span) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
+
+        <span class="kw">pub fn </span>emit_err(<span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, fn_def_id: MaybeExternId) -&gt; ErrorGuaranteed {
+            <span class="kw">let </span>dcx = genv.sess().dcx().handle();
+            <span class="kw">match </span><span class="self">self</span>.kind {
+                CheckerErrKind::Inference =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error);
+                    diag.code(E0999);
+                    diag.emit()
+                }
+                CheckerErrKind::OpaqueStruct(def_id) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
+                    <span class="kw">let </span>fn_span = genv.tcx().def_span(fn_def_id);
+                    diag.span_help(fn_span, fluent::refineck_opaque_struct_help);
+                    diag.note(fluent::refineck_opaque_struct_note);
+                    diag.arg(<span class="string">"struct"</span>, def_id_to_string(def_id));
+                    diag.code(E0999);
+                    diag.emit()
+                }
+                CheckerErrKind::Query(err) =&gt; {
+                    <span class="kw">let </span>level = rustc_errors::Level::Error;
+                    err.at(<span class="self">self</span>.span).into_diag(dcx, level).emit()
+                }
+            }
         }
     }
 
@@ -3856,34 +3888,6 @@
     <span class="kw">impl </span>CheckerErrKind {
         <span class="kw">pub fn </span>at(<span class="self">self</span>, span: Span) -&gt; CheckerError {
             CheckerError { kind: <span class="self">self</span>, span }
-        }
-    }
-
-    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>CheckerError {
-        <span class="attr">#[track_caller]
-        </span><span class="kw">fn </span>into_diag(
-            <span class="self">self</span>,
-            dcx: rustc_errors::DiagCtxtHandle&lt;<span class="lifetime">'a</span>&gt;,
-            level: rustc_errors::Level,
-        ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
-            <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
-
-            <span class="kw">match </span><span class="self">self</span>.kind {
-                CheckerErrKind::Inference =&gt; {
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error);
-                    diag.code(E0999);
-                    diag
-                }
-                CheckerErrKind::OpaqueStruct(def_id) =&gt; {
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
-                    diag.arg(<span class="string">"struct"</span>, def_id_to_string(def_id));
-                    diag.code(E0999);
-                    diag
-                }
-                CheckerErrKind::Query(err) =&gt; err.at(<span class="self">self</span>.span).into_diag(dcx, level),
-            }
         }
     }
 

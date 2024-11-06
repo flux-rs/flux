@@ -1,5 +1,5 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
@@ -8,7 +8,7 @@
 
 
         <!-- Custom HTML head -->
-        
+
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
@@ -33,7 +33,7 @@
         <link rel="stylesheet" href="css/flux.css">
 
     </head>
-    <body class="sidebar-visible no-js">
+    <body>
     <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
@@ -62,19 +62,16 @@
             var theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
-            var html = document.querySelector('html');
+            const html = document.documentElement;
             html.classList.remove('light')
             html.classList.add(theme);
-            var body = document.querySelector('body');
-            body.classList.remove('no-js')
-            body.classList.add('js');
+            html.classList.add("js");
         </script>
 
         <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var body = document.querySelector('body');
             var sidebar = null;
             var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
@@ -84,45 +81,27 @@
                 sidebar = 'hidden';
             }
             sidebar_toggle.checked = sidebar === 'visible';
-            body.classList.remove('sidebar-visible');
-            body.classList.add("sidebar-" + sidebar);
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="about.html">About</a></li></ol>
-            </div>
+            <!-- populated by js -->
+            <div class="sidebar-scrollbox"></div>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
             </div>
         </nav>
 
-        <!-- Track and set sidebar scroll position -->
-        <script>
-            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
-            sidebarScrollbox.addEventListener('click', function(e) {
-                if (e.target.tagName === 'A') {
-                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
-                }
-            }, { passive: true });
-            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
-            sessionStorage.removeItem('sidebar-scroll');
-            if (sidebarScrollTop) {
-                // preserve sidebar scroll position when navigating via links within sidebar
-                sidebarScrollbox.scrollTop = sidebarScrollTop;
-            } else {
-                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
-                var activeSection = document.querySelector('#sidebar .active');
-                if (activeSection) {
-                    activeSection.scrollIntoView({ block: 'center' });
-                }
-            }
-        </script>
+        <script async src="toc.js"></script>
 
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
-                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar-hover-placeholder"></div>
                 <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
@@ -582,6 +561,55 @@ mod A {
 <div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>).</p>
 </div>
+<h2 id="opaque"><a class="header" href="#opaque">Opaque</a></h2>
+<p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*;
+
+#[opaque]
+#[refined_by(vals: Map&lt;K, V&gt;)]
+pub struct RMap&lt;K, V&gt; {
+    inner: std::collections::HashMap&lt;K, V&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Note that opaque structs <strong>can not</strong> have refined fields.</strong></p>
+<p>Now, we can define <code>get</code> for our refined map as follows:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[generics(K as base, V as base)]
+impl&lt;K, V&gt; RMap&lt;K, V&gt; {
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&amp;RMap&lt;K, V&gt;[@m], &amp;K[@k]) -&gt; Option&lt;&amp;V[map_select(m.vals, k)]&gt;)]
+    pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+    where
+        K: Eq + Hash,
+    {
+        self.inner.get(k)
+    }
+
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Note that if we do not mark methods on structs marked <code>opaque</code>, we will get an error that looks like...</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[E0999]: cannot access fields of opaque struct `RMap`.
+  --&gt; ../opaque.rs:22:9
+   |
+22 |         self.inner.get(k)
+   |         ^^^^^^^^^^
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
+   |
+help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
+  --&gt; ../opaque.rs:18:5
+   |
+18 | /     pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+19 | |     where
+20 | |         K: Eq + std::hash::Hash,
+   | |________________________________^
+   = note: fields of opaque structs can only be accessed inside trusted code
+<span class="boring">}</span></code></pre></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
 <p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directories using
