@@ -546,6 +546,33 @@ Level10: surface::Expr = {
     "(" <Level1> ")"
 }
 
+Constructor: surface::Expr = {
+    <lo:@L> <name:Ident> "{" <args:Comma<ConstructorArgs>> "}" <hi:@L> => {
+    	surface::Expr {
+            kind: surface::ExprKind::Constructor(name, args) ,
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi),
+	}
+    },
+}
+
+ConstructorArgs: surface::Expr = {
+    <lo:@L> <name:Ident> ":" <arg:Level1> <hi:@L> => {
+    	surface::Expr {
+	    kind: surface::ExprKind::ConstructorAssign(name, Box::new(arg)),
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi)
+	}
+    },
+    <lo:@L> "." "." <name:Ident> <hi:@L> => {
+    	surface::Expr {
+	    kind: surface::ExprKind::Spread(name),
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi)
+	}
+    }
+}
+
 ElseIf: surface::Expr = {
     "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {

@@ -1407,6 +1407,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     self.genv().alloc(e2?),
                 )
             }
+            surface::ExprKind::Constructor(ident, constructor_args) => {
+                todo!()
+            }
+            surface::ExprKind::ConstructorAssign(ident, expr) => todo!(),
+            surface::ExprKind::Spread(ident) => todo!(),
         };
 
         Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })

@@ -489,6 +489,15 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
+        ExprKind::Constructor(ident, exprs) => {
+            vis.visit_ident(*ident);
+            walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::ConstructorAssign(ident, expr) => {
+            vis.visit_ident(*ident);
+            vis.visit_expr(expr);
+        }
+        ExprKind::Spread(ident) => vis.visit_ident(*ident),
     }
 }
 

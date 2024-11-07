@@ -463,6 +463,9 @@ pub enum ExprKind {
     App(Ident, Vec<Expr>),
     Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
+    Constructor(Ident, Vec<Expr>),
+    ConstructorAssign(Ident, Box<Expr>),
+    Spread(Ident),
 }
 
 /// A [`Path`] but for refinement expressions
