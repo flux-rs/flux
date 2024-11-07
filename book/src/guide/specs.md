@@ -304,7 +304,7 @@ impl<K, V> RMap<K, V> {
 }
 ```
 
-Note that if we do not mark methods on structs marked `opaque`, we will get an error that looks like...
+Note that if we do not mark these methods as `trusted`, we will get an error that looks like...
 
 ```rust
 error[E0999]: cannot access fields of opaque struct `RMap`.
