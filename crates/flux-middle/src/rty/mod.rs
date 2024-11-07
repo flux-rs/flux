@@ -110,6 +110,10 @@ impl AdtSortDef {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
+    pub fn field_names(&self) -> &Vec<Symbol> {
+        &self.0.field_names
+    }
+
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
         let idx = self.0.field_names.iter().position(|it| name == *it)?;
         let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };

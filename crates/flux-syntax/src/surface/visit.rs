@@ -2,10 +2,10 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
-    ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
-    GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
-    RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
-    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
+    GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment,
+    Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft,
+    TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -151,6 +151,10 @@ pub trait Visitor: Sized {
 
     fn visit_expr(&mut self, expr: &Expr) {
         walk_expr(self, expr);
+    }
+
+    fn visit_field_expr(&mut self, expr: &FieldExpr) {
+        walk_field_expr(self, expr);
     }
 
     fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
@@ -462,6 +466,11 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
     vis.visit_ident(alias.name);
 }
 
+pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
+    vis.visit_ident(expr.ident);
+    walk_expr(vis, &expr.expr);
+}
+
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Path(qpath) => vis.visit_path_expr(qpath),
@@ -488,6 +497,13 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         }
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::Constructor(path, exprs, spread) => {
+            vis.visit_path_expr(path);
+            walk_list!(vis, visit_field_expr, exprs);
+            if let Some(s) = spread {
+                vis.visit_path_expr(&s.path);
+            }
         }
     }
 }

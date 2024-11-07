@@ -1,10 +1,10 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
-    Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
-    Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, Node,
-    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineParam,
-    Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias,
-    TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
+    GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
+    Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
+    RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
+    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -165,6 +165,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_expr(&mut self, expr: &Expr<'v>) {
         walk_expr(self, expr);
+    }
+
+    fn visit_field_expr(&mut self, expr: &FieldExpr<'v>) {
+        walk_field_expr(self, expr);
     }
 
     fn visit_alias_reft(&mut self, alias_reft: &AliasReft<'v>) {
@@ -453,6 +457,10 @@ pub fn walk_alias_reft<'v, V: Visitor<'v>>(vis: &mut V, alias: &AliasReft<'v>) {
     vis.visit_path(&alias.path);
 }
 
+pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
+    vis.visit_expr(&expr.expr);
+}
+
 pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
     match expr.kind {
         ExprKind::Var(path, _) => vis.visit_path_expr(&path),
@@ -483,6 +491,13 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
         }
         ExprKind::Record(fields) => {
             walk_list!(vis, visit_expr, fields);
+        }
+        ExprKind::Constructor(path, exprs, spread) => {
+            vis.visit_path_expr(&path);
+            walk_list!(vis, visit_field_expr, exprs);
+            if let Some(s) = spread {
+                vis.visit_path_expr(&s.path);
+            }
         }
     }
 }

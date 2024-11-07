@@ -68,6 +68,7 @@ pub enum Token {
     As,
     Hrn,
     Hdl,
+    DotDot,
 }
 
 pub(crate) struct Cursor<'t> {

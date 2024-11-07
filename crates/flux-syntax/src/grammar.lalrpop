@@ -481,28 +481,46 @@ RefineArg: surface::RefineArg = {
     }
 };
 
-pub Expr = Level1;
+pub Expr = Level1<"true">;
 
-Level1 = NonAssoc<BinOp1, Level2>;  // <=>
-Level2 = LeftAssoc<BinOp2, Level3>; // =>
-Level3 = LeftAssoc<BinOp3, Level4>; // ||
-Level4 = LeftAssoc<BinOp4, Level5>; // &&
-Level5 = NonAssoc<BinOp5, Level6>;  // ==, !=, >=, <=
-Level6 = LeftAssoc<BinOp6, Level7>; // >>, <<
-Level7 = LeftAssoc<BinOp7, Level8>; // +, -
-Level8 = LeftAssoc<BinOp8, Level9>; // *, %, /
-Level9 = {
-    <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
+Level1<AllowStruct> = NonAssoc<BinOp1, Level2<AllowStruct>>;  // <=>
+Level2<AllowStruct> = LeftAssoc<BinOp2, Level3<AllowStruct>>; // =>
+Level3<AllowStruct> = LeftAssoc<BinOp3, Level4<AllowStruct>>; // ||
+Level4<AllowStruct> = LeftAssoc<BinOp4, Level5<AllowStruct>>; // &&
+Level5<AllowStruct> = NonAssoc<BinOp5, Level6<AllowStruct>>;  // ==, !=, >=, <=
+Level6<AllowStruct> = LeftAssoc<BinOp6, Level7<AllowStruct>>; // >>, <<
+Level7<AllowStruct> = LeftAssoc<BinOp7, Level8<AllowStruct>>; // +, -
+Level8<AllowStruct> = LeftAssoc<BinOp8, Level9<AllowStruct>>; // *, %, /
+Level9<AllowStruct> = {
+    <lo:@L> <op:UnOp> <e:Level10<AllowStruct>> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
-    <Level10>
+    <Level10<AllowStruct>>
 }
-Level10: surface::Expr = {
-    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
+Level10<AllowStruct>: surface::Expr = {
+    <lo:@L> <name:ExprPath> "{" <args:Comma<ConstructorArgs>> "}" <hi:@L> if AllowStruct == "true" => {
+    	surface::Expr {
+            kind: surface::ExprKind::Constructor(name, args, None) ,
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi),
+	}
+    },
+    <lo:@L> <name:ExprPath> "{" <args:Comma<ConstructorArgs>> ".." <spread_lo:@L> <spread:ExprPath> <spread_hi:@L> "}" <hi:@L> if AllowStruct == "true" => {
+    	surface::Expr {
+            kind: surface::ExprKind::Constructor(name, args, Some(surface::Spread {
+		path: spread,
+		span: cx.map_span(spread_lo, spread_hi),
+		node_id: cx.next_node_id()
+	    })),
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi),
+	}
+    },
+    <lo:@L> "if" <p:Level1<"false">> "{" <e1:Level1<AllowStruct>> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             node_id: cx.next_node_id(),
@@ -523,7 +541,7 @@ Level10: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> <f:Ident> "(" <args:Comma<Level1>> ")" <hi:@R> => {
+    <lo:@L> <f:Ident> "(" <args:Comma<Level1<AllowStruct>>> ")" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::App(f, args),
             node_id: cx.next_node_id(),
@@ -543,18 +561,29 @@ Level10: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    "(" <Level1> ")"
+    "(" <Level1<AllowStruct>> ")"
+}
+
+ConstructorArgs: surface::FieldExpr = {
+    <lo:@L> <name:Ident> ":" <arg:Level1<"true">> <hi:@L> => {
+    	surface::FieldExpr {
+	    ident: name,
+	    expr: arg,
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi)
+	}
+    }
 }
 
 ElseIf: surface::Expr = {
-    "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
+    "else" <lo:@L> "if" <p:Level1<"false">> "{" <e1:Level1<"true">> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
-    "else" "{" <Level1> "}"
+    "else" "{" <Level1<"true">> "}"
 }
 
 ExprPath: surface::ExprPath = {
@@ -736,5 +765,6 @@ extern {
         "else" => Token::Else,
         "::" => Token::PathSep,
         "_" => Token::Underscore,
+	".." => Token::DotDot,
     }
 }

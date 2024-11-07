@@ -66,6 +66,10 @@ fhir_analysis_param_count_mismatch =
         *[other] {$expected} parameters
     } was expected
 
+fhir_analysis_invalid_field_update =
+    invalid field referenced in constructor
+   .label = field does not exist
+
 fhir_analysis_field_not_found =
     no field `{$fld}` on sort `{$sort}`
 

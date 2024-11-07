@@ -1389,9 +1389,45 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     self.genv().alloc(e2?),
                 )
             }
+            surface::ExprKind::Constructor(path, constructor_args, spread) => {
+                let path = self.desugar_constructor_path(path)?;
+                let constructor_args =
+                    try_alloc_slice!(self.genv(), constructor_args, |field_expr| {
+                        let e = self.desugar_expr(&field_expr.expr)?;
+                        Ok(fhir::FieldExpr {
+                            ident: field_expr.ident,
+                            expr: e,
+                            fhir_id: self.next_fhir_id(),
+                            span: e.span,
+                        })
+                    })?;
+                let spread = match spread {
+                    None => None,
+                    Some(s) => {
+                        Some(fhir::Spread {
+                            path: self.desugar_constructor_path(&s.path)?,
+                            span: s.span,
+                            fhir_id: self.next_fhir_id(),
+                        })
+                    }
+                };
+                fhir::ExprKind::Constructor(path, constructor_args, spread)
+            }
         };
 
         Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })
+    }
+
+    fn desugar_constructor_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {
+        let res = self.resolver_output().expr_path_res_map[&path.node_id];
+        if let ExprRes::Struct(..) | ExprRes::Enum(..) = res {
+            let segments = self
+                .genv()
+                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
+            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: path.span })
+        } else {
+            Err(self.emit_err(errors::InvalidConstructorPath { span: path.span }))
+        }
     }
 
     fn desugar_exprs(&mut self, exprs: &[surface::Expr]) -> Result<&'genv [fhir::Expr<'genv>]> {

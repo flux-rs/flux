@@ -84,6 +84,39 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn check_constructor(
+        &mut self,
+        path: &fhir::PathExpr,
+        field_exprs: &[fhir::FieldExpr],
+        _spread: &Option<fhir::Spread>,
+        expected: &rty::Sort,
+    ) -> Result {
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
+            // these are ordered
+            let field_names = sort_def.field_names();
+            let sorts = sort_def.field_sorts(sort_args);
+            for expr in field_exprs {
+                // make sure that the field is actually a field
+                if let Some(idx) = field_names.iter().position(|s| *s == expr.ident.name) {
+                    // check that field sort is the same as the expr sort
+                    let sort = &sorts[idx];
+                    self.check_expr(&expr.expr, sort)?
+                } else {
+                    // emit an error because we have a mismatched field
+                    return Err(self.emit_err(errors::InvalidFieldUpdate::new(expr.ident.span)));
+                }
+            }
+            Ok(())
+        } else {
+            Err(self.emit_err(errors::ArgCountMismatch::new(
+                Some(path.span),
+                String::from("type"),
+                1,
+                field_exprs.len(),
+            )))
+        }
+    }
+
     fn check_record(
         &mut self,
         arg: &fhir::Expr,
@@ -142,6 +175,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, refine_params, body, expected)?
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Constructor(path, exprs, spread) => {
+                self.check_constructor(path, exprs, spread, expected)?
+            }
         }
         Ok(())
     }
@@ -209,6 +245,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::NumConst(_) => rty::Sort::Int,
             ExprRes::GlobalFunc(_, _) => {
                 span_bug!(path.span, "unexpected func in var position")
+            }
+            ExprRes::Struct(_) => {
+                span_bug!(path.span, "unexpected struct in var position")
+            }
+            ExprRes::Enum(_) => {
+                span_bug!(path.span, "unexpected enum in var position")
             }
         }
     }

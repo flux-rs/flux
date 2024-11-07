@@ -138,6 +138,20 @@ impl<'a> UnexpectedFun<'a> {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_field_update, code = E0999)]
+pub(super) struct InvalidFieldUpdate {
+    #[primary_span]
+    #[label]
+    span: Span,
+}
+
+impl InvalidFieldUpdate {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_param_count_mismatch, code = E0999)]
 pub(super) struct ParamCountMismatch {
     #[primary_span]

@@ -18,6 +18,13 @@ pub(super) struct UnexpectedLiteral {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_invalid_constructor_path, code = E0999)]
+pub(super) struct InvalidConstructorPath {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_invalid_dot_var, code = E0999)]
 pub(super) struct InvalidDotVar {
     #[primary_span]
