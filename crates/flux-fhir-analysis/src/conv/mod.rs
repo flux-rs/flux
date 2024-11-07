@@ -1963,19 +1963,19 @@ fn conv_sort_path(
     let ctor = match path.res {
         fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
             if !path.args.is_empty() {
-                return Err(emit_prim_sort_generics_error(genv, path, "int", 0))?;
+                Err(emit_prim_sort_generics_error(genv, path, "int", 0))?;
             }
             return Ok(rty::Sort::Int);
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
             if !path.args.is_empty() {
-                return Err(emit_prim_sort_generics_error(genv, path, "bool", 0))?;
+                Err(emit_prim_sort_generics_error(genv, path, "bool", 0))?;
             }
             return Ok(rty::Sort::Bool);
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
             if !path.args.is_empty() {
-                return Err(emit_prim_sort_generics_error(genv, path, "real", 0))?;
+                Err(emit_prim_sort_generics_error(genv, path, "real", 0))?;
             }
             return Ok(rty::Sort::Real);
         }
@@ -1986,7 +1986,7 @@ fn conv_sort_path(
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                return Err(genv.sess().emit_err(err))?;
+                Err(genv.sess().emit_err(err))?;
             }
             return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
         }
@@ -1996,7 +1996,7 @@ fn conv_sort_path(
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                return Err(genv.sess().emit_err(err))?;
+                Err(genv.sess().emit_err(err))?;
             }
             return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
         }
@@ -2006,7 +2006,7 @@ fn conv_sort_path(
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                return Err(genv.sess().emit_err(err))?;
+                Err(genv.sess().emit_err(err))?;
             }
             return Ok(genv
                 .sort_of_self_ty_alias(alias_to)?
@@ -2015,14 +2015,14 @@ fn conv_sort_path(
         fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
             if path.args.len() != 1 {
                 // Has to have one argument
-                return Err(emit_prim_sort_generics_error(genv, path, "Set", 1))?;
+                Err(emit_prim_sort_generics_error(genv, path, "Set", 1))?;
             }
             rty::SortCtor::Set
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
             if path.args.len() != 2 {
                 // Has to have two arguments
-                return Err(emit_prim_sort_generics_error(genv, path, "Map", 2))?;
+                Err(emit_prim_sort_generics_error(genv, path, "Map", 2))?;
             }
             rty::SortCtor::Map
         }
@@ -2032,7 +2032,7 @@ fn conv_sort_path(
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                return Err(genv.sess().emit_err(err))?;
+                Err(genv.sess().emit_err(err))?;
             }
             rty::SortCtor::User { name }
         }
@@ -2046,7 +2046,7 @@ fn conv_sort_path(
                     path.args.len(),
                     sort_def.param_count(),
                 );
-                return Err(genv.sess().emit_err(err))?;
+                Err(genv.sess().emit_err(err))?;
             }
             rty::SortCtor::Adt(sort_def)
         }
