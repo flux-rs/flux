@@ -4328,19 +4328,19 @@
     <span class="kw">let </span>ctor = <span class="kw">match </span>path.res {
         fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; {
             <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"int"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"int"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Int);
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; {
             <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"bool"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"bool"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Bool);
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; {
             <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"real"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"real"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real);
         }
@@ -4351,7 +4351,7 @@
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
         }
@@ -4361,7 +4361,7 @@
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY));
         }
@@ -4371,7 +4371,7 @@
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
             }
             <span class="kw">return </span><span class="prelude-val">Ok</span>(genv
                 .sort_of_self_ty_alias(alias_to)<span class="question-mark">?
@@ -4380,14 +4380,14 @@
         fhir::SortRes::PrimSort(fhir::PrimSort::Set) =&gt; {
             <span class="kw">if </span>path.args.len() != <span class="number">1 </span>{
                 <span class="comment">// Has to have one argument
-                </span><span class="kw">return </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Set"</span>, <span class="number">1</span>))<span class="question-mark">?</span>;
+                </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Set"</span>, <span class="number">1</span>))<span class="question-mark">?</span>;
             }
             rty::SortCtor::Set
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Map) =&gt; {
             <span class="kw">if </span>path.args.len() != <span class="number">2 </span>{
                 <span class="comment">// Has to have two arguments
-                </span><span class="kw">return </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Map"</span>, <span class="number">2</span>))<span class="question-mark">?</span>;
+                </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Map"</span>, <span class="number">2</span>))<span class="question-mark">?</span>;
             }
             rty::SortCtor::Map
         }
@@ -4397,7 +4397,7 @@
                     path.segments.last().unwrap().span,
                     path.args.len(),
                 );
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
             }
             rty::SortCtor::User { name }
         }
@@ -4411,7 +4411,7 @@
                     path.args.len(),
                     sort_def.param_count(),
                 );
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
+                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
             }
             rty::SortCtor::Adt(sort_def)
         }
