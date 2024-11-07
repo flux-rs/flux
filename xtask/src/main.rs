@@ -155,11 +155,11 @@ fn install_libs(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()
     if args.is_release() {
         cmd!(
             sh,
-            "cargo build -Zunstable-options --release -p flux-rs --artifact-dir {out_dir} {extra...}"
+            "cargo flux -Zunstable-options --release -p flux-rs"
         )
         .run()?;
     } else {
-        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --artifact-dir {out_dir} {extra...}")
+        cmd!(sh, "cargo flux -Zunstable-options -p flux-rs")
             .run()?;
     }
     Ok(())
