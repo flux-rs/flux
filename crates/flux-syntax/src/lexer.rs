@@ -216,6 +216,12 @@ impl<'t> Cursor<'t> {
                     }
                 }
                 self.map_token(token);
+                Some(())
+            }
+            Some(TokenTree::Delimited(_, _spacing, Delimiter::Invisible, tokens)) => {
+                self.stack
+                    .push(Frame { cursor: tokens.trees().peekable(), close: None });
+                self.advance()
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
                 let close = (
@@ -223,14 +229,23 @@ impl<'t> Cursor<'t> {
                     Token::CloseDelim(*delim),
                     Location(span.close.hi() - self.offset),
                 );
+
                 self.stack
                     .push(Frame { cursor: tokens.trees().peekable(), close: Some(close) });
+
                 let token = token::Token { kind: TokenKind::OpenDelim(*delim), span: span.open };
                 self.map_token(&token);
+                Some(())
             }
-            None => self.tokens.push_back(self.stack.pop()?.close?),
+            None => {
+                if let Some(token) = self.stack.pop()?.close {
+                    self.tokens.push_back(token);
+                    Some(())
+                } else {
+                    self.advance()
+                }
+            }
         }
-        Some(())
     }
 }
 
