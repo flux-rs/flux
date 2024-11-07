@@ -29,7 +29,7 @@ macro_rules! not_impl {
             type Output = $t;
 
             #[trusted]
-            #[sig(fn ($t[@b]) -> bv_not(b))]
+            #[sig(fn ($t[@b]) -> $t[bv_not(b)])]
             fn not(self) -> $t { $name(!self.0) }
         }
     )*)
@@ -43,7 +43,7 @@ macro_rules! and_impl {
             type Output = $t;
 
             #[trusted]
-            #[sig(fn ($t[@b1], $t[@b2]) -> bv_and(b1, b2))]
+            #[sig(fn ($t[@b1], $t[@b2]) -> $t[bv_and(b1, b2)])]
             fn bitand(self, rhs: $t) -> $t { $name(self.0 & rhs.0) }
         }
     )*)
@@ -57,7 +57,7 @@ macro_rules! or_impl {
             type Output = $t;
 
             #[trusted]
-            #[sig(fn ($t[@b1], $t[@b2]) -> bv_or(b1, b2))]
+            #[sig(fn ($t[@b1], $t[@b2]) -> $t[bv_or(b1, b2)])]
             fn bitor(self, rhs: $t) -> $t { $name(self.0 | rhs.0) }
         }
     )*)
@@ -71,7 +71,7 @@ macro_rules! shl_impl {
             type Output = $t;
 
             #[trusted]
-            #[sig(fn ($t[@b1], $t[@b2]) -> bv_shl(b1, b2))]
+            #[sig(fn ($t[@b1], $t[@b2]) -> $t[bv_shl(b1, b2)])]
             fn shl(self, rhs: $t) -> $t { $name(self.0 << rhs.0) }
         }
     )*)
@@ -85,7 +85,7 @@ macro_rules! shr_impl {
             type Output = $t;
 
             #[trusted]
-            #[sig(fn ($t[@b1], $t[@b2]) -> bv_shl(b1, b2))]
+            #[sig(fn ($t[@b1], $t[@b2]) -> $t[bv_shl(b1, b2)])]
             fn shr(self, rhs: $t) -> $t { $name(self.0 >> rhs.0) }
         }
     )*)

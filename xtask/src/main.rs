@@ -148,19 +148,10 @@ fn install_driver(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<
 }
 
 fn install_libs(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
-    let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
-    println!("$ export FLUX_BUILD_SYSROOT=1");
-
-    let out_dir = default_sysroot_dir();
     if args.is_release() {
-        cmd!(
-            sh,
-            "cargo flux -Zunstable-options --release -p flux-rs"
-        )
-        .run()?;
+        cmd!(sh, "cargo flux -Zunstable-options --release -p flux-rs {extra...}").run()?;
     } else {
-        cmd!(sh, "cargo flux -Zunstable-options -p flux-rs")
-            .run()?;
+        cmd!(sh, "cargo flux -Zunstable-options -p flux-rs {extra...}").run()?;
     }
     Ok(())
 }
@@ -194,7 +185,7 @@ fn project_root() -> PathBuf {
 fn build_sysroot(sh: &Shell) -> anyhow::Result<()> {
     let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
     println!("$ export FLUX_BUILD_SYSROOT=1");
-    cmd!(sh, "cargo build -p flux-rs").run()?;
+    cmd!(sh, "cargo flux -p flux-rs").run()?;
     Ok(())
 }
 
