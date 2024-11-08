@@ -1,4 +1,4 @@
-#[path = "../../lib/range.rs"]
+#[path = "../../lib/rrange.rs"]
 mod range;
 use range::{Rng, RngIter};
 

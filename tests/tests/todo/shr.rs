@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use flux_rs::extern_spec;
 
-#[path = "../../tests/lib/range.rs"]
+#[path = "../../tests/lib/rrange.rs"]
 mod range;
 use range::Rng;
 

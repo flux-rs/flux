@@ -142,6 +142,11 @@ impl AdtSortDef {
             .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
     }
+
+    /// Gives the number of sort variables bound by this definition.
+    pub fn param_count(&self) -> usize {
+        self.0.params.len()
+    }
 }
 
 #[derive(Debug, Clone, Default, Encodable, Decodable)]

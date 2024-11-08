@@ -494,11 +494,13 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, D::Error> {
         if let BaseTy::Param(param_ty) = &sty.bty {
+            let idx = sty.idx.try_fold_with(self)?;
+            let pred = sty.pred.try_fold_with(self)?;
             Ok(self
                 .delegate
                 .ctor_for_param(*param_ty)?
-                .replace_bound_reft(&sty.idx)
-                .strengthen(&sty.pred))
+                .replace_bound_reft(&idx)
+                .strengthen(pred))
         } else {
             sty.try_super_fold_with(self)
         }

@@ -820,9 +820,9 @@ impl TypeFoldable for SubsetTy {
 impl TypeSuperFoldable for SubsetTy {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(SubsetTy {
-            bty: { self.bty.try_fold_with(folder)? },
-            idx: { self.idx.try_fold_with(folder)? },
-            pred: { self.pred.try_fold_with(folder)? },
+            bty: self.bty.try_fold_with(folder)?,
+            idx: self.idx.try_fold_with(folder)?,
+            pred: self.pred.try_fold_with(folder)?,
         })
     }
 }
@@ -842,7 +842,7 @@ impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
-            GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
+            GenericArg::Base(ctor) => GenericArg::Base(ctor.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
             GenericArg::Const(c) => GenericArg::Const(c.try_fold_with(folder)?),
         };
