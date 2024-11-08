@@ -950,9 +950,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PrettyCx {
-            PrettyCx::default(tcx)
-                .kvar_args(KVarArgs::Hide)
-                .hide_binder(true)
+            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 

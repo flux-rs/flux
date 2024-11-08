@@ -168,10 +168,9 @@ pub struct PrettyCx<'tcx> {
     pub preds_chain: bool,
     pub full_spans: bool,
     pub hide_uninit: bool,
-    pub show_is_binder: bool,
     pub hide_refinements: bool,
     pub hide_regions: bool,
-    pub hide_binder: bool,
+    pub hide_sorts: bool,
     env: Env,
 }
 
@@ -268,10 +267,9 @@ impl PrettyCx<'_> {
             preds_chain: true,
             full_spans: false,
             hide_uninit: true,
-            show_is_binder: false,
             hide_refinements: false,
             hide_regions: false,
-            hide_binder: false,
+            hide_sorts: true,
             env: Env::default(),
         }
     }
@@ -289,10 +287,9 @@ impl PrettyCx<'_> {
                 preds_chain,
                 full_spans,
                 hide_uninit,
-                show_is_binder,
                 hide_refinements,
                 hide_regions,
-                hide_binder,
+                hide_sorts,
             ]
         );
     }
@@ -320,13 +317,16 @@ impl PrettyCx<'_> {
             }
             match var {
                 BoundVariableKind::Region(re) => w!("{:?}", re)?,
-                BoundVariableKind::Refine(_, mode, BoundReftKind::Named(name)) => {
+                BoundVariableKind::Refine(sort, mode, BoundReftKind::Named(name)) => {
                     if print_infer_mode {
                         w!("{}", ^mode.prefix_str())?;
                     }
                     w!("{}", ^name)?;
+                    if !self.hide_sorts {
+                        w!(": {:?}", sort)?;
+                    }
                 }
-                BoundVariableKind::Refine(_, mode, BoundReftKind::Annon) => {
+                BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) => {
                     if print_infer_mode {
                         w!("{}", ^mode.prefix_str())?;
                     }
@@ -334,6 +334,9 @@ impl PrettyCx<'_> {
                         w!("{:?}", ^name)?;
                     } else {
                         w!("_")?;
+                    }
+                    if !self.hide_sorts {
+                        w!(": {:?}", sort)?;
                     }
                 }
             }
@@ -368,16 +371,12 @@ impl PrettyCx<'_> {
         Self { fully_qualified_paths: b, ..self }
     }
 
-    pub fn show_is_binder(self, b: bool) -> Self {
-        Self { show_is_binder: b, ..self }
-    }
-
     pub fn hide_regions(self, b: bool) -> Self {
         Self { hide_regions: b, ..self }
     }
 
-    pub fn hide_binder(self, b: bool) -> Self {
-        Self { hide_binder: b, ..self }
+    pub fn hide_sorts(self, b: bool) -> Self {
+        Self { hide_sorts: b, ..self }
     }
 }
 

@@ -227,10 +227,6 @@ impl Pretty for FnSig {
 
         Ok(())
     }
-
-    fn default_cx(tcx: TyCtxt) -> PrettyCx {
-        PrettyCx::default(tcx).show_is_binder(true)
-    }
 }
 
 impl Pretty for Binder<FnOutput> {

@@ -73,7 +73,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn normalize_weak_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
         match self.def_kind(alias_ty.def_id) {
             DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
-            DefKind::Struct | DefKind::Enum | DefKind::TyAlias => {
+            DefKind::TyAlias => {
+                Ok(self
+                    .type_of(alias_ty.def_id)?
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .expect_ctor()
+                    .sort())
+            }
+            DefKind::Struct | DefKind::Enum => {
                 Ok(self
                     .adt_sort_def_of(alias_ty.def_id)?
                     .to_sort(&alias_ty.args))
@@ -92,10 +99,10 @@ impl rty::BaseTy {
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
             rty::BaseTy::Alias(kind, alias_ty) => {
-                // HACK(nilehmann) Refinement arguments in the alias ty should not influence the
-                // sort but we must explicitly remove they can contain expression holes. If we
-                // don't remove them we would generate inference variables for them which we won't
-                // be able to solve.
+                // HACK(nilehmann) Refinement arguments in the alias_ty should not influence the
+                // sort but we must explicitly remove them because they can contain expression holes.
+                // If we don't remove them we would generate inference variables for them which we
+                // won't be able to solve.
                 let alias_ty =
                     rty::AliasTy::new(alias_ty.def_id, alias_ty.args.clone(), List::empty());
                 rty::Sort::Alias(*kind, alias_ty)

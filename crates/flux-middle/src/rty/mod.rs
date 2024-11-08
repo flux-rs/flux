@@ -64,7 +64,7 @@ use crate::{
     rty::subst::SortSubst,
 };
 
-/// The definition of the data sort automatically generated for a struct, enum or type alias.
+/// The definition of the data sort automatically generated for a struct or enum.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 

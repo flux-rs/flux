@@ -212,15 +212,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         };
 
         let generics = self.lift_generics()?;
-        let refined_by = self.lift_refined_by();
         let ty = self.lift_ty(ty)?;
-        let ty_alias = fhir::TyAlias {
-            refined_by: self.genv.alloc(refined_by),
-            params: &[],
-            ty,
-            span: item.span,
-            lifted: true,
-        };
+        let ty_alias = fhir::TyAlias { index: None, ty, span: item.span, lifted: true };
         Ok(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner })
     }
 

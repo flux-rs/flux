@@ -494,11 +494,23 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .unwrap();
 
         let mut env = Env::new(generics.refinement_params);
-        env.push_layer(Layer::coalesce(self.results(), ty_alias_id.resolved_id(), ty_alias.params));
 
-        let ty = self.conv_ty(&mut env, &ty_alias.ty)?;
+        if let Some(index) = &ty_alias.index {
+            env.push_layer(Layer::list(self.results(), 0, std::slice::from_ref(index)));
+            let ty = self.conv_ty(&mut env, &ty_alias.ty)?;
 
-        Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(self.genv)?))
+            Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(self.genv)?))
+        } else {
+            // this error is bad
+            let a = 0;
+            let ctor = self
+                .conv_ty(&mut env, &ty_alias.ty)?
+                .shallow_canonicalize()
+                .as_ty_or_base()
+                .as_base()
+                .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(ty_alias.span)))?;
+            Ok(ctor.to_ty_ctor())
+        }
     }
 
     pub(crate) fn conv_fn_sig(
@@ -1999,6 +2011,9 @@ fn conv_sort_path(
         fhir::SortRes::Adt(def_id) => {
             let sort_def = genv.adt_sort_def_of(def_id)?;
             rty::SortCtor::Adt(sort_def)
+        }
+        fhir::SortRes::TyAlias(def_id) => {
+            todo!()
         }
     };
     let args = path

@@ -416,22 +416,18 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             return self.as_lift_cx().lift_type_alias();
         };
 
-        let refined_by = self.desugar_refined_by(&ty_alias.refined_by)?;
         let mut generics = self.desugar_generics(&ty_alias.generics)?;
 
         let ty = self.desugar_ty(&ty_alias.ty)?;
 
         generics.refinement_params = self.desugar_refine_params(&ty_alias.params);
 
-        let params = self.desugar_refine_params(&ty_alias.refined_by);
+        let index = ty_alias
+            .index
+            .as_ref()
+            .map(|index| self.desugar_refine_param(index));
 
-        let ty_alias = fhir::TyAlias {
-            refined_by: self.genv.alloc(refined_by),
-            params,
-            ty,
-            span: ty_alias.span,
-            lifted: false,
-        };
+        let ty_alias = fhir::TyAlias { index, ty, span: ty_alias.span, lifted: false };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &ty_alias).unwrap();
@@ -938,17 +934,19 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         &self,
         params: &[surface::RefineParam],
     ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
-        params.iter().map(|param| {
-            let (id, kind) = self.resolve_param(param.node_id);
-            fhir::RefineParam {
-                id,
-                name: param.ident.name,
-                span: param.ident.span,
-                kind,
-                sort: self.desugar_sort(&param.sort, None),
-                fhir_id: self.next_fhir_id(),
-            }
-        })
+        params.iter().map(|param| self.desugar_refine_param(param))
+    }
+
+    fn desugar_refine_param(&self, param: &surface::RefineParam) -> fhir::RefineParam<'genv> {
+        let (id, kind) = self.resolve_param(param.node_id);
+        fhir::RefineParam {
+            id,
+            name: param.ident.name,
+            span: param.ident.span,
+            kind,
+            sort: self.desugar_sort(&param.sort, None),
+            fhir_id: self.next_fhir_id(),
+        }
     }
 
     fn desugar_sort(

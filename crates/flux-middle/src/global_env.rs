@@ -515,7 +515,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         let refined_by = match &self.expect_item(def_id)?.kind {
             fhir::ItemKind::Enum(enum_def) => enum_def.refined_by,
             fhir::ItemKind::Struct(struct_def) => struct_def.refined_by,
-            fhir::ItemKind::TyAlias(ty_alias) => ty_alias.refined_by,
             _ => bug!("expected struct, enum or type alias"),
         };
         Ok(refined_by)

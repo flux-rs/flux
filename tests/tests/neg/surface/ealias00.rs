@@ -7,7 +7,7 @@ pub fn test1(x: i32) -> i32 {
     x - 1 //~ ERROR refinement type
 }
 
-#[flux::alias(type Nat() = i32{v:nat(v)})]
+#[flux::alias(type Nat[v: int] = { i32[v] | nat(v) })]
 type Nat = i32;
 
 #[flux::sig(fn(x: Nat) -> Nat)]

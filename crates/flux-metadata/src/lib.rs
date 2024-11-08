@@ -347,9 +347,6 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 tables
                     .refinement_generics_of
                     .insert(key, genv.refinement_generics_of(def_id));
-                tables
-                    .adt_sort_def
-                    .insert(key, genv.adt_sort_def_of(def_id));
                 tables.type_of.insert(key, genv.type_of(def_id));
             }
             DefKind::OpaqueTy => {

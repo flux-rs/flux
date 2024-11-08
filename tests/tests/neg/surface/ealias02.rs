@@ -4,10 +4,10 @@
     fn inc(x: int) -> int { x + 1 }
 }]
 
-#[flux::alias(type Nat = i32{v: nat(v)})]
+#[flux::alias(type Nat[v: int] = { i32[v] | nat(v) })]
 type Nat = i32;
 
-#[flux::alias(type Lb(n: int) = i32{v: leq(n, v) })]
+#[flux::alias(type Lb(n: int)[v: int] = { i32[v] | leq(n, v) })]
 type Lb = i32;
 
 #[flux::sig(fn(x: Nat) -> Nat)]
