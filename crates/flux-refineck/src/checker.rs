@@ -749,7 +749,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
-        println!("TRACE: check_call (0) {callee_def_id:?} => {fn_sig:?} | {actuals:?}");
+        // println!("TRACE: check_call (0) {callee_def_id:?} => {fn_sig:?} | {actuals:?}");
 
         // Check requires predicates
         for requires in fn_sig.requires() {
@@ -763,7 +763,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             let ak = actual.kind();
             let fk = formal.kind();
-            println!("TRACE: check_call (1): {ak:?} vs {fk:?}");
+            // println!("TRACE: check_call (1): {ak:?} vs {fk:?}");
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
                     let ty1 = env.get(path1);
