@@ -38,6 +38,8 @@ pub(crate) struct Binding {
 pub(crate) enum LocKind {
     Local,
     Box(Ty),
+    // An &mut T unfolded "locally" at a call-site; with the super-type T
+    LocalPtr(Ty),
     Universal,
 }
 
@@ -485,16 +487,21 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             .push((loc, place, Binding { kind, ty: ty.clone() }));
     }
 
-    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
+    fn unfold_as_kind(&mut self, deref_ty: &Ty, kind: LocKind) -> Loc {
         let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
-        self.insertions.push((
-            loc,
-            place,
-            Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
-        ));
+        self.insertions
+            .push((loc, place, Binding { kind, ty: deref_ty.clone() }));
         loc
+    }
+
+    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
+        self.unfold_as_kind(deref_ty, LocKind::Box(alloc.clone()))
+    }
+
+    fn unfold_local_ptr(&mut self, deref_ty: &Ty, super_ty: &Ty) -> Loc {
+        self.unfold_as_kind(deref_ty, LocKind::LocalPtr(super_ty.clone()))
     }
 
     fn field(&mut self, ty: &Ty, f: FieldIdx) -> CheckerResult<Ty> {
@@ -958,6 +965,7 @@ mod pretty {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!("[box]"),
+                LocKind::LocalPtr(_) => w!("[local-ptr]"),
             }
         }
     }

@@ -749,6 +749,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
+        println!("TRACE: check_call (0) {callee_def_id:?} => {fn_sig:?} | {actuals:?}");
+
         // Check requires predicates
         for requires in fn_sig.requires() {
             at.check_pred(requires, ConstrReason::Call);
@@ -759,6 +761,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let (formal, pred) = formal.unconstr();
             at.check_pred(&pred, ConstrReason::Call);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
+            let ak = actual.kind();
+            let fk = formal.kind();
+            println!("TRACE: check_call (1): {ak:?} vs {fk:?}");
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
                     let ty1 = env.get(path1);
@@ -776,6 +781,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     )
                     .with_span(span)?;
                 }
+                // (
+                //     TyKind::Indexed(BaseTy::Ref(re1, ty1, Mutability::Mut), _),
+                //     TyKind::StrgRef(_, _path2, ty2),
+                // ) => {
+                //     // See [NOTE:LocalStrengthening]
+                //     println!("TRACE: check_call (2): {ak:?} vs {fk:?}");
+                //     // where does STRENGTHEN
+                //     let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
+                //     // weaken.add(loc, actual_ty);
+                //     // do subtyping strg_ty <: expected_ty
+                //     at.subtyping(&actual_strg, &formal, ConstrReason::Call)
+                //         .with_span(span)?;
+                // }
                 _ => {
                     at.subtyping(&actual, &formal, ConstrReason::Call)
                         .with_span(span)?;
