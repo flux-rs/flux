@@ -269,7 +269,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     fn lift_variant_ret_inner(&mut self, generics: &hir::Generics) -> fhir::VariantRet<'genv> {
-        let kind = fhir::ExprKind::RefineRecord(&[]);
+        let kind = fhir::ExprKind::Record(&[]);
         fhir::VariantRet {
             enum_id: self.owner.resolved_id(),
             idx: fhir::Expr {

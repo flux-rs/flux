@@ -1281,7 +1281,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 self.desugar_refine_arg(arg)
             })?;
             Ok(fhir::Expr {
-                kind: fhir::ExprKind::RefineRecord(flds),
+                kind: fhir::ExprKind::Record(flds),
                 fhir_id: self.next_fhir_id(),
                 span: idxs.span,
             })
@@ -1307,7 +1307,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 let body = self.genv().alloc(self.desugar_expr(body)?);
                 let params = self.desugar_refine_params(params);
                 Ok(fhir::Expr {
-                    kind: fhir::ExprKind::RefineAbs(params, body),
+                    kind: fhir::ExprKind::Abs(params, body),
                     fhir_id: self.next_fhir_id(),
                     span: *span,
                 })

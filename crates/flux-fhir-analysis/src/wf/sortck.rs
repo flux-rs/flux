@@ -139,10 +139,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 }
             }
             fhir::ExprKind::RefineArgExpr(expr) => self.check_expr(expr, expected)?,
-            fhir::ExprKind::RefineAbs(refine_params, body) => {
+            fhir::ExprKind::Abs(refine_params, body) => {
                 self.check_abs(expr, refine_params, body, expected)?
             }
-            fhir::ExprKind::RefineRecord(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
         }
         Ok(())
     }
@@ -647,7 +647,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
                     self.infcx.equate(&found, expected);
                 }
             }
-            fhir::ExprKind::RefineRecord(flds) => {
+            fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
                     let sorts = sort_def.field_sorts(sort_args);
                     if flds.len() != sorts.len() {

@@ -1604,7 +1604,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
             }
             fhir::ExprKind::RefineArgExpr(expr) => self.conv_expr(env, expr)?,
-            fhir::ExprKind::RefineAbs(params, body) => {
+            fhir::ExprKind::Abs(params, body) => {
                 let layer = Layer::list(self.results(), 0, params);
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
@@ -1613,7 +1613,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 rty::Expr::abs(lam)
             }
-            fhir::ExprKind::RefineRecord(flds) => {
+            fhir::ExprKind::Record(flds) => {
                 let def_id = self.results().record_ctor(expr.fhir_id);
                 let flds = flds
                     .iter()

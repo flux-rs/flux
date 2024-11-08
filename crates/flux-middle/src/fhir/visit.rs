@@ -480,11 +480,11 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
         ExprKind::RefineArgExpr(expr) => {
             vis.visit_expr(expr);
         }
-        ExprKind::RefineAbs(refine_params, body) => {
+        ExprKind::Abs(refine_params, body) => {
             walk_list!(vis, visit_refine_param, refine_params);
             vis.visit_expr(body);
         }
-        ExprKind::RefineRecord(fields) => {
+        ExprKind::Record(fields) => {
             walk_list!(vis, visit_expr, fields);
         }
     }

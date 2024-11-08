@@ -919,8 +919,8 @@ pub enum ExprKind<'fhir> {
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     RefineArgExpr(&'fhir Expr<'fhir>),
-    RefineAbs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
-    RefineRecord(&'fhir [Expr<'fhir>]),
+    Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    Record(&'fhir [Expr<'fhir>]),
 }
 
 impl<'fhir> Expr<'fhir> {
@@ -1422,7 +1422,7 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::RefineArgExpr(expr) => {
                 write!(f, "{expr:?}")
             }
-            ExprKind::RefineAbs(params, body) => {
+            ExprKind::Abs(params, body) => {
                 write!(
                     f,
                     "|{}| {body:?}",
@@ -1431,7 +1431,7 @@ impl fmt::Debug for Expr<'_> {
                     })
                 )
             }
-            ExprKind::RefineRecord(flds) => {
+            ExprKind::Record(flds) => {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
         }
