@@ -291,7 +291,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         };
         let expected = adt_sort_def.to_sort(&args);
         self.infcx
-            .check_refine_arg(&ret.idx, &expected)
+            .check_expr(&ret.idx, &expected)
             .collect_err(&mut self.errors);
     }
 
@@ -325,7 +325,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             fhir::TyKind::Indexed(bty, idx) => {
                 let expected = self.infcx.sort_of_bty(bty.fhir_id);
                 self.infcx
-                    .check_refine_arg(idx, &expected)
+                    .check_expr(idx, &expected)
                     .collect_err(&mut self.errors);
                 self.visit_bty(bty);
             }
@@ -363,9 +363,9 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 ));
             }
 
-            for (arg, param) in iter::zip(path.refine, &generics.params) {
+            for (expr, param) in iter::zip(path.refine, &generics.params) {
                 self.infcx
-                    .check_refine_arg(arg, &param.sort)
+                    .check_expr(expr, &param.sort)
                     .collect_err(&mut self.errors);
             }
         }

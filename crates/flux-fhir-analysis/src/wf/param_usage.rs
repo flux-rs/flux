@@ -100,6 +100,21 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.errors.emit(InvalidParamPos::new(var.span, sort));
                 }
             }
+            fhir::ExprKind::RefineArgExpr(expr) => {
+                if let fhir::ExprKind::Var(var, _) = &expr.kind {
+                    if let fhir::ExprRes::Param(_, id) = var.res {
+                        self.xi.insert(id, ());
+                    }
+                } else {
+                    self.check_func_params_uses(&expr, false);
+                }
+            }
+            fhir::ExprKind::RefineAbs(_, body) => self.check_func_params_uses(&body, true),
+            fhir::ExprKind::RefineRecord(fields) => {
+                for field in fields {
+                    self.check_func_params_uses(field, is_top_level_conj);
+                }
+            }
         }
     }
 
@@ -150,24 +165,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_variant_ret(self, ret);
         self.xi.rollback_to(snapshot);
-    }
-
-    fn visit_refine_arg(&mut self, arg: &fhir::RefineArg<'genv>) {
-        match arg.kind {
-            fhir::RefineArgKind::Expr(expr) => {
-                if let fhir::ExprKind::Var(var, _) = &expr.kind {
-                    if let fhir::ExprRes::Param(_, id) = var.res {
-                        self.xi.insert(id, ());
-                    }
-                } else {
-                    self.check_func_params_uses(&expr, false);
-                }
-            }
-            fhir::RefineArgKind::Abs(_, body) => self.check_func_params_uses(&body, true),
-            fhir::RefineArgKind::Record(flds) => {
-                walk_list!(self, visit_refine_arg, flds);
-            }
-        }
     }
 
     fn visit_fn_output(&mut self, output: &fhir::FnOutput<'genv>) {

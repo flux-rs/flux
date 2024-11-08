@@ -192,10 +192,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     _ => Err(self.emit_field_not_found(&sort, *fld)),
                 }
             }
-            // TODO (VR): Pretty sure we don't synthesize these?
-            fhir::ExprKind::RefineArgExpr(_) => todo!(),
-            fhir::ExprKind::RefineAbs(_, _) => todo!(),
-            fhir::ExprKind::RefineRecord(_) => todo!(),
+            // (VR): Pretty sure we don't synthesize these?
+            _ => span_bug!(expr.span, "unexpected expr `{expr:?}` in synth expr"),
         }
     }
 
