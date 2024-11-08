@@ -2,9 +2,9 @@ use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FnDecl, FnOutput, FnSig, FuncSort, GenericArg, GenericBound,
     Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime, Lit, Node,
-    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineArg,
-    RefineArgKind, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem,
-    TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineParam,
+    Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias,
+    TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -163,10 +163,6 @@ pub trait Visitor<'v>: Sized {
         walk_func_sort(self, func);
     }
 
-    fn visit_refine_arg(&mut self, arg: &RefineArg<'v>) {
-        walk_refine_arg(self, arg);
-    }
-
     fn visit_expr(&mut self, expr: &Expr<'v>) {
         walk_expr(self, expr);
     }
@@ -211,7 +207,7 @@ pub fn walk_field_def<'v, V: Visitor<'v>>(vis: &mut V, field: &FieldDef<'v>) {
 
 pub fn walk_variant_ret<'v, V: Visitor<'v>>(vis: &mut V, ret: &VariantRet<'v>) {
     let VariantRet { idx, enum_id: _ } = ret;
-    vis.visit_refine_arg(idx);
+    vis.visit_expr(idx);
 }
 
 pub fn walk_ty_alias<'v, V: Visitor<'v>>(vis: &mut V, ty_alias: &TyAlias<'v>) {
@@ -347,7 +343,7 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::BaseTy(bty) => vis.visit_bty(&bty),
         TyKind::Indexed(bty, idx) => {
             vis.visit_bty(&bty);
-            vis.visit_refine_arg(&idx);
+            vis.visit_expr(&idx);
         }
         TyKind::Exists(params, ty) => {
             walk_list!(vis, visit_refine_param, params);
@@ -378,7 +374,7 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         }
         TyKind::OpaqueDef(_item_id, generics, refine, _bool) => {
             walk_list!(vis, visit_generic_arg, generics);
-            walk_list!(vis, visit_refine_arg, refine);
+            walk_list!(vis, visit_expr, refine);
         }
         TyKind::TraitObject(poly_traits, lft, _) => {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);
@@ -412,7 +408,7 @@ pub fn walk_qpath<'v, V: Visitor<'v>>(vis: &mut V, qpath: &QPath<'v>) {
 
 pub fn walk_path<'v, V: Visitor<'v>>(vis: &mut V, path: &Path<'v>) {
     walk_list!(vis, visit_path_segment, path.segments);
-    walk_list!(vis, visit_refine_arg, path.refine);
+    walk_list!(vis, visit_expr, path.refine);
 }
 
 pub fn walk_path_segment<'v, V: Visitor<'v>>(vis: &mut V, segment: &PathSegment<'v>) {
@@ -452,19 +448,6 @@ pub fn walk_func_sort<'v, V: Visitor<'v>>(vis: &mut V, func: &FuncSort<'v>) {
     walk_list!(vis, visit_sort, func.inputs_and_output);
 }
 
-pub fn walk_refine_arg<'v, V: Visitor<'v>>(vis: &mut V, arg: &RefineArg<'v>) {
-    match arg.kind {
-        RefineArgKind::Expr(expr) => vis.visit_expr(&expr),
-        RefineArgKind::Abs(params, body) => {
-            walk_list!(vis, visit_refine_param, params);
-            vis.visit_expr(&body);
-        }
-        RefineArgKind::Record(flds) => {
-            walk_list!(vis, visit_refine_arg, flds);
-        }
-    }
-}
-
 pub fn walk_alias_reft<'v, V: Visitor<'v>>(vis: &mut V, alias: &AliasReft<'v>) {
     vis.visit_ty(alias.qself);
     vis.visit_path(&alias.path);
@@ -493,6 +476,13 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_expr(e1);
             vis.visit_expr(e2);
             vis.visit_expr(e3);
+        }
+        ExprKind::Abs(refine_params, body) => {
+            walk_list!(vis, visit_refine_param, refine_params);
+            vis.visit_expr(body);
+        }
+        ExprKind::Record(fields) => {
+            walk_list!(vis, visit_expr, fields);
         }
     }
 }
