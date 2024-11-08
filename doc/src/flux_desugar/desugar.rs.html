@@ -1557,24 +1557,6 @@
 <a href="#1557" id="1557">1557</a>
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -2543,7 +2525,7 @@
             })
     }
 
-    <span class="kw">fn </span>implicit_params_to_args(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: NodeId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;] {
+    <span class="kw">fn </span>implicit_params_to_args(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: NodeId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;] {
         <span class="self">self</span>.genv()
             .alloc_slice_fill_iter(
                 <span class="self">self</span>.resolve_implicit_params(scope)
@@ -2555,12 +2537,8 @@
                             fhir_id: <span class="self">self</span>.next_fhir_id(),
                             span: ident.span,
                         };
-                        fhir::RefineArg {
-                            kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                                kind: fhir::ExprKind::Var(path, <span class="prelude-val">Some</span>(kind)),
-                                fhir_id: <span class="self">self</span>.next_fhir_id(),
-                                span,
-                            }),
+                        fhir::Expr {
+                            kind: fhir::ExprKind::Var(path, <span class="prelude-val">Some</span>(kind)),
                             fhir_id: <span class="self">self</span>.next_fhir_id(),
                             span,
                         }
@@ -2682,12 +2660,8 @@
                     fhir_id: <span class="self">self</span>.next_fhir_id(),
                     span: bind.span,
                 };
-                <span class="kw">let </span>idx = fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(path, <span class="prelude-val">None</span>),
-                        span: bind.span,
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                    }),
+                <span class="kw">let </span>idx = fhir::Expr {
+                    kind: fhir::ExprKind::Var(path, <span class="prelude-val">None</span>),
                     span: bind.span,
                     fhir_id: <span class="self">self</span>.next_fhir_id(),
                 };
@@ -2848,40 +2822,34 @@
         fhir::Lifetime::Hole(<span class="self">self</span>.next_fhir_id())
     }
 
-    <span class="kw">fn </span>desugar_indices(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idxs: <span class="kw-2">&amp;</span>surface::Indices) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>desugar_indices(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idxs: <span class="kw-2">&amp;</span>surface::Indices) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">if let </span>[arg] = <span class="kw-2">&amp;</span>idxs.indices[..] {
             <span class="self">self</span>.desugar_refine_arg(arg)
         } <span class="kw">else </span>{
             <span class="kw">let </span>flds = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>idxs.indices, |arg| {
                 <span class="self">self</span>.desugar_refine_arg(arg)
             })<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(fhir::RefineArg {
-                kind: fhir::RefineArgKind::Record(flds),
+            <span class="prelude-val">Ok</span>(fhir::Expr {
+                kind: fhir::ExprKind::Record(flds),
                 fhir_id: <span class="self">self</span>.next_fhir_id(),
                 span: idxs.span,
             })
         }
     }
 
-    <span class="kw">fn </span>desugar_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::RefineArg) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>desugar_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::RefineArg) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span>arg {
             surface::RefineArg::Bind(ident, .., node_id) =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.implicit_param_into_refine_arg(<span class="kw-2">*</span>ident, <span class="kw-2">*</span>node_id)
                     .unwrap())
             }
-            surface::RefineArg::Expr(expr) =&gt; {
-                <span class="prelude-val">Ok</span>(fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Expr(<span class="self">self</span>.desugar_expr(expr)<span class="question-mark">?</span>),
-                    fhir_id: <span class="self">self</span>.next_fhir_id(),
-                    span: expr.span,
-                })
-            }
+            surface::RefineArg::Expr(expr) =&gt; <span class="self">self</span>.desugar_expr(expr),
             surface::RefineArg::Abs(params, body, span, <span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span>body = <span class="self">self</span>.desugar_expr(body)<span class="question-mark">?</span>;
+                <span class="kw">let </span>body = <span class="self">self</span>.genv().alloc(<span class="self">self</span>.desugar_expr(body)<span class="question-mark">?</span>);
                 <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(params);
-                <span class="prelude-val">Ok</span>(fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Abs(params, body),
+                <span class="prelude-val">Ok</span>(fhir::Expr {
+                    kind: fhir::ExprKind::Abs(params, body),
                     fhir_id: <span class="self">self</span>.next_fhir_id(),
                     span: <span class="kw-2">*</span>span,
                 })
@@ -2893,7 +2861,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         ident: surface::Ident,
         node_id: NodeId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>(id, kind) = <span class="self">self</span>.resolve_implicit_param(node_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>path = fhir::PathExpr {
             segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[ident]),
@@ -2901,14 +2869,10 @@
             fhir_id: <span class="self">self</span>.next_fhir_id(),
             span: ident.span,
         };
-        <span class="prelude-val">Some</span>(fhir::RefineArg {
-            kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                kind: fhir::ExprKind::Var(path, <span class="prelude-val">Some</span>(kind)),
-                span: ident.span,
-                fhir_id: <span class="self">self</span>.next_fhir_id(),
-            }),
-            fhir_id: <span class="self">self</span>.next_fhir_id(),
+        <span class="prelude-val">Some</span>(fhir::Expr {
+            kind: fhir::ExprKind::Var(path, <span class="prelude-val">Some</span>(kind)),
             span: ident.span,
+            fhir_id: <span class="self">self</span>.next_fhir_id(),
         })
     }
 

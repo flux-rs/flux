@@ -211,6 +211,10 @@
 <a href="#211" id="211">211</a>
 <a href="#212" id="212">212</a>
 <a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Code to check whether refinement parameters are used in allowed positions.
 //!
 //! The correct usage of a parameter depends on whether its infer mode is [evar] or [kvar].
@@ -267,14 +271,19 @@
     }
 
     <span class="doccomment">/// Checks that refinement parameters of function sort are used in allowed positions.
-    </span><span class="kw">fn </span>check_func_params_uses(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr, is_top_level_conj: bool) {
+    </span><span class="kw">fn </span>check_func_params_uses(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        expr: <span class="kw-2">&amp;</span>fhir::Expr,
+        is_top_level_conj: bool,
+        is_top_level_var: bool,
+    ) {
         <span class="kw">match </span>expr.kind {
             fhir::ExprKind::BinaryOp(bin_op, e1, e2) =&gt; {
                 <span class="kw">let </span>is_pred = is_top_level_conj &amp;&amp; <span class="macro">matches!</span>(bin_op, fhir::BinOp::And);
-                <span class="self">self</span>.check_func_params_uses(e1, is_pred);
-                <span class="self">self</span>.check_func_params_uses(e2, is_pred);
+                <span class="self">self</span>.check_func_params_uses(e1, is_pred, <span class="bool-val">false</span>);
+                <span class="self">self</span>.check_func_params_uses(e2, is_pred, <span class="bool-val">false</span>);
             }
-            fhir::ExprKind::UnaryOp(<span class="kw">_</span>, e) =&gt; <span class="self">self</span>.check_func_params_uses(e, <span class="bool-val">false</span>),
+            fhir::ExprKind::UnaryOp(<span class="kw">_</span>, e) =&gt; <span class="self">self</span>.check_func_params_uses(e, <span class="bool-val">false</span>, <span class="bool-val">false</span>),
             fhir::ExprKind::App(func, args) =&gt; {
                 <span class="kw">if </span>!is_top_level_conj
                     &amp;&amp; <span class="kw">let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = func.res
@@ -284,13 +293,13 @@
                         .emit(InvalidParamPos::new(func.span, <span class="kw-2">&amp;</span><span class="self">self</span>.infcx.param_sort(id)));
                 }
                 <span class="kw">for </span>arg <span class="kw">in </span>args {
-                    <span class="self">self</span>.check_func_params_uses(arg, <span class="bool-val">false</span>);
+                    <span class="self">self</span>.check_func_params_uses(arg, <span class="bool-val">false</span>, <span class="bool-val">false</span>);
                 }
             }
             fhir::ExprKind::Alias(<span class="kw">_</span>, func_args) =&gt; {
                 <span class="comment">// TODO(nilehmann) should we check the usage inside the `AliasPred`?
                 </span><span class="kw">for </span>arg <span class="kw">in </span>func_args {
-                    <span class="self">self</span>.check_func_params_uses(arg, <span class="bool-val">false</span>);
+                    <span class="self">self</span>.check_func_params_uses(arg, <span class="bool-val">false</span>, is_top_level_var);
                 }
             }
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
@@ -299,11 +308,16 @@
                 {
                     <span class="self">self</span>.errors.emit(InvalidParamPos::new(var.span, <span class="kw-2">&amp;</span>sort));
                 }
+                <span class="kw">if let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = var.res
+                    &amp;&amp; is_top_level_var
+                {
+                    <span class="self">self</span>.xi.insert(id, ());
+                }
             }
             fhir::ExprKind::IfThenElse(e1, e2, e3) =&gt; {
-                <span class="self">self</span>.check_func_params_uses(e1, <span class="bool-val">false</span>);
-                <span class="self">self</span>.check_func_params_uses(e3, <span class="bool-val">false</span>);
-                <span class="self">self</span>.check_func_params_uses(e2, <span class="bool-val">false</span>);
+                <span class="self">self</span>.check_func_params_uses(e1, <span class="bool-val">false</span>, <span class="bool-val">false</span>);
+                <span class="self">self</span>.check_func_params_uses(e3, <span class="bool-val">false</span>, <span class="bool-val">false</span>);
+                <span class="self">self</span>.check_func_params_uses(e2, <span class="bool-val">false</span>, <span class="bool-val">false</span>);
             }
             fhir::ExprKind::Literal(<span class="kw">_</span>) =&gt; {}
             fhir::ExprKind::Dot(var, <span class="kw">_</span>) =&gt; {
@@ -311,6 +325,14 @@
                     &amp;&amp; <span class="kw">let </span>sort @ rty::Sort::Func(<span class="kw">_</span>) = <span class="kw-2">&amp;</span><span class="self">self</span>.infcx.param_sort(id)
                 {
                     <span class="self">self</span>.errors.emit(InvalidParamPos::new(var.span, sort));
+                }
+            }
+            fhir::ExprKind::Abs(<span class="kw">_</span>, body) =&gt; {
+                <span class="self">self</span>.check_func_params_uses(<span class="kw-2">&amp;</span>body, <span class="bool-val">true</span>, is_top_level_var)
+            }
+            fhir::ExprKind::Record(fields) =&gt; {
+                <span class="kw">for </span>field <span class="kw">in </span>fields {
+                    <span class="self">self</span>.check_func_params_uses(field, is_top_level_conj, is_top_level_var);
                 }
             }
         }
@@ -365,24 +387,6 @@
         <span class="self">self</span>.xi.rollback_to(snapshot);
     }
 
-    <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;) {
-        <span class="kw">match </span>arg.kind {
-            fhir::RefineArgKind::Expr(expr) =&gt; {
-                <span class="kw">if let </span>fhir::ExprKind::Var(var, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>expr.kind {
-                    <span class="kw">if let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = var.res {
-                        <span class="self">self</span>.xi.insert(id, ());
-                    }
-                } <span class="kw">else </span>{
-                    <span class="self">self</span>.check_func_params_uses(<span class="kw-2">&amp;</span>expr, <span class="bool-val">false</span>);
-                }
-            }
-            fhir::RefineArgKind::Abs(<span class="kw">_</span>, body) =&gt; <span class="self">self</span>.check_func_params_uses(<span class="kw-2">&amp;</span>body, <span class="bool-val">true</span>),
-            fhir::RefineArgKind::Record(flds) =&gt; {
-                <span class="macro">walk_list!</span>(<span class="self">self</span>, visit_refine_arg, flds);
-            }
-        }
-    }
-
     <span class="kw">fn </span>visit_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, output: <span class="kw-2">&amp;</span>fhir::FnOutput&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         fhir::visit::walk_fn_output(<span class="self">self</span>, output);
@@ -401,6 +405,10 @@
                 <span class="self">self</span>.visit_ty(ty);
                 <span class="self">self</span>.check_params_are_value_determined(params);
             }
+            fhir::TyKind::Indexed(bty, expr) =&gt; {
+                fhir::visit::walk_bty(<span class="self">self</span>, bty);
+                <span class="self">self</span>.check_func_params_uses(expr, <span class="bool-val">false</span>, <span class="bool-val">true</span>);
+            }
             <span class="kw">_ </span>=&gt; {
                 fhir::visit::walk_ty(<span class="self">self</span>, ty);
             }
@@ -408,7 +416,7 @@
     }
 
     <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) {
-        <span class="self">self</span>.check_func_params_uses(expr, <span class="bool-val">true</span>);
+        <span class="self">self</span>.check_func_params_uses(expr, <span class="bool-val">true</span>, <span class="bool-val">false</span>);
     }
 
     <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>fhir::PathSegment&lt;<span class="lifetime">'genv</span>&gt;) {

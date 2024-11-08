@@ -1516,29 +1516,6 @@
 <a href="#1516" id="1516">1516</a>
 <a href="#1517" id="1517">1517</a>
 <a href="#1518" id="1518">1518</a>
-<a href="#1519" id="1519">1519</a>
-<a href="#1520" id="1520">1520</a>
-<a href="#1521" id="1521">1521</a>
-<a href="#1522" id="1522">1522</a>
-<a href="#1523" id="1523">1523</a>
-<a href="#1524" id="1524">1524</a>
-<a href="#1525" id="1525">1525</a>
-<a href="#1526" id="1526">1526</a>
-<a href="#1527" id="1527">1527</a>
-<a href="#1528" id="1528">1528</a>
-<a href="#1529" id="1529">1529</a>
-<a href="#1530" id="1530">1530</a>
-<a href="#1531" id="1531">1531</a>
-<a href="#1532" id="1532">1532</a>
-<a href="#1533" id="1533">1533</a>
-<a href="#1534" id="1534">1534</a>
-<a href="#1535" id="1535">1535</a>
-<a href="#1536" id="1536">1536</a>
-<a href="#1537" id="1537">1537</a>
-<a href="#1538" id="1538">1538</a>
-<a href="#1539" id="1539">1539</a>
-<a href="#1540" id="1540">1540</a>
-<a href="#1541" id="1541">1541</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1996,7 +1973,7 @@
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>VariantRet&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>enum_id: DefId,
-    <span class="kw">pub </span>idx: RefineArg&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>idx: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2059,7 +2036,7 @@
     /// [existential]: crate::rty::TyKind::Exists
     /// [type]: GenericParamKind::Type
     </span>BaseTy(BaseTy&lt;<span class="lifetime">'fhir</span>&gt;),
-    Indexed(BaseTy&lt;<span class="lifetime">'fhir</span>&gt;, RefineArg&lt;<span class="lifetime">'fhir</span>&gt;),
+    Indexed(BaseTy&lt;<span class="lifetime">'fhir</span>&gt;, Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Exists(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
     <span class="doccomment">/// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 &lt;= a}`
@@ -2070,7 +2047,7 @@
     Tuple(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;]),
     Array(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, ConstArg),
     RawPtr(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, Mutability),
-    OpaqueDef(ItemId, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineArg&lt;<span class="lifetime">'fhir</span>&gt;], bool),
+    OpaqueDef(ItemId, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;], bool),
     TraitObject(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -2143,34 +2120,6 @@
     </span><span class="kw">pub struct </span>ItemLocalId {}
 }
 
-<span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub struct </span>RefineArg&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>kind: RefineArgKind&lt;<span class="lifetime">'fhir</span>&gt;,
-    <span class="kw">pub </span>fhir_id: FhirId,
-    <span class="kw">pub </span>span: Span,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; RefineArg&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>is_colon_param(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ParamId&gt; {
-        <span class="kw">if let </span>RefineArgKind::Expr(expr) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind
-            &amp;&amp; <span class="kw">let </span>ExprKind::Var(path, <span class="prelude-val">Some</span>(ParamKind::Colon)) = <span class="kw-2">&amp;</span>expr.kind
-            &amp;&amp; <span class="kw">let </span>ExprRes::Param(kind, id) = path.res
-        {
-            <span class="macro">debug_assert_eq!</span>(kind, ParamKind::Colon);
-            <span class="prelude-val">Some</span>(id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
-    }
-}
-
-<span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub enum </span>RefineArgKind&lt;<span class="lifetime">'fhir</span>&gt; {
-    Expr(Expr&lt;<span class="lifetime">'fhir</span>&gt;),
-    Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], Expr&lt;<span class="lifetime">'fhir</span>&gt;),
-    Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineArg&lt;<span class="lifetime">'fhir</span>&gt;]),
-}
-
 <span class="doccomment">/// These are types of things that may be refined with indices or existentials
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>BaseTy&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -2209,7 +2158,7 @@
 </span><span class="kw">pub struct </span>Path&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>res: Res,
     <span class="kw">pub </span>segments: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PathSegment&lt;<span class="lifetime">'fhir</span>&gt;],
-    <span class="kw">pub </span>refine: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineArg&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>refine: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>span: Span,
 }
 
@@ -2473,8 +2422,8 @@
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>Expr&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>kind: ExprKind&lt;<span class="lifetime">'fhir</span>&gt;,
-    <span class="kw">pub </span>span: Span,
     <span class="kw">pub </span>fhir_id: FhirId,
+    <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2487,6 +2436,21 @@
     App(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
     Alias(AliasReft&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
     IfThenElse(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
+    Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
+    Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Expr&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub fn </span>is_colon_param(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ParamId&gt; {
+        <span class="kw">if let </span>ExprKind::Var(path, <span class="prelude-val">Some</span>(ParamKind::Colon)) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind
+            &amp;&amp; <span class="kw">let </span>ExprRes::Param(kind, id) = path.res
+        {
+            <span class="macro">debug_assert_eq!</span>(kind, ParamKind::Colon);
+            <span class="prelude-val">Some</span>(id)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2950,28 +2914,6 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>RefineArg&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            RefineArgKind::Expr(expr) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"{expr:?}"</span>)
-            }
-            RefineArgKind::Abs(params, body) =&gt; {
-                <span class="macro">write!</span>(
-                    f,
-                    <span class="string">"|{}| {body:?}"</span>,
-                    params.iter().format_with(<span class="string">", "</span>, |param, f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}: {:?}"</span>, param.name, param.sort))
-                    })
-                )
-            }
-            RefineArgKind::Record(flds) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
-            }
-        }
-    }
-}
-
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>AliasReft&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(f, <span class="string">"&lt;{:?} as {:?}&gt;::{}"</span>, <span class="self">self</span>.qself, <span class="self">self</span>.path, <span class="self">self</span>.name)
@@ -2993,6 +2935,18 @@
                 <span class="macro">write!</span>(f, <span class="string">"(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})"</span>)
             }
             ExprKind::Dot(var, fld) =&gt; <span class="macro">write!</span>(f, <span class="string">"{var:?}.{fld}"</span>),
+            ExprKind::Abs(params, body) =&gt; {
+                <span class="macro">write!</span>(
+                    f,
+                    <span class="string">"|{}| {body:?}"</span>,
+                    params.iter().format_with(<span class="string">", "</span>, |param, f| {
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}: {:?}"</span>, param.name, param.sort))
+                    })
+                )
+            }
+            ExprKind::Record(flds) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
+            }
         }
     }
 }

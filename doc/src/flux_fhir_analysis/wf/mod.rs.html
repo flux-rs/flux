@@ -747,7 +747,7 @@
         };
         <span class="kw">let </span>expected = adt_sort_def.to_sort(<span class="kw-2">&amp;</span>args);
         <span class="self">self</span>.infcx
-            .check_refine_arg(<span class="kw-2">&amp;</span>ret.idx, <span class="kw-2">&amp;</span>expected)
+            .check_expr(<span class="kw-2">&amp;</span>ret.idx, <span class="kw-2">&amp;</span>expected)
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
     }
 
@@ -781,7 +781,7 @@
             fhir::TyKind::Indexed(bty, idx) =&gt; {
                 <span class="kw">let </span>expected = <span class="self">self</span>.infcx.sort_of_bty(bty.fhir_id);
                 <span class="self">self</span>.infcx
-                    .check_refine_arg(idx, <span class="kw-2">&amp;</span>expected)
+                    .check_expr(idx, <span class="kw-2">&amp;</span>expected)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
                 <span class="self">self</span>.visit_bty(bty);
             }
@@ -819,9 +819,9 @@
                 ));
             }
 
-            <span class="kw">for </span>(arg, param) <span class="kw">in </span>iter::zip(path.refine, <span class="kw-2">&amp;</span>generics.params) {
+            <span class="kw">for </span>(expr, param) <span class="kw">in </span>iter::zip(path.refine, <span class="kw-2">&amp;</span>generics.params) {
                 <span class="self">self</span>.infcx
-                    .check_refine_arg(arg, <span class="kw-2">&amp;</span>param.sort)
+                    .check_expr(expr, <span class="kw-2">&amp;</span>param.sort)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
             }
         }

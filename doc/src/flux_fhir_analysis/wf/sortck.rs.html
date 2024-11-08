@@ -779,14 +779,6 @@
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -838,21 +830,9 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_refine_arg(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
-        expected: <span class="kw-2">&amp;</span>rty::Sort,
-    ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
-            fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.check_expr(expr, expected),
-            fhir::RefineArgKind::Abs(params, body) =&gt; <span class="self">self</span>.check_abs(arg, params, body, expected),
-            fhir::RefineArgKind::Record(flds) =&gt; <span class="self">self</span>.check_record(arg, flds, expected),
-        }
-    }
-
     <span class="kw">fn </span>check_abs(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
+        arg: <span class="kw-2">&amp;</span>fhir::Expr,
         params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         body: <span class="kw-2">&amp;</span>fhir::Expr,
         expected: <span class="kw-2">&amp;</span>rty::Sort,
@@ -887,8 +867,8 @@
 
     <span class="kw">fn </span>check_record(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
-        flds: <span class="kw-2">&amp;</span>[fhir::RefineArg],
+        arg: <span class="kw-2">&amp;</span>fhir::Expr,
+        flds: <span class="kw-2">&amp;</span>[fhir::Expr],
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
@@ -906,7 +886,7 @@
                 .insert(arg.fhir_id, sort_def.did());
 
             <span class="macro">izip!</span>(flds, <span class="kw-2">&amp;</span>sorts)
-                .map(|(arg, expected)| <span class="self">self</span>.check_refine_arg(arg, expected))
+                .map(|(arg, expected)| <span class="self">self</span>.check_expr(arg, expected))
                 .try_collect_exhaust()
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
@@ -939,6 +919,10 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, <span class="kw-2">&amp;</span>expected, <span class="kw-2">&amp;</span>found));
                 }
             }
+            fhir::ExprKind::Abs(refine_params, body) =&gt; {
+                <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?
+            </span>}
+            fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -988,6 +972,8 @@
                     <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld)),
                 }
             }
+            <span class="comment">// (VR): Pretty sure we don't synthesize these?
+            </span><span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected expr `{expr:?}` in synth expr"</span>),
         }
     }
 
@@ -1432,17 +1418,14 @@
         vis.errors.into_result()
     }
 
-    <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>fhir::RefineArg, expected: <span class="kw-2">&amp;</span>rty::Sort) {
+    <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>fhir::Expr, expected: <span class="kw-2">&amp;</span>rty::Sort) {
         <span class="kw">match </span>idx.kind {
-            fhir::RefineArgKind::Expr(expr) =&gt; {
-                <span class="kw">if let </span>fhir::ExprKind::Var(var, <span class="prelude-val">Some</span>(<span class="kw">_</span>)) = <span class="kw-2">&amp;</span>expr.kind {
-                    <span class="kw">let </span>(<span class="kw">_</span>, id) = var.res.expect_param();
-                    <span class="kw">let </span>found = <span class="self">self</span>.infcx.param_sort(id);
-                    <span class="self">self</span>.infcx.equate(<span class="kw-2">&amp;</span>found, expected);
-                }
+            fhir::ExprKind::Var(var, <span class="prelude-val">Some</span>(<span class="kw">_</span>)) =&gt; {
+                <span class="kw">let </span>(<span class="kw">_</span>, id) = var.res.expect_param();
+                <span class="kw">let </span>found = <span class="self">self</span>.infcx.param_sort(id);
+                <span class="self">self</span>.infcx.equate(<span class="kw-2">&amp;</span>found, expected);
             }
-            fhir::RefineArgKind::Abs(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
-            fhir::RefineArgKind::Record(flds) =&gt; {
+            fhir::ExprKind::Record(flds) =&gt; {
                 <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
                     <span class="kw">let </span>sorts = sort_def.field_sorts(sort_args);
                     <span class="kw">if </span>flds.len() != sorts.len() {
@@ -1466,6 +1449,7 @@
                     ));
                 }
             }
+            <span class="kw">_ </span>=&gt; {}
         }
     }
 }

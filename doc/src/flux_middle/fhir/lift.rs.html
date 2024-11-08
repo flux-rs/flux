@@ -821,10 +821,10 @@
     }
 
     <span class="kw">fn </span>lift_variant_ret_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) -&gt; fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="kw">let </span>kind = fhir::RefineArgKind::Record(<span class="kw-2">&amp;</span>[]);
+        <span class="kw">let </span>kind = fhir::ExprKind::Record(<span class="kw-2">&amp;</span>[]);
         fhir::VariantRet {
             enum_id: <span class="self">self</span>.owner.resolved_id(),
-            idx: fhir::RefineArg {
+            idx: fhir::Expr {
                 kind,
                 fhir_id: <span class="self">self</span>.next_fhir_id(),
                 span: generics.span.shrink_to_hi(),
