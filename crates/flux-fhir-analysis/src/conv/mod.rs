@@ -1603,7 +1603,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 let proj = self.results().field_proj(fhir_id);
                 rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
             }
-            fhir::ExprKind::RefineArgExpr(expr) => self.conv_expr(env, expr)?,
             fhir::ExprKind::Abs(params, body) => {
                 let layer = Layer::list(self.results(), 0, params);
                 env.push_layer(layer);

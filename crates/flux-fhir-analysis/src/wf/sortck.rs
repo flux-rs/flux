@@ -138,7 +138,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
-            fhir::ExprKind::RefineArgExpr(expr) => self.check_expr(expr, expected)?,
             fhir::ExprKind::Abs(refine_params, body) => {
                 self.check_abs(expr, refine_params, body, expected)?
             }
@@ -640,12 +639,10 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 
     fn infer_implicit_params(&mut self, idx: &fhir::Expr, expected: &rty::Sort) {
         match idx.kind {
-            fhir::ExprKind::RefineArgExpr(expr) => {
-                if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
-                    let (_, id) = var.res.expect_param();
-                    let found = self.infcx.param_sort(id);
-                    self.infcx.equate(&found, expected);
-                }
+            fhir::ExprKind::Var(var, Some(_)) => {
+                let (_, id) = var.res.expect_param();
+                let found = self.infcx.param_sort(id);
+                self.infcx.equate(&found, expected);
             }
             fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {

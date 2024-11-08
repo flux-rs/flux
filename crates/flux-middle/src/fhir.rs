@@ -918,15 +918,13 @@ pub enum ExprKind<'fhir> {
     App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
-    RefineArgExpr(&'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
 }
 
 impl<'fhir> Expr<'fhir> {
     pub fn is_colon_param(&self) -> Option<ParamId> {
-        if let ExprKind::RefineArgExpr(expr) = &self.kind
-            && let ExprKind::Var(path, Some(ParamKind::Colon)) = &expr.kind
+        if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
             && let ExprRes::Param(kind, id) = path.res
         {
             debug_assert_eq!(kind, ParamKind::Colon);
@@ -1419,9 +1417,6 @@ impl fmt::Debug for Expr<'_> {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
             ExprKind::Dot(var, fld) => write!(f, "{var:?}.{fld}"),
-            ExprKind::RefineArgExpr(expr) => {
-                write!(f, "{expr:?}")
-            }
             ExprKind::Abs(params, body) => {
                 write!(
                     f,

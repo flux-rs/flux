@@ -978,13 +978,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                             fhir_id: self.next_fhir_id(),
                             span: ident.span,
                         };
-                        let inner = fhir::Expr {
-                            kind: fhir::ExprKind::Var(path, Some(kind)),
-                            fhir_id: self.next_fhir_id(),
-                            span,
-                        };
                         fhir::Expr {
-                            kind: fhir::ExprKind::RefineArgExpr(self.genv().alloc(inner)),
+                            kind: fhir::ExprKind::Var(path, Some(kind)),
                             fhir_id: self.next_fhir_id(),
                             span,
                         }
@@ -1106,13 +1101,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     fhir_id: self.next_fhir_id(),
                     span: bind.span,
                 };
-                let inner = fhir::Expr {
-                    kind: fhir::ExprKind::Var(path, None),
-                    span: bind.span,
-                    fhir_id: self.next_fhir_id(),
-                };
                 let idx = fhir::Expr {
-                    kind: fhir::ExprKind::RefineArgExpr(self.genv().alloc(inner)),
+                    kind: fhir::ExprKind::Var(path, None),
                     span: bind.span,
                     fhir_id: self.next_fhir_id(),
                 };
@@ -1295,14 +1285,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     .implicit_param_into_refine_arg(*ident, *node_id)
                     .unwrap())
             }
-            surface::RefineArg::Expr(expr) => {
-                let inner = self.genv().alloc(self.desugar_expr(expr)?);
-                Ok(fhir::Expr {
-                    kind: fhir::ExprKind::RefineArgExpr(inner),
-                    fhir_id: self.next_fhir_id(),
-                    span: expr.span,
-                })
-            }
+            surface::RefineArg::Expr(expr) => self.desugar_expr(expr),
             surface::RefineArg::Abs(params, body, span, _) => {
                 let body = self.genv().alloc(self.desugar_expr(body)?);
                 let params = self.desugar_refine_params(params);
@@ -1327,15 +1310,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             fhir_id: self.next_fhir_id(),
             span: ident.span,
         };
-        let inner = self.genv().alloc(fhir::Expr {
+        Some(fhir::Expr {
             kind: fhir::ExprKind::Var(path, Some(kind)),
             span: ident.span,
             fhir_id: self.next_fhir_id(),
-        });
-        Some(fhir::Expr {
-            kind: fhir::ExprKind::RefineArgExpr(inner),
-            fhir_id: self.next_fhir_id(),
-            span: ident.span,
         })
     }
 

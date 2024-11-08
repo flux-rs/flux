@@ -477,9 +477,6 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_expr(e2);
             vis.visit_expr(e3);
         }
-        ExprKind::RefineArgExpr(expr) => {
-            vis.visit_expr(expr);
-        }
         ExprKind::Abs(refine_params, body) => {
             walk_list!(vis, visit_refine_param, refine_params);
             vis.visit_expr(body);
