@@ -112,7 +112,7 @@ impl TypeFolder for &Holes {
     fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
         if let rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
             self.sorts
-                .get(&vid)
+                .get(vid)
                 .cloned()
                 .unwrap_or_else(|| bug!("unfilled sort hole {vid:?}"))
         } else {
@@ -145,7 +145,7 @@ impl TypeFolder for &Holes {
     fn fold_region(&mut self, r: &rty::Region) -> rty::Region {
         if let rty::Region::ReVar(vid) = r {
             self.regions
-                .get(&vid)
+                .get(vid)
                 .copied()
                 .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
         } else {

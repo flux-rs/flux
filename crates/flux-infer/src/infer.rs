@@ -470,11 +470,11 @@ impl Sub {
 
         match (a.kind(), b.kind()) {
             (_, TyKind::Exists(ctor_b)) => {
-                infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, &a, &ty_b))
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, a, &ty_b))
             }
             (_, TyKind::Constr(pred_b, ty_b)) => {
                 infcx.check_pred(pred_b, self.tag());
-                self.fun_args(infcx, env, &a, ty_b)
+                self.fun_args(infcx, env, a, ty_b)
             }
             (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
                 let ty1 = env.get(path1);
@@ -613,7 +613,7 @@ impl Sub {
                     iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
                         .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
                 }
-                self.handle_opaque_type(infcx, &a, alias_ty_b)
+                self.handle_opaque_type(infcx, a, alias_ty_b)
             }
             (
                 BaseTy::Alias(AliasKind::Projection, alias_ty_a),

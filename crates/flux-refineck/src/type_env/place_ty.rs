@@ -165,7 +165,7 @@ impl PlacesTree {
             let unblocked = ty.unblocked();
             rcx.hoister(AssumeInvariants::yes(check_overflow))
                 .hoist(&unblocked)
-        })
+        });
     }
 
     fn lookup_inner<M: LookupMode>(

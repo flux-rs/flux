@@ -111,7 +111,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
             }
             fhir::ExprKind::Abs(_, body) => {
-                self.check_func_params_uses(&body, true, is_top_level_var)
+                self.check_func_params_uses(body, true, is_top_level_var);
             }
             fhir::ExprKind::Record(fields) => {
                 for field in fields {

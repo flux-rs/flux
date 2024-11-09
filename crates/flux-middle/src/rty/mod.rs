@@ -1886,7 +1886,7 @@ impl TyOrCtor {
                 && let TyKind::Indexed(bty, idx) = constr_ty.ty().kind()
                 && idx.is_nu()
             {
-                SubsetTy::new(bty.clone(), Expr::nu(), &constr_ty.pred())
+                SubsetTy::new(bty.clone(), Expr::nu(), constr_ty.pred())
             } else {
                 tracked_span_bug!()
             }
