@@ -99,10 +99,10 @@ impl rty::BaseTy {
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
             rty::BaseTy::Alias(kind, alias_ty) => {
-                // HACK(nilehmann) Refinement arguments in the alias_ty should not influence the
-                // sort but we must explicitly remove them because they can contain expression holes.
-                // If we don't remove them we would generate inference variables for them which we
-                // won't be able to solve.
+                // HACK(nilehmann) The refinement arguments in `alias_ty` should not influence the
+                // sort. However, we must explicitly remove them because they can contain expression
+                // holes. If we don't remove them, we would generate inference variables for them
+                // which we won't be able to solve.
                 let alias_ty =
                     rty::AliasTy::new(alias_ty.def_id, alias_ty.args.clone(), List::empty());
                 rty::Sort::Alias(*kind, alias_ty)

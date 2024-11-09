@@ -295,7 +295,7 @@ impl CanonicalTy {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
 
                     // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
-                    // some debug assertions fail. De assertions expect types to be unrefined so they
+                    // some debug assertions fail. The assertions expect types to be unrefined so they
                     // only check for syntactical equality. We should change those cases to handle
                     // refined types and/or ensure some canonical representation for unrefined types.
                     let pred = if idx.is_unit() {

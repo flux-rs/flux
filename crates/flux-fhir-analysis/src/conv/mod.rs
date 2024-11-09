@@ -386,7 +386,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             genv,
             phase: mode,
             // We start sorts and types from 1 to skip the trait object dummy self type.
-            // See [`rty::Ty::trait_object_dummy_self`] and [`rty::SubsetTyCtor::trait_object_dummy_self`]
+            // See [`rty::Ty::trait_object_dummy_self`]
             next_sort_index: 1,
             next_type_index: 1,
             next_region_index: 0,

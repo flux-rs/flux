@@ -1564,14 +1564,6 @@ impl RefineArgs {
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
-    /// This is the subset type version of [`Ty::trait_object_dummy_self`]
-    pub fn trait_object_dummy_self() -> Self {
-        SubsetTyCtor::bind_with_sort(
-            SubsetTy::trivial(BaseTy::Infer(TyVid::from_u32(0)), Expr::nu()),
-            Sort::Infer(SortInfer::SortVar(SortVid::from_u32(0))),
-        )
-    }
-
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }
