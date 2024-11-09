@@ -429,7 +429,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .try_collect()?;
 
         let adt_def = self.genv.adt_def(enum_id)?;
-        let idxs = self.conv_refine_arg(&mut env, &variant.ret.idx)?;
+        let idxs = self.conv_expr(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv, enum_id.resolved_id())?,
@@ -856,7 +856,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
-                let idx = self.conv_refine_arg(env, idx)?;
+                let idx = self.conv_expr(env, idx)?;
                 self.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }
@@ -936,7 +936,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         env: &mut Env,
         item_id: hir::ItemId,
         lifetimes: &[fhir::GenericArg],
-        reft_args: &[fhir::RefineArg],
+        reft_args: &[fhir::Expr],
     ) -> QueryResult<rty::Ty> {
         let def_id = item_id.owner_id.to_def_id();
         let generics = self.genv.generics_of(def_id)?;
@@ -964,7 +964,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         })?;
         let reft_args = reft_args
             .iter()
-            .map(|arg| self.conv_refine_arg(env, arg))
+            .map(|arg| self.conv_expr(env, arg))
             .try_collect()?;
         let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
         Ok(rty::BaseTy::opaque(alias_ty).to_ty())
@@ -1369,7 +1369,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 let refine_args = path
                     .refine
                     .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .map(|expr| self.conv_expr(env, expr))
                     .try_collect_vec()?;
                 if P::EXPAND_TYPE_ALIASES {
                     let tcx = self.genv.tcx();
@@ -1632,32 +1632,25 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 let proj = self.results().field_proj(fhir_id);
                 rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
             }
-        };
-        Ok(self.add_coercions(expr, fhir_id))
-    }
-
-    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
-        match &arg.kind {
-            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
-            fhir::RefineArgKind::Abs(params, body) => {
+            fhir::ExprKind::Abs(params, body) => {
                 let layer = Layer::list(self.results(), 0, params);
-
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
                 let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-                let output = self.results().lambda_output(arg.fhir_id);
+                let output = self.results().lambda_output(expr.fhir_id);
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
-                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
+                rty::Expr::abs(lam)
             }
-            fhir::RefineArgKind::Record(flds) => {
-                let def_id = self.results().record_ctor(arg.fhir_id);
+            fhir::ExprKind::Record(flds) => {
+                let def_id = self.results().record_ctor(expr.fhir_id);
                 let flds = flds
                     .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .map(|expr| self.conv_expr(env, expr))
                     .try_collect()?;
-                Ok(rty::Expr::adt(def_id, flds))
+                rty::Expr::adt(def_id, flds)
             }
-        }
+        };
+        Ok(self.add_coercions(expr, fhir_id))
     }
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {

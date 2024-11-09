@@ -452,7 +452,7 @@ pub struct VariantDef<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct VariantRet<'fhir> {
     pub enum_id: DefId,
-    pub idx: RefineArg<'fhir>,
+    pub idx: Expr<'fhir>,
 }
 
 #[derive(Clone, Copy)]
@@ -515,7 +515,7 @@ pub enum TyKind<'fhir> {
     /// [existential]: crate::rty::TyKind::Exists
     /// [type]: GenericParamKind::Type
     BaseTy(BaseTy<'fhir>),
-    Indexed(BaseTy<'fhir>, RefineArg<'fhir>),
+    Indexed(BaseTy<'fhir>, Expr<'fhir>),
     Exists(&'fhir [RefineParam<'fhir>], &'fhir Ty<'fhir>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
@@ -526,7 +526,7 @@ pub enum TyKind<'fhir> {
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
-    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
+    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [Expr<'fhir>], bool),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -599,34 +599,6 @@ newtype_index! {
     pub struct ItemLocalId {}
 }
 
-#[derive(Clone, Copy)]
-pub struct RefineArg<'fhir> {
-    pub kind: RefineArgKind<'fhir>,
-    pub fhir_id: FhirId,
-    pub span: Span,
-}
-
-impl<'fhir> RefineArg<'fhir> {
-    pub fn is_colon_param(&self) -> Option<ParamId> {
-        if let RefineArgKind::Expr(expr) = &self.kind
-            && let ExprKind::Var(path, Some(ParamKind::Colon)) = &expr.kind
-            && let ExprRes::Param(kind, id) = path.res
-        {
-            debug_assert_eq!(kind, ParamKind::Colon);
-            Some(id)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum RefineArgKind<'fhir> {
-    Expr(Expr<'fhir>),
-    Abs(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
-    Record(&'fhir [RefineArg<'fhir>]),
-}
-
 /// These are types of things that may be refined with indices or existentials
 #[derive(Clone, Copy)]
 pub struct BaseTy<'fhir> {
@@ -665,7 +637,7 @@ pub enum QPath<'fhir> {
 pub struct Path<'fhir> {
     pub res: Res,
     pub segments: &'fhir [PathSegment<'fhir>],
-    pub refine: &'fhir [RefineArg<'fhir>],
+    pub refine: &'fhir [Expr<'fhir>],
     pub span: Span,
 }
 
@@ -929,8 +901,8 @@ pub struct AliasReft<'fhir> {
 #[derive(Clone, Copy)]
 pub struct Expr<'fhir> {
     pub kind: ExprKind<'fhir>,
-    pub span: Span,
     pub fhir_id: FhirId,
+    pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -943,6 +915,21 @@ pub enum ExprKind<'fhir> {
     App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
+    Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    Record(&'fhir [Expr<'fhir>]),
+}
+
+impl<'fhir> Expr<'fhir> {
+    pub fn is_colon_param(&self) -> Option<ParamId> {
+        if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
+            && let ExprRes::Param(kind, id) = path.res
+        {
+            debug_assert_eq!(kind, ParamKind::Colon);
+            Some(id)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1390,28 +1377,6 @@ impl fmt::Debug for AssocItemConstraint<'_> {
     }
 }
 
-impl fmt::Debug for RefineArg<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            RefineArgKind::Expr(expr) => {
-                write!(f, "{expr:?}")
-            }
-            RefineArgKind::Abs(params, body) => {
-                write!(
-                    f,
-                    "|{}| {body:?}",
-                    params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{}: {:?}", param.name, param.sort))
-                    })
-                )
-            }
-            RefineArgKind::Record(flds) => {
-                write!(f, "{{ {:?} }}", flds.iter().format(", "))
-            }
-        }
-    }
-}
-
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{:?} as {:?}>::{}", self.qself, self.path, self.name)
@@ -1433,6 +1398,18 @@ impl fmt::Debug for Expr<'_> {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
             ExprKind::Dot(var, fld) => write!(f, "{var:?}.{fld}"),
+            ExprKind::Abs(params, body) => {
+                write!(
+                    f,
+                    "|{}| {body:?}",
+                    params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{}: {:?}", param.name, param.sort))
+                    })
+                )
+            }
+            ExprKind::Record(flds) => {
+                write!(f, "{{ {:?} }}", flds.iter().format(", "))
+            }
         }
     }
 }

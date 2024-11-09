@@ -49,21 +49,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(super) fn check_refine_arg(
-        &mut self,
-        arg: &fhir::RefineArg,
-        expected: &rty::Sort,
-    ) -> Result {
-        match &arg.kind {
-            fhir::RefineArgKind::Expr(expr) => self.check_expr(expr, expected),
-            fhir::RefineArgKind::Abs(params, body) => self.check_abs(arg, params, body, expected),
-            fhir::RefineArgKind::Record(flds) => self.check_record(arg, flds, expected),
-        }
-    }
-
     fn check_abs(
         &mut self,
-        arg: &fhir::RefineArg,
+        arg: &fhir::Expr,
         params: &[fhir::RefineParam],
         body: &fhir::Expr,
         expected: &rty::Sort,
@@ -98,8 +86,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn check_record(
         &mut self,
-        arg: &fhir::RefineArg,
-        flds: &[fhir::RefineArg],
+        arg: &fhir::Expr,
+        flds: &[fhir::Expr],
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
@@ -117,7 +105,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 .insert(arg.fhir_id, sort_def.did());
 
             izip!(flds, &sorts)
-                .map(|(arg, expected)| self.check_refine_arg(arg, expected))
+                .map(|(arg, expected)| self.check_expr(arg, expected))
                 .try_collect_exhaust()
         } else {
             Err(self.emit_err(errors::ArgCountMismatch::new(
@@ -150,6 +138,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
+            fhir::ExprKind::Abs(refine_params, body) => {
+                self.check_abs(expr, refine_params, body, expected)?
+            }
+            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
         }
         Ok(())
     }
@@ -199,6 +191,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     _ => Err(self.emit_field_not_found(&sort, *fld)),
                 }
             }
+            // (VR): Pretty sure we don't synthesize these?
+            _ => span_bug!(expr.span, "unexpected expr `{expr:?}` in synth expr"),
         }
     }
 
@@ -643,17 +637,14 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
         vis.errors.into_result()
     }
 
-    fn infer_implicit_params(&mut self, idx: &fhir::RefineArg, expected: &rty::Sort) {
+    fn infer_implicit_params(&mut self, idx: &fhir::Expr, expected: &rty::Sort) {
         match idx.kind {
-            fhir::RefineArgKind::Expr(expr) => {
-                if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
-                    let (_, id) = var.res.expect_param();
-                    let found = self.infcx.param_sort(id);
-                    self.infcx.equate(&found, expected);
-                }
+            fhir::ExprKind::Var(var, Some(_)) => {
+                let (_, id) = var.res.expect_param();
+                let found = self.infcx.param_sort(id);
+                self.infcx.equate(&found, expected);
             }
-            fhir::RefineArgKind::Abs(_, _) => {}
-            fhir::RefineArgKind::Record(flds) => {
+            fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
                     let sorts = sort_def.field_sorts(sort_args);
                     if flds.len() != sorts.len() {
@@ -677,6 +668,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
                     ));
                 }
             }
+            _ => {}
         }
     }
 }
