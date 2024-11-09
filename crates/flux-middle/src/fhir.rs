@@ -876,8 +876,6 @@ pub enum SortRes {
     },
     /// The sort of an adt (enum/struct).
     Adt(DefId),
-    /// The sort of a type alias
-    TyAlias(DefId),
 }
 
 #[derive(Clone, Copy)]
@@ -1496,7 +1494,6 @@ impl fmt::Debug for SortRes {
             }
             SortRes::User { name } => write!(f, "{name}"),
             SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
-            SortRes::TyAlias(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
         }
     }
 }

@@ -283,9 +283,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if let GenericArg::Base(ctor) = &obligation.args[0]
             && let BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
-            // check that alias_ty doesn't have escaping bound vars. Should that be guaranteed by
-            // SubsetTy?
-            let a = 0;
+            debug_assert!(!alias_ty.has_escaping_bvars());
             let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
                 self.tcx(),
                 &alias_ty.args,

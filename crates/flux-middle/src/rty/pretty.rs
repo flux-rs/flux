@@ -109,46 +109,8 @@ impl Pretty for Sort {
                     w!("({:?})", join!(", ", sorts))
                 }
             }
-            Sort::Alias(AliasKind::Weak, alias_ty) => {
-                // this is all repeating the implementation for BaseTy
-                let a = 0;
-                w!("{:?}", alias_ty.def_id)?;
-                if !alias_ty.args.is_empty() {
-                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
-                }
-                w!("::sort")
-            }
-            Sort::Alias(AliasKind::Projection, alias_ty) => {
-                let assoc_name = cx.tcx.item_name(alias_ty.def_id);
-                let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                let trait_generic_count = cx.tcx.generics_of(trait_ref).count() - 1;
-
-                let [self_ty, args @ ..] = &alias_ty.args[..] else {
-                    return w!("<alias_ty>");
-                };
-
-                w!("<{:?} as {:?}", self_ty, trait_ref)?;
-
-                let trait_generics = &args[..trait_generic_count];
-                if !trait_generics.is_empty() {
-                    w!("<{:?}>", join!(", ", trait_generics))?;
-                }
-                w!(">::{}", ^assoc_name)?;
-
-                let assoc_generics = &args[trait_generic_count..];
-                if !assoc_generics.is_empty() {
-                    w!("<{:?}>", join!(", ", assoc_generics))?;
-                }
-                w!("::sort")
-            }
-            Sort::Alias(AliasKind::Opaque, alias_ty) => {
-                w!("{:?}", alias_ty.def_id)?;
-                if !alias_ty.args.is_empty() {
-                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
-                }
-                if !alias_ty.refine_args.is_empty() {
-                    w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
-                }
+            Sort::Alias(kind, alias_ty) => {
+                fmt_alias_ty(cx, f, *kind, alias_ty)?;
                 w!("::sort")
             }
             Sort::App(ctor, sorts) => {
@@ -441,46 +403,7 @@ impl Pretty for BaseTy {
                     w!("({:?})", join!(", ", tys))
                 }
             }
-            BaseTy::Alias(AliasKind::Weak, alias_ty) => {
-                w!("{:?}", alias_ty.def_id)?;
-                if !alias_ty.args.is_empty() {
-                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
-                }
-                Ok(())
-            }
-            BaseTy::Alias(AliasKind::Projection, alias_ty) => {
-                let assoc_name = cx.tcx.item_name(alias_ty.def_id);
-                let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                let trait_generic_count = cx.tcx.generics_of(trait_ref).count() - 1;
-
-                let [self_ty, args @ ..] = &alias_ty.args[..] else {
-                    return w!("<alias_ty>");
-                };
-
-                w!("<{:?} as {:?}", self_ty, trait_ref)?;
-
-                let trait_generics = &args[..trait_generic_count];
-                if !trait_generics.is_empty() {
-                    w!("<{:?}>", join!(", ", trait_generics))?;
-                }
-                w!(">::{}", ^assoc_name)?;
-
-                let assoc_generics = &args[trait_generic_count..];
-                if !assoc_generics.is_empty() {
-                    w!("<{:?}>", join!(", ", assoc_generics))?;
-                }
-                Ok(())
-            }
-            BaseTy::Alias(AliasKind::Opaque, alias_ty) => {
-                w!("{:?}", alias_ty.def_id)?;
-                if !alias_ty.args.is_empty() {
-                    w!("<{:?}>", join!(", ", &alias_ty.args))?;
-                }
-                if !alias_ty.refine_args.is_empty() {
-                    w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
-                }
-                Ok(())
-            }
+            BaseTy::Alias(kind, alias_ty) => fmt_alias_ty(cx, f, *kind, alias_ty),
             BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!("!"),
             BaseTy::Closure(did, args, _) => {
@@ -501,6 +424,55 @@ impl Pretty for BaseTy {
             }
         }
     }
+}
+
+fn fmt_alias_ty(
+    cx: &PrettyCx,
+    f: &mut fmt::Formatter<'_>,
+    kind: AliasKind,
+    alias_ty: &AliasTy,
+) -> fmt::Result {
+    define_scoped!(cx, f);
+    match kind {
+        AliasKind::Weak => {
+            w!("{:?}", alias_ty.def_id)?;
+            if !alias_ty.args.is_empty() {
+                w!("<{:?}>", join!(", ", &alias_ty.args))?;
+            }
+        }
+        AliasKind::Projection => {
+            let assoc_name = cx.tcx.item_name(alias_ty.def_id);
+            let trait_ref = cx.tcx.parent(alias_ty.def_id);
+            let trait_generic_count = cx.tcx.generics_of(trait_ref).count() - 1;
+
+            let [self_ty, args @ ..] = &alias_ty.args[..] else {
+                return w!("<alias_ty>");
+            };
+
+            w!("<{:?} as {:?}", self_ty, trait_ref)?;
+
+            let trait_generics = &args[..trait_generic_count];
+            if !trait_generics.is_empty() {
+                w!("<{:?}>", join!(", ", trait_generics))?;
+            }
+            w!(">::{}", ^assoc_name)?;
+
+            let assoc_generics = &args[trait_generic_count..];
+            if !assoc_generics.is_empty() {
+                w!("<{:?}>", join!(", ", assoc_generics))?;
+            }
+        }
+        AliasKind::Opaque => {
+            w!("{:?}", alias_ty.def_id)?;
+            if !alias_ty.args.is_empty() {
+                w!("<{:?}>", join!(", ", &alias_ty.args))?;
+            }
+            if !alias_ty.refine_args.is_empty() {
+                w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Pretty for ValTree {

@@ -164,7 +164,6 @@ impl<'a> TypeEnv<'a> {
     /// That's it, we first get the current type `t₁` at location `ℓ` and check it is a subtype
     /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
-    ///
     /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicitly provided
     /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
@@ -194,7 +193,7 @@ impl<'a> TypeEnv<'a> {
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
                 // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
-                // to a place which requires annoying bookkepping.
+                // to a place which requires annoying bookkeping.
                 let place = self.bindings.path_to_place(path);
                 let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
                 let t2 = subst::match_regions(&t2, &rust_ty);
@@ -273,7 +272,7 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
-        self.bindings.lookup(place).unblock(rcx, check_overflow);
+        self.bindings.unblock(rcx, place, check_overflow);
     }
 
     pub(crate) fn check_goto(

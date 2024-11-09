@@ -613,7 +613,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => {
                 Some(fhir::SortRes::Adt(def_id))
             }
-            fhir::Res::Def(DefKind::TyAlias, def_id) => Some(fhir::SortRes::TyAlias(def_id)),
             fhir::Res::Def(DefKind::TyParam, def_id) => Some(fhir::SortRes::TyParam(def_id)),
             fhir::Res::SelfTyParam { trait_ } => {
                 Some(fhir::SortRes::SelfParam { trait_id: trait_ })

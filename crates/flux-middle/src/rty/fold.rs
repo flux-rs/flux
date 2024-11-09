@@ -257,7 +257,7 @@ pub trait TypeFoldable: TypeVisitable {
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
     /// all the *layers* of [bound] variables at the point the hole was found. Each layer corresponds
-    /// to the list of sorts bound at that level. The list is ordered from outermost to innermost
+    /// to the list of bound variables at that level. The list is ordered from outermost to innermost
     /// binder, i.e., the last element is the binder closest to the hole.
     ///
     /// [holes]: ExprKind::Hole

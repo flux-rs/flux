@@ -446,8 +446,7 @@ struct Sub {
     span: Span,
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
-    /// directly here. The implementation is a really messy and we may be missing some obligations.
-    /// We should revisit at some point.
+    /// directly here. The implementation is really messy and we may be missing some obligations.
     obligations: Vec<rty::Clause>,
 }
 

@@ -501,8 +501,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
 
             Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(self.genv)?))
         } else {
-            // this error is bad
-            let a = 0;
             let ctor = self
                 .conv_ty(&mut env, &ty_alias.ty)?
                 .shallow_canonicalize()
@@ -2080,9 +2078,6 @@ fn conv_sort_path(
                 Err(genv.sess().emit_err(err))?;
             }
             rty::SortCtor::Adt(sort_def)
-        }
-        fhir::SortRes::TyAlias(def_id) => {
-            todo!()
         }
     };
     let args = path
