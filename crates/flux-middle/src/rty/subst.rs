@@ -2,7 +2,6 @@ use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::{bug, tracked_span_bug};
 use flux_rustc_bridge::ty;
-use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 
@@ -151,7 +150,7 @@ impl RegionSubst {
             ) => {
                 debug_assert_eq!(proj_a.def_id, proj_b.def_id);
                 self.infer_from_generic_args(&proj_a.args, &proj_b.args);
-                self.infer_from_ty(&proj_a.term, &proj_b.term);
+                self.infer_from_bty(proj_a.term.as_bty_skipping_binder(), &proj_b.term);
             }
             _ => {}
         }
@@ -335,7 +334,7 @@ pub trait GenericsSubstDelegate {
 
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, Self::Error>;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
@@ -366,9 +365,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         }
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(ctor)) => ctor.clone(),
+            Some(GenericArg::Base(ctor)) => Ok(ctor.clone()),
             Some(arg) => {
                 tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
             }
@@ -437,7 +436,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, E> {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -451,23 +450,6 @@ where
 
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         bug!("unexpected param_const {param_const:?}");
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
-
-impl ConstGenericArgs {
-    pub fn empty() -> Self {
-        Self(FxHashMap::default())
-    }
-
-    pub fn insert(&mut self, index: u32, expr: Expr) {
-        self.0.insert(index, expr);
-    }
-
-    pub fn lookup(&self, index: u32) -> Expr {
-        self.0.get(&index).unwrap().clone()
     }
 }
 
@@ -502,7 +484,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
                 let idx = idx.try_fold_with(self)?;
                 Ok(self
                     .delegate
-                    .ctor_for_param(*param_ty)
+                    .ctor_for_param(*param_ty)?
                     .replace_bound_reft(&idx)
                     .to_ty())
             }
@@ -512,11 +494,13 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, D::Error> {
         if let BaseTy::Param(param_ty) = &sty.bty {
+            let idx = sty.idx.try_fold_with(self)?;
+            let pred = sty.pred.try_fold_with(self)?;
             Ok(self
                 .delegate
-                .ctor_for_param(*param_ty)
-                .replace_bound_reft(&sty.idx)
-                .strengthen(&sty.pred))
+                .ctor_for_param(*param_ty)?
+                .replace_bound_reft(&idx)
+                .strengthen(pred))
         } else {
             sty.try_super_fold_with(self)
         }

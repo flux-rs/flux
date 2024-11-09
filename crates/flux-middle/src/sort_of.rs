@@ -16,7 +16,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let index = self.def_id_to_param_index(def_id);
         let param = self.generics_of(parent)?.param_at(index as usize, self)?;
         let sort = match &param.kind {
-            rty::GenericParamDefKind::Base => {
+            rty::GenericParamDefKind::Base { .. } => {
                 Some(rty::Sort::Param(rty::ParamTy { index, name: param.name }))
             }
             rty::GenericParamDefKind::Const { .. } => {
@@ -73,7 +73,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn normalize_weak_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
         match self.def_kind(alias_ty.def_id) {
             DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
-            DefKind::Struct | DefKind::Enum | DefKind::TyAlias => {
+            DefKind::TyAlias => {
+                Ok(self
+                    .type_of(alias_ty.def_id)?
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .expect_ctor()
+                    .sort())
+            }
+            DefKind::Struct | DefKind::Enum => {
                 Ok(self
                     .adt_sort_def_of(alias_ty.def_id)?
                     .to_sort(&alias_ty.args))
@@ -91,7 +98,15 @@ impl rty::BaseTy {
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
-            rty::BaseTy::Alias(alias_ty) => rty::Sort::Alias(alias_ty.clone()),
+            rty::BaseTy::Alias(kind, alias_ty) => {
+                // HACK(nilehmann) The refinement arguments in `alias_ty` should not influence the
+                // sort. However, we must explicitly remove them because they can contain expression
+                // holes. If we don't remove them, we would generate inference variables for them
+                // which we won't be able to solve.
+                let alias_ty =
+                    rty::AliasTy::new(alias_ty.def_id, alias_ty.args.clone(), List::empty());
+                rty::Sort::Alias(*kind, alias_ty)
+            }
             rty::BaseTy::Float(_)
             | rty::BaseTy::Char
             | rty::BaseTy::RawPtr(..)

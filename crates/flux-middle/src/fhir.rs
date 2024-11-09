@@ -40,7 +40,7 @@ use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{global_env::GlobalEnv, MaybeExternId};
+use crate::MaybeExternId;
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -124,7 +124,6 @@ impl From<bool> for CheckOverflow {
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
     pub refinement_params: &'fhir [RefineParam<'fhir>],
-    pub self_kind: Option<GenericParamKind<'fhir>>,
     pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
 }
 
@@ -138,7 +137,6 @@ pub struct GenericParam<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
-    Base,
     Lifetime,
     Const { ty: Ty<'fhir>, is_host_effect: bool },
 }
@@ -398,8 +396,7 @@ impl<'fhir> FluxItems<'fhir> {
 
 #[derive(Debug)]
 pub struct TyAlias<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
-    pub params: &'fhir [RefineParam<'fhir>],
+    pub index: Option<RefineParam<'fhir>>,
     pub ty: Ty<'fhir>,
     pub span: Span,
     /// Whether this alias was [lifted] from a `hir` alias
@@ -849,7 +846,7 @@ pub enum SortRes {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
-    /// The sort of an adt (enum/struct) or type alias.
+    /// The sort of an adt (enum/struct).
     Adt(DefId),
 }
 
@@ -1075,7 +1072,7 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
+/// Information about the refinement parameters associated with an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
     /// When a `#[flux::refined_by(..)]` annotation mentions generic type parameters we implicitly
@@ -1123,18 +1120,6 @@ impl<'fhir> Generics<'fhir> {
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
     }
-
-    pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
-        let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
-            let kind = if refined_by.is_base_generic(param.def_id.resolved_id()) {
-                GenericParamKind::Base
-            } else {
-                param.kind
-            };
-            GenericParam { kind, ..*param }
-        }));
-        Generics { params, ..self }
-    }
 }
 
 impl<'fhir> RefinedBy<'fhir> {
@@ -1144,10 +1129,6 @@ impl<'fhir> RefinedBy<'fhir> {
 
     pub fn trivial() -> Self {
         RefinedBy { sort_params: Default::default(), fields: Default::default() }
-    }
-
-    fn is_base_generic(&self, def_id: DefId) -> bool {
-        self.sort_params.contains(&def_id)
     }
 }
 
@@ -1481,15 +1462,15 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{}", n),
-            SortRes::TyParam(def_id) => write!(f, "sortof({})", def_id_to_string(*def_id)),
+            SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
-                write!(f, "sortof({}::Self)", def_id_to_string(*trait_id))
+                write!(f, "{}::Self::sort", def_id_to_string(*trait_id))
             }
             SortRes::SelfAlias { alias_to } => {
-                write!(f, "sortof({}::Self)", def_id_to_string(*alias_to))
+                write!(f, "{}::Self::sort", def_id_to_string(*alias_to))
             }
             SortRes::User { name } => write!(f, "{name}"),
-            SortRes::Adt(def_id) => write!(f, "{}::Sort", def_id_to_string(*def_id)),
+            SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
         }
     }
 }

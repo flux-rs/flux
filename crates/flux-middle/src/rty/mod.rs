@@ -39,6 +39,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
+use refining::Refiner;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
@@ -63,7 +64,7 @@ use crate::{
     rty::subst::SortSubst,
 };
 
-/// The definition of the data sort automatically generated for a struct, enum or type alias.
+/// The definition of the data sort automatically generated for a struct or enum.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
@@ -166,9 +167,10 @@ impl Generics {
             .iter()
             .filter(|param| {
                 match param.kind {
-                    GenericParamDefKind::Type { has_default } => has_default,
-                    GenericParamDefKind::Const { has_default } => has_default,
-                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                    GenericParamDefKind::Type { has_default }
+                    | GenericParamDefKind::Const { has_default }
+                    | GenericParamDefKind::Base { has_default } => has_default,
+                    GenericParamDefKind::Lifetime => false,
                 }
             })
             .count()
@@ -224,7 +226,7 @@ pub struct GenericParamDef {
 #[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
-    Base,
+    Base { has_default: bool },
     Lifetime,
     Const { has_default: bool },
 }
@@ -341,7 +343,7 @@ impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
                     rustc_middle::ty::ExistentialProjection {
                         def_id: projection.def_id,
                         args: projection.args.to_rustc(tcx),
-                        term: projection.term.to_rustc(tcx).into(),
+                        term: projection.term.skip_binder_ref().to_rustc(tcx).into(),
                     },
                 )
             }
@@ -374,7 +376,7 @@ impl PolyExistentialTraitRef {
 pub struct ExistentialProjection {
     pub def_id: DefId,
     pub args: GenericArgs,
-    pub term: Ty,
+    pub term: SubsetTyCtor,
 }
 
 #[derive(
@@ -382,7 +384,7 @@ pub struct ExistentialProjection {
 )]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
-    pub term: Ty,
+    pub term: SubsetTyCtor,
 }
 
 #[derive(
@@ -622,7 +624,7 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
@@ -970,19 +972,6 @@ impl Ty {
         Ty::infer(TyVid::from_u32(0))
     }
 
-    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
-        TyKind::Alias(kind, alias_ty).intern()
-    }
-
-    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs, refine_args: RefineArgs) -> Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
-            .intern()
-    }
-
-    pub fn projection(alias_ty: AliasTy) -> Ty {
-        Self::alias(AliasKind::Projection, alias_ty)
-    }
-
     pub fn dynamic(preds: impl Into<List<Binder<ExistentialPredicate>>>, region: Region) -> Ty {
         BaseTy::Dynamic(preds.into(), region).to_ty()
     }
@@ -1089,8 +1078,7 @@ impl Ty {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
 
         let generics = genv.generics_of(def_id)?;
-        let alloc_ty = genv.refine_default(
-            &generics,
+        let alloc_ty = Refiner::default(genv, def_id)?.refine_ty(
             &genv
                 .lower_type_of(generics.own_params[1].def_id)?
                 .skip_binder(),
@@ -1235,9 +1223,6 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Exists(ty) => ty.skip_binder_ref().to_rustc(tcx),
             TyKind::Constr(_, ty) => ty.to_rustc(tcx),
             TyKind::Param(pty) => pty.to_ty(tcx),
-            TyKind::Alias(kind, alias_ty) => {
-                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
-            }
             TyKind::StrgRef(re, _, ty) => {
                 rustc_middle::ty::Ty::new_ref(
                     tcx,
@@ -1276,7 +1261,6 @@ pub enum TyKind {
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
-    Alias(AliasKind, AliasTy),
     /// A type that needs to be inferred by matching the signature against a rust signature.
     /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
     /// the final signature.
@@ -1304,7 +1288,7 @@ pub enum BaseTy {
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List<Ty>),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
@@ -1315,6 +1299,14 @@ pub enum BaseTy {
 }
 
 impl BaseTy {
+    pub fn opaque(alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(AliasKind::Opaque, alias_ty)
+    }
+
+    pub fn projection(alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(AliasKind::Projection, alias_ty)
+    }
+
     pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
         BaseTy::Adt(adt_def, args.into())
     }
@@ -1459,6 +1451,11 @@ impl BaseTy {
         }
     }
 
+    pub fn to_subset_ty_ctor(&self) -> SubsetTyCtor {
+        let sort = self.sort();
+        Binder::bind_with_sort(SubsetTy::trivial(self.clone(), Expr::nu()), sort)
+    }
+
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg]) {
         if let BaseTy::Adt(adt_def, args) = self {
@@ -1502,7 +1499,9 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
-            BaseTy::Alias(alias_ty) => ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
+            BaseTy::Alias(kind, alias_ty) => {
+                ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
             BaseTy::Array(ty, n) => {
                 let ty = ty.to_rustc(tcx);
                 let n = n.to_rustc(tcx);
@@ -1565,14 +1564,6 @@ impl RefineArgs {
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
-    /// This is the subset type version of [`Ty::trait_object_dummy_self`]
-    pub fn trait_object_dummy_self() -> Self {
-        SubsetTyCtor::bind_with_sort(
-            SubsetTy::trivial(BaseTy::Infer(TyVid::from_u32(0)), Expr::nu()),
-            Sort::Infer(SortInfer::SortVar(SortVid::from_u32(0))),
-        )
-    }
-
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }
@@ -1586,6 +1577,10 @@ impl SubsetTyCtor {
         } else {
             Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }
+    }
+
+    pub fn to_ty_ctor(&self) -> TyCtor {
+        self.as_ref().map(SubsetTy::to_ty)
     }
 }
 
@@ -1660,10 +1655,11 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
+        let pred = Expr::and(this.pred, pred).simplify();
+        Self { bty: this.bty, idx: this.idx, pred }
     }
 
-    fn to_ty(&self) -> Ty {
+    pub fn to_ty(&self) -> Ty {
         let bty = self.bty.clone();
         if self.pred.is_trivially_true() {
             Ty::indexed(bty, &self.idx)
@@ -1712,7 +1708,7 @@ impl GenericArg {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Ty(Ty::param(param_ty))
             }
-            GenericParamDefKind::Base => {
+            GenericParamDefKind::Base { .. } => {
                 // λv. T[v]
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Base(Binder::bind_with_sort(
@@ -1775,6 +1771,15 @@ impl GenericArg {
     }
 }
 
+impl From<TyOrBase> for GenericArg {
+    fn from(v: TyOrBase) -> Self {
+        match v {
+            TyOrBase::Ty(ty) => GenericArg::Ty(ty),
+            TyOrBase::Base(ctor) => GenericArg::Base(ctor),
+        }
+    }
+}
+
 impl<'tcx> ToRustc<'tcx> for GenericArg {
     type T = rustc_middle::ty::GenericArg<'tcx>;
 
@@ -1819,6 +1824,81 @@ impl GenericArgs {
             .chain(self.iter().skip(defs.count()))
             .cloned()
             .collect()
+    }
+}
+
+#[derive(Debug)]
+pub enum TyOrBase {
+    Ty(Ty),
+    Base(SubsetTyCtor),
+}
+
+impl TyOrBase {
+    pub fn into_ty(self) -> Ty {
+        match self {
+            TyOrBase::Ty(ty) => ty,
+            TyOrBase::Base(ctor) => ctor.to_ty(),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(self) -> SubsetTyCtor {
+        match self {
+            TyOrBase::Base(ctor) => ctor,
+            TyOrBase::Ty(_) => tracked_span_bug!("expected `TyOrBase::Base`"),
+        }
+    }
+
+    pub fn as_base(self) -> Option<SubsetTyCtor> {
+        match self {
+            TyOrBase::Base(ctor) => Some(ctor),
+            TyOrBase::Ty(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+pub enum TyOrCtor {
+    Ty(Ty),
+    Ctor(TyCtor),
+}
+
+impl TyOrCtor {
+    #[track_caller]
+    pub fn expect_ctor(self) -> TyCtor {
+        match self {
+            TyOrCtor::Ctor(ctor) => ctor,
+            TyOrCtor::Ty(_) => tracked_span_bug!("expected `TyOrCtor::Ctor`"),
+        }
+    }
+
+    pub fn expect_subset_ty_ctor(self) -> SubsetTyCtor {
+        self.expect_ctor().map(|ty| {
+            if let canonicalize::CanonicalTy::Constr(constr_ty) = ty.shallow_canonicalize()
+                && let TyKind::Indexed(bty, idx) = constr_ty.ty().kind()
+                && idx.is_nu()
+            {
+                SubsetTy::new(bty.clone(), Expr::nu(), constr_ty.pred())
+            } else {
+                tracked_span_bug!()
+            }
+        })
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        match self {
+            TyOrCtor::Ctor(ctor) => ctor.to_ty(),
+            TyOrCtor::Ty(ty) => ty.clone(),
+        }
+    }
+}
+
+impl From<TyOrBase> for TyOrCtor {
+    fn from(v: TyOrBase) -> Self {
+        match v {
+            TyOrBase::Ty(ty) => TyOrCtor::Ty(ty),
+            TyOrBase::Base(ctor) => TyOrCtor::Ctor(ctor.to_ty_ctor()),
+        }
     }
 }
 

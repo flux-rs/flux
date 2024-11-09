@@ -111,7 +111,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
             }
             fhir::ExprKind::Abs(_, body) => {
-                self.check_func_params_uses(&body, true, is_top_level_var)
+                self.check_func_params_uses(body, true, is_top_level_var);
             }
             fhir::ExprKind::Record(fields) => {
                 for field in fields {
@@ -147,7 +147,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
 
     fn visit_ty_alias(&mut self, ty_alias: &fhir::TyAlias<'genv>) {
         fhir::visit::walk_ty_alias(self, ty_alias);
-        self.check_params_are_value_determined(ty_alias.params);
+        self.check_params_are_value_determined(ty_alias.index.as_slice());
     }
 
     fn visit_struct_def(&mut self, struct_def: &fhir::StructDef<'genv>) {

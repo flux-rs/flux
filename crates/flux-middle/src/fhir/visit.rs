@@ -211,7 +211,9 @@ pub fn walk_variant_ret<'v, V: Visitor<'v>>(vis: &mut V, ret: &VariantRet<'v>) {
 }
 
 pub fn walk_ty_alias<'v, V: Visitor<'v>>(vis: &mut V, ty_alias: &TyAlias<'v>) {
-    walk_list!(vis, visit_refine_param, ty_alias.params);
+    if let Some(index) = &ty_alias.index {
+        vis.visit_refine_param(index);
+    }
     vis.visit_ty(&ty_alias.ty);
 }
 

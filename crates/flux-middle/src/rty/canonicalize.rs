@@ -6,13 +6,12 @@
 //! not permitted to hoist an existential out of a generic argument. For example, in `Vec<∃v. i32[v]>`
 //! the existential inside the `Vec` cannot be hoisted out.
 //!
-//! However, some type constructors are more lenient with respect to hoisting. Consider the tuple
+//! However, some type constructors are more "lenient" with respect to hoisting. Consider the tuple
 //! `(∃a. i32[a], ∃b. i32[b])`. Hoisting the existentials results in `∃a,b. (i32[a], i32[b])` which
 //! is an equivalent type (in the sense that subtyping holds both ways). The same applies to shared
 //! references: `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We refer to this class of type
 //! constructors as *transparent*. Hoisting existential out of transparent type constructors is useful
-//! as it allows the logical information to be extracted from the type. We try to eagerly do so as
-//! much as possible.
+//! as it allows the logical information to be extracted from the type.
 //!
 //! And important case is mutable references. In some situations, it is sound to hoist out of mutable
 //! references. For example, if we have a variable in the environment of type `&mut ∃v. T[v]`, it is
@@ -32,15 +31,15 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 use flux_arc_interner::List;
+use flux_macros::{TypeFoldable, TypeVisitable};
 use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
-    Ty, TyCtor, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
+    TyKind, TyOrBase,
 };
-use crate::rty::fold::TypeVisitable;
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -54,6 +53,7 @@ pub struct Hoister<D> {
     in_downcast: bool,
     in_mut_refs: bool,
     in_shr_refs: bool,
+    in_strg_refs: bool,
     in_tuples: bool,
     existentials: bool,
 }
@@ -70,6 +70,7 @@ impl<D> Hoister<D> {
             in_tuples: false,
             in_shr_refs: false,
             in_mut_refs: false,
+            in_strg_refs: false,
             in_boxes: false,
             in_downcast: false,
             existentials: true,
@@ -83,6 +84,11 @@ impl<D> Hoister<D> {
 
     pub fn hoist_inside_mut_refs(mut self, mut_refs: bool) -> Self {
         self.in_mut_refs = mut_refs;
+        self
+    }
+
+    pub fn hoist_inside_strg_refs(mut self, strg_refs: bool) -> Self {
+        self.in_strg_refs = strg_refs;
         self
     }
 
@@ -111,6 +117,7 @@ impl<D> Hoister<D> {
             .hoist_inside_downcast(true)
             .hoist_inside_mut_refs(false)
             .hoist_inside_shr_refs(true)
+            .hoist_inside_strg_refs(true)
             .hoist_inside_tuples(true)
     }
 
@@ -119,6 +126,7 @@ impl<D> Hoister<D> {
             .hoist_inside_downcast(false)
             .hoist_inside_mut_refs(false)
             .hoist_inside_shr_refs(false)
+            .hoist_inside_strg_refs(false)
             .hoist_inside_tuples(false)
     }
 }
@@ -134,13 +142,30 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
             TyKind::Exists(ty_ctor) if self.existentials => {
-                self.delegate.hoist_exists(ty_ctor).fold_with(self)
+                // Avoid hoisting useless parameters for unit sorts. This is important for
+                // canonicalization because we assume mutable references won't be under a
+                // binder after we canonicalize them.
+                // FIXME(nilehmann) this same logic is repeated in a couple of places, e.g.,
+                // TyCtor::to_ty
+                match &ty_ctor.vars()[..] {
+                    [BoundVariableKind::Refine(sort, ..)] => {
+                        if sort.is_unit() {
+                            ty_ctor.replace_bound_reft(&Expr::unit())
+                        } else if let Some(def_id) = sort.is_unit_adt() {
+                            ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id))
+                        } else {
+                            self.delegate.hoist_exists(ty_ctor)
+                        }
+                    }
+                    _ => self.delegate.hoist_exists(ty_ctor),
+                }
+                .fold_with(self)
             }
             TyKind::Constr(pred, ty) => {
                 self.delegate.hoist_constr(pred.clone());
                 ty.fold_with(self)
             }
-            TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
+            TyKind::StrgRef(..) if self.in_strg_refs => ty.super_fold_with(self),
             TyKind::Downcast(..) if self.in_downcast => ty.super_fold_with(self),
             _ => ty.clone(),
         }
@@ -200,21 +225,22 @@ impl Ty {
     /// Hoist existentials and predicates inside the type stopping when encountering the first
     /// type constructor.
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
-        debug_assert!(!self.has_escaping_bvars());
         let mut delegate = LocalHoister::default();
-        let ty = Hoister::with_delegate(&mut delegate).hoist(self);
+        let ty = self.shift_in_escaping(1);
+        let ty = Hoister::with_delegate(&mut delegate).hoist(&ty);
         let constr_ty = delegate.bind(|_, preds| {
             let pred = Expr::and_from_iter(preds);
             CanonicalConstrTy { ty, pred }
         });
         if constr_ty.vars().is_empty() {
-            CanonicalTy::Constr(constr_ty.skip_binder())
+            CanonicalTy::Constr(constr_ty.skip_binder().shift_out_escaping(1))
         } else {
             CanonicalTy::Exists(constr_ty)
         }
     }
 }
 
+#[derive(TypeVisitable, TypeFoldable)]
 pub struct CanonicalConstrTy {
     /// Guaranteed to not have any (shallow) [existential] or [constraint] types
     ///
@@ -231,6 +257,10 @@ impl CanonicalConstrTy {
 
     pub fn pred(&self) -> Expr {
         self.pred.clone()
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        Ty::constr(self.pred(), self.ty())
     }
 }
 
@@ -249,33 +279,48 @@ pub enum CanonicalTy {
 }
 
 impl CanonicalTy {
-    pub fn to_subset_ty_ctor(&self) -> Option<SubsetTyCtor> {
+    pub fn to_ty(&self) -> Ty {
         match self {
-            CanonicalTy::Constr(constr) => {
-                if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
+            CanonicalTy::Constr(constr_ty) => constr_ty.to_ty(),
+            CanonicalTy::Exists(poly_constr_ty) => {
+                Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty))
+            }
+        }
+    }
+
+    pub fn as_ty_or_base(&self) -> TyOrBase {
+        match self {
+            CanonicalTy::Constr(constr_ty) => {
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+
+                    // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
+                    // some debug assertions fail. The assertions expect types to be unrefined so they
+                    // only check for syntactical equality. We should change those cases to handle
+                    // refined types and/or ensure some canonical representation for unrefined types.
+                    let pred = if idx.is_unit() {
+                        constr_ty.pred.clone()
+                    } else {
+                        Expr::and(&constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(1)))
+                    };
                     let sort = bty.sort();
-                    let constr = SubsetTy::new(
-                        bty.clone(),
-                        Expr::nu(),
-                        Expr::and(&constr.pred, Expr::eq(Expr::nu(), idx)),
-                    );
-                    Some(Binder::bind_with_sort(constr, sort))
+                    let constr = SubsetTy::new(bty.shift_in_escaping(1), Expr::nu(), pred);
+                    TyOrBase::Base(Binder::bind_with_sort(constr, sort))
                 } else {
-                    None
+                    TyOrBase::Ty(self.to_ty())
                 }
             }
-            CanonicalTy::Exists(poly_constr) => {
-                let constr = poly_constr.as_ref().skip_binder();
+            CanonicalTy::Exists(poly_constr_ty) => {
+                let constr = poly_constr_ty.as_ref().skip_binder();
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind()
                     && idx.is_nu()
                 {
-                    let ctor = poly_constr
+                    let ctor = poly_constr_ty
                         .as_ref()
                         .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), &constr.pred));
-                    Some(ctor)
+                    TyOrBase::Base(ctor)
                 } else {
-                    None
+                    TyOrBase::Ty(self.to_ty())
                 }
             }
         }

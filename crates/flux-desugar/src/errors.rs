@@ -1,7 +1,7 @@
 use flux_errors::E0999;
 use flux_macros::Diagnostic;
 use flux_syntax::surface;
-use rustc_span::{symbol::Ident, Span, Symbol};
+use rustc_span::{Span, Symbol};
 
 #[derive(Diagnostic)]
 #[diag(desugar_int_too_large, code = E0999)]
@@ -59,20 +59,6 @@ pub(super) struct InvalidNumericSuffix {
 impl InvalidNumericSuffix {
     pub(super) fn new(span: Span, suffix: Symbol) -> Self {
         Self { span, suffix }
-    }
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_unresolved_generic_param, code = E0999)]
-#[note]
-pub(super) struct UnresolvedGenericParam {
-    #[primary_span]
-    span: Span,
-}
-
-impl UnresolvedGenericParam {
-    pub(super) fn new(param: Ident) -> Self {
-        Self { span: param.span }
     }
 }
 

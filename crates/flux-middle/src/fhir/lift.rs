@@ -90,7 +90,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             self.lift_where_predicate(pred)
         })?;
 
-        Ok(fhir::Generics { params, self_kind: None, refinement_params: &[], predicates })
+        Ok(fhir::Generics { params, refinement_params: &[], predicates })
     }
 
     fn lift_where_predicate(
@@ -212,15 +212,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         };
 
         let generics = self.lift_generics()?;
-        let refined_by = self.lift_refined_by();
         let ty = self.lift_ty(ty)?;
-        let ty_alias = fhir::TyAlias {
-            refined_by: self.genv.alloc(refined_by),
-            params: &[],
-            ty,
-            span: item.span,
-            lifted: true,
-        };
+        let ty_alias = fhir::TyAlias { index: None, ty, span: item.span, lifted: true };
         Ok(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner })
     }
 

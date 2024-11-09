@@ -14,9 +14,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Generics, Int, IntTy, Mutability, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, PolyFnSig, PtrKind,
+        Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -63,8 +62,6 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     /// [`LocalDefId`] of the function-like item being checked.
     def_id: LocalDefId,
-    /// [`Generics`] of the function being checked.
-    generics: Generics,
     inherited: Inherited<'ck, M>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
@@ -388,7 +385,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
-        let generics = genv.generics_of(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
@@ -408,7 +404,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut ck = Checker {
             def_id,
             genv,
-            generics,
             inherited,
             body: &body,
             resume_ty,
@@ -603,7 +598,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
-                            &self.generics,
+                            self.def_id.to_def_id(),
                             *resolved_id,
                             &resolved_args.lowered,
                         )
@@ -757,31 +752,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
-            let (formal, pred) = formal.unconstr();
-            at.check_pred(&pred, ConstrReason::Call);
-            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
-            match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
-                    let ty1 = env.get(path1);
-                    at.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                    at.subtyping(&ty1, ty2, ConstrReason::Call)
-                        .with_span(span)?;
-                }
-                (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
-                    env.ptr_to_ref(
-                        &mut at,
-                        ConstrReason::Call,
-                        *re,
-                        path,
-                        PtrToRefBound::Ty(bound.clone()),
-                    )
-                    .with_span(span)?;
-                }
-                _ => {
-                    at.subtyping(&actual, &formal, ConstrReason::Call)
-                        .with_span(span)?;
-                }
-            }
+            at.fun_arg_subtyping(env, &actual, formal, ConstrReason::Call)
+                .with_span(span)?;
         }
 
         let clauses = match callee_def_id {
@@ -798,7 +770,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         // Replace evars
-        let evars_sol = infcx.pop_scope().with_span(span)?;
+        // let evars_sol = infcx.pop_scope().with_span(span)?;
+        let evars_sol = infcx.pop_scope().unwrap();
         env.replace_evars(&evars_sol);
         infcx.replace_evars(&evars_sol);
 
@@ -1074,11 +1047,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::RawPtr(mutbl, place) => {
                 // ignore any refinements on the type stored at place
                 let ty = self
-                    .genv
-                    .refine_default(
-                        &self.generics,
-                        &env.lookup_rust_ty(genv, place).with_span(stmt_span)?,
-                    )
+                    .refine_default(&env.lookup_rust_ty(genv, place).with_span(stmt_span)?)
                     .with_span(stmt_span)?;
                 Ok(BaseTy::RawPtr(ty, *mutbl).to_ty())
             }
@@ -1114,16 +1083,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_poly_fn_sig(*field_idx);
 
-                let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
-                    .with_span(stmt_span)?;
+                let args =
+                    instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
+                        .with_span(stmt_span)?;
                 self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(infcx, env, stmt_span, operands)?;
-                let arr_ty = self
-                    .genv
-                    .refine_with_holes(&self.generics, arr_ty)
-                    .with_span(stmt_span)?;
+                let arr_ty = self.refine_with_holes(arr_ty).with_span(stmt_span)?;
                 self.check_mk_array(infcx, env, stmt_span, &args, arr_ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
@@ -1154,10 +1121,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
-                let resume_ty = self
-                    .genv
-                    .refine_default(&self.generics, args.resume_ty())
-                    .with_span(stmt_span)?;
+                let resume_ty = self.refine_default(args.resume_ty()).with_span(stmt_span)?;
                 let upvar_tys = self.check_operands(infcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
             }
@@ -1338,9 +1302,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
             | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance => {
-                self.genv
-                    .refine_default(&self.generics, to)
-                    .with_span(self.body.span())?
+                self.refine_default(to).with_span(self.body.span())?
             }
         };
         Ok(ty)
@@ -1380,10 +1342,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
             && let ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
-            return self
-                .genv
-                .refine_default(&self.generics, dst)
-                .with_span(self.body.span());
+            return self.refine_default(dst).with_span(self.body.span());
         }
 
         // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
@@ -1467,16 +1426,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Char => Ok(Ty::char()),
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
-                let ty_ctor = Refiner::default(self.genv, &self.generics)
-                    .refine_ty_ctor(ty)
-                    .with_span(self.body.span())?;
-                Ok(ty_ctor.replace_bound_reft(&idx))
+                let ctor = self
+                    .default_refiner()
+                    .with_span(self.body.span())?
+                    .refine_ty_or_base(ty)
+                    .with_span(self.body.span())?
+                    .expect_base();
+                Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
-            Constant::Opaque(ty) => {
-                self.genv
-                    .refine_default(&self.generics, ty)
-                    .with_span(self.body.span())
-            }
+            Constant::Opaque(ty) => self.refine_default(ty).with_span(self.body.span()),
         }
     }
 
@@ -1541,18 +1499,29 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_overflow(&self) -> bool {
         self.config().check_overflow
     }
+
+    fn default_refiner(&self) -> QueryResult<Refiner<'genv, 'tcx>> {
+        Refiner::default(self.genv, self.def_id.to_def_id())
+    }
+
+    fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+        self.default_refiner()?.refine_ty(ty)
+    }
+
+    fn refine_with_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+        Refiner::with_holes(self.genv, self.def_id.to_def_id())?.refine_ty(ty)
+    }
 }
 
 fn instantiate_args_for_fun_call(
     genv: GlobalEnv,
-    caller_generics: &rty::Generics,
+    caller_id: DefId,
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    let callee_generics = genv.generics_of(callee_id)?;
-    let hole_refiner = Refiner::new(genv, caller_generics, |bty| {
+    let hole_refiner = Refiner::new(genv, caller_id, |bty| {
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
         let constr = if !sort.is_unit() {
@@ -1561,9 +1530,10 @@ fn instantiate_args_for_fun_call(
             rty::SubsetTy::trivial(bty, Expr::nu())
         };
         Binder::bind_with_sort(constr, sort)
-    });
-    let default_refiner = Refiner::default(genv, caller_generics);
+    })?;
+    let default_refiner = Refiner::default(genv, caller_id)?;
 
+    let callee_generics = genv.generics_of(callee_id)?;
     args.iter()
         .enumerate()
         .map(|(idx, arg)| {
@@ -1577,15 +1547,15 @@ fn instantiate_args_for_fun_call(
 
 fn instantiate_args_for_constructor(
     genv: GlobalEnv,
-    caller_generics: &rty::Generics,
+    caller_id: DefId,
     adt_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, adt_id);
 
     let adt_generics = genv.generics_of(adt_id)?;
-    let hole_refiner = Refiner::with_holes(genv, caller_generics);
-    let default_refiner = Refiner::default(genv, caller_generics);
+    let hole_refiner = Refiner::with_holes(genv, caller_id)?;
+    let default_refiner = Refiner::default(genv, caller_id)?;
     args.iter()
         .enumerate()
         .map(|(idx, arg)| {
@@ -1937,7 +1907,7 @@ pub(crate) mod errors {
     impl From<InferErr> for CheckerErrKind {
         fn from(err: InferErr) -> Self {
             match err {
-                InferErr::Inference => CheckerErrKind::Inference,
+                InferErr::UnsolvedEvar(_) => CheckerErrKind::Inference,
                 InferErr::Query(err) => CheckerErrKind::Query(err),
             }
         }

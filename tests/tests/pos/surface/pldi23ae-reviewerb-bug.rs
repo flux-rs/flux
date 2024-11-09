@@ -1,4 +1,4 @@
-#[flux::alias(type Nat = i32{v: v >= 0})]
+#[flux::alias(type Nat[v: int] = {i32[v] | v >= 0})]
 type Nat = i32;
 
 // This should not crash

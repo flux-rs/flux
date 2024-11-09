@@ -9,9 +9,9 @@ use flux_middle::{
         self,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
-        Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Mutability,
-        PolyVariant, Sort, Ty, TyKind, Var,
+        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
+        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
+        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -192,7 +192,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) => {
-                assert!(binders.is_empty(), "TODO: implement evars under binders");
+                // We only use expression holes to infer early param arguments for opaque types
+                // at function calls. These should be well-scoped in the current scope, so we ignore
+                // the extra `binders` around the hole.
                 self.fresh_evars(&sort)
             }
         }
@@ -219,6 +221,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         {
             evars.unify(*evar, e1, false);
         }
+    }
+
+    fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
+    where
+        T: TypeFoldable,
+    {
+        self.push_scope();
+        let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
+        let t = f(self, t);
+        self.pop_scope_without_solving_evars();
+        t
     }
 
     pub fn push_scope(&mut self) {
@@ -270,6 +283,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
+
     pub fn check_pred(&mut self, pred: impl Into<Expr>, reason: ConstrReason) {
         let tag = self.tag(reason);
         self.infcx.check_pred(pred, tag);
@@ -282,13 +296,14 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     ) -> InferResult {
         for clause in clauses {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
-                let impl_elem = Ty::projection(projection_pred.projection_ty)
+                let impl_elem = BaseTy::projection(projection_pred.projection_ty)
+                    .to_ty()
                     .normalize_projections(
                         self.infcx.genv,
                         self.infcx.region_infcx,
                         self.infcx.def_id,
                     )?;
-                let term = projection_pred.term.normalize_projections(
+                let term = projection_pred.term.to_ty().normalize_projections(
                     self.infcx.genv,
                     self.infcx.region_infcx,
                     self.infcx.def_id,
@@ -302,16 +317,28 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         Ok(())
     }
 
-    /// Relate types via subtyping and returns coroutine obligations. See comment for
-    /// [`Sub::obligations`].
+    /// Relate types via subtyping for a function call. This is the same as [`InferCtxtAt::subtyping`]
+    /// except that we also consider strong references.
+    pub fn fun_arg_subtyping(
+        &mut self,
+        env: &mut impl LocEnv,
+        a: &Ty,
+        b: &Ty,
+        reason: ConstrReason,
+    ) -> InferResult {
+        let mut sub = Sub::new(reason, self.span);
+        sub.fun_args(self.infcx, env, a, b)
+    }
+
+    /// Relate types via subtyping and returns coroutine obligations. See comment for [`Sub::obligations`].
     pub fn subtyping(
         &mut self,
-        ty1: &Ty,
-        ty2: &Ty,
+        a: &Ty,
+        b: &Ty,
         reason: ConstrReason,
     ) -> InferResult<Vec<rty::Clause>> {
-        let mut sub = Sub { span: self.span, reason, obligations: vec![] };
-        sub.tys(self.infcx, ty1, ty2)?;
+        let mut sub = Sub::new(reason, self.span);
+        sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
     }
 
@@ -400,20 +427,67 @@ impl fmt::Debug for TypeTrace {
     }
 }
 
-/// Context to relate two types `a` and `b` via subtyping
+pub trait LocEnv {
+    fn ptr_to_ref(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: &Path,
+        bound: Ty,
+    ) -> InferResult<Ty>;
+
+    fn get(&self, path: &Path) -> Ty;
+}
+
+/// Context used to relate two types `a` and `b` via subtyping
 struct Sub {
     reason: ConstrReason,
     span: Span,
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
-    /// directly here. The implementation is a really messy and we may be missing some obligations.
-    /// We should revisit at some point.
+    /// directly here. The implementation is really messy and we may be missing some obligations.
     obligations: Vec<rty::Clause>,
 }
 
 impl Sub {
+    fn new(reason: ConstrReason, span: Span) -> Self {
+        Self { reason, span, obligations: vec![] }
+    }
+
     fn tag(&self) -> Tag {
         Tag::new(self.reason, self.span)
+    }
+
+    fn fun_args(
+        &mut self,
+        infcx: &mut InferCtxt,
+        env: &mut impl LocEnv,
+        a: &Ty,
+        b: &Ty,
+    ) -> InferResult {
+        // infcx.push_trace(TypeTrace::tys(a, b));
+
+        match (a.kind(), b.kind()) {
+            (_, TyKind::Exists(ctor_b)) => {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, a, &ty_b))
+            }
+            (_, TyKind::Constr(pred_b, ty_b)) => {
+                infcx.check_pred(pred_b, self.tag());
+                self.fun_args(infcx, env, a, ty_b)
+            }
+            (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                let ty1 = env.get(path1);
+                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                self.tys(infcx, &ty1, ty2)
+            }
+            (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+                let mut at = infcx.at(self.span);
+                env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
+                Ok(())
+            }
+            _ => self.tys(infcx, a, b),
+        }
     }
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
@@ -433,13 +507,12 @@ impl Sub {
             (TyKind::Constr(..), _) => {
                 bug!("constraint types should removed by the unpacking");
             }
-            (_, TyKind::Exists(ty_b)) => {
-                infcx.push_scope();
-                let ty_b = ty_b
-                    .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                self.tys(infcx, &a, &ty_b)?;
-                infcx.pop_scope_without_solving_evars();
-                Ok(())
+            (_, TyKind::Exists(ctor_b)) => {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))
+            }
+            (_, TyKind::Constr(pred_b, ty_b)) => {
+                infcx.check_pred(pred_b, self.tag());
+                self.tys(infcx, &a, ty_b)
             }
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
                 self.btys(infcx, bty_a, bty_b)?;
@@ -456,31 +529,11 @@ impl Sub {
                 Ok(())
             }
             (_, TyKind::Uninit) => Ok(()),
-            (_, TyKind::Constr(pred_b, ty_b)) => {
-                infcx.check_pred(pred_b, self.tag());
-                self.tys(infcx, &a, ty_b)
-            }
             (TyKind::Downcast(.., fields_a), TyKind::Downcast(.., fields_b)) => {
                 debug_assert_eq!(fields_a.len(), fields_b.len());
                 for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
                     self.tys(infcx, ty_a, ty_b)?;
                 }
-                Ok(())
-            }
-            (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty_b)) => {
-                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty_a) = a.kind() {
-                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
-                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
-                }
-
-                self.handle_opaque_type(infcx, &a, alias_ty_b)
-            }
-            (
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_a),
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_b),
-            ) => {
-                debug_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
@@ -523,9 +576,14 @@ impl Sub {
                         (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => {
                             let bty_a = ty_a.as_bty_skipping_existentials();
                             let bty_b = ty_b.as_bty_skipping_existentials();
-                            debug_assert_eq!(bty_a, bty_b);
+                            tracked_span_dbg_assert_eq!(bty_a, bty_b);
                         }
-                        (_, _) => debug_assert_eq!(arg_a, arg_b),
+                        (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                            let bty_a = ctor_a.as_bty_skipping_binder();
+                            let bty_b = ctor_b.as_bty_skipping_binder();
+                            tracked_span_dbg_assert_eq!(bty_a, bty_b);
+                        }
+                        (_, _) => tracked_span_dbg_assert_eq!(arg_a, arg_b),
                     }
                 }
                 Ok(())
@@ -547,6 +605,21 @@ impl Sub {
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;
                 }
+                Ok(())
+            }
+            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
+                if let BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
+                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
+                }
+                self.handle_opaque_type(infcx, a, alias_ty_b)
+            }
+            (
+                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
+                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
+            ) => {
+                debug_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
@@ -673,12 +746,10 @@ impl Sub {
     fn handle_opaque_type(
         &mut self,
         infcx: &mut InferCtxt,
-        ty: &Ty,
+        bty: &BaseTy,
         alias_ty: &AliasTy,
     ) -> InferResult {
-        if let Some(BaseTy::Coroutine(def_id, resume_ty, upvar_tys)) =
-            ty.as_bty_skipping_existentials()
-        {
+        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys) = bty {
             let obligs = mk_coroutine_obligations(
                 infcx.genv,
                 def_id,
@@ -695,8 +766,8 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
-                    let ty2 = pred.term;
+                    let ty1 = Self::project_ty(infcx, bty, pred.projection_ty.def_id)?;
+                    let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
             }
@@ -704,14 +775,12 @@ impl Sub {
         Ok(())
     }
 
-    fn project_bty(infcx: &InferCtxt, self_ty: &Ty, def_id: DefId) -> InferResult<Ty> {
-        let args = List::singleton(GenericArg::Ty(self_ty.clone()));
-        let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        Ok(Ty::projection(alias_ty).normalize_projections(
-            infcx.genv,
-            infcx.region_infcx,
-            infcx.def_id,
-        )?)
+    fn project_ty(infcx: &InferCtxt, self_ty: &BaseTy, assoc_item_id: DefId) -> InferResult<Ty> {
+        let args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
+        let alias_ty = rty::AliasTy::new(assoc_item_id, args, List::empty());
+        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty)
+            .to_ty()
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?)
     }
 }
 
@@ -730,7 +799,7 @@ fn mk_coroutine_obligations(
                 def_id: *generator_did,
                 resume_ty: resume_ty.clone(),
                 upvar_tys: upvar_tys.clone(),
-                output,
+                output: output.to_ty(),
             };
             let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
             return Ok(vec![clause]);
@@ -741,13 +810,13 @@ fn mk_coroutine_obligations(
 
 #[derive(Debug)]
 pub enum InferErr {
-    Inference,
+    UnsolvedEvar(EVar),
     Query(QueryErr),
 }
 
 impl From<UnsolvedEvar> for InferErr {
-    fn from(_: UnsolvedEvar) -> Self {
-        InferErr::Inference
+    fn from(err: UnsolvedEvar) -> Self {
+        InferErr::UnsolvedEvar(err.evar)
     }
 }
 
