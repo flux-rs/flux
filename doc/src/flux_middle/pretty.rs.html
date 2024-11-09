@@ -539,7 +539,6 @@
 <a href="#539" id="539">539</a>
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
@@ -710,11 +709,10 @@
     <span class="kw">pub </span>preds_chain: bool,
     <span class="kw">pub </span>full_spans: bool,
     <span class="kw">pub </span>hide_uninit: bool,
-    <span class="kw">pub </span>show_is_binder: bool,
     <span class="kw">pub </span>hide_refinements: bool,
     <span class="kw">pub </span>hide_regions: bool,
-    <span class="kw">pub </span>hide_binder: bool,
-    env: RefCell&lt;Env&gt;,
+    <span class="kw">pub </span>hide_sorts: bool,
+    env: Env,
 }
 
 <span class="macro">newtype_index!</span> {
@@ -726,29 +724,30 @@
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>Env {
     name_gen: IndexGen&lt;BoundVarName&gt;,
-    layers: Vec&lt;FxHashMap&lt;BoundVar, BoundVarName&gt;&gt;,
+    layers: RefCell&lt;Vec&lt;FxHashMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>Env {
     <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
-        <span class="self">self</span>.layers
-            .get(<span class="self">self</span>.layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
+        <span class="kw">let </span>layers = <span class="self">self</span>.layers.borrow();
+        layers
+            .get(layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
             </span>.get(<span class="kw-2">&amp;</span>var)
             .copied()
     }
 
-    <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
+    <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
         <span class="kw">let </span><span class="kw-2">mut </span>layer = FxHashMap::default();
         <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
             <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
                 layer.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
             }
         }
-        <span class="self">self</span>.layers.push(layer);
+        <span class="self">self</span>.layers.borrow_mut().push(layer);
     }
 
-    <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.layers.pop();
+    <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="self">self</span>.layers.borrow_mut().pop();
     }
 }
 
@@ -809,11 +808,10 @@
             preds_chain: <span class="bool-val">true</span>,
             full_spans: <span class="bool-val">false</span>,
             hide_uninit: <span class="bool-val">true</span>,
-            show_is_binder: <span class="bool-val">false</span>,
             hide_refinements: <span class="bool-val">false</span>,
             hide_regions: <span class="bool-val">false</span>,
-            hide_binder: <span class="bool-val">false</span>,
-            env: RefCell::new(Env::default()),
+            hide_sorts: <span class="bool-val">true</span>,
+            env: Env::default(),
         }
     }
 
@@ -830,18 +828,17 @@
                 preds_chain,
                 full_spans,
                 hide_uninit,
-                show_is_binder,
                 hide_refinements,
                 hide_regions,
-                hide_binder,
+                hide_sorts,
             ]
         );
     }
 
     <span class="kw">pub fn </span>with_bound_vars&lt;R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind], f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {
-        <span class="self">self</span>.env.borrow_mut().push_layer(vars);
+        <span class="self">self</span>.env.push_layer(vars);
         <span class="kw">let </span>r = f();
-        <span class="self">self</span>.env.borrow_mut().pop_layer();
+        <span class="self">self</span>.env.pop_layer();
         r
     }
 
@@ -861,21 +858,26 @@
             }
             <span class="kw">match </span>var {
                 BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, re)<span class="question-mark">?</span>,
-                BoundVariableKind::Refine(<span class="kw">_</span>, mode, BoundReftKind::Named(name)) =&gt; {
+                BoundVariableKind::Refine(sort, mode, BoundReftKind::Named(name)) =&gt; {
                     <span class="kw">if </span>print_infer_mode {
                         <span class="macro">w!</span>(<span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
                     }
                     <span class="macro">w!</span>(<span class="string">"{}"</span>, ^name)<span class="question-mark">?</span>;
+                    <span class="kw">if </span>!<span class="self">self</span>.hide_sorts {
+                        <span class="macro">w!</span>(<span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
+                    }
                 }
-                BoundVariableKind::Refine(<span class="kw">_</span>, mode, BoundReftKind::Annon) =&gt; {
+                BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) =&gt; {
                     <span class="kw">if </span>print_infer_mode {
                         <span class="macro">w!</span>(<span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
                     }
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, BoundVar::from_usize(i))
-                    {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.lookup(INNERMOST, BoundVar::from_usize(i)) {
                         <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
                         <span class="macro">w!</span>(<span class="string">"_"</span>)<span class="question-mark">?</span>;
+                    }
+                    <span class="kw">if </span>!<span class="self">self</span>.hide_sorts {
+                        <span class="macro">w!</span>(<span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
                     }
                 }
             }
@@ -892,7 +894,7 @@
         <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
         <span class="kw">match </span>breft.kind {
             BoundReftKind::Annon =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(debruijn, breft.var) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.lookup(debruijn, breft.var) {
                     <span class="macro">w!</span>(<span class="string">"{name:?}"</span>)
                 } <span class="kw">else </span>{
                     <span class="macro">w!</span>(<span class="string">"⭡{}/#{:?}"</span>, ^debruijn.as_usize(), ^breft.var)
@@ -910,16 +912,12 @@
         <span class="self">Self </span>{ fully_qualified_paths: b, ..<span class="self">self </span>}
     }
 
-    <span class="kw">pub fn </span>show_is_binder(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ show_is_binder: b, ..<span class="self">self </span>}
-    }
-
     <span class="kw">pub fn </span>hide_regions(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ hide_regions: b, ..<span class="self">self </span>}
     }
 
-    <span class="kw">pub fn </span>hide_binder(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ hide_binder: b, ..<span class="self">self </span>}
+    <span class="kw">pub fn </span>hide_sorts(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ hide_sorts: b, ..<span class="self">self </span>}
     }
 }
 

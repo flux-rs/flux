@@ -558,11 +558,6 @@
 <a href="#558" id="558">558</a>
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -674,11 +669,8 @@
                     <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, sorts))
                 }
             }
-            Sort::Alias(alias_ty) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, alias_ty.def_id)<span class="question-mark">?</span>;
-                <span class="kw">if </span>!alias_ty.args.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args))<span class="question-mark">?</span>;
-                }
+            Sort::Alias(kind, alias_ty) =&gt; {
+                fmt_alias_ty(cx, f, <span class="kw-2">*</span>kind, alias_ty)<span class="question-mark">?</span>;
                 <span class="macro">w!</span>(<span class="string">"::sort"</span>)
             }
             Sort::App(ctor, sorts) =&gt; {
@@ -756,10 +748,6 @@
         <span class="macro">w!</span>(<span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inputs), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-        PrettyCx::default(tcx).show_is_binder(<span class="bool-val">true</span>)
     }
 }
 
@@ -857,37 +845,6 @@
                 <span class="prelude-val">Ok</span>(())
             }
             TyKind::Blocked(ty) =&gt; <span class="macro">w!</span>(<span class="string">"†{:?}"</span>, ty),
-            TyKind::Alias(AliasKind::Projection, alias_ty) =&gt; {
-                <span class="kw">let </span>assoc_name = cx.tcx.item_name(alias_ty.def_id);
-                <span class="kw">let </span>trait_ref = cx.tcx.parent(alias_ty.def_id);
-                <span class="kw">let </span>trait_generic_count = cx.tcx.generics_of(trait_ref).count() - <span class="number">1</span>;
-
-                <span class="kw">let </span>[self_ty, args @ ..] = <span class="kw-2">&amp;</span>alias_ty.args[..] <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="macro">w!</span>(<span class="string">"&lt;alias_ty&gt;"</span>);
-                };
-
-                <span class="macro">w!</span>(<span class="string">"&lt;{:?} as {:?}"</span>, self_ty, trait_ref)<span class="question-mark">?</span>;
-
-                <span class="kw">let </span>trait_generics = <span class="kw-2">&amp;</span>args[..trait_generic_count];
-                <span class="kw">if </span>!trait_generics.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, trait_generics))<span class="question-mark">?</span>;
-                }
-                <span class="macro">w!</span>(<span class="string">"&gt;::{}"</span>, ^assoc_name)<span class="question-mark">?</span>;
-
-                <span class="kw">let </span>assoc_generics = <span class="kw-2">&amp;</span>args[trait_generic_count..];
-                <span class="kw">if </span>!assoc_generics.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, assoc_generics))<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            TyKind::Alias(AliasKind::Opaque, alias_ty) =&gt; {
-                <span class="macro">w!</span>(
-                    <span class="string">"Alias(Opaque, {:?}, [{:?}], [{:?}])"</span>,
-                    alias_ty.def_id,
-                    <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args),
-                    <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
-                )
-            }
             TyKind::Infer(ty_vid) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"{ty_vid:?}"</span>)
             }
@@ -911,16 +868,6 @@
                 <span class="prelude-val">Ok</span>(())
             }
             PtrKind::Box =&gt; <span class="macro">w!</span>(<span class="string">"box"</span>),
-        }
-    }
-}
-
-<span class="kw">impl </span>Pretty <span class="kw">for </span>AliasKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">define_scoped!</span>(_cx, f);
-        <span class="kw">match </span><span class="self">self </span>{
-            AliasKind::Projection =&gt; <span class="macro">w!</span>(<span class="string">"Projection"</span>),
-            AliasKind::Opaque =&gt; <span class="macro">w!</span>(<span class="string">"Opaque"</span>),
         }
     }
 }
@@ -1016,17 +963,11 @@
                     <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, tys))
                 }
             }
-            BaseTy::Alias(alias_ty) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, alias_ty.def_id)<span class="question-mark">?</span>;
-                <span class="kw">if </span>!alias_ty.args.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args))<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
+            BaseTy::Alias(kind, alias_ty) =&gt; fmt_alias_ty(cx, f, <span class="kw-2">*</span>kind, alias_ty),
             BaseTy::Array(ty, c) =&gt; <span class="macro">w!</span>(<span class="string">"[{:?}; {:?}]"</span>, ty, ^c),
             BaseTy::Never =&gt; <span class="macro">w!</span>(<span class="string">"!"</span>),
             BaseTy::Closure(did, args, <span class="kw">_</span>) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"Closure {:?}&lt;{:?}&gt;"</span>, did, args)
+                <span class="macro">w!</span>(<span class="string">"{:?}&lt;{:?}&gt;"</span>, did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"Coroutine({:?}, {:?})"</span>, did, resume_ty)<span class="question-mark">?</span>;
@@ -1043,6 +984,55 @@
             }
         }
     }
+}
+
+<span class="kw">fn </span>fmt_alias_ty(
+    cx: <span class="kw-2">&amp;</span>PrettyCx,
+    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
+    kind: AliasKind,
+    alias_ty: <span class="kw-2">&amp;</span>AliasTy,
+) -&gt; fmt::Result {
+    <span class="macro">define_scoped!</span>(cx, f);
+    <span class="kw">match </span>kind {
+        AliasKind::Weak =&gt; {
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, alias_ty.def_id)<span class="question-mark">?</span>;
+            <span class="kw">if </span>!alias_ty.args.is_empty() {
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args))<span class="question-mark">?</span>;
+            }
+        }
+        AliasKind::Projection =&gt; {
+            <span class="kw">let </span>assoc_name = cx.tcx.item_name(alias_ty.def_id);
+            <span class="kw">let </span>trait_ref = cx.tcx.parent(alias_ty.def_id);
+            <span class="kw">let </span>trait_generic_count = cx.tcx.generics_of(trait_ref).count() - <span class="number">1</span>;
+
+            <span class="kw">let </span>[self_ty, args @ ..] = <span class="kw-2">&amp;</span>alias_ty.args[..] <span class="kw">else </span>{
+                <span class="kw">return </span><span class="macro">w!</span>(<span class="string">"&lt;alias_ty&gt;"</span>);
+            };
+
+            <span class="macro">w!</span>(<span class="string">"&lt;{:?} as {:?}"</span>, self_ty, trait_ref)<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>trait_generics = <span class="kw-2">&amp;</span>args[..trait_generic_count];
+            <span class="kw">if </span>!trait_generics.is_empty() {
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, trait_generics))<span class="question-mark">?</span>;
+            }
+            <span class="macro">w!</span>(<span class="string">"&gt;::{}"</span>, ^assoc_name)<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>assoc_generics = <span class="kw-2">&amp;</span>args[trait_generic_count..];
+            <span class="kw">if </span>!assoc_generics.is_empty() {
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, assoc_generics))<span class="question-mark">?</span>;
+            }
+        }
+        AliasKind::Opaque =&gt; {
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, alias_ty.def_id)<span class="question-mark">?</span>;
+            <span class="kw">if </span>!alias_ty.args.is_empty() {
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args))<span class="question-mark">?</span>;
+            }
+            <span class="kw">if </span>!alias_ty.refine_args.is_empty() {
+                <span class="macro">w!</span>(<span class="string">"⟨{:?}⟩"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args))<span class="question-mark">?</span>;
+            }
+        }
+    }
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>ValTree {

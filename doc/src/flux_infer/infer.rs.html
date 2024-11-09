@@ -773,6 +773,75 @@
 <a href="#773" id="773">773</a>
 <a href="#774" id="774">774</a>
 <a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -784,9 +853,9 @@
         <span class="self">self</span>,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
-        Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Mutability,
-        PolyVariant, Sort, Ty, TyKind, Var,
+        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
+        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
+        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
@@ -967,8 +1036,10 @@
         <span class="kw">match </span>kind {
             HoleKind::Pred =&gt; <span class="self">self</span>.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) =&gt; {
-                <span class="macro">assert!</span>(binders.is_empty(), <span class="string">"TODO: implement evars under binders"</span>);
-                <span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>sort)
+                <span class="comment">// We only use expression holes to infer early param arguments for opaque types
+                // at function calls. These should be well-scoped in the current scope, so we ignore
+                // the extra `binders` around the hole.
+                </span><span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>sort)
             }
         }
     }
@@ -994,6 +1065,17 @@
         {
             evars.unify(<span class="kw-2">*</span>evar, e1, <span class="bool-val">false</span>);
         }
+    }
+
+    <span class="kw">fn </span>enter_exists&lt;T, U&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, exists: <span class="kw-2">&amp;</span>Binder&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, T) -&gt; U) -&gt; U
+    <span class="kw">where
+        </span>T: TypeFoldable,
+    {
+        <span class="self">self</span>.push_scope();
+        <span class="kw">let </span>t = exists.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| <span class="self">self</span>.fresh_infer_var(sort, mode));
+        <span class="kw">let </span>t = f(<span class="self">self</span>, t);
+        <span class="self">self</span>.pop_scope_without_solving_evars();
+        t
     }
 
     <span class="kw">pub fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
@@ -1045,6 +1127,7 @@
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, reason: ConstrReason) -&gt; Tag {
         Tag::new(reason, <span class="self">self</span>.span)
     }
+
     <span class="kw">pub fn </span>check_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;, reason: ConstrReason) {
         <span class="kw">let </span>tag = <span class="self">self</span>.tag(reason);
         <span class="self">self</span>.infcx.check_pred(pred, tag);
@@ -1057,13 +1140,14 @@
     ) -&gt; InferResult {
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
-                <span class="kw">let </span>impl_elem = Ty::projection(projection_pred.projection_ty)
+                <span class="kw">let </span>impl_elem = BaseTy::projection(projection_pred.projection_ty)
+                    .to_ty()
                     .normalize_projections(
                         <span class="self">self</span>.infcx.genv,
                         <span class="self">self</span>.infcx.region_infcx,
                         <span class="self">self</span>.infcx.def_id,
                     )<span class="question-mark">?</span>;
-                <span class="kw">let </span>term = projection_pred.term.normalize_projections(
+                <span class="kw">let </span>term = projection_pred.term.to_ty().normalize_projections(
                     <span class="self">self</span>.infcx.genv,
                     <span class="self">self</span>.infcx.region_infcx,
                     <span class="self">self</span>.infcx.def_id,
@@ -1077,16 +1161,28 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Relate types via subtyping and returns coroutine obligations. See comment for
-    /// [`Sub::obligations`].
+    <span class="doccomment">/// Relate types via subtyping for a function call. This is the same as [`InferCtxtAt::subtyping`]
+    /// except that we also consider strong references.
+    </span><span class="kw">pub fn </span>fun_arg_subtyping(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>LocEnv,
+        a: <span class="kw-2">&amp;</span>Ty,
+        b: <span class="kw-2">&amp;</span>Ty,
+        reason: ConstrReason,
+    ) -&gt; InferResult {
+        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(reason, <span class="self">self</span>.span);
+        sub.fun_args(<span class="self">self</span>.infcx, env, a, b)
+    }
+
+    <span class="doccomment">/// Relate types via subtyping and returns coroutine obligations. See comment for [`Sub::obligations`].
     </span><span class="kw">pub fn </span>subtyping(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        ty1: <span class="kw-2">&amp;</span>Ty,
-        ty2: <span class="kw-2">&amp;</span>Ty,
+        a: <span class="kw-2">&amp;</span>Ty,
+        b: <span class="kw-2">&amp;</span>Ty,
         reason: ConstrReason,
     ) -&gt; InferResult&lt;Vec&lt;rty::Clause&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub { span: <span class="self">self</span>.span, reason, obligations: <span class="macro">vec!</span>[] };
-        sub.tys(<span class="self">self</span>.infcx, ty1, ty2)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(reason, <span class="self">self</span>.span);
+        sub.tys(<span class="self">self</span>.infcx, a, b)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(sub.obligations)
     }
 
@@ -1175,20 +1271,67 @@
     }
 }
 
-<span class="doccomment">/// Context to relate two types `a` and `b` via subtyping
+<span class="kw">pub trait </span>LocEnv {
+    <span class="kw">fn </span>ptr_to_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: <span class="kw-2">&amp;</span>Path,
+        bound: Ty,
+    ) -&gt; InferResult&lt;Ty&gt;;
+
+    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty;
+}
+
+<span class="doccomment">/// Context used to relate two types `a` and `b` via subtyping
 </span><span class="kw">struct </span>Sub {
     reason: ConstrReason,
     span: Span,
     <span class="doccomment">/// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
-    /// directly here. The implementation is a really messy and we may be missing some obligations.
-    /// We should revisit at some point.
+    /// directly here. The implementation is really messy and we may be missing some obligations.
     </span>obligations: Vec&lt;rty::Clause&gt;,
 }
 
 <span class="kw">impl </span>Sub {
+    <span class="kw">fn </span>new(reason: ConstrReason, span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ reason, span, obligations: <span class="macro">vec!</span>[] }
+    }
+
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tag {
         Tag::new(<span class="self">self</span>.reason, <span class="self">self</span>.span)
+    }
+
+    <span class="kw">fn </span>fun_args(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        env: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>LocEnv,
+        a: <span class="kw-2">&amp;</span>Ty,
+        b: <span class="kw-2">&amp;</span>Ty,
+    ) -&gt; InferResult {
+        <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
+
+        </span><span class="kw">match </span>(a.kind(), b.kind()) {
+            (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.fun_args(infcx, env, a, <span class="kw-2">&amp;</span>ty_b))
+            }
+            (<span class="kw">_</span>, TyKind::Constr(pred_b, ty_b)) =&gt; {
+                infcx.check_pred(pred_b, <span class="self">self</span>.tag());
+                <span class="self">self</span>.fun_args(infcx, env, a, ty_b)
+            }
+            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+                <span class="kw">let </span>ty1 = env.get(path1);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            }
+            (TyKind::Ptr(PtrKind::Mut(re), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(<span class="self">self</span>.span);
+                env.ptr_to_ref(<span class="kw-2">&amp;mut </span>at, ConstrReason::Call, <span class="kw-2">*</span>re, path, bound.clone())<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(())
+            }
+            <span class="kw">_ </span>=&gt; <span class="self">self</span>.tys(infcx, a, b),
+        }
     }
 
     <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
@@ -1208,13 +1351,12 @@
             (TyKind::Constr(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"constraint types should removed by the unpacking"</span>);
             }
-            (<span class="kw">_</span>, TyKind::Exists(ty_b)) =&gt; {
-                infcx.push_scope();
-                <span class="kw">let </span>ty_b = ty_b
-                    .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>ty_b)<span class="question-mark">?</span>;
-                infcx.pop_scope_without_solving_evars();
-                <span class="prelude-val">Ok</span>(())
+            (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
+                infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>ty_b))
+            }
+            (<span class="kw">_</span>, TyKind::Constr(pred_b, ty_b)) =&gt; {
+                infcx.check_pred(pred_b, <span class="self">self</span>.tag());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, ty_b)
             }
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) =&gt; {
                 <span class="self">self</span>.btys(infcx, bty_a, bty_b)<span class="question-mark">?</span>;
@@ -1231,31 +1373,11 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (<span class="kw">_</span>, TyKind::Uninit) =&gt; <span class="prelude-val">Ok</span>(()),
-            (<span class="kw">_</span>, TyKind::Constr(pred_b, ty_b)) =&gt; {
-                infcx.check_pred(pred_b, <span class="self">self</span>.tag());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, ty_b)
-            }
             (TyKind::Downcast(.., fields_a), TyKind::Downcast(.., fields_b)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(fields_a.len(), fields_b.len());
                 <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(fields_a, fields_b) {
                     <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
-                <span class="prelude-val">Ok</span>(())
-            }
-            (<span class="kw">_</span>, TyKind::Alias(rty::AliasKind::Opaque, alias_ty_b)) =&gt; {
-                <span class="kw">if let </span>TyKind::Alias(rty::AliasKind::Opaque, alias_ty_a) = a.kind() {
-                    <span class="macro">debug_assert_eq!</span>(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
-                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
-                }
-
-                <span class="self">self</span>.handle_opaque_type(infcx, <span class="kw-2">&amp;</span>a, alias_ty_b)
-            }
-            (
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_a),
-                TyKind::Alias(rty::AliasKind::Projection, alias_ty_b),
-            ) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(alias_ty_a, alias_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible types: `{a:?}` - `{b:?}`"</span>))<span class="question-mark">?</span>,
@@ -1298,9 +1420,14 @@
                         (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) =&gt; {
                             <span class="kw">let </span>bty_a = ty_a.as_bty_skipping_existentials();
                             <span class="kw">let </span>bty_b = ty_b.as_bty_skipping_existentials();
-                            <span class="macro">debug_assert_eq!</span>(bty_a, bty_b);
+                            <span class="macro">tracked_span_dbg_assert_eq!</span>(bty_a, bty_b);
                         }
-                        (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">debug_assert_eq!</span>(arg_a, arg_b),
+                        (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) =&gt; {
+                            <span class="kw">let </span>bty_a = ctor_a.as_bty_skipping_binder();
+                            <span class="kw">let </span>bty_b = ctor_b.as_bty_skipping_binder();
+                            <span class="macro">tracked_span_dbg_assert_eq!</span>(bty_a, bty_b);
+                        }
+                        (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">tracked_span_dbg_assert_eq!</span>(arg_a, arg_b),
                     }
                 }
                 <span class="prelude-val">Ok</span>(())
@@ -1322,6 +1449,21 @@
                 <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
                     <span class="self">self</span>.tys(infcx, ty_a, ty_b)<span class="question-mark">?</span>;
                 }
+                <span class="prelude-val">Ok</span>(())
+            }
+            (<span class="kw">_</span>, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) =&gt; {
+                <span class="kw">if let </span>BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
+                    <span class="macro">debug_assert_eq!</span>(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
+                }
+                <span class="self">self</span>.handle_opaque_type(infcx, a, alias_ty_b)
+            }
+            (
+                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
+                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
+            ) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(alias_ty_a, alias_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) =&gt; {
@@ -1448,12 +1590,10 @@
     <span class="kw">fn </span>handle_opaque_type(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-        ty: <span class="kw-2">&amp;</span>Ty,
+        bty: <span class="kw-2">&amp;</span>BaseTy,
         alias_ty: <span class="kw-2">&amp;</span>AliasTy,
     ) -&gt; InferResult {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Coroutine(def_id, resume_ty, upvar_tys)) =
-            ty.as_bty_skipping_existentials()
-        {
+        <span class="kw">if let </span>BaseTy::Coroutine(def_id, resume_ty, upvar_tys) = bty {
             <span class="kw">let </span>obligs = mk_coroutine_obligations(
                 infcx.genv,
                 def_id,
@@ -1470,8 +1610,8 @@
             );
             <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
                 <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    <span class="kw">let </span>ty1 = <span class="self">Self</span>::project_bty(infcx, ty, pred.projection_ty.def_id)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>ty2 = pred.term;
+                    <span class="kw">let </span>ty1 = <span class="self">Self</span>::project_ty(infcx, bty, pred.projection_ty.def_id)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>ty2 = pred.term.to_ty();
                     <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 }
             }
@@ -1479,14 +1619,12 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>project_bty(infcx: <span class="kw-2">&amp;</span>InferCtxt, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; InferResult&lt;Ty&gt; {
-        <span class="kw">let </span>args = List::singleton(GenericArg::Ty(self_ty.clone()));
-        <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        <span class="prelude-val">Ok</span>(Ty::projection(alias_ty).normalize_projections(
-            infcx.genv,
-            infcx.region_infcx,
-            infcx.def_id,
-        )<span class="question-mark">?</span>)
+    <span class="kw">fn </span>project_ty(infcx: <span class="kw-2">&amp;</span>InferCtxt, self_ty: <span class="kw-2">&amp;</span>BaseTy, assoc_item_id: DefId) -&gt; InferResult&lt;Ty&gt; {
+        <span class="kw">let </span>args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
+        <span class="kw">let </span>alias_ty = rty::AliasTy::new(assoc_item_id, args, List::empty());
+        <span class="prelude-val">Ok</span>(BaseTy::Alias(AliasKind::Projection, alias_ty)
+            .to_ty()
+            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?</span>)
     }
 }
 
@@ -1505,7 +1643,7 @@
                 def_id: <span class="kw-2">*</span>generator_did,
                 resume_ty: resume_ty.clone(),
                 upvar_tys: upvar_tys.clone(),
-                output,
+                output: output.to_ty(),
             };
             <span class="kw">let </span>clause = rty::Clause::new(<span class="macro">vec!</span>[], rty::ClauseKind::CoroutineOblig(pred));
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[clause]);
@@ -1516,13 +1654,13 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>InferErr {
-    Inference,
+    UnsolvedEvar(EVar),
     Query(QueryErr),
 }
 
 <span class="kw">impl </span>From&lt;UnsolvedEvar&gt; <span class="kw">for </span>InferErr {
-    <span class="kw">fn </span>from(<span class="kw">_</span>: UnsolvedEvar) -&gt; <span class="self">Self </span>{
-        InferErr::Inference
+    <span class="kw">fn </span>from(err: UnsolvedEvar) -&gt; <span class="self">Self </span>{
+        InferErr::UnsolvedEvar(err.evar)
     }
 }
 

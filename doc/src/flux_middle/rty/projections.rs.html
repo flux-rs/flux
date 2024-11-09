@@ -542,6 +542,77 @@
 <a href="#542" id="542">542</a>
 <a href="#543" id="543">543</a>
 <a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -559,12 +630,13 @@
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     subst::{GenericsSubstDelegate, GenericsSubstFolder},
     AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, Ty, TyKind,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor,
+    Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::fold::TypeVisitable,
+    rty::{fold::TypeVisitable, refining::Refiner},
 };
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {
@@ -643,7 +715,10 @@
     //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
     //       by suitably chasing down the super-trait predicates,
     //       see https://github.com/flux-rs/flux/issues/737
-    </span><span class="kw">fn </span>normalize_projection_ty_with_rustc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+    </span><span class="kw">fn </span>normalize_projection_ty_with_rustc(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+    ) -&gt; QueryResult&lt;SubsetTyCtor&gt; {
         <span class="kw">let </span>projection_ty = obligation.to_rustc(<span class="self">self</span>.tcx());
         <span class="kw">let </span>cause = ObligationCause::dummy();
         <span class="kw">let </span>param_env = <span class="self">self</span>.tcx().param_env(<span class="self">self</span>.def_id);
@@ -658,27 +733,31 @@
         )
         .expect_type();
         <span class="kw">let </span>rustc_ty = ty.lower(<span class="self">self</span>.tcx()).unwrap();
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(<span class="self">self</span>.def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>ty = <span class="self">self</span>.genv.refine_default(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(ty)
+        <span class="prelude-val">Ok</span>(Refiner::default(<span class="self">self</span>.genv, <span class="self">self</span>.def_id)<span class="question-mark">?
+            </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
+            </span>.expect_base())
     }
 
-    <span class="kw">fn </span>normalize_projection_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;(bool, Ty)&gt; {
+    <span class="kw">fn </span>normalize_projection_ty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+    ) -&gt; QueryResult&lt;(bool, SubsetTyCtor)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assemble_candidates_from_param_env(obligation, <span class="kw-2">&amp;mut </span>candidates);
         <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
         <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>candidates.is_empty() {
-            <span class="kw">let </span>orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
+            <span class="kw">let </span>orig_ty =
+                BaseTy::Alias(AliasKind::Projection, obligation.clone()).to_subset_ty_ctor();
             <span class="kw">let </span>ty = <span class="self">self</span>.normalize_projection_ty_with_rustc(obligation)<span class="question-mark">?</span>;
             <span class="kw">return </span><span class="prelude-val">Ok</span>((ty != orig_ty, ty));
         }
         <span class="kw">if </span>candidates.len() &gt; <span class="number">1 </span>{
             <span class="macro">bug!</span>(<span class="string">"ambiguity when resolving `{obligation:?}` in {:?}"</span>, <span class="self">self</span>.def_id);
         }
-        <span class="kw">let </span>ty = <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, ty))
+        <span class="kw">let </span>ctor = <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, ctor))
     }
 
     <span class="kw">fn </span>find_resolved_predicates(
@@ -731,15 +810,19 @@
             </span>}
             <span class="kw">for </span>p <span class="kw">in </span>resolved {
                 <span class="kw">let </span>obligation = <span class="kw-2">&amp;</span>p.projection_ty;
-                <span class="kw">let </span>(<span class="kw">_</span>, ty) = <span class="self">self</span>.normalize_projection_ty(obligation)<span class="question-mark">?</span>;
-                subst.tys(<span class="kw-2">&amp;</span>p.term, <span class="kw-2">&amp;</span>ty);
+                <span class="kw">let </span>(<span class="kw">_</span>, ctor) = <span class="self">self</span>.normalize_projection_ty(obligation)<span class="question-mark">?</span>;
+                subst.subset_tys(<span class="kw-2">&amp;</span>p.term, <span class="kw-2">&amp;</span>ctor);
             }
             projection_preds = unresolved;
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>confirm_candidate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, candidate: Candidate, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+    <span class="kw">fn </span>confirm_candidate(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        candidate: Candidate,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+    ) -&gt; QueryResult&lt;SubsetTyCtor&gt; {
         <span class="kw">match </span>candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) =&gt; <span class="prelude-val">Ok</span>(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) =&gt; {
@@ -760,8 +843,12 @@
                     .skip_binder();
 
                 <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(impl_def_id);
+                <span class="comment">// eprintln!();
+                // eprintln!("{:#?}", generics);
+                // eprintln!("{:?}", impl_trait_ref.args);
+                // eprintln!("{:?}", obligation.args);
 
-                <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
+                </span><span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
                 <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>obligation.args) {
                     subst.generic_args(a, b);
                 }
@@ -785,7 +872,7 @@
                     </span>.genv
                     .type_of(assoc_type_id)<span class="question-mark">?
                     </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
-                    .to_ty())
+                    .expect_subset_ty_ctor())
             }
         }
     }
@@ -808,9 +895,10 @@
         obligation: <span class="kw-2">&amp;</span>AliasTy,
         candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">if let </span>GenericArg::Ty(ty) = <span class="kw-2">&amp;</span>obligation.args[<span class="number">0</span>]
-            &amp;&amp; <span class="kw">let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
+        <span class="kw">if let </span>GenericArg::Base(ctor) = <span class="kw-2">&amp;</span>obligation.args[<span class="number">0</span>]
+            &amp;&amp; <span class="kw">let </span>BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
+            <span class="macro">debug_assert!</span>(!alias_ty.has_escaping_bvars());
             <span class="kw">let </span>bounds = <span class="self">self</span>.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
                 <span class="self">self</span>.tcx(),
                 <span class="kw-2">&amp;</span>alias_ty.args,
@@ -864,7 +952,9 @@
 ) {
     <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
         <span class="kw">if let </span>ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
-            <span class="kw">if </span><span class="kw-2">&amp;</span>pred.projection_ty == obligation {
+            <span class="comment">// FIXME(nilehmann) make this matching resilient with respect to syntactic differences
+            // in refinements
+            </span><span class="kw">if </span><span class="kw-2">&amp;</span>pred.projection_ty == obligation {
                 candidates.push(ctor(pred.clone()));
             }
         }
@@ -875,33 +965,43 @@
     <span class="kw">type </span>Error = QueryErr;
 
     <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
-        <span class="kw">if let </span>Sort::Alias(alias_ty) = sort {
-            <span class="self">self</span>.genv
-                .normalize_weak_alias_sort(alias_ty)<span class="question-mark">?
-                </span>.try_fold_with(<span class="self">self</span>)
-        } <span class="kw">else </span>{
-            sort.try_super_fold_with(<span class="self">self</span>)
+        <span class="kw">match </span>sort {
+            Sort::Alias(AliasKind::Weak, alias_ty) =&gt; {
+                <span class="self">self</span>.genv
+                    .normalize_weak_alias_sort(alias_ty)<span class="question-mark">?
+                    </span>.try_fold_with(<span class="self">self</span>)
+            }
+            Sort::Alias(AliasKind::Projection, alias_ty) =&gt; {
+                <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>sort = ctor.sort();
+                <span class="kw">if </span>changed {
+                    sort.try_fold_with(<span class="self">self</span>)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(sort)
+                }
+            }
+            <span class="kw">_ </span>=&gt; sort.try_super_fold_with(<span class="self">self</span>),
         }
     }
 
-    <span class="comment">// As shown in https://github.com/flux-rs/flux/issues/711
-    // one round of `normalize_projections` can replace one
-    // projection e.g. `&lt;Rev&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item`
-    // with another e.g. `&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item`
-    // We want to compute a "fixpoint" i.e. keep going until
-    // no change, so that e.g. the above is normalized all the way to `i32`,
-    // which is what the `changed` is for.
+    <span class="comment">// As shown in https://github.com/flux-rs/flux/issues/711 one round of `normalize_projections`
+    // can replace one projection e.g. `&lt;Rev&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item` with another e.g.
+    // `&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item` We want to compute a "fixpoint" i.e. keep going until no
+    // change, so that e.g. the above is normalized all the way to `i32`, which is what the `changed`
+    // is for.
     </span><span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt; {
         <span class="kw">match </span>ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(alias_ty), idx) =&gt; {
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.genv
                     .type_of(alias_ty.def_id)<span class="question-mark">?
                     </span>.instantiate(<span class="self">self</span>.genv.tcx(), <span class="kw-2">&amp;</span>alias_ty.args, <span class="kw-2">&amp;</span>alias_ty.refine_args)
+                    .expect_ctor()
                     .replace_bound_reft(idx))
             }
-            TyKind::Alias(AliasKind::Projection, alias_ty) =&gt; {
-                <span class="kw">let </span>(changed, ty) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) =&gt; {
+                <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty = ctor.replace_bound_reft(idx).to_ty();
                 <span class="kw">if </span>changed {
                     ty.try_fold_with(<span class="self">self</span>)
                 } <span class="kw">else </span>{
@@ -909,6 +1009,28 @@
                 }
             }
             <span class="kw">_ </span>=&gt; ty.try_super_fold_with(<span class="self">self</span>),
+        }
+    }
+
+    <span class="kw">fn </span>try_fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sty: <span class="kw-2">&amp;</span>SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTy, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>sty.bty {
+            BaseTy::Alias(AliasKind::Weak, _alias_ty) =&gt; {
+                <span class="comment">// Weak aliases are always expanded during conversion. We could in theory normalize
+                // them here but we don't guaranatee that type aliases expand to a subset ty. If we
+                // ever stop expanding aliases during conv we would need to guarantee that aliases
+                // used as a generic base expand to a subset type.
+                </span><span class="macro">tracked_span_bug!</span>()
+            }
+            BaseTy::Alias(AliasKind::Projection, alias_ty) =&gt; {
+                <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty = ctor.replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx);
+                <span class="kw">if </span>changed {
+                    ty.try_fold_with(<span class="self">self</span>)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(ty)
+                }
+            }
+            <span class="kw">_ </span>=&gt; sty.try_super_fold_with(<span class="self">self</span>),
         }
     }
 
@@ -951,15 +1073,23 @@
         }
     }
 
-    <span class="kw">fn </span>sort_for_param(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        _param_ty: rustc_middle::ty::ParamTy,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">super</span>::Sort, <span class="self">Self</span>::Error&gt; {
-        <span class="macro">tracked_span_bug!</span>()
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: rustc_middle::ty::ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">match </span><span class="self">self</span>.args.get(param_ty.index <span class="kw">as </span>usize) {
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(GenericArg::Base(ctor))) =&gt; <span class="prelude-val">Ok</span>(ctor.sort()),
+            <span class="prelude-val">Some</span>(<span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(()),
+            arg =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected type for generic parameter, found `{arg:?}`"</span>),
+        }
     }
 
-    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _param_ty: rustc_middle::ty::ParamTy) -&gt; <span class="kw">super</span>::SubsetTyCtor {
-        <span class="macro">tracked_span_bug!</span>()
+    <span class="kw">fn </span>ctor_for_param(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        param_ty: rustc_middle::ty::ParamTy,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTyCtor, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">match </span><span class="self">self</span>.args.get(param_ty.index <span class="kw">as </span>usize) {
+            <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(GenericArg::Base(ctor))) =&gt; <span class="prelude-val">Ok</span>(ctor.clone()),
+            <span class="prelude-val">Some</span>(<span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(()),
+            arg =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected type for generic parameter, found `{arg:?}`"</span>),
+        }
     }
 
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ebr: rustc_middle::ty::EarlyParamRegion) -&gt; Region {
@@ -1009,7 +1139,7 @@
             (GenericArg::Ty(a), GenericArg::Ty(b)) =&gt; <span class="self">self</span>.tys(a, b),
             (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) =&gt; <span class="self">self</span>.regions(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b),
             (GenericArg::Base(a), GenericArg::Base(b)) =&gt; {
-                <span class="self">self</span>.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
+                <span class="self">self</span>.subset_tys(a, b);
             }
             (GenericArg::Const(a), GenericArg::Const(b)) =&gt; <span class="self">self</span>.consts(a, b),
             <span class="kw">_ </span>=&gt; {}
@@ -1021,11 +1151,23 @@
             <span class="kw">if </span>!b.has_escaping_bvars() {
                 <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
             }
-            <span class="kw">return</span>;
+        } <span class="kw">else </span>{
+            <span class="kw">let </span><span class="prelude-val">Some</span>(a_bty) = a.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
+            <span class="kw">let </span><span class="prelude-val">Some</span>(b_bty) = b.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
+            <span class="self">self</span>.btys(a_bty, b_bty);
         }
-        <span class="kw">let </span><span class="prelude-val">Some</span>(a_bty) = a.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
-        <span class="kw">let </span><span class="prelude-val">Some</span>(b_bty) = b.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
-        <span class="self">self</span>.btys(a_bty, b_bty);
+    }
+
+    <span class="kw">fn </span>subset_tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>SubsetTyCtor, b: <span class="kw-2">&amp;</span>SubsetTyCtor) {
+        <span class="kw">let </span>bty_a = a.as_bty_skipping_binder();
+        <span class="kw">let </span>bty_b = b.as_bty_skipping_binder();
+        <span class="kw">if let </span>BaseTy::Param(param_ty) = bty_a {
+            <span class="kw">if </span>!b.has_escaping_bvars() {
+                <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(b.clone()));
+            }
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.btys(bty_a, bty_b);
+        }
     }
 
     <span class="kw">fn </span>btys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) {

@@ -978,6 +978,25 @@
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -987,6 +1006,7 @@
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
@@ -1047,7 +1067,8 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>is_strg: bool,
     <span class="kw">pub </span>is_constant_index: bool, <span class="comment">// doesn't feel right...
@@ -1108,6 +1129,42 @@
     ) -&gt; CheckerResult {
         <span class="kw">let </span>cursor = <span class="self">self</span>.cursor_for(key);
         Unfolder::new(infcx, cursor, checker_conf).run(<span class="self">self</span>)
+    }
+
+    <span class="kw">pub fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
+        <span class="kw">let </span><span class="kw-2">mut </span>cursor = <span class="self">self</span>.cursor_for(place);
+        <span class="kw">let </span><span class="kw-2">mut </span>ty = <span class="self">self</span>.get_loc(<span class="kw-2">&amp;</span>cursor.loc).ty.clone();
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = cursor.next() {
+            <span class="kw">match </span>elem {
+                PlaceElem::Deref =&gt; {
+                    <span class="kw">if let </span>TyKind::Ptr(<span class="kw">_</span>, path) = ty.kind() {
+                        cursor.change_root(path);
+                        ty = <span class="self">self</span>.get_loc(<span class="kw-2">&amp;</span>cursor.loc).ty.clone();
+                    } <span class="kw">else </span>{
+                        <span class="kw">return</span>;
+                    }
+                }
+                PlaceElem::Field(f) =&gt; {
+                    <span class="kw">match </span>ty.kind() {
+                        TyKind::Indexed(BaseTy::Tuple(fields), <span class="kw">_</span>)
+                        | TyKind::Indexed(BaseTy::Closure(<span class="kw">_</span>, fields, <span class="kw">_</span>), <span class="kw">_</span>)
+                        | TyKind::Indexed(BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>, fields), <span class="kw">_</span>)
+                        | TyKind::Downcast(.., fields) =&gt; {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field access `Field({f:?})` and `{ty:?}`"</span>),
+                    };
+                }
+                PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; <span class="kw">return</span>,
+                PlaceElem::Downcast(..) =&gt; {}
+            }
+        }
+        cursor.reset();
+        Updater::update(<span class="self">self</span>, cursor, |<span class="kw">_</span>, ty| {
+            <span class="kw">let </span>unblocked = ty.unblocked();
+            rcx.hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(<span class="kw-2">&amp;</span>unblocked)
+        });
     }
 
     <span class="kw">fn </span>lookup_inner&lt;M: LookupMode&gt;(
@@ -1309,31 +1366,11 @@
         old
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, check_overflow: bool) {
-        <span class="kw">if </span><span class="self">self</span>.ty.is_uninit() {
-            <span class="kw">return</span>;
-        }
-        Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, |<span class="kw">_</span>, ty| {
-            <span class="comment">// FIXME(nilehmann) in some situations we are calling unblock on a place that's not actually
-            // blocked. This happens when taking a reference to an array or with a shared reborrow.
-            // To avoid crashing, we call `Ty::unblocked` which would simply return the original
-            // type if it wasn't unblocked. We should instead properly block the place in the first place
-            // and ensure we are only unblocking blocked places.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>unblocked = ty.unblocked();
-            <span class="kw">if </span><span class="self">self</span>.is_strg {
-                unblocked = rcx
-                    .hoister(AssumeInvariants::yes(check_overflow))
-                    .hoist(<span class="kw-2">&amp;</span>unblocked);
-            }
-            unblocked
-        });
-    }
-
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="self">self</span>, new_ty: Ty) -&gt; Ty {
         <span class="self">self</span>.update(Ty::blocked(new_ty))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, infcx, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
         <span class="self">self</span>.update(ty.clone());
         <span class="prelude-val">Ok</span>(ty)
@@ -1461,8 +1498,11 @@
         };
         <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
-        <span class="self">self</span>.insertions
-            .push((loc, place, Binding { kind, ty: ty.clone() }));
+        <span class="kw">let </span>ty = <span class="self">self
+            </span>.infcx
+            .hoister(AssumeInvariants::yes(<span class="self">self</span>.checker_conf.check_overflow))
+            .hoist(ty);
+        <span class="self">self</span>.insertions.push((loc, place, Binding { kind, ty }));
     }
 
     <span class="kw">fn </span>unfold_box(<span class="kw-2">&amp;mut </span><span class="self">self</span>, deref_ty: <span class="kw-2">&amp;</span>Ty, alloc: <span class="kw-2">&amp;</span>Ty) -&gt; Loc {
@@ -1595,8 +1635,8 @@
 
     <span class="kw">fn </span>update(bindings: <span class="kw-2">&amp;mut </span>PlacesTree, cursor: Cursor, new_ty: F) {
         <span class="kw">let </span>binding = bindings.get_loc_mut(<span class="kw-2">&amp;</span>cursor.loc);
-        <span class="kw">let </span>lookup = Updater::new(cursor, new_ty);
-        binding.ty = lookup.fold_ty(<span class="kw-2">&amp;</span>binding.ty);
+        <span class="kw">let </span>updater = Updater::new(cursor, new_ty);
+        binding.ty = updater.fold_ty(<span class="kw-2">&amp;</span>binding.ty);
     }
 
     <span class="kw">fn </span>fold_ty(<span class="kw-2">mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
@@ -1608,8 +1648,8 @@
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(ty, f),
             PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="self">self</span>.fold_ty(ty),
             PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
-                <span class="comment">// When unblocking under an array/slice we stop at the array/slice because the entire
-                // array has to be blocked when taking references to an element
+                <span class="comment">// When unblocking under an array/slice we stop at the array/slice because
+                // the entire array has to be blocked when taking references to an element
                 </span>(<span class="self">self</span>.new_ty)(<span class="self">self</span>.cursor, ty)
             }
         }
@@ -1846,7 +1886,7 @@
     infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
     ty: <span class="kw-2">&amp;</span>Ty,
     is_strg: bool,
-) -&gt; CheckerResult&lt;Ty&gt; {
+) -&gt; QueryResult&lt;Ty&gt; {
     <span class="kw">match </span>ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) =&gt; {
             <span class="kw">let </span>loc = path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
@@ -1926,9 +1966,7 @@
         }
 
         <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-            PrettyCx::default(tcx)
-                .kvar_args(KVarArgs::Hide)
-                .hide_binder(<span class="bool-val">true</span>)
+            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 

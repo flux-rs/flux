@@ -1382,6 +1382,7 @@
 <a href="#1382" id="1382">1382</a>
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1562,10 +1563,13 @@
             rty::Sort::Bool =&gt; fixpoint::Sort::Bool,
             rty::Sort::Str =&gt; fixpoint::Sort::Str,
             rty::Sort::BitVec(size) =&gt; fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(<span class="kw-2">*</span>size))),
-            <span class="comment">// There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
-            // user declared opaque sorts and type variable sorts as integers. Well-formedness should
-            // ensure values of these sorts are properly used.
-            </span>rty::Sort::App(rty::SortCtor::User { .. }, <span class="kw">_</span>) | rty::Sort::Param(<span class="kw">_</span>) =&gt; {
+            <span class="comment">// There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
+            // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
+            // integers. Well-formedness should ensure values of these sorts are used "opaquely",
+            // i.e., the only values of these sorts are variables.
+            </span>rty::Sort::App(rty::SortCtor::User { .. }, <span class="kw">_</span>)
+            | rty::Sort::Param(<span class="kw">_</span>)
+            | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) =&gt; {
                 fixpoint::Sort::Int
             }
             rty::Sort::App(rty::SortCtor::Set, args) =&gt; {
@@ -1594,10 +1598,10 @@
             }
             rty::Sort::Func(sort) =&gt; <span class="self">self</span>.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index()),
-            rty::Sort::Alias(<span class="kw">_</span>) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">"TODO: implementt encoding of `Sort::Alias`: `{sort:?}`"</span>)
-            }
-            rty::Sort::Err | rty::Sort::Infer(<span class="kw">_</span>) | rty::Sort::Loc =&gt; {
+            rty::Sort::Err
+            | rty::Sort::Infer(<span class="kw">_</span>)
+            | rty::Sort::Loc
+            | rty::Sort::Alias(rty::AliasKind::Weak, <span class="kw">_</span>) =&gt; {
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected sort `{sort:?}`"</span>)
             }
         }
@@ -1914,7 +1918,7 @@
             }
             rty::ExprKind::ForAll(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// If a forall appears in assumptive position replace it with true. This is sound
-                // because we are weakining the context, i.e., anything true without the assumption
+                // because we are weakening the context, i.e., anything true without the assumption
                 // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
@@ -1936,9 +1940,7 @@
         <span class="kw">let </span>kvids = <span class="self">self</span>.kcx.encode(kvar.kvid, decl, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx);
 
         <span class="kw">let </span>all_args = iter::zip(<span class="kw-2">&amp;</span>kvar.args, <span class="kw-2">&amp;</span>decl.sorts)
-            .map(|(arg, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
-                <span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx, bindings)
-            })
+            .map(|(arg, sort)| <span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx, bindings))
             .try_collect_vec()<span class="question-mark">?</span>;
 
         <span class="comment">// Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get

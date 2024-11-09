@@ -543,13 +543,6 @@
 <a href="#543" id="543">543</a>
 <a href="#544" id="544">544</a>
 <a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -642,7 +635,7 @@
             <span class="self">self</span>.lift_where_predicate(pred)
         })<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(fhir::Generics { params, self_kind: <span class="prelude-val">None</span>, refinement_params: <span class="kw-2">&amp;</span>[], predicates })
+        <span class="prelude-val">Ok</span>(fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates })
     }
 
     <span class="kw">fn </span>lift_where_predicate(
@@ -764,15 +757,8 @@
         };
 
         <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics()<span class="question-mark">?</span>;
-        <span class="kw">let </span>refined_by = <span class="self">self</span>.lift_refined_by();
         <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
-        <span class="kw">let </span>ty_alias = fhir::TyAlias {
-            refined_by: <span class="self">self</span>.genv.alloc(refined_by),
-            params: <span class="kw-2">&amp;</span>[],
-            ty,
-            span: item.span,
-            lifted: <span class="bool-val">true</span>,
-        };
+        <span class="kw">let </span>ty_alias = fhir::TyAlias { index: <span class="prelude-val">None</span>, ty, span: item.span, lifted: <span class="bool-val">true </span>};
         <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: <span class="self">self</span>.owner })
     }
 

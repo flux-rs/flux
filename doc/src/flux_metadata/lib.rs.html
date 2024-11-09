@@ -402,9 +402,6 @@
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
 <a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -522,7 +519,7 @@
     adt_def: UnordMap&lt;K, QueryResult&lt;rty::AdtDef&gt;&gt;,
     adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
     variants: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
-    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;,
+    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>CStore {
@@ -606,7 +603,7 @@
         <span class="macro">get!</span>(<span class="self">self</span>, variants, def_id)
     }
 
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
         <span class="macro">get!</span>(<span class="self">self</span>, type_of, def_id)
     }
 
@@ -754,9 +751,6 @@
                 tables
                     .refinement_generics_of
                     .insert(key, genv.refinement_generics_of(def_id));
-                tables
-                    .adt_sort_def
-                    .insert(key, genv.adt_sort_def_of(def_id));
                 tables.type_of.insert(key, genv.type_of(def_id));
             }
             DefKind::OpaqueTy =&gt; {

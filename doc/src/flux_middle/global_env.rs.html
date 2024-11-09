@@ -590,24 +590,6 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -825,8 +807,7 @@
         <span class="kw">let </span>trait_ref = trait_ref
             .lower(<span class="self">self</span>.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?</span>;
-        <span class="kw">let </span>impl_generics = <span class="self">self</span>.generics_of(impl_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, <span class="kw-2">&amp;</span>impl_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
+        <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
     }
 
@@ -898,7 +879,7 @@
     <span class="kw">pub fn </span>type_of(
         <span class="self">self</span>,
         def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
-    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
         <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id.into_query_param())
     }
 
@@ -943,22 +924,6 @@
         <span class="kw">let </span>parent = <span class="self">self</span>.tcx().parent(def_id);
         <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(parent);
         generics.param_def_id_to_index(<span class="self">self</span>.tcx(), def_id).unwrap()
-    }
-
-    <span class="kw">pub fn </span>refine_default(
-        <span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        rustc_ty: <span class="kw-2">&amp;</span>ty::Ty,
-    ) -&gt; QueryResult&lt;rty::Ty&gt; {
-        Refiner::default(<span class="self">self</span>, generics).refine_ty(rustc_ty)
-    }
-
-    <span class="kw">pub fn </span>refine_with_holes(
-        <span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        rustc_ty: <span class="kw-2">&amp;</span>ty::Ty,
-    ) -&gt; QueryResult&lt;rty::Ty&gt; {
-        Refiner::with_holes(<span class="self">self</span>, generics).refine_ty(rustc_ty)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cstore(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>CrateStoreDyn {
@@ -1024,7 +989,7 @@
 
     <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
-    /// explicity annotation and whether it requires an overflow check or not.
+    /// explicitly annotation and whether it requires an overflow check or not.
     /// If no explicit annotation is found, return None
     ///
     /// Note:
@@ -1142,7 +1107,6 @@
         <span class="kw">let </span>refined_by = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id)<span class="question-mark">?</span>.kind {
             fhir::ItemKind::Enum(enum_def) =&gt; enum_def.refined_by,
             fhir::ItemKind::Struct(struct_def) =&gt; struct_def.refined_by,
-            fhir::ItemKind::TyAlias(ty_alias) =&gt; ty_alias.refined_by,
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
         };
         <span class="prelude-val">Ok</span>(refined_by)

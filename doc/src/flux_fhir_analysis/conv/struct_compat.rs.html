@@ -769,6 +769,58 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -784,7 +836,7 @@
     queries::QueryResult,
     rty::{
         <span class="self">self</span>,
-        fold::{BottomUpFolder, TypeFoldable},
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::Refiner,
     },
     MaybeExternId,
@@ -801,8 +853,7 @@
     def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;rty::TyCtor&gt; {
     <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
-    <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expected = Refiner::default(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
 
     <span class="kw">if </span>zipper
@@ -826,8 +877,8 @@
     def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
     <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
-    <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expected =
+        Refiner::default(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
     <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = zipper.zip_poly_fn_sig(fn_sig, <span class="kw-2">&amp;</span>expected) {
@@ -844,8 +895,7 @@
     variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
     adt_def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
-    <span class="kw">let </span>generics = genv.generics_of(adt_def_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>refiner = Refiner::default(genv, <span class="kw-2">&amp;</span>generics);
+    <span class="kw">let </span>refiner = Refiner::default(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
     <span class="comment">// TODO check same number of variants
     </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
@@ -874,45 +924,74 @@
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>Holes {
+    sorts: UnordMap&lt;rty::SortVid, rty::Sort&gt;,
+    subset_tys: UnordMap&lt;rty::TyVid, rty::SubsetTy&gt;,
     types: UnordMap&lt;rty::TyVid, rty::Ty&gt;,
     regions: UnordMap&lt;rty::RegionVid, rty::Region&gt;,
     consts: UnordMap&lt;rty::ConstVid, rty::Const&gt;,
 }
 
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span><span class="kw-2">&amp;</span>Holes {
+    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
+            <span class="self">self</span>.sorts
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled sort hole {vid:?}"</span>))
+        } <span class="kw">else </span>{
+            sort.super_fold_with(<span class="self">self</span>)
+        }
+    }
+
+    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; rty::Ty {
+        <span class="kw">if let </span>rty::TyKind::Infer(vid) = ty.kind() {
+            <span class="self">self</span>.types
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
+        } <span class="kw">else </span>{
+            ty.super_fold_with(<span class="self">self</span>)
+        }
+    }
+
+    <span class="kw">fn </span>fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; rty::SubsetTy {
+        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = <span class="kw-2">&amp;</span>constr.bty {
+            <span class="self">self</span>.subset_tys
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
+        } <span class="kw">else </span>{
+            constr.super_fold_with(<span class="self">self</span>)
+        }
+    }
+
+    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>rty::Region) -&gt; rty::Region {
+        <span class="kw">if let </span>rty::Region::ReVar(vid) = r {
+            <span class="self">self</span>.regions
+                .get(vid)
+                .copied()
+                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled region hole {vid:?}"</span>))
+        } <span class="kw">else </span>{
+            <span class="kw-2">*</span>r
+        }
+    }
+
+    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ct: <span class="kw-2">&amp;</span>rty::Const) -&gt; rty::Const {
+        <span class="kw">if let </span>rty::ConstKind::Infer(InferConst::Var(cid)) = ct.kind {
+            <span class="self">self</span>.consts
+                .get(<span class="kw-2">&amp;</span>cid)
+                .cloned()
+                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled const hole {cid:?}"</span>))
+        } <span class="kw">else </span>{
+            ct.super_fold_with(<span class="self">self</span>)
+        }
+    }
+}
+
 <span class="kw">impl </span>Holes {
     <span class="kw">fn </span>replace_holes&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
-        t.fold_with(<span class="kw-2">&amp;mut </span>BottomUpFolder {
-            ty_op: |ty| {
-                <span class="kw">if let </span>rty::TyKind::Infer(vid) = ty.kind() {
-                    <span class="self">self</span>.types
-                        .get(vid)
-                        .cloned()
-                        .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
-                } <span class="kw">else </span>{
-                    ty
-                }
-            },
-            lt_op: |r| {
-                <span class="kw">if let </span>rty::Region::ReVar(vid) = r {
-                    <span class="self">self</span>.regions
-                        .get(<span class="kw-2">&amp;</span>vid)
-                        .copied()
-                        .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled region hole {vid:?}"</span>))
-                } <span class="kw">else </span>{
-                    r
-                }
-            },
-            ct_op: |c| {
-                <span class="kw">if let </span>rty::ConstKind::Infer(InferConst::Var(cid)) = c.kind {
-                    <span class="self">self</span>.consts
-                        .get(<span class="kw-2">&amp;</span>cid)
-                        .cloned()
-                        .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled const hole {cid:?}"</span>))
-                } <span class="kw">else </span>{
-                    c
-                }
-            },
-        })
+        <span class="kw">let </span><span class="kw-2">mut </span>this = <span class="self">self</span>;
+        t.fold_with(<span class="kw-2">&amp;mut </span>this)
     }
 }
 
@@ -989,7 +1068,8 @@
 
     <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>rty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
         <span class="kw">match </span>(a.kind(), b.kind()) {
-            (rty::TyKind::Infer(vid), <span class="kw">_</span>) <span class="kw">if </span>a != <span class="kw-2">&amp;</span>rty::Ty::trait_object_dummy_self() =&gt; {
+            (rty::TyKind::Infer(vid), <span class="kw">_</span>) =&gt; {
+                <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
                 <span class="kw">let </span>b = <span class="self">self</span>.adjust_binders(b);
                 <span class="self">self</span>.holes.types.insert(<span class="kw-2">*</span>vid, b);
                 <span class="prelude-val">Ok</span>(())
@@ -1014,15 +1094,6 @@
             }
             (rty::TyKind::Param(pty_a), rty::TyKind::Param(pty_b)) =&gt; {
                 assert_eq_or_incompatible(pty_a, pty_b)
-            }
-            (rty::TyKind::Alias(kind_a, aty_a), rty::TyKind::Alias(kind_b, aty_b)) =&gt; {
-                assert_eq_or_incompatible(kind_a, kind_b)<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())<span class="question-mark">?</span>;
-                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>aty_a.args, <span class="kw-2">&amp;</span>aty_b.args) {
-                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
             }
             (
                 rty::TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
@@ -1081,6 +1152,15 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
+            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) =&gt; {
+                assert_eq_or_incompatible(kind_a, kind_b)<span class="question-mark">?</span>;
+                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)<span class="question-mark">?</span>;
+                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())<span class="question-mark">?</span>;
+                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>aty_a.args, <span class="kw-2">&amp;</span>aty_b.args) {
+                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
             (rty::BaseTy::Array(ty_a, len_a), rty::BaseTy::Array(ty_b, len_b)) =&gt; {
                 <span class="self">self</span>.zip_const(len_a, len_b)<span class="question-mark">?</span>;
                 <span class="self">self</span>.zip_ty(ty_a, ty_b)
@@ -1112,8 +1192,9 @@
         <span class="kw">match </span>(a, b) {
             (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
             (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) =&gt; {
+                <span class="self">self</span>.zip_sorts(<span class="kw-2">&amp;</span>ctor_a.sort(), <span class="kw-2">&amp;</span>ctor_b.sort());
                 <span class="self">self</span>.enter_binders(ctor_a, ctor_b, |this, sty_a, sty_b| {
-                    this.zip_bty(<span class="kw-2">&amp;</span>sty_a.bty, <span class="kw-2">&amp;</span>sty_b.bty)
+                    this.zip_subset_ty(sty_a, sty_b)
                 })
             }
             (rty::GenericArg::Lifetime(re_a), rty::GenericArg::Lifetime(re_b)) =&gt; {
@@ -1124,6 +1205,24 @@
                 <span class="self">self</span>.zip_const(ct_a, ct_b)
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+        }
+    }
+
+    <span class="kw">fn </span>zip_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Sort, b: <span class="kw-2">&amp;</span>rty::Sort) {
+        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = a {
+            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
+            <span class="self">self</span>.holes.sorts.insert(<span class="kw-2">*</span>vid, b.clone());
+        }
+    }
+
+    <span class="kw">fn </span>zip_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::SubsetTy, b: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = a.bty {
+            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
+            <span class="kw">let </span>b = <span class="self">self</span>.adjust_binders(b);
+            <span class="self">self</span>.holes.subset_tys.insert(vid, b);
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
         }
     }
 
@@ -1181,7 +1280,9 @@
                     <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>projection_a.args, <span class="kw-2">&amp;</span>projection_b.args) {
                         this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
                     }
-                    this.zip_ty(<span class="kw-2">&amp;</span>projection_a.term, <span class="kw-2">&amp;</span>projection_b.term)
+                    this.enter_binders(<span class="kw-2">&amp;</span>projection_a.term, <span class="kw-2">&amp;</span>projection_b.term, |this, a, b| {
+                        this.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
+                    })
                 }
                 (
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
@@ -1223,11 +1324,14 @@
         r
     }
 
-    <span class="kw">fn </span>adjust_binders&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
+    <span class="kw">fn </span>adjust_binders&lt;T: TypeFoldable + Clone&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
         <span class="kw">if </span><span class="self">self</span>.a_index &gt;= <span class="self">self</span>.b_index {
             t.shift_in_escaping(<span class="self">self</span>.a_index.as_u32() - <span class="self">self</span>.b_index.as_u32())
         } <span class="kw">else </span>{
-            t.shift_out_escaping(<span class="self">self</span>.b_index.as_u32() - <span class="self">self</span>.a_index.as_u32())
+            <span class="macro">debug_assert!</span>(
+                !t.has_escaping_bvars_at_or_above(<span class="self">self</span>.b_index.shifted_out_to_binder(<span class="self">self</span>.a_index))
+            );
+            t.clone()
         }
     }
 

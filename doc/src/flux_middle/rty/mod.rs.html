@@ -2364,6 +2364,86 @@
 <a href="#2364" id="2364">2364</a>
 <a href="#2365" id="2365">2365</a>
 <a href="#2366" id="2366">2366</a>
+<a href="#2367" id="2367">2367</a>
+<a href="#2368" id="2368">2368</a>
+<a href="#2369" id="2369">2369</a>
+<a href="#2370" id="2370">2370</a>
+<a href="#2371" id="2371">2371</a>
+<a href="#2372" id="2372">2372</a>
+<a href="#2373" id="2373">2373</a>
+<a href="#2374" id="2374">2374</a>
+<a href="#2375" id="2375">2375</a>
+<a href="#2376" id="2376">2376</a>
+<a href="#2377" id="2377">2377</a>
+<a href="#2378" id="2378">2378</a>
+<a href="#2379" id="2379">2379</a>
+<a href="#2380" id="2380">2380</a>
+<a href="#2381" id="2381">2381</a>
+<a href="#2382" id="2382">2382</a>
+<a href="#2383" id="2383">2383</a>
+<a href="#2384" id="2384">2384</a>
+<a href="#2385" id="2385">2385</a>
+<a href="#2386" id="2386">2386</a>
+<a href="#2387" id="2387">2387</a>
+<a href="#2388" id="2388">2388</a>
+<a href="#2389" id="2389">2389</a>
+<a href="#2390" id="2390">2390</a>
+<a href="#2391" id="2391">2391</a>
+<a href="#2392" id="2392">2392</a>
+<a href="#2393" id="2393">2393</a>
+<a href="#2394" id="2394">2394</a>
+<a href="#2395" id="2395">2395</a>
+<a href="#2396" id="2396">2396</a>
+<a href="#2397" id="2397">2397</a>
+<a href="#2398" id="2398">2398</a>
+<a href="#2399" id="2399">2399</a>
+<a href="#2400" id="2400">2400</a>
+<a href="#2401" id="2401">2401</a>
+<a href="#2402" id="2402">2402</a>
+<a href="#2403" id="2403">2403</a>
+<a href="#2404" id="2404">2404</a>
+<a href="#2405" id="2405">2405</a>
+<a href="#2406" id="2406">2406</a>
+<a href="#2407" id="2407">2407</a>
+<a href="#2408" id="2408">2408</a>
+<a href="#2409" id="2409">2409</a>
+<a href="#2410" id="2410">2410</a>
+<a href="#2411" id="2411">2411</a>
+<a href="#2412" id="2412">2412</a>
+<a href="#2413" id="2413">2413</a>
+<a href="#2414" id="2414">2414</a>
+<a href="#2415" id="2415">2415</a>
+<a href="#2416" id="2416">2416</a>
+<a href="#2417" id="2417">2417</a>
+<a href="#2418" id="2418">2418</a>
+<a href="#2419" id="2419">2419</a>
+<a href="#2420" id="2420">2420</a>
+<a href="#2421" id="2421">2421</a>
+<a href="#2422" id="2422">2422</a>
+<a href="#2423" id="2423">2423</a>
+<a href="#2424" id="2424">2424</a>
+<a href="#2425" id="2425">2425</a>
+<a href="#2426" id="2426">2426</a>
+<a href="#2427" id="2427">2427</a>
+<a href="#2428" id="2428">2428</a>
+<a href="#2429" id="2429">2429</a>
+<a href="#2430" id="2430">2430</a>
+<a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2405,6 +2485,7 @@
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
+<span class="kw">use </span>refining::Refiner;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem, Safety};
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
@@ -2429,7 +2510,7 @@
     rty::subst::SortSubst,
 };
 
-<span class="doccomment">/// The definition of the data sort automatically generated for a struct, enum or type alias.
+<span class="doccomment">/// The definition of the data sort automatically generated for a struct or enum.
 </span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>AdtSortDef(Interned&lt;AdtSortDefData&gt;);
 
@@ -2532,9 +2613,10 @@
             .iter()
             .filter(|param| {
                 <span class="kw">match </span>param.kind {
-                    GenericParamDefKind::Type { has_default } =&gt; has_default,
-                    GenericParamDefKind::Const { has_default } =&gt; has_default,
-                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime =&gt; <span class="bool-val">false</span>,
+                    GenericParamDefKind::Type { has_default }
+                    | GenericParamDefKind::Const { has_default }
+                    | GenericParamDefKind::Base { has_default } =&gt; has_default,
+                    GenericParamDefKind::Lifetime =&gt; <span class="bool-val">false</span>,
                 }
             })
             .count()
@@ -2590,7 +2672,7 @@
 <span class="attr">#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>GenericParamDefKind {
     Type { has_default: bool },
-    Base,
+    Base { has_default: bool },
     Lifetime,
     Const { has_default: bool },
 }
@@ -2707,7 +2789,7 @@
                     rustc_middle::ty::ExistentialProjection {
                         def_id: projection.def_id,
                         args: projection.args.to_rustc(tcx),
-                        term: projection.term.to_rustc(tcx).into(),
+                        term: projection.term.skip_binder_ref().to_rustc(tcx).into(),
                     },
                 )
             }
@@ -2740,7 +2822,7 @@
 </span><span class="kw">pub struct </span>ExistentialProjection {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
-    <span class="kw">pub </span>term: Ty,
+    <span class="kw">pub </span>term: SubsetTyCtor,
 }
 
 <span class="attr">#[derive(
@@ -2748,7 +2830,7 @@
 )]
 </span><span class="kw">pub struct </span>ProjectionPredicate {
     <span class="kw">pub </span>projection_ty: AliasTy,
-    <span class="kw">pub </span>term: Ty,
+    <span class="kw">pub </span>term: SubsetTyCtor,
 }
 
 <span class="attr">#[derive(
@@ -2988,7 +3070,7 @@
     Loc,
     Param(ParamTy),
     Tuple(List&lt;Sort&gt;),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Func(PolyFuncSort),
     App(SortCtor, List&lt;Sort&gt;),
     Var(ParamSort),
@@ -3336,19 +3418,6 @@
         Ty::infer(TyVid::from_u32(<span class="number">0</span>))
     }
 
-    <span class="kw">pub fn </span>alias(kind: AliasKind, alias_ty: AliasTy) -&gt; Ty {
-        TyKind::Alias(kind, alias_ty).intern()
-    }
-
-    <span class="kw">pub fn </span>opaque(def_id: <span class="kw">impl </span>Into&lt;DefId&gt;, args: GenericArgs, refine_args: RefineArgs) -&gt; Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
-            .intern()
-    }
-
-    <span class="kw">pub fn </span>projection(alias_ty: AliasTy) -&gt; Ty {
-        <span class="self">Self</span>::alias(AliasKind::Projection, alias_ty)
-    }
-
     <span class="kw">pub fn </span>dynamic(preds: <span class="kw">impl </span>Into&lt;List&lt;Binder&lt;ExistentialPredicate&gt;&gt;&gt;, region: Region) -&gt; Ty {
         BaseTy::Dynamic(preds.into(), region).to_ty()
     }
@@ -3455,8 +3524,7 @@
         <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>alloc_ty = genv.refine_default(
-            <span class="kw-2">&amp;</span>generics,
+        <span class="kw">let </span>alloc_ty = Refiner::default(genv, def_id)<span class="question-mark">?</span>.refine_ty(
             <span class="kw-2">&amp;</span>genv
                 .lower_type_of(generics.own_params[<span class="number">1</span>].def_id)<span class="question-mark">?
                 </span>.skip_binder(),
@@ -3601,9 +3669,6 @@
             TyKind::Exists(ty) =&gt; ty.skip_binder_ref().to_rustc(tcx),
             TyKind::Constr(<span class="kw">_</span>, ty) =&gt; ty.to_rustc(tcx),
             TyKind::Param(pty) =&gt; pty.to_ty(tcx),
-            TyKind::Alias(kind, alias_ty) =&gt; {
-                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
-            }
             TyKind::StrgRef(re, <span class="kw">_</span>, ty) =&gt; {
                 rustc_middle::ty::Ty::new_ref(
                     tcx,
@@ -3642,7 +3707,6 @@
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List&lt;Ty&gt;),
     Blocked(Ty),
-    Alias(AliasKind, AliasTy),
     <span class="doccomment">/// A type that needs to be inferred by matching the signature against a rust signature.
     /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
     /// the final signature.
@@ -3670,7 +3734,7 @@
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
     Tuple(List&lt;Ty&gt;),
-    Alias(AliasTy),
+    Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
     Closure(DefId, <span class="comment">/* upvar_tys */ </span>List&lt;Ty&gt;, flux_rustc_bridge::ty::GenericArgs),
@@ -3681,6 +3745,14 @@
 }
 
 <span class="kw">impl </span>BaseTy {
+    <span class="kw">pub fn </span>opaque(alias_ty: AliasTy) -&gt; BaseTy {
+        BaseTy::Alias(AliasKind::Opaque, alias_ty)
+    }
+
+    <span class="kw">pub fn </span>projection(alias_ty: AliasTy) -&gt; BaseTy {
+        BaseTy::Alias(AliasKind::Projection, alias_ty)
+    }
+
     <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
         BaseTy::Adt(adt_def, args.into())
     }
@@ -3825,6 +3897,11 @@
         }
     }
 
+    <span class="kw">pub fn </span>to_subset_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SubsetTyCtor {
+        <span class="kw">let </span>sort = <span class="self">self</span>.sort();
+        Binder::bind_with_sort(SubsetTy::trivial(<span class="self">self</span>.clone(), Expr::nu()), sort)
+    }
+
     <span class="attr">#[track_caller]
     </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>[GenericArg]) {
         <span class="kw">if let </span>BaseTy::Adt(adt_def, args) = <span class="self">self </span>{
@@ -3868,7 +3945,9 @@
                 <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, <span class="kw-2">&amp;</span>ts)
             }
-            BaseTy::Alias(alias_ty) =&gt; ty::Ty::new_alias(tcx, ty::Weak, alias_ty.to_rustc(tcx)),
+            BaseTy::Alias(kind, alias_ty) =&gt; {
+                ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
+            }
             BaseTy::Array(ty, n) =&gt; {
                 <span class="kw">let </span>ty = ty.to_rustc(tcx);
                 <span class="kw">let </span>n = n.to_rustc(tcx);
@@ -3931,14 +4010,6 @@
 </span><span class="kw">pub type </span>SubsetTyCtor = Binder&lt;SubsetTy&gt;;
 
 <span class="kw">impl </span>SubsetTyCtor {
-    <span class="doccomment">/// This is the subset type version of [`Ty::trait_object_dummy_self`]
-    </span><span class="kw">pub fn </span>trait_object_dummy_self() -&gt; <span class="self">Self </span>{
-        SubsetTyCtor::bind_with_sort(
-            SubsetTy::trivial(BaseTy::Infer(TyVid::from_u32(<span class="number">0</span>)), Expr::nu()),
-            Sort::Infer(SortInfer::SortVar(SortVid::from_u32(<span class="number">0</span>))),
-        )
-    }
-
     <span class="kw">pub fn </span>as_bty_skipping_binder(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BaseTy {
         <span class="kw-2">&amp;</span><span class="self">self</span>.as_ref().skip_binder().bty
     }
@@ -3952,6 +4023,10 @@
         } <span class="kw">else </span>{
             Ty::exists(<span class="self">self</span>.as_ref().map(SubsetTy::to_ty))
         }
+    }
+
+    <span class="kw">pub fn </span>to_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtor {
+        <span class="self">self</span>.as_ref().map(SubsetTy::to_ty)
     }
 }
 
@@ -4026,10 +4101,11 @@
 
     <span class="kw">pub fn </span>strengthen(<span class="kw-2">&amp;</span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>this = <span class="self">self</span>.clone();
-        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred) }
+        <span class="kw">let </span>pred = Expr::and(this.pred, pred).simplify();
+        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred }
     }
 
-    <span class="kw">fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">let </span>bty = <span class="self">self</span>.bty.clone();
         <span class="kw">if </span><span class="self">self</span>.pred.is_trivially_true() {
             Ty::indexed(bty, <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
@@ -4078,7 +4154,7 @@
                 <span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Ty(Ty::param(param_ty))
             }
-            GenericParamDefKind::Base =&gt; {
+            GenericParamDefKind::Base { .. } =&gt; {
                 <span class="comment">// λv. T[v]
                 </span><span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Base(Binder::bind_with_sort(
@@ -4141,6 +4217,15 @@
     }
 }
 
+<span class="kw">impl </span>From&lt;TyOrBase&gt; <span class="kw">for </span>GenericArg {
+    <span class="kw">fn </span>from(v: TyOrBase) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>v {
+            TyOrBase::Ty(ty) =&gt; GenericArg::Ty(ty),
+            TyOrBase::Base(ctor) =&gt; GenericArg::Base(ctor),
+        }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>GenericArg {
     <span class="kw">type </span>T = rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt;;
 
@@ -4185,6 +4270,81 @@
             .chain(<span class="self">self</span>.iter().skip(defs.count()))
             .cloned()
             .collect()
+    }
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>TyOrBase {
+    Ty(Ty),
+    Base(SubsetTyCtor),
+}
+
+<span class="kw">impl </span>TyOrBase {
+    <span class="kw">pub fn </span>into_ty(<span class="self">self</span>) -&gt; Ty {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrBase::Ty(ty) =&gt; ty,
+            TyOrBase::Base(ctor) =&gt; ctor.to_ty(),
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_base(<span class="self">self</span>) -&gt; SubsetTyCtor {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrBase::Base(ctor) =&gt; ctor,
+            TyOrBase::Ty(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected `TyOrBase::Base`"</span>),
+        }
+    }
+
+    <span class="kw">pub fn </span>as_base(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SubsetTyCtor&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrBase::Base(ctor) =&gt; <span class="prelude-val">Some</span>(ctor),
+            TyOrBase::Ty(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="attr">#[derive(Debug, Clone, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+</span><span class="kw">pub enum </span>TyOrCtor {
+    Ty(Ty),
+    Ctor(TyCtor),
+}
+
+<span class="kw">impl </span>TyOrCtor {
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_ctor(<span class="self">self</span>) -&gt; TyCtor {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrCtor::Ctor(ctor) =&gt; ctor,
+            TyOrCtor::Ty(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected `TyOrCtor::Ctor`"</span>),
+        }
+    }
+
+    <span class="kw">pub fn </span>expect_subset_ty_ctor(<span class="self">self</span>) -&gt; SubsetTyCtor {
+        <span class="self">self</span>.expect_ctor().map(|ty| {
+            <span class="kw">if let </span>canonicalize::CanonicalTy::Constr(constr_ty) = ty.shallow_canonicalize()
+                &amp;&amp; <span class="kw">let </span>TyKind::Indexed(bty, idx) = constr_ty.ty().kind()
+                &amp;&amp; idx.is_nu()
+            {
+                SubsetTy::new(bty.clone(), Expr::nu(), constr_ty.pred())
+            } <span class="kw">else </span>{
+                <span class="macro">tracked_span_bug!</span>()
+            }
+        })
+    }
+
+    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrCtor::Ctor(ctor) =&gt; ctor.to_ty(),
+            TyOrCtor::Ty(ty) =&gt; ty.clone(),
+        }
+    }
+}
+
+<span class="kw">impl </span>From&lt;TyOrBase&gt; <span class="kw">for </span>TyOrCtor {
+    <span class="kw">fn </span>from(v: TyOrBase) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>v {
+            TyOrBase::Ty(ty) =&gt; TyOrCtor::Ty(ty),
+            TyOrBase::Base(ctor) =&gt; TyOrCtor::Ctor(ctor.to_ty_ctor()),
+        }
     }
 }
 

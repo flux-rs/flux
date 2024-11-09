@@ -1497,25 +1497,6 @@
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
-<a href="#1500" id="1500">1500</a>
-<a href="#1501" id="1501">1501</a>
-<a href="#1502" id="1502">1502</a>
-<a href="#1503" id="1503">1503</a>
-<a href="#1504" id="1504">1504</a>
-<a href="#1505" id="1505">1505</a>
-<a href="#1506" id="1506">1506</a>
-<a href="#1507" id="1507">1507</a>
-<a href="#1508" id="1508">1508</a>
-<a href="#1509" id="1509">1509</a>
-<a href="#1510" id="1510">1510</a>
-<a href="#1511" id="1511">1511</a>
-<a href="#1512" id="1512">1512</a>
-<a href="#1513" id="1513">1513</a>
-<a href="#1514" id="1514">1514</a>
-<a href="#1515" id="1515">1515</a>
-<a href="#1516" id="1516">1516</a>
-<a href="#1517" id="1517">1517</a>
-<a href="#1518" id="1518">1518</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1558,7 +1539,7 @@
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 <span class="kw">use </span>rustc_target::spec::abi;
 
-<span class="kw">use crate</span>::{global_env::GlobalEnv, MaybeExternId};
+<span class="kw">use </span><span class="kw">crate</span>::MaybeExternId;
 
 <span class="doccomment">/// A boolean-like enum used to mark whether a piece of code is ignored.
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -1642,7 +1623,6 @@
 </span><span class="kw">pub struct </span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>refinement_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
-    <span class="kw">pub </span>self_kind: <span class="prelude-ty">Option</span>&lt;GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
     <span class="kw">pub </span>predicates: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[WhereBoundPredicate&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
@@ -1656,7 +1636,6 @@
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub enum </span>GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Type { default: <span class="prelude-ty">Option</span>&lt;Ty&lt;<span class="lifetime">'fhir</span>&gt;&gt; },
-    Base,
     Lifetime,
     Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;, is_host_effect: bool },
 }
@@ -1916,8 +1895,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TyAlias&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
-    <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>index: <span class="prelude-ty">Option</span>&lt;RefineParam&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
     <span class="kw">pub </span>ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>span: Span,
     <span class="doccomment">/// Whether this alias was [lifted] from a `hir` alias
@@ -2367,7 +2345,7 @@
         <span class="doccomment">/// The item introducing the `Self` type alias, e.g., an impl block.
         </span>alias_to: DefId,
     },
-    <span class="doccomment">/// The sort of an adt (enum/struct) or type alias.
+    <span class="doccomment">/// The sort of an adt (enum/struct).
     </span>Adt(DefId),
 }
 
@@ -2593,7 +2571,7 @@
     <span class="kw">pub const </span>TRUE: Lit = Lit::Bool(<span class="bool-val">true</span>);
 }
 
-<span class="doccomment">/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
+<span class="doccomment">/// Information about the refinement parameters associated with an adt (struct/enum).
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="doccomment">/// When a `#[flux::refined_by(..)]` annotation mentions generic type parameters we implicitly
@@ -2641,18 +2619,6 @@
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
     }
-
-    <span class="kw">pub fn </span>with_refined_by(<span class="self">self</span>, genv: GlobalEnv&lt;<span class="lifetime">'fhir</span>, <span class="lifetime">'_</span>&gt;, refined_by: <span class="kw-2">&amp;</span>RefinedBy) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>params = genv.alloc_slice_fill_iter(<span class="self">self</span>.params.iter().map(|param| {
-            <span class="kw">let </span>kind = <span class="kw">if </span>refined_by.is_base_generic(param.def_id.resolved_id()) {
-                GenericParamKind::Base
-            } <span class="kw">else </span>{
-                param.kind
-            };
-            GenericParam { kind, ..<span class="kw-2">*</span>param }
-        }));
-        Generics { params, ..<span class="self">self </span>}
-    }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; RefinedBy&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -2662,10 +2628,6 @@
 
     <span class="kw">pub fn </span>trivial() -&gt; <span class="self">Self </span>{
         RefinedBy { sort_params: Default::default(), fields: Default::default() }
-    }
-
-    <span class="kw">fn </span>is_base_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
-        <span class="self">self</span>.sort_params.contains(<span class="kw-2">&amp;</span>def_id)
     }
 }
 
@@ -2999,15 +2961,15 @@
             SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
             SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
             SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{}"</span>, n),
-            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"sortof({})"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
             SortRes::SelfParam { trait_id } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
+                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
             }
             SortRes::SelfAlias { alias_to } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"sortof({}::Self)"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
+                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
             }
             SortRes::User { name } =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
-            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::Sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
         }
     }
 }

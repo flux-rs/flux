@@ -1017,30 +1017,6 @@
 <a href="#1017" id="1017">1017</a>
 <a href="#1018" id="1018">1018</a>
 <a href="#1019" id="1019">1019</a>
-<a href="#1020" id="1020">1020</a>
-<a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a>
-<a href="#1041" id="1041">1041</a>
-<a href="#1042" id="1042">1042</a>
-<a href="#1043" id="1043">1043</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1211,6 +1187,14 @@
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt;;
 
     <span class="kw">fn </span>has_escaping_bvars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.has_escaping_bvars_at_or_above(INNERMOST)
+    }
+
+    <span class="doccomment">/// Returns `true` if `self` has any late-bound vars that are either
+    /// bound by `binder` or bound by some binder outside of `binder`.
+    /// If `binder` is `ty::INNERMOST`, this indicates whether
+    /// there are any late-bound vars that appear free.
+    </span><span class="kw">fn </span>has_escaping_bvars_at_or_above(<span class="kw-2">&amp;</span><span class="self">self</span>, binder: DebruijnIndex) -&gt; bool {
         <span class="kw">struct </span>HasEscapingVars {
             <span class="doccomment">/// Anything bound by `outer_index` or "above" is escaping.
             </span>outer_index: DebruijnIndex,
@@ -1240,7 +1224,7 @@
                 }
             }
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>visitor = HasEscapingVars { outer_index: INNERMOST };
+        <span class="kw">let </span><span class="kw-2">mut </span>visitor = HasEscapingVars { outer_index: binder };
         <span class="self">self</span>.visit_with(<span class="kw-2">&amp;mut </span>visitor).is_break()
     }
 
@@ -1292,7 +1276,7 @@
 
     <span class="doccomment">/// Replaces all [holes] with the result of calling a closure. The closure takes a list with
     /// all the *layers* of [bound] variables at the point the hole was found. Each layer corresponds
-    /// to the list of sorts bound at that level. The list is ordered from outermost to innermost
+    /// to the list of bound variables at that level. The list is ordered from outermost to innermost
     /// binder, i.e., the last element is the binder closest to the hole.
     ///
     /// [holes]: ExprKind::Hole
@@ -1338,6 +1322,10 @@
                 } <span class="kw">else </span>{
                     ty.super_fold_with(<span class="self">self</span>)
                 }
+            }
+
+            <span class="kw">fn </span>fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>SubsetTy) -&gt; SubsetTy {
+                SubsetTy::new(constr.bty.clone(), constr.idx.clone(), Expr::hole(HoleKind::Pred))
             }
         }
 
@@ -1474,7 +1462,7 @@
             Sort::Tuple(sorts) =&gt; sorts.visit_with(visitor),
             Sort::App(<span class="kw">_</span>, args) =&gt; args.visit_with(visitor),
             Sort::Func(fsort) =&gt; fsort.visit_with(visitor),
-            Sort::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
+            Sort::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -1501,7 +1489,7 @@
             Sort::Tuple(sorts) =&gt; Sort::tuple(sorts.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::App(ctor, sorts) =&gt; Sort::app(ctor.clone(), sorts.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::Func(fsort) =&gt; Sort::Func(fsort.try_fold_with(folder)<span class="question-mark">?</span>),
-            Sort::Alias(alias_ty) =&gt; Sort::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
+            Sort::Alias(kind, alias_ty) =&gt; Sort::Alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -1650,7 +1638,6 @@
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) =&gt; ty.visit_with(visitor),
-            TyKind::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
             TyKind::Infer(<span class="kw">_</span>) | TyKind::Param(<span class="kw">_</span>) | TyKind::Discr(..) | TyKind::Uninit =&gt; {
                 ControlFlow::Continue(())
             }
@@ -1707,7 +1694,6 @@
                 )
             }
             TyKind::Blocked(ty) =&gt; Ty::blocked(ty.try_fold_with(folder)<span class="question-mark">?</span>),
-            TyKind::Alias(kind, alias_ty) =&gt; Ty::alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
             TyKind::Infer(<span class="kw">_</span>) | TyKind::Param(<span class="kw">_</span>) | TyKind::Uninit | TyKind::Discr(..) =&gt; {
                 <span class="self">self</span>.clone()
             }
@@ -1766,7 +1752,7 @@
             BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) =&gt; poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) =&gt; tys.visit_with(visitor),
-            BaseTy::Alias(alias_ty) =&gt; alias_ty.visit_with(visitor),
+            BaseTy::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
             BaseTy::Array(ty, <span class="kw">_</span>) =&gt; ty.visit_with(visitor),
             BaseTy::Coroutine(<span class="kw">_</span>, resume_ty, upvars) =&gt; {
                 resume_ty.visit_with(visitor)<span class="question-mark">?</span>;
@@ -1805,7 +1791,7 @@
             }
             BaseTy::FnPtr(decl) =&gt; BaseTy::FnPtr(decl.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Tuple(tys) =&gt; BaseTy::Tuple(tys.try_fold_with(folder)<span class="question-mark">?</span>),
-            BaseTy::Alias(alias_ty) =&gt; BaseTy::Alias(alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
+            BaseTy::Alias(kind, alias_ty) =&gt; BaseTy::Alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::Array(ty, c) =&gt; {
                 BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
             }
@@ -1875,7 +1861,7 @@
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>arg = <span class="kw">match </span><span class="self">self </span>{
             GenericArg::Ty(ty) =&gt; GenericArg::Ty(ty.try_fold_with(folder)<span class="question-mark">?</span>),
-            GenericArg::Base(sty) =&gt; GenericArg::Base(sty.try_fold_with(folder)<span class="question-mark">?</span>),
+            GenericArg::Base(ctor) =&gt; GenericArg::Base(ctor.try_fold_with(folder)<span class="question-mark">?</span>),
             GenericArg::Lifetime(re) =&gt; GenericArg::Lifetime(re.try_fold_with(folder)<span class="question-mark">?</span>),
             GenericArg::Const(c) =&gt; GenericArg::Const(c.try_fold_with(folder)<span class="question-mark">?</span>),
         };
@@ -1999,42 +1985,8 @@
     }
 }
 
-<span class="kw">pub struct </span>BottomUpFolder&lt;F, G, H&gt;
-<span class="kw">where
-    </span>F: FnMut(Ty) -&gt; Ty,
-    G: FnMut(Region) -&gt; Region,
-    H: FnMut(Const) -&gt; Const,
-{
-    <span class="kw">pub </span>ty_op: F,
-    <span class="kw">pub </span>lt_op: G,
-    <span class="kw">pub </span>ct_op: H,
-}
-
-<span class="kw">impl</span>&lt;F, G, H&gt; TypeFolder <span class="kw">for </span>BottomUpFolder&lt;F, G, H&gt;
-<span class="kw">where
-    </span>F: FnMut(Ty) -&gt; Ty,
-    G: FnMut(Region) -&gt; Region,
-    H: FnMut(Const) -&gt; Const,
-{
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">let </span>t = ty.super_fold_with(<span class="self">self</span>);
-        (<span class="self">self</span>.ty_op)(t)
-    }
-
-    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-        <span class="comment">// This one is a little different, because `super_fold_with` is not
-        // implemented on non-recursive `Region`.
-        </span>(<span class="self">self</span>.lt_op)(<span class="kw-2">*</span>r)
-    }
-
-    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ct: <span class="kw-2">&amp;</span>Const) -&gt; Const {
-        <span class="kw">let </span>ct = ct.super_fold_with(<span class="self">self</span>);
-        (<span class="self">self</span>.ct_op)(ct)
-    }
-}
-
-<span class="doccomment">/// Used for types that are `Copy` and which **do not care arena
-/// allocated data** (i.e., don't need to be folded).
+<span class="doccomment">/// Used for types that are `Copy` and which **do not care arena allocated data** (i.e., don't need
+/// to be folded).
 </span><span class="macro">macro_rules!</span> TrivialTypeTraversalImpls {
     ($(<span class="macro-nonterminal">$ty</span>:ty,)+) =&gt; {
         $(

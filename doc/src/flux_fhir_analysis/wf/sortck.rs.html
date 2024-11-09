@@ -920,8 +920,8 @@
                 }
             }
             fhir::ExprKind::Abs(refine_params, body) =&gt; {
-                <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?
-            </span>}
+                <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?</span>;
+            }
             fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
         }
         <span class="prelude-val">Ok</span>(())
@@ -1150,10 +1150,10 @@
 
     <span class="comment">// FIXME(nilehmann) this assumes weak aliases appear shallowly and are only created for the
     // sorts associated to base types. We should find a more robust way to do normalization for
-    // sort checking. If we do so we can stop expanding self aliases in `conv::conv_sort`.
+    // sort checking. Once we do that we can also stop expanding self aliases in `conv::conv_sort`.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalize_weak_alias_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; QueryResult {
         <span class="kw">for </span>sort <span class="kw">in </span><span class="self">self</span>.sort_of_bty.values_mut() {
-            <span class="kw">if let </span>rty::Sort::Alias(alias_ty) = sort {
+            <span class="kw">if let </span>rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
                 <span class="kw-2">*</span>sort = <span class="self">self</span>.genv.normalize_weak_alias_sort(alias_ty)<span class="question-mark">?</span>;
             }
         }

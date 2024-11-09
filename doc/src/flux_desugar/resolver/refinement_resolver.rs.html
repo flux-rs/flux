@@ -1595,7 +1595,7 @@
             .resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS)<span class="question-mark">?
             </span>.full_res()<span class="question-mark">?</span>;
         <span class="kw">match </span>res {
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) =&gt; {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) =&gt; {
                 <span class="prelude-val">Some</span>(fhir::SortRes::Adt(def_id))
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),

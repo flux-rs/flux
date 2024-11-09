@@ -585,27 +585,10 @@
 <a href="#585" id="585">585</a>
 <a href="#586" id="586">586</a>
 <a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_rustc_bridge::ty;
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_middle::ty::RegionVid;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
@@ -754,7 +737,7 @@
             ) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(proj_a.def_id, proj_b.def_id);
                 <span class="self">self</span>.infer_from_generic_args(<span class="kw-2">&amp;</span>proj_a.args, <span class="kw-2">&amp;</span>proj_b.args);
-                <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>proj_a.term, <span class="kw-2">&amp;</span>proj_b.term);
+                <span class="self">self</span>.infer_from_bty(proj_a.term.as_bty_skipping_binder(), <span class="kw-2">&amp;</span>proj_b.term);
             }
             <span class="kw">_ </span>=&gt; {}
         }
@@ -938,7 +921,7 @@
 
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt;;
     <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt;;
-    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor;
+    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTyCtor, <span class="self">Self</span>::Error&gt;;
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region;
     <span class="kw">fn </span>expr_for_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, param_const: ParamConst) -&gt; Expr;
     <span class="kw">fn </span>const_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>Const) -&gt; Const;
@@ -969,9 +952,9 @@
         }
     }
 
-    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor {
+    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTyCtor, !&gt; {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; ctor.clone(),
+            <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; <span class="prelude-val">Ok</span>(ctor.clone()),
             <span class="prelude-val">Some</span>(arg) =&gt; {
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"expected base type for generic parameter, found `{arg:?}`"</span>)
             }
@@ -1040,7 +1023,7 @@
         <span class="macro">bug!</span>(<span class="string">"unexpected type param {param_ty:?}"</span>);
     }
 
-    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor {
+    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTyCtor, E&gt; {
         <span class="macro">bug!</span>(<span class="string">"unexpected base type param {param_ty:?}"</span>);
     }
 
@@ -1054,23 +1037,6 @@
 
     <span class="kw">fn </span>expr_for_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, param_const: ParamConst) -&gt; Expr {
         <span class="macro">bug!</span>(<span class="string">"unexpected param_const {param_const:?}"</span>);
-    }
-}
-
-<span class="attr">#[derive(Debug, Clone, Default)]
-</span><span class="kw">pub struct </span>ConstGenericArgs(FxHashMap&lt;u32, Expr&gt;);
-
-<span class="kw">impl </span>ConstGenericArgs {
-    <span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(FxHashMap::default())
-    }
-
-    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, index: u32, expr: Expr) {
-        <span class="self">self</span>.<span class="number">0</span>.insert(index, expr);
-    }
-
-    <span class="kw">pub fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, index: u32) -&gt; Expr {
-        <span class="self">self</span>.<span class="number">0</span>.get(<span class="kw-2">&amp;</span>index).unwrap().clone()
     }
 }
 
@@ -1105,8 +1071,8 @@
                 <span class="kw">let </span>idx = idx.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.delegate
-                    .ctor_for_param(<span class="kw-2">*</span>param_ty)
-                    .replace_bound_reft(<span class="kw-2">&amp;</span>idx)
+                    .ctor_for_param(<span class="kw-2">*</span>param_ty)<span class="question-mark">?
+                    </span>.replace_bound_reft(<span class="kw-2">&amp;</span>idx)
                     .to_ty())
             }
             <span class="kw">_ </span>=&gt; ty.try_super_fold_with(<span class="self">self</span>),
@@ -1115,11 +1081,13 @@
 
     <span class="kw">fn </span>try_fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sty: <span class="kw-2">&amp;</span>SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTy, D::Error&gt; {
         <span class="kw">if let </span>BaseTy::Param(param_ty) = <span class="kw-2">&amp;</span>sty.bty {
+            <span class="kw">let </span>idx = sty.idx.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
+            <span class="kw">let </span>pred = sty.pred.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="self">self
                 </span>.delegate
-                .ctor_for_param(<span class="kw-2">*</span>param_ty)
-                .replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx)
-                .strengthen(<span class="kw-2">&amp;</span>sty.pred))
+                .ctor_for_param(<span class="kw-2">*</span>param_ty)<span class="question-mark">?
+                </span>.replace_bound_reft(<span class="kw-2">&amp;</span>idx)
+                .strengthen(pred))
         } <span class="kw">else </span>{
             sty.try_super_fold_with(<span class="self">self</span>)
         }

@@ -1306,6 +1306,7 @@
 <a href="#1306" id="1306">1306</a>
 <a href="#1307" id="1307">1307</a>
 <a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
@@ -1535,21 +1536,22 @@
     }
 }
 
-<span class="doccomment">/// The position where a hole appears. This determines how it will be inferred. This is related but not
-/// quite the same as the [`InferMode`].
+<span class="doccomment">/// The position where a [hole] appears. This determines how it will be inferred. This is related
+/// to, but not the same as, an [`InferMode`].
 ///
 /// [`InferMode`]: super::InferMode
+/// [hole]: ExprKind::Hole
 </span><span class="attr">#[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
 )]
 </span><span class="kw">pub enum </span>HoleKind {
-    <span class="doccomment">/// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
-    /// generating a kvar.
+    <span class="doccomment">/// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be
+    /// inferred by generating a kvar.
     ///
     /// [`TyKind::Constr`]: super::TyKind::Constr
     </span>Pred,
-    <span class="doccomment">/// A hole used as a refinement argument or index. It will be inferred by generating an evar. The
-    /// expression filling the hole must have the provided sort.
+    <span class="doccomment">/// A hole used as a refinement argument or index. It will be inferred by generating an evar.
+    /// The expression filling the hole must have the provided sort.
     </span>Expr(Sort),
 }
 
@@ -2042,7 +2044,7 @@
         go(sort, <span class="kw-2">&amp;mut </span>f)
     }
 
-    <span class="doccomment">/// Applies a projection to an expression and optimistically try to beta reduce it if possible.
+    <span class="doccomment">/// Applies a field projection to an expression and optimistically try to beta reduce it
     </span><span class="kw">pub fn </span>proj_and_reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field_idx() <span class="kw">as </span>usize].clone(),

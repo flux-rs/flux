@@ -499,6 +499,8 @@
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
 <a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
@@ -757,7 +759,9 @@
     vis.visit_ident(ty_alias.ident);
     vis.visit_generics(<span class="kw-2">&amp;</span>ty_alias.generics);
     <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>ty_alias.params);
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>ty_alias.refined_by);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = <span class="kw-2">&amp;</span>ty_alias.index {
+        vis.visit_refine_param(index);
+    }
     vis.visit_ty(<span class="kw-2">&amp;</span>ty_alias.ty);
 }
 

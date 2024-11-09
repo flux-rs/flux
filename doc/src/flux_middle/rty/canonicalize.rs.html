@@ -310,6 +310,51 @@
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
 //! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b &gt; 0}` is
 //! `∃a,b. {i32[a + b] | b &gt; 0}`.
@@ -318,13 +363,12 @@
 //! not permitted to hoist an existential out of a generic argument. For example, in `Vec&lt;∃v. i32[v]&gt;`
 //! the existential inside the `Vec` cannot be hoisted out.
 //!
-//! However, some type constructors are more lenient with respect to hoisting. Consider the tuple
+//! However, some type constructors are more "lenient" with respect to hoisting. Consider the tuple
 //! `(∃a. i32[a], ∃b. i32[b])`. Hoisting the existentials results in `∃a,b. (i32[a], i32[b])` which
 //! is an equivalent type (in the sense that subtyping holds both ways). The same applies to shared
 //! references: `&amp;∃a. i32[a]` is equivalent to `∃a. &amp;i32[a]`. We refer to this class of type
 //! constructors as *transparent*. Hoisting existential out of transparent type constructors is useful
-//! as it allows the logical information to be extracted from the type. We try to eagerly do so as
-//! much as possible.
+//! as it allows the logical information to be extracted from the type.
 //!
 //! And important case is mutable references. In some situations, it is sound to hoist out of mutable
 //! references. For example, if we have a variable in the environment of type `&amp;mut ∃v. T[v]`, it is
@@ -344,15 +388,15 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 </span><span class="kw">use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, SubsetTyCtor,
-    Ty, TyCtor, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
+    TyKind, TyOrBase,
 };
-<span class="kw">use </span><span class="kw">crate</span>::rty::fold::TypeVisitable;
 
 <span class="doccomment">/// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -366,6 +410,7 @@
     in_downcast: bool,
     in_mut_refs: bool,
     in_shr_refs: bool,
+    in_strg_refs: bool,
     in_tuples: bool,
     existentials: bool,
 }
@@ -382,6 +427,7 @@
             in_tuples: <span class="bool-val">false</span>,
             in_shr_refs: <span class="bool-val">false</span>,
             in_mut_refs: <span class="bool-val">false</span>,
+            in_strg_refs: <span class="bool-val">false</span>,
             in_boxes: <span class="bool-val">false</span>,
             in_downcast: <span class="bool-val">false</span>,
             existentials: <span class="bool-val">true</span>,
@@ -395,6 +441,11 @@
 
     <span class="kw">pub fn </span>hoist_inside_mut_refs(<span class="kw-2">mut </span><span class="self">self</span>, mut_refs: bool) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.in_mut_refs = mut_refs;
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub fn </span>hoist_inside_strg_refs(<span class="kw-2">mut </span><span class="self">self</span>, strg_refs: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.in_strg_refs = strg_refs;
         <span class="self">self
     </span>}
 
@@ -423,6 +474,7 @@
             .hoist_inside_downcast(<span class="bool-val">true</span>)
             .hoist_inside_mut_refs(<span class="bool-val">false</span>)
             .hoist_inside_shr_refs(<span class="bool-val">true</span>)
+            .hoist_inside_strg_refs(<span class="bool-val">true</span>)
             .hoist_inside_tuples(<span class="bool-val">true</span>)
     }
 
@@ -431,6 +483,7 @@
             .hoist_inside_downcast(<span class="bool-val">false</span>)
             .hoist_inside_mut_refs(<span class="bool-val">false</span>)
             .hoist_inside_shr_refs(<span class="bool-val">false</span>)
+            .hoist_inside_strg_refs(<span class="bool-val">false</span>)
             .hoist_inside_tuples(<span class="bool-val">false</span>)
     }
 }
@@ -446,13 +499,30 @@
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(bty, idx) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idx.clone()),
             TyKind::Exists(ty_ctor) <span class="kw">if </span><span class="self">self</span>.existentials =&gt; {
-                <span class="self">self</span>.delegate.hoist_exists(ty_ctor).fold_with(<span class="self">self</span>)
+                <span class="comment">// Avoid hoisting useless parameters for unit sorts. This is important for
+                // canonicalization because we assume mutable references won't be under a
+                // binder after we canonicalize them.
+                // FIXME(nilehmann) this same logic is repeated in a couple of places, e.g.,
+                // TyCtor::to_ty
+                </span><span class="kw">match </span><span class="kw-2">&amp;</span>ty_ctor.vars()[..] {
+                    [BoundVariableKind::Refine(sort, ..)] =&gt; {
+                        <span class="kw">if </span>sort.is_unit() {
+                            ty_ctor.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit())
+                        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(def_id) = sort.is_unit_adt() {
+                            ty_ctor.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit_adt(def_id))
+                        } <span class="kw">else </span>{
+                            <span class="self">self</span>.delegate.hoist_exists(ty_ctor)
+                        }
+                    }
+                    <span class="kw">_ </span>=&gt; <span class="self">self</span>.delegate.hoist_exists(ty_ctor),
+                }
+                .fold_with(<span class="self">self</span>)
             }
             TyKind::Constr(pred, ty) =&gt; {
                 <span class="self">self</span>.delegate.hoist_constr(pred.clone());
                 ty.fold_with(<span class="self">self</span>)
             }
-            TyKind::StrgRef(re, path, ty) =&gt; Ty::strg_ref(<span class="kw-2">*</span>re, path.clone(), ty.fold_with(<span class="self">self</span>)),
+            TyKind::StrgRef(..) <span class="kw">if </span><span class="self">self</span>.in_strg_refs =&gt; ty.super_fold_with(<span class="self">self</span>),
             TyKind::Downcast(..) <span class="kw">if </span><span class="self">self</span>.in_downcast =&gt; ty.super_fold_with(<span class="self">self</span>),
             <span class="kw">_ </span>=&gt; ty.clone(),
         }
@@ -512,22 +582,23 @@
     <span class="doccomment">/// Hoist existentials and predicates inside the type stopping when encountering the first
     /// type constructor.
     </span><span class="kw">pub fn </span>shallow_canonicalize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CanonicalTy {
-        <span class="macro">debug_assert!</span>(!<span class="self">self</span>.has_escaping_bvars());
         <span class="kw">let </span><span class="kw-2">mut </span>delegate = LocalHoister::default();
-        <span class="kw">let </span>ty = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).hoist(<span class="self">self</span>);
+        <span class="kw">let </span>ty = <span class="self">self</span>.shift_in_escaping(<span class="number">1</span>);
+        <span class="kw">let </span>ty = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).hoist(<span class="kw-2">&amp;</span>ty);
         <span class="kw">let </span>constr_ty = delegate.bind(|<span class="kw">_</span>, preds| {
             <span class="kw">let </span>pred = Expr::and_from_iter(preds);
             CanonicalConstrTy { ty, pred }
         });
         <span class="kw">if </span>constr_ty.vars().is_empty() {
-            CanonicalTy::Constr(constr_ty.skip_binder())
+            CanonicalTy::Constr(constr_ty.skip_binder().shift_out_escaping(<span class="number">1</span>))
         } <span class="kw">else </span>{
             CanonicalTy::Exists(constr_ty)
         }
     }
 }
 
-<span class="kw">pub struct </span>CanonicalConstrTy {
+<span class="attr">#[derive(TypeVisitable, TypeFoldable)]
+</span><span class="kw">pub struct </span>CanonicalConstrTy {
     <span class="doccomment">/// Guaranteed to not have any (shallow) [existential] or [constraint] types
     ///
     /// [existential]: TyKind::Exists
@@ -543,6 +614,10 @@
 
     <span class="kw">pub fn </span>pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
         <span class="self">self</span>.pred.clone()
+    }
+
+    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+        Ty::constr(<span class="self">self</span>.pred(), <span class="self">self</span>.ty())
     }
 }
 
@@ -561,34 +636,49 @@
 }
 
 <span class="kw">impl </span>CanonicalTy {
-    <span class="kw">pub fn </span>to_subset_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SubsetTyCtor&gt; {
+    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">match </span><span class="self">self </span>{
-            CanonicalTy::Constr(constr) =&gt; {
-                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr.ty.kind() {
-                    <span class="comment">// given {b[e] | p} return λv. {b[v] | p ∧ v == e}
-                    </span><span class="kw">let </span>sort = bty.sort();
-                    <span class="kw">let </span>constr = SubsetTy::new(
-                        bty.clone(),
-                        Expr::nu(),
-                        Expr::and(<span class="kw-2">&amp;</span>constr.pred, Expr::eq(Expr::nu(), idx)),
-                    );
-                    <span class="prelude-val">Some</span>(Binder::bind_with_sort(constr, sort))
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
+            CanonicalTy::Constr(constr_ty) =&gt; constr_ty.to_ty(),
+            CanonicalTy::Exists(poly_constr_ty) =&gt; {
+                Ty::exists(poly_constr_ty.as_ref().map(CanonicalConstrTy::to_ty))
             }
-            CanonicalTy::Exists(poly_constr) =&gt; {
-                <span class="kw">let </span>constr = poly_constr.as_ref().skip_binder();
+        }
+    }
+
+    <span class="kw">pub fn </span>as_ty_or_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyOrBase {
+        <span class="kw">match </span><span class="self">self </span>{
+            CanonicalTy::Constr(constr_ty) =&gt; {
+                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
+                    <span class="comment">// given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+
+                    // HACK(nilehmann) avoid adding trivial `v == ()` equalities, if we don't do it,
+                    // some debug assertions fail. The assertions expect types to be unrefined so they
+                    // only check for syntactical equality. We should change those cases to handle
+                    // refined types and/or ensure some canonical representation for unrefined types.
+                    </span><span class="kw">let </span>pred = <span class="kw">if </span>idx.is_unit() {
+                        constr_ty.pred.clone()
+                    } <span class="kw">else </span>{
+                        Expr::and(<span class="kw-2">&amp;</span>constr_ty.pred, Expr::eq(Expr::nu(), idx.shift_in_escaping(<span class="number">1</span>)))
+                    };
+                    <span class="kw">let </span>sort = bty.sort();
+                    <span class="kw">let </span>constr = SubsetTy::new(bty.shift_in_escaping(<span class="number">1</span>), Expr::nu(), pred);
+                    TyOrBase::Base(Binder::bind_with_sort(constr, sort))
+                } <span class="kw">else </span>{
+                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
+                }
+            }
+            CanonicalTy::Exists(poly_constr_ty) =&gt; {
+                <span class="kw">let </span>constr = poly_constr_ty.as_ref().skip_binder();
                 <span class="kw">if let </span>TyKind::Indexed(bty, idx) = constr.ty.kind()
                     &amp;&amp; idx.is_nu()
                 {
-                    <span class="kw">let </span>ctor = poly_constr
+                    <span class="kw">let </span>ctor = poly_constr_ty
                         .as_ref()
                         .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), <span class="kw-2">&amp;</span>constr.pred));
-                    <span class="prelude-val">Some</span>(ctor)
+                    TyOrBase::Base(ctor)
                 } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
+                    TyOrBase::Ty(<span class="self">self</span>.to_ty())
+                }
             }
         }
     }

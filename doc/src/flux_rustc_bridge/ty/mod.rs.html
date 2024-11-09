@@ -1391,10 +1391,11 @@
     <span class="kw">pub </span>def_id: DefId,
 }
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>AliasKind {
     Projection,
     Opaque,
+    Weak,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AliasKind {
@@ -1405,6 +1406,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             AliasKind::Opaque =&gt; ty::AliasTyKind::Opaque,
             AliasKind::Projection =&gt; ty::AliasTyKind::Projection,
+            AliasKind::Weak =&gt; ty::AliasTyKind::Weak,
         }
     }
 }
@@ -2166,15 +2168,6 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>AliasKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            AliasKind::Projection =&gt; <span class="macro">write!</span>(f, <span class="string">"Projection"</span>),
-            AliasKind::Opaque =&gt; <span class="macro">write!</span>(f, <span class="string">"Opaque"</span>),
-        }
-    }
-}
-
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Ty {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self</span>.kind() {
@@ -2215,23 +2208,30 @@
             TyKind::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">write!</span>(f, <span class="string">"*const {ty:?}"</span>),
             TyKind::FnPtr(fn_sig) =&gt; <span class="macro">write!</span>(f, <span class="string">"{fn_sig:?}"</span>),
             TyKind::Closure(did, args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"Closure {}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             TyKind::Coroutine(did, args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"Generator {}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             TyKind::CoroutineWitness(did, args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"GeneratorWitness {}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+            TyKind::Alias(AliasKind::Opaque, alias_ty) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, def_id_to_string(alias_ty.def_id))<span class="question-mark">?</span>;
+                <span class="kw">if </span>!alias_ty.args.is_empty() {
+                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, alias_ty.args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }

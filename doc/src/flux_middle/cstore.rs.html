@@ -64,7 +64,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
     ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;;
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;;
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;;
 }
 
 <span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;

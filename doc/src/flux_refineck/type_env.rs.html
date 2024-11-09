@@ -775,6 +775,19 @@
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
 <a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -782,7 +795,7 @@
 <span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 <span class="kw">use </span>flux_middle::{
@@ -793,7 +806,8 @@
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        INNERMOST,
     },
     PlaceExt <span class="kw">as _</span>,
 };
@@ -808,7 +822,7 @@
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
 <span class="kw">use </span><span class="kw">super</span>::rty::Sort;
-<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, rty::VariantIdx, CheckerConfig};
+<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, CheckerConfig};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
 
@@ -940,7 +954,6 @@
     /// That's it, we first get the current type `t₁` at location `ℓ` and check it is a subtype
     /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
-    ///
     /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicitly provided
     /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
@@ -960,7 +973,7 @@
         re: Region,
         path: <span class="kw-2">&amp;</span>Path,
         bound: PtrToRefBound,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         infcx.push_scope();
 
         <span class="comment">// ℓ: t1
@@ -970,7 +983,7 @@
         </span><span class="kw">let </span>t2 = <span class="kw">match </span>bound {
             PtrToRefBound::Ty(t2) =&gt; {
                 <span class="comment">// FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
-                // to a place which requires annoying bookkepping.
+                // to a place which requires annoying bookkeping.
                 </span><span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
                 <span class="kw">let </span>rust_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
                 <span class="kw">let </span>t2 = subst::match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>rust_ty);
@@ -1049,7 +1062,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
-        <span class="self">self</span>.bindings.lookup(place).unblock(rcx, check_overflow);
+        <span class="self">self</span>.bindings.unblock(rcx, place, check_overflow);
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
@@ -1123,6 +1136,23 @@
     Identity,
 }
 
+<span class="kw">impl </span>flux_infer::infer::LocEnv <span class="kw">for </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>ptr_to_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: <span class="kw-2">&amp;</span>Path,
+        bound: Ty,
+    ) -&gt; InferResult&lt;Ty&gt; {
+        <span class="self">self</span>.ptr_to_ref(infcx, reason, re, path, PtrToRefBound::Ty(bound))
+    }
+
+    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
+        <span class="self">self</span>.get(path)
+    }
+}
+
 <span class="kw">impl </span>BasicBlockEnvShape {
     <span class="kw">pub fn </span>enter&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, local_decls: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>LocalDecls) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
         TypeEnv { bindings: <span class="self">self</span>.bindings.clone(), local_decls }
@@ -1151,10 +1181,6 @@
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields)
             }
             TyKind::Blocked(ty) =&gt; Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
-            TyKind::Alias(..) =&gt; {
-                <span class="macro">assert!</span>(!scope.has_free_vars(ty));
-                ty.clone()
-            }
             <span class="comment">// FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             </span>TyKind::Exists(<span class="kw">_</span>)
             | TyKind::Discr(..)
@@ -1296,11 +1322,6 @@
                     .collect();
                 Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), <span class="kw-2">*</span>variant1, fields)
             }
-            (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(kind1, kind2);
-                <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
-                Ty::alias(<span class="kw-2">*</span>kind1, alias_ty1.clone())
-            }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected types: `{ty1:?}` - `{ty2:?}`"</span>),
         }
     }
@@ -1367,6 +1388,11 @@
                     .map(|(ty1, ty2)| <span class="self">self</span>.join_ty(ty1, ty2))
                     .collect();
                 BaseTy::Tuple(fields)
+            }
+            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(kind1, kind2);
+                <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
+                BaseTy::Alias(<span class="kw-2">*</span>kind1, alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(r1, r2);
