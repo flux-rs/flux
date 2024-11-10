@@ -310,6 +310,15 @@ impl<'a> TypeEnv<'a> {
         Ok(())
     }
 
+    // pub(crate) fn unfold_local_ptr(
+    //     &mut self,
+    //     infcx: &mut InferCtxt,
+    //     place: &Place,
+    //     checker_conf: CheckerConfig,
+    // ) -> Result {
+    //     self.bindings.unfold_local_ptr(infcx, place, checker_conf)
+    // }
+
     pub(crate) fn unfold(
         &mut self,
         infcx: &mut InferCtxt,

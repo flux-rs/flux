@@ -609,7 +609,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         .with_src_info(terminator.source_info)?;
 
                         let places = self.local_ptrs(terminator_span, &fn_sig, &actuals, args)?;
-                        self.unfold_local_ptrs(infcx, env, terminator_span, &places);
+                        self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
 
                         let res = self.check_call(
                             infcx,
@@ -621,7 +621,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &actuals,
                         )?;
 
-                        self.fold_local_ptrs(infcx, env, terminator_span, &places);
+                        self.fold_local_ptrs(infcx, env, terminator_span, &places)?;
 
                         res
                     }
@@ -719,18 +719,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
         places: &[Place],
-    ) {
-        todo!()
+    ) -> Result<()> {
+        for place in places {
+            // let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
+            env.unfold(&mut infcx.at(span), place, self.config())
+                .with_span(span)?;
+        }
+        Ok(())
     }
 
     fn fold_local_ptrs(
         &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        span: Span,
-        places: &[Place],
-    ) {
-        todo!()
+        _infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        _env: &mut TypeEnv,
+        _span: Span,
+        _places: &[Place],
+    ) -> Result<()> {
+        Ok(())
     }
 
     fn local_ptrs(
@@ -805,8 +810,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
-        // println!("TRACE: check_call (0) {callee_def_id:?} => {fn_sig:?} | {actuals:?}");
-
         // Check requires predicates
         for requires in fn_sig.requires() {
             at.check_pred(requires, ConstrReason::Call);
@@ -817,9 +820,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let (formal, pred) = formal.unconstr();
             at.check_pred(&pred, ConstrReason::Call);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
-            let ak = actual.kind();
-            let fk = formal.kind();
-            // println!("TRACE: check_call (1): {ak:?} vs {fk:?}");
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
                     let ty1 = env.get(path1);

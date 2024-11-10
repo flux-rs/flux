@@ -430,6 +430,12 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             assert!(self.in_ref.is_none());
             self.unfold_strg_ref(path, deref_ty);
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
+        } else if let TyKind::Indexed(BaseTy::Ref(_, super_ty, Mutability::Mut), _) = ty.kind()
+            && !self.in_ref.is_some()
+        {
+            let deref_ty = self.unpack(super_ty);
+            let loc = self.unfold_local_ptr(&deref_ty, super_ty);
+            Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
         } else if ty.is_struct() {
             let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
