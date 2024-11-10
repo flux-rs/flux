@@ -129,7 +129,17 @@ impl PlacesTree {
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
         let cursor = self.cursor_for(key);
-        Unfolder::new(infcx, cursor, checker_conf).run(self)
+        Unfolder::new(infcx, cursor, None, checker_conf).run(self)
+    }
+
+    pub(crate) fn unfold_local_ptr(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        checker_conf: CheckerConfig,
+    ) -> CheckerResult {
+        let cursor = self.cursor_for(place);
+        Unfolder::new(infcx, cursor, Some(place.clone()), checker_conf).run(self)
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -371,6 +381,7 @@ struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
     insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
+    local_ptr_place: Option<Place>,
     checker_conf: CheckerConfig,
     has_work: bool,
 }
@@ -399,9 +410,18 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     fn new(
         infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
         cursor: Cursor,
+        local_ptr_place: Option<Place>,
         checker_conf: CheckerConfig,
     ) -> Self {
-        Unfolder { infcx, cursor, insertions: vec![], in_ref: None, checker_conf, has_work: true }
+        Unfolder {
+            infcx,
+            cursor,
+            insertions: vec![],
+            in_ref: None,
+            local_ptr_place,
+            checker_conf,
+            has_work: true,
+        }
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
@@ -413,6 +433,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             }
         }
         Ok(())
+    }
+
+    fn at_local_ptr(&self) -> bool {
+        self.local_ptr_place == Some(self.cursor.to_place())
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -432,7 +456,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
         } else if let TyKind::Indexed(BaseTy::Ref(_, super_ty, Mutability::Mut), _) = ty.kind()
             && !self.in_ref.is_some()
+            && self.at_local_ptr()
         {
+            println!("TRACE: UNFOLDING {ty:?}");
             let deref_ty = self.unpack(super_ty);
             let loc = self.unfold_local_ptr(&deref_ty, super_ty);
             Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))

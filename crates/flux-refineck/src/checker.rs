@@ -722,7 +722,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<()> {
         for place in places {
             // let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
-            env.unfold(&mut infcx.at(span), place, self.config())
+            env.unfold_local_ptr(&mut infcx.at(span), place, self.config())
                 .with_span(span)?;
         }
         Ok(())
