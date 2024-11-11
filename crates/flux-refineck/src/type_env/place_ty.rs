@@ -456,7 +456,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             self.unfold_strg_ref(path, deref_ty);
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
         } else if let TyKind::Indexed(BaseTy::Ref(re, super_ty, Mutability::Mut), _) = ty.kind()
-            && !self.in_ref.is_some()
+            && self.in_ref.is_none()
             && self.at_local_ptr()
         {
             let deref_ty = self.unpack(super_ty);
