@@ -477,8 +477,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Point::BeforeLocation(location),
                 span,
             )?;
+
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
+
+                println!("TRACE: check_basic_block (2): {env:?}");
+
                 let successors =
                     self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, infcx, env);
@@ -592,7 +596,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
-                let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
                         let fn_sig = self
@@ -608,8 +611,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         )
                         .with_src_info(terminator.source_info)?;
 
-                        let places = self.local_ptrs(terminator_span, &fn_sig, &actuals, args)?;
+                        let places = self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
+
                         self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
+
+                        let actuals = self.check_operands(infcx, env, terminator_span, args)?;
 
                         let res = self.check_call(
                             infcx,
@@ -629,6 +635,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let ty = self.check_operand(infcx, env, terminator_span, operand)?;
                         if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
                         {
+                            let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                             self.check_call(
                                 infcx,
                                 env,
@@ -722,6 +729,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<()> {
         for place in places {
             // let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
+            println!("TRACE: unfold_local_ptrs: {place:?}");
             env.unfold_local_ptr(&mut infcx.at(span), place, self.config())
                 .with_span(span)?;
         }
@@ -740,30 +748,39 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn local_ptrs(
         &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
         span: Span,
         fn_sig: &EarlyBinder<PolyFnSig>,
-        actuals: &[Ty],
         args: &[Operand],
     ) -> Result<Vec<Place>> {
         // We _only_ need to know whether each input is a &strg or not
         let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
         let mut places = vec![];
-        for (arg, actual, input) in izip!(args, actuals, fn_sig.inputs()) {
-            if let (
-                TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Mut), _),
-                TyKind::StrgRef(_, _, _),
-            ) = (actual.kind(), input.kind())
-            {
-                let Some(place) = arg.place() else {
-                    span_bug!(
-                        span,
-                        "Cannot find place for arg {arg:?} with reference type {actual:?}"
-                    );
-                };
-
-                places.push(place);
+        for (arg, input) in izip!(args, fn_sig.inputs()) {
+            if let Some(place) = arg.place() {
+                let actual = env
+                    .lookup_place(&mut infcx.at(span), &place)
+                    .with_span(span)?;
+                let ak = actual.kind();
+                let ik = input.kind();
+                println!("TRACE: local_ptrs (1): {ak:?} vs {ik:?}");
+                if let (
+                    TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Mut), _),
+                    TyKind::StrgRef(_, _, _),
+                ) = (ak, ik)
+                {
+                    let Some(place) = arg.place() else {
+                        span_bug!(
+                            span,
+                            "Cannot find place for arg {arg:?} with reference type {actual:?}"
+                        );
+                    };
+                    places.push(place);
+                }
             }
         }
+        println!("TRACE: local_ptrs (2): {places:?}");
         Ok(places)
     }
 

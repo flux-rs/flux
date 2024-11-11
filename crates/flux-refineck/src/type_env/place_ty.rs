@@ -69,6 +69,7 @@ impl LookupKey for Path {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
@@ -149,6 +150,7 @@ impl PlacesTree {
     ) -> Result<LookupResult, M::Error> {
         let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
+        println!("TRACE: lookup_inner (1) {cursor:?} ==> {ty:?}");
         let mut is_strg = true;
         let mut is_constant_index = false;
         while let Some(elem) = cursor.next() {
@@ -413,6 +415,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         local_ptr_place: Option<Place>,
         checker_conf: CheckerConfig,
     ) -> Self {
+        println!("TRACE: Unfolder::new {local_ptr_place:?}");
         Unfolder {
             infcx,
             cursor,
@@ -425,6 +428,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
+        println!("TRACE: Unfolder::run {bindings:?}");
         while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
@@ -436,6 +440,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn at_local_ptr(&self) -> bool {
+        println!("TRACE: at_local_ptr {:?} == {:?}", self.local_ptr_place, self.cursor.to_place());
         self.local_ptr_place == Some(self.cursor.to_place())
     }
 
@@ -454,14 +459,14 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             assert!(self.in_ref.is_none());
             self.unfold_strg_ref(path, deref_ty);
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
-        } else if let TyKind::Indexed(BaseTy::Ref(_, super_ty, Mutability::Mut), _) = ty.kind()
+        } else if let TyKind::Indexed(BaseTy::Ref(re, super_ty, Mutability::Mut), _) = ty.kind()
             && !self.in_ref.is_some()
             && self.at_local_ptr()
         {
             println!("TRACE: UNFOLDING {ty:?}");
             let deref_ty = self.unpack(super_ty);
             let loc = self.unfold_local_ptr(&deref_ty, super_ty);
-            Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
+            Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
         } else if ty.is_struct() {
             let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;

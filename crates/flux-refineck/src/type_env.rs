@@ -125,6 +125,8 @@ impl<'a> TypeEnv<'a> {
         mutbl: Mutability,
         place: &Place,
     ) -> Result<Ty> {
+        println!("TRACE: borrow(0): {place:?}");
+
         let result = self.bindings.lookup_unfolding(infcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
@@ -236,6 +238,7 @@ impl<'a> TypeEnv<'a> {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
+        // println!("TRACE: assign {place:?} -> {new_ty:?} --> {result:?}");
 
         infcx.push_scope();
         if result.is_strg {
@@ -245,6 +248,8 @@ impl<'a> TypeEnv<'a> {
         }
         let evars = &infcx.pop_scope()?;
         infcx.replace_evars(evars);
+
+        println!("TRACE: assign {place:?} | {:?}", self);
 
         Ok(())
     }
