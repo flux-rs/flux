@@ -481,8 +481,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
 
-                println!("TRACE: check_basic_block (2): {env:?}");
-
                 let successors =
                     self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, infcx, env);
@@ -611,12 +609,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         )
                         .with_src_info(terminator.source_info)?;
 
-                        let places = self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
-
-                        self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
-
+                        // We need to get the local-ptr places _before_ checking the operands, as the latter
+                        // may change the `TypeEnv`, e.g. if the arg is a `move` which "removes" the `Place`
+                        // from the `TypeEnv`.
+                        let (places, bound_tys) =
+                            self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
+                        let ptr_tys =
+                            self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
                         let actuals = self.check_operands(infcx, env, terminator_span, args)?;
-
                         let res = self.check_call(
                             infcx,
                             env,
@@ -626,9 +626,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &generic_args,
                             &actuals,
                         )?;
-
-                        self.fold_local_ptrs(infcx, env, terminator_span, &places)?;
-
+                        self.fold_local_ptrs(infcx, env, ptr_tys, bound_tys, terminator_span)?;
                         res
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
@@ -726,23 +724,40 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
         places: &[Place],
-    ) -> Result<()> {
+    ) -> Result<Vec<Ty>> {
+        let mut at = infcx.at(span);
+        let mut tys = vec![];
         for place in places {
-            // let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
-            println!("TRACE: unfold_local_ptrs: {place:?}");
-            env.unfold_local_ptr(&mut infcx.at(span), place, self.config())
+            // let bound_ty = env.lookup_place(&mut at, &place).with_span(span)?;
+            let ptr_ty = env
+                .unfold_local_ptr(&mut at, place, self.config())
                 .with_span(span)?;
+            tys.push(ptr_ty);
         }
-        Ok(())
+        Ok(tys)
     }
 
     fn fold_local_ptrs(
         &mut self,
-        _infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        _env: &mut TypeEnv,
-        _span: Span,
-        _places: &[Place],
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        ptr_tys: Vec<Ty>,
+        bound_tys: Vec<Ty>,
+        span: Span,
     ) -> Result<()> {
+        let mut at = infcx.at(span);
+        for (bound_ty, ptr_ty) in izip!(bound_tys, ptr_tys) {
+            if let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_ty.kind() {
+                env.ptr_to_ref(
+                    &mut at,
+                    ConstrReason::Other,
+                    *re,
+                    path,
+                    PtrToRefBound::Ty(bound_ty.clone()),
+                )
+                .with_span(span)?;
+            }
+        }
         Ok(())
     }
 
@@ -753,22 +768,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
         fn_sig: &EarlyBinder<PolyFnSig>,
         args: &[Operand],
-    ) -> Result<Vec<Place>> {
+    ) -> Result<(Vec<Place>, Vec<Ty>)> {
         // We _only_ need to know whether each input is a &strg or not
         let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
         let mut places = vec![];
+        let mut tys = vec![];
         for (arg, input) in izip!(args, fn_sig.inputs()) {
             if let Some(place) = arg.place() {
                 let actual = env
                     .lookup_place(&mut infcx.at(span), &place)
                     .with_span(span)?;
-                let ak = actual.kind();
-                let ik = input.kind();
-                println!("TRACE: local_ptrs (1): {ak:?} vs {ik:?}");
                 if let (
-                    TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Mut), _),
+                    TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), _),
                     TyKind::StrgRef(_, _, _),
-                ) = (ak, ik)
+                ) = (actual.kind(), input.kind())
                 {
                     let Some(place) = arg.place() else {
                         span_bug!(
@@ -777,11 +790,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         );
                     };
                     places.push(place);
+                    tys.push(bound.clone());
                 }
             }
         }
-        println!("TRACE: local_ptrs (2): {places:?}");
-        Ok(places)
+        Ok((places, tys))
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -854,19 +867,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     )
                     .with_span(span)?;
                 }
-                // (
-                //     TyKind::Indexed(BaseTy::Ref(re1, ty1, Mutability::Mut), _),
-                //     TyKind::StrgRef(_, _path2, ty2),
-                // ) => {
-                //     // See [NOTE:LocalStrengthening]
-                //     println!("TRACE: check_call (2): {ak:?} vs {fk:?}");
-                //     // where does STRENGTHEN
-                //     let actual_strg = todo!("STRENGTHEN_USING_unfold_box(actual_ty)?");
-                //     // weaken.add(loc, actual_ty);
-                //     // do subtyping strg_ty <: expected_ty
-                //     at.subtyping(&actual_strg, &formal, ConstrReason::Call)
-                //         .with_span(span)?;
-                // }
                 _ => {
                     at.subtyping(&actual, &formal, ConstrReason::Call)
                         .with_span(span)?;
