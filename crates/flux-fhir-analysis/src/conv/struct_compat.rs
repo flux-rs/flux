@@ -13,7 +13,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self,
-        fold::{BottomUpFolder, TypeFoldable},
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::Refiner,
     },
     MaybeExternId,
@@ -30,8 +30,7 @@ pub(crate) fn type_alias(
     def_id: MaybeExternId,
 ) -> QueryResult<rty::TyCtor> {
     let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
-    let generics = genv.generics_of(def_id)?;
-    let expected = Refiner::default(genv, &generics).refine_ty(&rust_ty)?;
+    let expected = Refiner::default(genv, def_id.resolved_id())?.refine_ty(&rust_ty)?;
     let mut zipper = Zipper::new(genv, def_id);
 
     if zipper
@@ -55,8 +54,8 @@ pub(crate) fn fn_sig(
     def_id: MaybeExternId,
 ) -> QueryResult<rty::PolyFnSig> {
     let rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())?.skip_binder();
-    let generics = genv.generics_of(def_id)?;
-    let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
+    let expected =
+        Refiner::default(genv, def_id.resolved_id())?.refine_poly_fn_sig(&rust_fn_sig)?;
 
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
@@ -73,8 +72,7 @@ pub(crate) fn variants(
     variants: &[rty::PolyVariant],
     adt_def_id: MaybeExternId,
 ) -> QueryResult<Vec<rty::PolyVariant>> {
-    let generics = genv.generics_of(adt_def_id)?;
-    let refiner = Refiner::default(genv, &generics);
+    let refiner = Refiner::default(genv, adt_def_id.resolved_id())?;
     let mut zipper = Zipper::new(genv, adt_def_id);
     // TODO check same number of variants
     for (i, variant) in variants.iter().enumerate() {
@@ -103,45 +101,74 @@ struct Zipper<'genv, 'tcx> {
 
 #[derive(Default)]
 struct Holes {
+    sorts: UnordMap<rty::SortVid, rty::Sort>,
+    subset_tys: UnordMap<rty::TyVid, rty::SubsetTy>,
     types: UnordMap<rty::TyVid, rty::Ty>,
     regions: UnordMap<rty::RegionVid, rty::Region>,
     consts: UnordMap<rty::ConstVid, rty::Const>,
 }
 
+impl TypeFolder for &Holes {
+    fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
+        if let rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
+            self.sorts
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| bug!("unfilled sort hole {vid:?}"))
+        } else {
+            sort.super_fold_with(self)
+        }
+    }
+
+    fn fold_ty(&mut self, ty: &rty::Ty) -> rty::Ty {
+        if let rty::TyKind::Infer(vid) = ty.kind() {
+            self.types
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| bug!("unfilled type hole {vid:?}"))
+        } else {
+            ty.super_fold_with(self)
+        }
+    }
+
+    fn fold_subset_ty(&mut self, constr: &rty::SubsetTy) -> rty::SubsetTy {
+        if let rty::BaseTy::Infer(vid) = &constr.bty {
+            self.subset_tys
+                .get(vid)
+                .cloned()
+                .unwrap_or_else(|| bug!("unfilled type hole {vid:?}"))
+        } else {
+            constr.super_fold_with(self)
+        }
+    }
+
+    fn fold_region(&mut self, r: &rty::Region) -> rty::Region {
+        if let rty::Region::ReVar(vid) = r {
+            self.regions
+                .get(vid)
+                .copied()
+                .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
+        } else {
+            *r
+        }
+    }
+
+    fn fold_const(&mut self, ct: &rty::Const) -> rty::Const {
+        if let rty::ConstKind::Infer(InferConst::Var(cid)) = ct.kind {
+            self.consts
+                .get(&cid)
+                .cloned()
+                .unwrap_or_else(|| bug!("unfilled const hole {cid:?}"))
+        } else {
+            ct.super_fold_with(self)
+        }
+    }
+}
+
 impl Holes {
     fn replace_holes<T: TypeFoldable>(&self, t: &T) -> T {
-        t.fold_with(&mut BottomUpFolder {
-            ty_op: |ty| {
-                if let rty::TyKind::Infer(vid) = ty.kind() {
-                    self.types
-                        .get(vid)
-                        .cloned()
-                        .unwrap_or_else(|| bug!("unfilled type hole {vid:?}"))
-                } else {
-                    ty
-                }
-            },
-            lt_op: |r| {
-                if let rty::Region::ReVar(vid) = r {
-                    self.regions
-                        .get(&vid)
-                        .copied()
-                        .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
-                } else {
-                    r
-                }
-            },
-            ct_op: |c| {
-                if let rty::ConstKind::Infer(InferConst::Var(cid)) = c.kind {
-                    self.consts
-                        .get(&cid)
-                        .cloned()
-                        .unwrap_or_else(|| bug!("unfilled const hole {cid:?}"))
-                } else {
-                    c
-                }
-            },
-        })
+        let mut this = self;
+        t.fold_with(&mut this)
     }
 }
 
@@ -218,7 +245,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Mismatch> {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Infer(vid), _) if a != &rty::Ty::trait_object_dummy_self() => {
+            (rty::TyKind::Infer(vid), _) => {
+                assert_ne!(vid.as_u32(), 0);
                 let b = self.adjust_binders(b);
                 self.holes.types.insert(*vid, b);
                 Ok(())
@@ -243,15 +271,6 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
             (rty::TyKind::Param(pty_a), rty::TyKind::Param(pty_b)) => {
                 assert_eq_or_incompatible(pty_a, pty_b)
-            }
-            (rty::TyKind::Alias(kind_a, aty_a), rty::TyKind::Alias(kind_b, aty_b)) => {
-                assert_eq_or_incompatible(kind_a, kind_b)?;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
-                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
-                for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
-                    self.zip_generic_arg(arg_a, arg_b)?;
-                }
-                Ok(())
             }
             (
                 rty::TyKind::Ptr(_, _)
@@ -310,6 +329,15 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
                 Ok(())
             }
+            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) => {
+                assert_eq_or_incompatible(kind_a, kind_b)?;
+                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)?;
+                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())?;
+                for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
+                    self.zip_generic_arg(arg_a, arg_b)?;
+                }
+                Ok(())
+            }
             (rty::BaseTy::Array(ty_a, len_a), rty::BaseTy::Array(ty_b, len_b)) => {
                 self.zip_const(len_a, len_b)?;
                 self.zip_ty(ty_a, ty_b)
@@ -341,8 +369,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         match (a, b) {
             (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) => self.zip_ty(ty_a, ty_b),
             (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) => {
+                self.zip_sorts(&ctor_a.sort(), &ctor_b.sort());
                 self.enter_binders(ctor_a, ctor_b, |this, sty_a, sty_b| {
-                    this.zip_bty(&sty_a.bty, &sty_b.bty)
+                    this.zip_subset_ty(sty_a, sty_b)
                 })
             }
             (rty::GenericArg::Lifetime(re_a), rty::GenericArg::Lifetime(re_b)) => {
@@ -353,6 +382,24 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_const(ct_a, ct_b)
             }
             _ => Err(Mismatch::new(a, b)),
+        }
+    }
+
+    fn zip_sorts(&mut self, a: &rty::Sort, b: &rty::Sort) {
+        if let rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = a {
+            assert_ne!(vid.as_u32(), 0);
+            self.holes.sorts.insert(*vid, b.clone());
+        }
+    }
+
+    fn zip_subset_ty(&mut self, a: &rty::SubsetTy, b: &rty::SubsetTy) -> Result<(), Mismatch> {
+        if let rty::BaseTy::Infer(vid) = a.bty {
+            assert_ne!(vid.as_u32(), 0);
+            let b = self.adjust_binders(b);
+            self.holes.subset_tys.insert(vid, b);
+            Ok(())
+        } else {
+            self.zip_bty(&a.bty, &b.bty)
         }
     }
 
@@ -410,7 +457,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     for (arg_a, arg_b) in iter::zip(&projection_a.args, &projection_b.args) {
                         this.zip_generic_arg(arg_a, arg_b)?;
                     }
-                    this.zip_ty(&projection_a.term, &projection_b.term)
+                    this.enter_binders(&projection_a.term, &projection_b.term, |this, a, b| {
+                        this.zip_bty(&a.bty, &b.bty)
+                    })
                 }
                 (
                     rty::ExistentialPredicate::AutoTrait(def_id_a),
@@ -452,11 +501,14 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         r
     }
 
-    fn adjust_binders<T: TypeFoldable>(&self, t: &T) -> T {
+    fn adjust_binders<T: TypeFoldable + Clone>(&self, t: &T) -> T {
         if self.a_index >= self.b_index {
             t.shift_in_escaping(self.a_index.as_u32() - self.b_index.as_u32())
         } else {
-            t.shift_out_escaping(self.b_index.as_u32() - self.a_index.as_u32())
+            debug_assert!(
+                !t.has_escaping_bvars_at_or_above(self.b_index.shifted_out_to_binder(self.a_index))
+            );
+            t.clone()
         }
     }
 

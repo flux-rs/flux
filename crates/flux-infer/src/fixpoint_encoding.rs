@@ -178,10 +178,13 @@ impl SortEncodingCtxt {
             rty::Sort::Bool => fixpoint::Sort::Bool,
             rty::Sort::Str => fixpoint::Sort::Str,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
-            // There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
-            // user declared opaque sorts and type variable sorts as integers. Well-formedness should
-            // ensure values of these sorts are properly used.
-            rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => {
+            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
+            // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
+            // integers. Well-formedness should ensure values of these sorts are used "opaquely",
+            // i.e., the only values of these sorts are variables.
+            rty::Sort::App(rty::SortCtor::User { .. }, _)
+            | rty::Sort::Param(_)
+            | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
                 fixpoint::Sort::Int
             }
             rty::Sort::App(rty::SortCtor::Set, args) => {
@@ -210,10 +213,10 @@ impl SortEncodingCtxt {
             }
             rty::Sort::Func(sort) => self.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) => fixpoint::Sort::Var(k.index()),
-            rty::Sort::Alias(_) => {
-                tracked_span_bug!("TODO: implementt encoding of `Sort::Alias`: `{sort:?}`")
-            }
-            rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {
+            rty::Sort::Err
+            | rty::Sort::Infer(_)
+            | rty::Sort::Loc
+            | rty::Sort::Alias(rty::AliasKind::Weak, _) => {
                 tracked_span_bug!("unexpected sort `{sort:?}`")
             }
         }
@@ -530,7 +533,7 @@ where
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
-                // because we are weakining the context, i.e., anything true without the assumption
+                // because we are weakening the context, i.e., anything true without the assumption
                 // should remain true after adding it. Note that this relies on the predicate
                 // appearing negatively. This is guaranteed by the surface syntax because foralls
                 // can only appear at the top-level in a requires clause.
@@ -552,9 +555,7 @@ where
         let kvids = self.kcx.encode(kvar.kvid, decl, &mut self.scx);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| -> QueryResult<_> {
-                self.ecx.imm(arg, sort, &mut self.scx, bindings)
-            })
+            .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
             .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get

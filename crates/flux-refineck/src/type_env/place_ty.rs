@@ -7,6 +7,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
@@ -141,6 +142,42 @@ impl PlacesTree {
     ) -> CheckerResult {
         let cursor = self.cursor_for(place);
         Unfolder::new(infcx, cursor, Some(place.clone()), checker_conf).run(self)
+    }
+
+    pub fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
+        let mut cursor = self.cursor_for(place);
+        let mut ty = self.get_loc(&cursor.loc).ty.clone();
+        while let Some(elem) = cursor.next() {
+            match elem {
+                PlaceElem::Deref => {
+                    if let TyKind::Ptr(_, path) = ty.kind() {
+                        cursor.change_root(path);
+                        ty = self.get_loc(&cursor.loc).ty.clone();
+                    } else {
+                        return;
+                    }
+                }
+                PlaceElem::Field(f) => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Tuple(fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
+                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
+                        | TyKind::Downcast(.., fields) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
+                    };
+                }
+                PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => return,
+                PlaceElem::Downcast(..) => {}
+            }
+        }
+        cursor.reset();
+        Updater::update(self, cursor, |_, ty| {
+            let unblocked = ty.unblocked();
+            rcx.hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(&unblocked)
+        });
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -342,31 +379,11 @@ impl LookupResult<'_> {
         old
     }
 
-    pub(crate) fn unblock(self, rcx: &mut RefineCtxt, check_overflow: bool) {
-        if self.ty.is_uninit() {
-            return;
-        }
-        Updater::update(self.bindings, self.cursor, |_, ty| {
-            // FIXME(nilehmann) in some situations we are calling unblock on a place that's not actually
-            // blocked. This happens when taking a reference to an array or with a shared reborrow.
-            // To avoid crashing, we call `Ty::unblocked` which would simply return the original
-            // type if it wasn't unblocked. We should instead properly block the place in the first place
-            // and ensure we are only unblocking blocked places.
-            let mut unblocked = ty.unblocked();
-            if self.is_strg {
-                unblocked = rcx
-                    .hoister(AssumeInvariants::yes(check_overflow))
-                    .hoist(&unblocked);
-            }
-            unblocked
-        });
-    }
-
     pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> CheckerResult<Ty> {
+    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> QueryResult<Ty> {
         let ty = fold(self.bindings, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
@@ -515,8 +532,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         };
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
-        self.insertions
-            .push((loc, place, Binding { kind, ty: ty.clone() }));
+        let ty = self
+            .infcx
+            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .hoist(ty);
+        self.insertions.push((loc, place, Binding { kind, ty }));
     }
 
     fn unfold_as_kind(&mut self, deref_ty: &Ty, kind: LocKind) -> Loc {
@@ -654,8 +674,8 @@ where
 
     fn update(bindings: &mut PlacesTree, cursor: Cursor, new_ty: F) {
         let binding = bindings.get_loc_mut(&cursor.loc);
-        let lookup = Updater::new(cursor, new_ty);
-        binding.ty = lookup.fold_ty(&binding.ty);
+        let updater = Updater::new(cursor, new_ty);
+        binding.ty = updater.fold_ty(&binding.ty);
     }
 
     fn fold_ty(mut self, ty: &Ty) -> Ty {
@@ -667,8 +687,8 @@ where
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => self.fold_ty(ty),
             PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
-                // When unblocking under an array/slice we stop at the array/slice because the entire
-                // array has to be blocked when taking references to an element
+                // When unblocking under an array/slice we stop at the array/slice because
+                // the entire array has to be blocked when taking references to an element
                 (self.new_ty)(self.cursor, ty)
             }
         }
@@ -905,7 +925,7 @@ fn fold(
     infcx: &mut InferCtxtAt,
     ty: &Ty,
     is_strg: bool,
-) -> CheckerResult<Ty> {
+) -> QueryResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
             let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
@@ -985,9 +1005,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PrettyCx {
-            PrettyCx::default(tcx)
-                .kvar_args(KVarArgs::Hide)
-                .hide_binder(true)
+            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 

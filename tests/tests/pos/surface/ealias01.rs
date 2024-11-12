@@ -3,7 +3,7 @@
     fn nat(x: int) -> bool { leq(0,x) }
 }]
 
-#[flux::alias(type Nat = i32{v:nat(v)})]
+#[flux::alias(type Nat[v: int] = {i32[v] | nat(v)})]
 type Nat = i32;
 
 #[flux::sig(fn(x:Nat) -> i32{v: v >= 0})]

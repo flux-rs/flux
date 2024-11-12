@@ -256,7 +256,9 @@ pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
     vis.visit_ident(ty_alias.ident);
     vis.visit_generics(&ty_alias.generics);
     walk_list!(vis, visit_refine_param, &ty_alias.params);
-    walk_list!(vis, visit_refine_param, &ty_alias.refined_by);
+    if let Some(index) = &ty_alias.index {
+        vis.visit_refine_param(index);
+    }
     vis.visit_ty(&ty_alias.ty);
 }
 

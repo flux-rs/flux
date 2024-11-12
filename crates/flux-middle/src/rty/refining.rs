@@ -7,7 +7,7 @@ use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_assert_eq};
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::{ClosureKind, ParamTy};
 use rustc_target::abi::VariantIdx;
 
@@ -15,16 +15,25 @@ use super::fold::TypeFoldable;
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty,
+    query_bug, rty,
 };
 
-pub(crate) fn refine_generics(generics: &ty::Generics) -> QueryResult<rty::Generics> {
+pub(crate) fn refine_generics(
+    genv: GlobalEnv,
+    def_id: DefId,
+    generics: &ty::Generics,
+) -> QueryResult<rty::Generics> {
+    let is_box = if let DefKind::Struct = genv.def_kind(def_id) {
+        genv.tcx().adt_def(def_id).is_box()
+    } else {
+        false
+    };
     let params = generics
         .params
         .iter()
         .map(|param| {
             rty::GenericParamDef {
-                kind: refine_generic_param_def_kind(param.kind),
+                kind: refine_generic_param_def_kind(is_box, param.kind),
                 index: param.index,
                 name: param.name,
                 def_id: param.def_id,
@@ -40,11 +49,18 @@ pub(crate) fn refine_generics(generics: &ty::Generics) -> QueryResult<rty::Gener
     })
 }
 
-pub fn refine_generic_param_def_kind(kind: ty::GenericParamDefKind) -> rty::GenericParamDefKind {
+pub fn refine_generic_param_def_kind(
+    is_box: bool,
+    kind: ty::GenericParamDefKind,
+) -> rty::GenericParamDefKind {
     match kind {
         ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
         ty::GenericParamDefKind::Type { has_default } => {
-            rty::GenericParamDefKind::Type { has_default }
+            if is_box {
+                rty::GenericParamDefKind::Type { has_default }
+            } else {
+                rty::GenericParamDefKind::Base { has_default }
+            }
         }
         ty::GenericParamDefKind::Const { has_default, .. } => {
             rty::GenericParamDefKind::Const { has_default }
@@ -54,6 +70,7 @@ pub fn refine_generic_param_def_kind(kind: ty::GenericParamDefKind) -> rty::Gene
 
 pub struct Refiner<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
+    def_id: DefId,
     generics: rty::Generics,
     refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
 }
@@ -61,30 +78,27 @@ pub struct Refiner<'genv, 'tcx> {
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        generics: &rty::Generics,
+        def_id: DefId,
         refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
-    ) -> Self {
-        Self { genv, generics: generics.clone(), refine }
+    ) -> QueryResult<Self> {
+        let generics = genv.generics_of(def_id)?;
+        Ok(Self { genv, def_id, generics, refine })
     }
 
-    pub fn default(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
-        Self { genv, generics: generics.clone(), refine: refine_default }
+    pub fn default(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
+        Self::new(genv, def_id, refine_default)
     }
 
-    pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
-        Self {
-            genv,
-            generics: generics.clone(),
-            refine: |bty| {
-                let sort = bty.sort();
-                let constr = rty::SubsetTy::new(
-                    bty.shift_in_escaping(1),
-                    rty::Expr::nu(),
-                    rty::Expr::hole(rty::HoleKind::Pred),
-                );
-                rty::Binder::bind_with_sort(constr, sort)
-            },
-        }
+    pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
+        Self::new(genv, def_id, |bty| {
+            let sort = bty.sort();
+            let constr = rty::SubsetTy::new(
+                bty.shift_in_escaping(1),
+                rty::Expr::nu(),
+                rty::Expr::hole(rty::HoleKind::Pred),
+            );
+            rty::Binder::bind_with_sort(constr, sort)
+        })
     }
 
     pub(crate) fn refine_generic_predicates(
@@ -125,10 +139,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 if self.genv.is_fn_once_output(proj_pred.projection_ty.def_id) {
                     return Ok(None);
                 }
+                let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&proj_pred.term)? else {
+                    return Err(query_bug!(
+                        self.def_id,
+                        "sorry, we can't handle non-base associated types"
+                    ));
+                };
                 let pred = rty::ProjectionPredicate {
                     projection_ty: self
-                        .refine_alias_ty(&ty::AliasKind::Projection, &proj_pred.projection_ty)?,
-                    term: self.refine_ty(&proj_pred.term)?,
+                        .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
+                    term,
                 };
                 rty::ClauseKind::Projection(pred)
             }
@@ -161,7 +181,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         }
         tracked_span_assert_eq!(candidates.len(), 1);
         let pred = candidates.first().unwrap();
-
         let pred = rty::FnTraitPredicate {
             kind,
             self_ty: self.refine_ty(trait_ref.args[0].expect_type())?,
@@ -187,13 +206,20 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     })
                 }
                 ty::ExistentialPredicate::Projection(projection) => {
+                    let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&projection.term)?
+                    else {
+                        return Err(query_bug!(
+                            self.def_id,
+                            "sorry, we can't handle non-base associated types"
+                        ));
+                    };
                     rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
                         def_id: projection.def_id,
                         args: self.refine_existential_predicate_generic_args(
                             projection.def_id,
                             &projection.args,
                         )?,
-                        term: self.refine_ty(&projection.term)?,
+                        term,
                     })
                 }
                 ty::ExistentialPredicate::AutoTrait(def_id) => {
@@ -304,8 +330,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
-            (rty::GenericParamDefKind::Base, ty::GenericArg::Ty(ty)) => {
-                let TyOrBase::Base(contr) = self.refine_ty_inner(ty)? else {
+            (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
+                let rty::TyOrBase::Base(contr) = self.refine_ty_or_base(ty)? else {
                     return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
                 Ok(rty::GenericArg::Base(contr))
@@ -322,34 +348,23 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     fn refine_alias_ty(
         &self,
-        alias_kind: &ty::AliasKind,
+        alias_kind: ty::AliasKind,
         alias_ty: &ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
         let args = self.refine_generic_args(def_id, &alias_ty.args)?;
 
-        let refine_args = self.refine_args_of(def_id, alias_kind)?;
+        let refine_args = self.refine_refine_args_for_alias_ty(def_id, alias_kind)?;
 
         let res = rty::AliasTy::new(def_id, args, refine_args);
         Ok(res)
     }
 
     pub fn refine_ty(&self, ty: &ty::Ty) -> QueryResult<rty::Ty> {
-        Ok(self.refine_ty_inner(ty)?.into_ty())
+        Ok(self.refine_ty_or_base(ty)?.into_ty())
     }
 
-    pub fn refine_ty_ctor(&self, ty: &ty::Ty) -> QueryResult<rty::TyCtor> {
-        Ok(self.refine_ty_inner(ty)?.into_ctor())
-    }
-
-    fn refine_alias_kind(kind: &ty::AliasKind) -> rty::AliasKind {
-        match kind {
-            ty::AliasKind::Projection => rty::AliasKind::Projection,
-            ty::AliasKind::Opaque => rty::AliasKind::Opaque,
-        }
-    }
-
-    fn refine_ty_inner(&self, ty: &ty::Ty) -> QueryResult<TyOrBase> {
+    pub fn refine_ty_or_base(&self, ty: &ty::Ty) -> QueryResult<rty::TyOrBase> {
         let bty = match ty.kind() {
             ty::TyKind::Closure(did, args) => {
                 let closure_args = args.as_closure();
@@ -383,9 +398,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(TyOrBase::Ty(rty::Ty::param(*param_ty)));
+                        return Ok(rty::TyOrBase::Ty(rty::Ty::param(*param_ty)));
                     }
-                    rty::GenericParamDefKind::Base => rty::BaseTy::Param(*param_ty),
+                    rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime | rty::GenericParamDefKind::Const { .. } => {
                         bug!()
                     }
@@ -400,10 +415,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let args = self.refine_generic_args(*def_id, args)?;
                 rty::BaseTy::fn_def(*def_id, args)
             }
-            ty::TyKind::Alias(alias_kind, alias_ty) => {
-                let kind = Self::refine_alias_kind(alias_kind);
-                let alias_ty = self.as_default().refine_alias_ty(alias_kind, alias_ty)?;
-                return Ok(TyOrBase::Ty(rty::Ty::alias(kind, alias_ty)));
+            ty::TyKind::Alias(kind, alias_ty) => {
+                let alias_ty = self.as_default().refine_alias_ty(*kind, alias_ty)?;
+                rty::BaseTy::Alias(*kind, alias_ty)
             }
             ty::TyKind::Bool => rty::BaseTy::Bool,
             ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
@@ -425,7 +439,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::BaseTy::Dynamic(exi_preds, *r)
             }
         };
-        Ok(TyOrBase::Base((self.refine)(bty)))
+        Ok(rty::TyOrBase::Base((self.refine)(bty)))
     }
 
     fn as_default(&self) -> Self {
@@ -440,10 +454,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         self.genv.generics_of(def_id)
     }
 
-    fn refine_args_of(
+    fn refine_refine_args_for_alias_ty(
         &self,
         def_id: DefId,
-        alias_kind: &ty::AliasKind,
+        alias_kind: ty::AliasKind,
     ) -> QueryResult<rty::RefineArgs> {
         if let ty::AliasKind::Opaque = alias_kind {
             self.genv
@@ -458,27 +472,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {
         self.generics.param_at(param_ty.index as usize, self.genv)
-    }
-}
-
-enum TyOrBase {
-    Ty(rty::Ty),
-    Base(rty::SubsetTyCtor),
-}
-
-impl TyOrBase {
-    fn into_ty(self) -> rty::Ty {
-        match self {
-            TyOrBase::Ty(ty) => ty,
-            TyOrBase::Base(ctor) => ctor.to_ty(),
-        }
-    }
-
-    fn into_ctor(self) -> rty::TyCtor {
-        match self {
-            TyOrBase::Ty(ty) => rty::Binder::bind_with_vars(ty, List::empty()),
-            TyOrBase::Base(ctor) => ctor.map(|ty| ty.to_ty()),
-        }
     }
 }
 

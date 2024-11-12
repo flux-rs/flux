@@ -40,7 +40,7 @@ use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{global_env::GlobalEnv, MaybeExternId};
+use crate::MaybeExternId;
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -124,7 +124,6 @@ impl From<bool> for CheckOverflow {
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
     pub refinement_params: &'fhir [RefineParam<'fhir>],
-    pub self_kind: Option<GenericParamKind<'fhir>>,
     pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
 }
 
@@ -138,7 +137,6 @@ pub struct GenericParam<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
-    Base,
     Lifetime,
     Const { ty: Ty<'fhir>, is_host_effect: bool },
 }
@@ -398,8 +396,7 @@ impl<'fhir> FluxItems<'fhir> {
 
 #[derive(Debug)]
 pub struct TyAlias<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
-    pub params: &'fhir [RefineParam<'fhir>],
+    pub index: Option<RefineParam<'fhir>>,
     pub ty: Ty<'fhir>,
     pub span: Span,
     /// Whether this alias was [lifted] from a `hir` alias
@@ -455,7 +452,7 @@ pub struct VariantDef<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct VariantRet<'fhir> {
     pub enum_id: DefId,
-    pub idx: RefineArg<'fhir>,
+    pub idx: Expr<'fhir>,
 }
 
 #[derive(Clone, Copy)]
@@ -518,7 +515,7 @@ pub enum TyKind<'fhir> {
     /// [existential]: crate::rty::TyKind::Exists
     /// [type]: GenericParamKind::Type
     BaseTy(BaseTy<'fhir>),
-    Indexed(BaseTy<'fhir>, RefineArg<'fhir>),
+    Indexed(BaseTy<'fhir>, Expr<'fhir>),
     Exists(&'fhir [RefineParam<'fhir>], &'fhir Ty<'fhir>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
@@ -529,7 +526,7 @@ pub enum TyKind<'fhir> {
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
-    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
+    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [Expr<'fhir>], bool),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -602,34 +599,6 @@ newtype_index! {
     pub struct ItemLocalId {}
 }
 
-#[derive(Clone, Copy)]
-pub struct RefineArg<'fhir> {
-    pub kind: RefineArgKind<'fhir>,
-    pub fhir_id: FhirId,
-    pub span: Span,
-}
-
-impl<'fhir> RefineArg<'fhir> {
-    pub fn is_colon_param(&self) -> Option<ParamId> {
-        if let RefineArgKind::Expr(expr) = &self.kind
-            && let ExprKind::Var(path, Some(ParamKind::Colon)) = &expr.kind
-            && let ExprRes::Param(kind, id) = path.res
-        {
-            debug_assert_eq!(kind, ParamKind::Colon);
-            Some(id)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum RefineArgKind<'fhir> {
-    Expr(Expr<'fhir>),
-    Abs(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
-    Record(&'fhir [RefineArg<'fhir>]),
-}
-
 /// These are types of things that may be refined with indices or existentials
 #[derive(Clone, Copy)]
 pub struct BaseTy<'fhir> {
@@ -668,7 +637,7 @@ pub enum QPath<'fhir> {
 pub struct Path<'fhir> {
     pub res: Res,
     pub segments: &'fhir [PathSegment<'fhir>],
-    pub refine: &'fhir [RefineArg<'fhir>],
+    pub refine: &'fhir [Expr<'fhir>],
     pub span: Span,
 }
 
@@ -877,7 +846,7 @@ pub enum SortRes {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
-    /// The sort of an adt (enum/struct) or type alias.
+    /// The sort of an adt (enum/struct).
     Adt(DefId),
 }
 
@@ -932,8 +901,8 @@ pub struct AliasReft<'fhir> {
 #[derive(Clone, Copy)]
 pub struct Expr<'fhir> {
     pub kind: ExprKind<'fhir>,
-    pub span: Span,
     pub fhir_id: FhirId,
+    pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -946,6 +915,21 @@ pub enum ExprKind<'fhir> {
     App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
+    Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    Record(&'fhir [Expr<'fhir>]),
+}
+
+impl<'fhir> Expr<'fhir> {
+    pub fn is_colon_param(&self) -> Option<ParamId> {
+        if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
+            && let ExprRes::Param(kind, id) = path.res
+        {
+            debug_assert_eq!(kind, ParamKind::Colon);
+            Some(id)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1088,7 +1072,7 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
+/// Information about the refinement parameters associated with an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
     /// When a `#[flux::refined_by(..)]` annotation mentions generic type parameters we implicitly
@@ -1136,18 +1120,6 @@ impl<'fhir> Generics<'fhir> {
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
     }
-
-    pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
-        let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
-            let kind = if refined_by.is_base_generic(param.def_id.resolved_id()) {
-                GenericParamKind::Base
-            } else {
-                param.kind
-            };
-            GenericParam { kind, ..*param }
-        }));
-        Generics { params, ..self }
-    }
 }
 
 impl<'fhir> RefinedBy<'fhir> {
@@ -1157,10 +1129,6 @@ impl<'fhir> RefinedBy<'fhir> {
 
     pub fn trivial() -> Self {
         RefinedBy { sort_params: Default::default(), fields: Default::default() }
-    }
-
-    fn is_base_generic(&self, def_id: DefId) -> bool {
-        self.sort_params.contains(&def_id)
     }
 }
 
@@ -1409,28 +1377,6 @@ impl fmt::Debug for AssocItemConstraint<'_> {
     }
 }
 
-impl fmt::Debug for RefineArg<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            RefineArgKind::Expr(expr) => {
-                write!(f, "{expr:?}")
-            }
-            RefineArgKind::Abs(params, body) => {
-                write!(
-                    f,
-                    "|{}| {body:?}",
-                    params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{}: {:?}", param.name, param.sort))
-                    })
-                )
-            }
-            RefineArgKind::Record(flds) => {
-                write!(f, "{{ {:?} }}", flds.iter().format(", "))
-            }
-        }
-    }
-}
-
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{:?} as {:?}>::{}", self.qself, self.path, self.name)
@@ -1452,6 +1398,18 @@ impl fmt::Debug for Expr<'_> {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
             ExprKind::Dot(var, fld) => write!(f, "{var:?}.{fld}"),
+            ExprKind::Abs(params, body) => {
+                write!(
+                    f,
+                    "|{}| {body:?}",
+                    params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{}: {:?}", param.name, param.sort))
+                    })
+                )
+            }
+            ExprKind::Record(flds) => {
+                write!(f, "{{ {:?} }}", flds.iter().format(", "))
+            }
         }
     }
 }
@@ -1504,15 +1462,15 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{}", n),
-            SortRes::TyParam(def_id) => write!(f, "sortof({})", def_id_to_string(*def_id)),
+            SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
-                write!(f, "sortof({}::Self)", def_id_to_string(*trait_id))
+                write!(f, "{}::Self::sort", def_id_to_string(*trait_id))
             }
             SortRes::SelfAlias { alias_to } => {
-                write!(f, "sortof({}::Self)", def_id_to_string(*alias_to))
+                write!(f, "{}::Self::sort", def_id_to_string(*alias_to))
             }
             SortRes::User { name } => write!(f, "{name}"),
-            SortRes::Adt(def_id) => write!(f, "{}::Sort", def_id_to_string(*def_id)),
+            SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
         }
     }
 }
