@@ -243,10 +243,11 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasKind {
     Projection,
     Opaque,
+    Weak,
 }
 
 impl<'tcx> ToRustc<'tcx> for AliasKind {
@@ -257,6 +258,7 @@ impl<'tcx> ToRustc<'tcx> for AliasKind {
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
             AliasKind::Projection => ty::AliasTyKind::Projection,
+            AliasKind::Weak => ty::AliasTyKind::Weak,
         }
     }
 }
@@ -1018,15 +1020,6 @@ impl fmt::Debug for FnSig {
     }
 }
 
-impl fmt::Debug for AliasKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AliasKind::Projection => write!(f, "Projection"),
-            AliasKind::Opaque => write!(f, "Opaque"),
-        }
-    }
-}
-
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
@@ -1067,23 +1060,30 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, args) => {
-                write!(f, "Closure {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
             TyKind::Coroutine(did, args) => {
-                write!(f, "Generator {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
             TyKind::CoroutineWitness(did, args) => {
-                write!(f, "GeneratorWitness {}", def_id_to_string(*did))?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            TyKind::Alias(AliasKind::Opaque, alias_ty) => {
+                write!(f, "{}", def_id_to_string(alias_ty.def_id))?;
+                if !alias_ty.args.is_empty() {
+                    write!(f, "<{:?}>", alias_ty.args.iter().format(", "))?;
                 }
                 Ok(())
             }

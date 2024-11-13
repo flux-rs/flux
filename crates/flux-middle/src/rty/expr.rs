@@ -227,21 +227,22 @@ impl FieldProj {
     }
 }
 
-/// The position where a hole appears. This determines how it will be inferred. This is related but not
-/// quite the same as the [`InferMode`].
+/// The position where a [hole] appears. This determines how it will be inferred. This is related
+/// to, but not the same as, an [`InferMode`].
 ///
 /// [`InferMode`]: super::InferMode
+/// [hole]: ExprKind::Hole
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
 )]
 pub enum HoleKind {
-    /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
-    /// generating a kvar.
+    /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be
+    /// inferred by generating a kvar.
     ///
     /// [`TyKind::Constr`]: super::TyKind::Constr
     Pred,
-    /// A hole used as a refinement argument or index. It will be inferred by generating an evar. The
-    /// expression filling the hole must have the provided sort.
+    /// A hole used as a refinement argument or index. It will be inferred by generating an evar.
+    /// The expression filling the hole must have the provided sort.
     Expr(Sort),
 }
 
@@ -734,7 +735,7 @@ impl Expr {
         go(sort, &mut f)
     }
 
-    /// Applies a projection to an expression and optimistically try to beta reduce it if possible.
+    /// Applies a field projection to an expression and optimistically try to beta reduce it
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
             ExprKind::Aggregate(_, flds) => flds[proj.field_idx() as usize].clone(),

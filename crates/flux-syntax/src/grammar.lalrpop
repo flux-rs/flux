@@ -53,7 +53,7 @@ pub TyAlias: surface::TyAlias = {
     <ident:Ident>
     <mut generics:GenericsWithAngleBrackets>
     <params:("(" <RefineParams<"!">> ")")?>
-    <refined_by:("[" <RefineParams<"!">> "]")?>
+    <index:("[" <RefineParam<"!">> "]")?>
     "="
     <ty:Ty>
     <hi:@R> => {
@@ -61,7 +61,7 @@ pub TyAlias: surface::TyAlias = {
             ident,
             generics,
             params: params.unwrap_or_default(),
-            refined_by: refined_by.unwrap_or_default(),
+            index,
             ty,
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi)

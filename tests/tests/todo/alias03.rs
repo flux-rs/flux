@@ -4,7 +4,7 @@ pub struct S {
     f: i32,
 }
 
-#[flux::alias(type A(n: S) = i32{v: v < n.f })]
+#[flux::alias(type A(n: S)[v: int] = {i32[v] | v < n.f})]
 type A = i32;
 
 #[flux::sig(fn(s: S, x: A(s)))]

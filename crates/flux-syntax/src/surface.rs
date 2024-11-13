@@ -80,7 +80,7 @@ pub struct TyAlias {
     pub ident: Ident,
     pub generics: Generics,
     pub params: RefineParams,
-    pub refined_by: RefineParams,
+    pub index: Option<RefineParam>,
     pub ty: Ty,
     pub node_id: NodeId,
     pub span: Span,

@@ -610,7 +610,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .resolve_path_with_ribs(&path.segments, TypeNS)?
             .full_res()?;
         match res {
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id) => {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => {
                 Some(fhir::SortRes::Adt(def_id))
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => Some(fhir::SortRes::TyParam(def_id)),
