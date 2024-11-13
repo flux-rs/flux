@@ -399,6 +399,10 @@ impl<'genv, 'tcx> ConvPhase for &mut InferCtxt<'genv, 'tcx> {
 
     type Results = InferCtxt<'genv, 'tcx>;
 
+    fn owner(&self) -> FluxOwnerId {
+        self.wfckresults.owner
+    }
+
     fn results(&self) -> &Self::Results {
         self
     }
@@ -426,10 +430,6 @@ impl<'genv, 'tcx> ConvPhase for &mut InferCtxt<'genv, 'tcx> {
 /// `RSet<σ>` where `RSet` is the sort-level representation of the `RSet` type. Thus, it is important
 /// that the inference variable we generate for `σ` is the same we use for sort checking.
 impl WfckResultsProvider for InferCtxt<'_, '_> {
-    fn owner(&self) -> FluxOwnerId {
-        self.wfckresults.owner
-    }
-
     fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }

@@ -34,7 +34,7 @@ use rustc_hir::{
     self as hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    PrimTy, Safety,
+    OwnerId, PrimTy, Safety,
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
@@ -68,6 +68,8 @@ pub trait ConvPhase {
 
     type Results: WfckResultsProvider;
 
+    fn owner(&self) -> FluxOwnerId;
+
     fn results(&self) -> &Self::Results;
 
     /// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`. Used
@@ -82,8 +84,6 @@ pub trait ConvPhase {
 /// An interface to the information elaborated during sort checking. We mock these results in
 /// the first conversion phase before sort checking.
 pub trait WfckResultsProvider: Sized {
-    fn owner(&self) -> FluxOwnerId;
-
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion];
@@ -102,6 +102,10 @@ impl<'a> ConvPhase for &'a WfckResults {
 
     type Results = WfckResults;
 
+    fn owner(&self) -> FluxOwnerId {
+        self.owner
+    }
+
     fn results(&self) -> &Self::Results {
         self
     }
@@ -112,10 +116,6 @@ impl<'a> ConvPhase for &'a WfckResults {
 }
 
 impl WfckResultsProvider for WfckResults {
-    fn owner(&self) -> FluxOwnerId {
-        self.owner
-    }
-
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
         self.bin_rel_sorts()
             .get(fhir_id)
@@ -131,7 +131,7 @@ impl WfckResultsProvider for WfckResults {
         *self
             .field_projs()
             .get(fhir_id)
-            .unwrap_or_else(|| bug!("field projectoin without elaboration `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("field projection without elaboration `{fhir_id:?}`"))
     }
 
     fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort {
@@ -217,6 +217,8 @@ pub(crate) fn conv_adt_sort_def(
     def_id: MaybeExternId,
     refined_by: &fhir::RefinedBy,
 ) -> QueryResult<rty::AdtSortDef> {
+    let wfckresults = &WfckResults::new(OwnerId { def_id: def_id.local_id() });
+    let mut cx = ConvCtxt::new(genv, wfckresults);
     let params = refined_by
         .sort_params
         .iter()
@@ -226,7 +228,7 @@ pub(crate) fn conv_adt_sort_def(
         .fields
         .iter()
         .map(|(name, sort)| -> QueryResult<_> {
-            Ok((*name, conv_sort(genv, sort, &mut bug_on_infer_sort)?))
+            Ok((*name, cx.conv_sort(sort, &mut bug_on_infer_sort)?))
         })
         .try_collect_vec()?;
     Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
@@ -390,7 +392,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
     }
 
     fn owner(&self) -> FluxOwnerId {
-        self.phase.results().owner()
+        self.phase.owner()
     }
 
     fn results(&self) -> &P::Results {
@@ -586,8 +588,158 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         env.push_layer(Layer::list(self.results(), 0, params));
         let expr = self.conv_expr(&mut env, body)?;
         let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-        let output = conv_sort(self.genv, output, &mut bug_on_infer_sort)?;
+        let output = self.conv_sort(output, &mut bug_on_infer_sort)?;
         Ok(rty::Lambda::bind_with_vars(expr, inputs, output))
+    }
+}
+
+/// Conversion of sorts
+impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
+    pub(crate) fn conv_sort(
+        &mut self,
+        sort: &fhir::Sort,
+        next_infer_sort: &mut impl FnMut() -> rty::Sort,
+    ) -> QueryResult<rty::Sort> {
+        let sort = match sort {
+            fhir::Sort::Path(path) => self.conv_sort_path(path, next_infer_sort)?,
+            fhir::Sort::BitVec(size) => rty::Sort::BitVec(rty::BvSize::Fixed(*size)),
+            fhir::Sort::Loc => rty::Sort::Loc,
+            fhir::Sort::Func(fsort) => {
+                rty::Sort::Func(self.conv_poly_func_sort(fsort, next_infer_sort)?)
+            }
+            fhir::Sort::Infer => next_infer_sort(),
+        };
+        Ok(sort)
+    }
+
+    fn conv_poly_func_sort(
+        &mut self,
+        sort: &fhir::PolyFuncSort,
+        next_infer_sort: &mut impl FnMut() -> rty::Sort,
+    ) -> QueryResult<rty::PolyFuncSort> {
+        let params = iter::repeat(rty::SortParamKind::Sort)
+            .take(sort.params)
+            .collect();
+        Ok(rty::PolyFuncSort::new(params, self.conv_func_sort(&sort.fsort, next_infer_sort)?))
+    }
+
+    fn conv_func_sort(
+        &mut self,
+        fsort: &fhir::FuncSort,
+        next_infer_sort: &mut impl FnMut() -> rty::Sort,
+    ) -> QueryResult<rty::FuncSort> {
+        let inputs = fsort
+            .inputs()
+            .iter()
+            .map(|sort| self.conv_sort(sort, next_infer_sort))
+            .try_collect()?;
+        Ok(rty::FuncSort::new(inputs, self.conv_sort(fsort.output(), next_infer_sort)?))
+    }
+
+    fn conv_sort_path(
+        &mut self,
+        path: &fhir::SortPath,
+        next_infer_sort: &mut impl FnMut() -> rty::Sort,
+    ) -> QueryResult<rty::Sort> {
+        let ctor = match path.res {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
+                if !path.args.is_empty() {
+                    Err(emit_prim_sort_generics_error(self.genv, path, "int", 0))?;
+                }
+                return Ok(rty::Sort::Int);
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
+                if !path.args.is_empty() {
+                    Err(emit_prim_sort_generics_error(self.genv, path, "bool", 0))?;
+                }
+                return Ok(rty::Sort::Bool);
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
+                if !path.args.is_empty() {
+                    Err(emit_prim_sort_generics_error(self.genv, path, "real", 0))?;
+                }
+                return Ok(rty::Sort::Real);
+            }
+            fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
+            fhir::SortRes::TyParam(def_id) => {
+                if !path.args.is_empty() {
+                    let err = errors::GenericsOnTyParam::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    Err(self.emit(err))?;
+                }
+                return Ok(rty::Sort::Param(def_id_to_param_ty(self.genv, def_id)));
+            }
+            fhir::SortRes::SelfParam { .. } => {
+                if !path.args.is_empty() {
+                    let err = errors::GenericsOnSelf::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    Err(self.emit(err))?;
+                }
+                return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
+            }
+            fhir::SortRes::SelfAlias { alias_to } => {
+                if !path.args.is_empty() {
+                    let err = errors::GenericsOnSelf::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    Err(self.emit(err))?;
+                }
+                return Ok(self
+                    .genv
+                    .sort_of_self_ty_alias(alias_to)?
+                    .unwrap_or(rty::Sort::Err));
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
+                if path.args.len() != 1 {
+                    // Has to have one argument
+                    Err(emit_prim_sort_generics_error(self.genv, path, "Set", 1))?;
+                }
+                rty::SortCtor::Set
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
+                if path.args.len() != 2 {
+                    // Has to have two arguments
+                    Err(emit_prim_sort_generics_error(self.genv, path, "Map", 2))?;
+                }
+                rty::SortCtor::Map
+            }
+            fhir::SortRes::User { name } => {
+                if !path.args.is_empty() {
+                    let err = errors::GenericsOnUserDefinedOpaqueSort::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    Err(self.emit(err))?;
+                }
+                rty::SortCtor::User { name }
+            }
+            fhir::SortRes::Adt(def_id) => {
+                let sort_def = self.genv.adt_sort_def_of(def_id)?;
+                if path.args.len() > sort_def.param_count() {
+                    let err = errors::TooManyGenericsOnSort::new(
+                        self.genv,
+                        def_id,
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                        sort_def.param_count(),
+                    );
+                    Err(self.emit(err))?;
+                }
+                rty::SortCtor::Adt(sort_def)
+            }
+        };
+        let args = path
+            .args
+            .iter()
+            .map(|t| self.conv_sort(t, next_infer_sort))
+            .try_collect()?;
+
+        Ok(rty::Sort::app(ctor, args))
     }
 }
 
@@ -1929,12 +2081,14 @@ impl LookupResult<'_> {
 }
 
 pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFuncDecl> {
+    let wfckresults = WfckResults::new(FluxOwnerId::Flux(func.name));
+    let mut cx = ConvCtxt::new(genv, &wfckresults);
     let inputs_and_output = func
         .args
         .iter()
         .map(|p| &p.sort)
         .chain(iter::once(&func.sort))
-        .map(|sort| conv_sort(genv, sort, &mut bug_on_infer_sort))
+        .map(|sort| cx.conv_sort(sort, &mut bug_on_infer_sort))
         .try_collect()?;
     let params = iter::repeat(rty::SortParamKind::Sort)
         .take(func.params)
@@ -1944,138 +2098,160 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
     Ok(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
 
-fn conv_sorts(
-    genv: GlobalEnv,
-    sorts: &[fhir::Sort],
-    next_infer_sort: &mut impl FnMut() -> rty::Sort,
-) -> QueryResult<Vec<rty::Sort>> {
-    sorts
-        .iter()
-        .map(|sort| conv_sort(genv, sort, next_infer_sort))
-        .try_collect()
-}
+// fn conv_sorts(
+//     genv: GlobalEnv,
+//     sorts: &[fhir::Sort],
+//     next_infer_sort: &mut impl FnMut() -> rty::Sort,
+// ) -> QueryResult<Vec<rty::Sort>> {
+//     sorts
+//         .iter()
+//         .map(|sort| conv_sort(genv, sort, next_infer_sort))
+//         .try_collect()
+// }
 
-pub(crate) fn conv_sort(
-    genv: GlobalEnv,
-    sort: &fhir::Sort,
-    next_infer_sort: &mut impl FnMut() -> rty::Sort,
-) -> QueryResult<rty::Sort> {
-    let sort = match sort {
-        fhir::Sort::Path(path) => conv_sort_path(genv, path, next_infer_sort)?,
-        fhir::Sort::BitVec(size) => rty::Sort::BitVec(rty::BvSize::Fixed(*size)),
-        fhir::Sort::Loc => rty::Sort::Loc,
-        fhir::Sort::Func(fsort) => {
-            rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)?)
-        }
-        fhir::Sort::Infer => next_infer_sort(),
-    };
-    Ok(sort)
-}
+// pub(crate) fn conv_sort(
+//     genv: GlobalEnv,
+//     sort: &fhir::Sort,
+//     next_infer_sort: &mut impl FnMut() -> rty::Sort,
+// ) -> QueryResult<rty::Sort> {
+//     let sort = match sort {
+//         fhir::Sort::Path(path) => conv_sort_path(genv, path, next_infer_sort)?,
+//         fhir::Sort::BitVec(size) => rty::Sort::BitVec(rty::BvSize::Fixed(*size)),
+//         fhir::Sort::Loc => rty::Sort::Loc,
+//         fhir::Sort::Func(fsort) => {
+//             rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)?)
+//         }
+//         fhir::Sort::Infer => next_infer_sort(),
+//     };
+//     Ok(sort)
+// }
 
-fn conv_sort_path(
-    genv: GlobalEnv,
-    path: &fhir::SortPath,
-    next_infer_sort: &mut impl FnMut() -> rty::Sort,
-) -> QueryResult<rty::Sort> {
-    let ctor = match path.res {
-        fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
-            if !path.args.is_empty() {
-                Err(emit_prim_sort_generics_error(genv, path, "int", 0))?;
-            }
-            return Ok(rty::Sort::Int);
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
-            if !path.args.is_empty() {
-                Err(emit_prim_sort_generics_error(genv, path, "bool", 0))?;
-            }
-            return Ok(rty::Sort::Bool);
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
-            if !path.args.is_empty() {
-                Err(emit_prim_sort_generics_error(genv, path, "real", 0))?;
-            }
-            return Ok(rty::Sort::Real);
-        }
-        fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
-        fhir::SortRes::TyParam(def_id) => {
-            if !path.args.is_empty() {
-                let err = errors::GenericsOnTyParam::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                Err(genv.sess().emit_err(err))?;
-            }
-            return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
-        }
-        fhir::SortRes::SelfParam { .. } => {
-            if !path.args.is_empty() {
-                let err = errors::GenericsOnSelf::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                Err(genv.sess().emit_err(err))?;
-            }
-            return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
-        }
-        fhir::SortRes::SelfAlias { alias_to } => {
-            if !path.args.is_empty() {
-                let err = errors::GenericsOnSelf::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                Err(genv.sess().emit_err(err))?;
-            }
-            return Ok(genv
-                .sort_of_self_ty_alias(alias_to)?
-                .unwrap_or(rty::Sort::Err));
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
-            if path.args.len() != 1 {
-                // Has to have one argument
-                Err(emit_prim_sort_generics_error(genv, path, "Set", 1))?;
-            }
-            rty::SortCtor::Set
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
-            if path.args.len() != 2 {
-                // Has to have two arguments
-                Err(emit_prim_sort_generics_error(genv, path, "Map", 2))?;
-            }
-            rty::SortCtor::Map
-        }
-        fhir::SortRes::User { name } => {
-            if !path.args.is_empty() {
-                let err = errors::GenericsOnUserDefinedOpaqueSort::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                Err(genv.sess().emit_err(err))?;
-            }
-            rty::SortCtor::User { name }
-        }
-        fhir::SortRes::Adt(def_id) => {
-            let sort_def = genv.adt_sort_def_of(def_id)?;
-            if path.args.len() > sort_def.param_count() {
-                let err = errors::TooManyGenericsOnSort::new(
-                    genv,
-                    def_id,
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                    sort_def.param_count(),
-                );
-                Err(genv.sess().emit_err(err))?;
-            }
-            rty::SortCtor::Adt(sort_def)
-        }
-    };
-    let args = path
-        .args
-        .iter()
-        .map(|t| conv_sort(genv, t, next_infer_sort))
-        .try_collect()?;
+// fn conv_sort_path(
+//     genv: GlobalEnv,
+//     path: &fhir::SortPath,
+//     next_infer_sort: &mut impl FnMut() -> rty::Sort,
+// ) -> QueryResult<rty::Sort> {
+//     let ctor = match path.res {
+//         fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
+//             if !path.args.is_empty() {
+//                 Err(emit_prim_sort_generics_error(genv, path, "int", 0))?;
+//             }
+//             return Ok(rty::Sort::Int);
+//         }
+//         fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
+//             if !path.args.is_empty() {
+//                 Err(emit_prim_sort_generics_error(genv, path, "bool", 0))?;
+//             }
+//             return Ok(rty::Sort::Bool);
+//         }
+//         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
+//             if !path.args.is_empty() {
+//                 Err(emit_prim_sort_generics_error(genv, path, "real", 0))?;
+//             }
+//             return Ok(rty::Sort::Real);
+//         }
+//         fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
+//         fhir::SortRes::TyParam(def_id) => {
+//             if !path.args.is_empty() {
+//                 let err = errors::GenericsOnTyParam::new(
+//                     path.segments.last().unwrap().span,
+//                     path.args.len(),
+//                 );
+//                 Err(genv.sess().emit_err(err))?;
+//             }
+//             return Ok(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
+//         }
+//         fhir::SortRes::SelfParam { .. } => {
+//             if !path.args.is_empty() {
+//                 let err = errors::GenericsOnSelf::new(
+//                     path.segments.last().unwrap().span,
+//                     path.args.len(),
+//                 );
+//                 Err(genv.sess().emit_err(err))?;
+//             }
+//             return Ok(rty::Sort::Param(rty::SELF_PARAM_TY));
+//         }
+//         fhir::SortRes::SelfAlias { alias_to } => {
+//             if !path.args.is_empty() {
+//                 let err = errors::GenericsOnSelf::new(
+//                     path.segments.last().unwrap().span,
+//                     path.args.len(),
+//                 );
+//                 Err(genv.sess().emit_err(err))?;
+//             }
+//             return Ok(genv
+//                 .sort_of_self_ty_alias(alias_to)?
+//                 .unwrap_or(rty::Sort::Err));
+//         }
+//         fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
+//             if path.args.len() != 1 {
+//                 // Has to have one argument
+//                 Err(emit_prim_sort_generics_error(genv, path, "Set", 1))?;
+//             }
+//             rty::SortCtor::Set
+//         }
+//         fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
+//             if path.args.len() != 2 {
+//                 // Has to have two arguments
+//                 Err(emit_prim_sort_generics_error(genv, path, "Map", 2))?;
+//             }
+//             rty::SortCtor::Map
+//         }
+//         fhir::SortRes::User { name } => {
+//             if !path.args.is_empty() {
+//                 let err = errors::GenericsOnUserDefinedOpaqueSort::new(
+//                     path.segments.last().unwrap().span,
+//                     path.args.len(),
+//                 );
+//                 Err(genv.sess().emit_err(err))?;
+//             }
+//             rty::SortCtor::User { name }
+//         }
+//         fhir::SortRes::Adt(def_id) => {
+//             let sort_def = genv.adt_sort_def_of(def_id)?;
+//             if path.args.len() > sort_def.param_count() {
+//                 let err = errors::TooManyGenericsOnSort::new(
+//                     genv,
+//                     def_id,
+//                     path.segments.last().unwrap().span,
+//                     path.args.len(),
+//                     sort_def.param_count(),
+//                 );
+//                 Err(genv.sess().emit_err(err))?;
+//             }
+//             rty::SortCtor::Adt(sort_def)
+//         }
+//     };
+//     let args = path
+//         .args
+//         .iter()
+//         .map(|t| conv_sort(genv, t, next_infer_sort))
+//         .try_collect()?;
 
-    Ok(rty::Sort::app(ctor, args))
-}
+//     Ok(rty::Sort::app(ctor, args))
+// }
+
+// fn conv_poly_func_sort(
+//     genv: GlobalEnv,
+//     sort: &fhir::PolyFuncSort,
+//     next_infer_sort: &mut impl FnMut() -> rty::Sort,
+// ) -> QueryResult<rty::PolyFuncSort> {
+//     let params = iter::repeat(rty::SortParamKind::Sort)
+//         .take(sort.params)
+//         .collect();
+//     Ok(rty::PolyFuncSort::new(params, conv_func_sort(genv, &sort.fsort, next_infer_sort)?))
+// }
+
+// pub(crate) fn conv_func_sort(
+//     genv: GlobalEnv,
+//     fsort: &fhir::FuncSort,
+//     next_infer_sort: &mut impl FnMut() -> rty::Sort,
+// ) -> QueryResult<rty::FuncSort> {
+//     Ok(rty::FuncSort::new(
+//         conv_sorts(genv, fsort.inputs(), next_infer_sort)?,
+//         conv_sort(genv, fsort.output(), next_infer_sort)?,
+//     ))
+// }
 
 fn emit_prim_sort_generics_error(
     genv: GlobalEnv,
@@ -2090,28 +2266,6 @@ fn emit_prim_sort_generics_error(
         expected,
     );
     genv.sess().emit_err(err)
-}
-
-fn conv_poly_func_sort(
-    genv: GlobalEnv,
-    sort: &fhir::PolyFuncSort,
-    next_infer_sort: &mut impl FnMut() -> rty::Sort,
-) -> QueryResult<rty::PolyFuncSort> {
-    let params = iter::repeat(rty::SortParamKind::Sort)
-        .take(sort.params)
-        .collect();
-    Ok(rty::PolyFuncSort::new(params, conv_func_sort(genv, &sort.fsort, next_infer_sort)?))
-}
-
-pub(crate) fn conv_func_sort(
-    genv: GlobalEnv,
-    fsort: &fhir::FuncSort,
-    next_infer_sort: &mut impl FnMut() -> rty::Sort,
-) -> QueryResult<rty::FuncSort> {
-    Ok(rty::FuncSort::new(
-        conv_sorts(genv, fsort.inputs(), next_infer_sort)?,
-        conv_sort(genv, fsort.output(), next_infer_sort)?,
-    ))
 }
 
 pub(crate) fn bug_on_infer_sort() -> rty::Sort {

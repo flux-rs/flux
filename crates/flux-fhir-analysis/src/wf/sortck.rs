@@ -56,32 +56,31 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         body: &fhir::Expr,
         expected: &rty::Sort,
     ) -> Result {
-        if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
-            let fsort = fsort.expect_mono();
-            self.insert_params(params)?;
+        let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) else {
+            return Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)));
+        };
+        let fsort = fsort.expect_mono();
+        self.insert_params(params)?;
 
-            if params.len() != fsort.inputs().len() {
-                return Err(self.emit_err(errors::ParamCountMismatch::new(
-                    arg.span,
-                    fsort.inputs().len(),
-                    params.len(),
-                )));
-            }
-            iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                let found = self.param_sort(param.id);
-                if self.try_equate(&found, expected).is_none() {
-                    return Err(self.emit_sort_mismatch(param.span, expected, &found));
-                }
-                Ok(())
-            })?;
-            self.check_expr(body, fsort.output())?;
-            self.wfckresults
-                .node_sorts_mut()
-                .insert(arg.fhir_id, fsort.output().clone());
-            Ok(())
-        } else {
-            Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
+        if params.len() != fsort.inputs().len() {
+            return Err(self.emit_err(errors::ParamCountMismatch::new(
+                arg.span,
+                fsort.inputs().len(),
+                params.len(),
+            )));
         }
+        iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
+            let found = self.param_sort(param.id);
+            if self.try_equate(&found, expected).is_none() {
+                return Err(self.emit_sort_mismatch(param.span, expected, &found));
+            }
+            Ok(())
+        })?;
+        self.check_expr(body, fsort.output())?;
+        self.wfckresults
+            .node_sorts_mut()
+            .insert(arg.fhir_id, fsort.output().clone());
+        Ok(())
     }
 
     fn check_record(
