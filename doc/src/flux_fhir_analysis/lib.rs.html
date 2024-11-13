@@ -585,7 +585,6 @@
 <a href="#585" id="585">585</a>
 <a href="#586" id="586">586</a>
 <a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -946,7 +945,11 @@
     <span class="kw">let </span>parent_count =
         <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = parent { genv.refinement_generics_of(def_id)<span class="question-mark">?</span>.count() } <span class="kw">else </span>{ <span class="number">0 </span>};
     <span class="kw">match </span>genv.map().node(local_id)<span class="question-mark">? </span>{
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(..), generics, .. })
+        fhir::Node::Item(fhir::Item {
+            kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
+            generics,
+            ..
+        })
         | fhir::Node::TraitItem(fhir::TraitItem {
             kind: fhir::TraitItemKind::Fn(..),
             generics,
@@ -957,14 +960,9 @@
         }) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>params = conv::conv_refinement_generics(
-                genv,
                 generics.refinement_params,
-                <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>wfckresults),
+                <span class="kw-2">&amp;</span>wfckresults,
             )<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params })
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(..), generics, .. }) =&gt; {
-            <span class="kw">let </span>params = conv::conv_refinement_generics(genv, generics.refinement_params, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params })
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
