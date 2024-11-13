@@ -1212,15 +1212,6 @@ impl Ty {
             tracked_span_bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
-
-    #[track_caller]
-    pub fn expect_fn_ptr(&self) -> &PolyFnSig {
-        if let TyKind::Indexed(BaseTy::FnPtr(sig), _) = self.kind() {
-            sig
-        } else {
-            tracked_span_bug!("expected fn ptr found `{self:?}`")
-        }
-    }
 }
 
 impl<'tcx> ToRustc<'tcx> for Ty {
