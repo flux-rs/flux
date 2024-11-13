@@ -291,18 +291,13 @@ pub(crate) fn conv_generics(
 }
 
 pub(crate) fn conv_refinement_generics(
-    genv: GlobalEnv,
     params: &[fhir::RefineParam],
-    wfckresults: Option<&WfckResults>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<List<rty::RefineParam>> {
     params
         .iter()
         .map(|param| {
-            let sort = if let Some(wfckresults) = wfckresults {
-                wfckresults.param_sort(param)
-            } else {
-                conv_sort(genv, &param.sort, &mut bug_on_infer_sort)?
-            };
+            let sort = wfckresults.param_sort(param);
             let mode = rty::InferMode::from_param_kind(param.kind);
             Ok(rty::RefineParam { sort, name: param.name, mode })
         })
