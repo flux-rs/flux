@@ -582,9 +582,6 @@
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -959,10 +956,7 @@
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>params = conv::conv_refinement_generics(
-                generics.refinement_params,
-                <span class="kw-2">&amp;</span>wfckresults,
-            )<span class="question-mark">?</span>;
+            <span class="kw">let </span>params = conv::conv_refinement_generics(generics.refinement_params, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params })
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
