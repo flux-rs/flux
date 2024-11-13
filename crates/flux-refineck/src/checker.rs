@@ -1409,9 +1409,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.refine_default(to).with_span(self.body.span())?
             }
             CastKind::Pointer(mir::PointerCast::ReifyFnPointer) => {
-                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind() {
-                    // leave this as FnDef, and handle later during check_fn_subtyping
-                    BaseTy::fn_def(*def_id, args.clone()).to_ty()
+                let to = self.refine_default(to).with_span(self.body.span())?;
+                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
+                    && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
+                {
+                    //     // leave this as FnDef, and handle later during check_fn_subtyping
+                    //     BaseTy::fn_def(*def_id, args.clone()).to_ty()
+
+                    let current_did = infcx.def_id;
+                    let sub_sig = infcx.genv.fn_sig(*def_id).with_span(stmt_span)?;
+                    // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
+                    let super_sig = EarlyBinder(super_sig.clone());
+                    check_fn_subtyping(
+                        infcx,
+                        &current_did,
+                        sub_sig,
+                        args,
+                        super_sig,
+                        None,
+                        stmt_span,
+                    )?;
+                    to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
                 }
