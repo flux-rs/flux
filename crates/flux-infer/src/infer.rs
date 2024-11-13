@@ -137,14 +137,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &'a mut self,
         def_id: LocalDefId,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        snapshot: &Snapshot,
     ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt {
-            def_id: def_id.to_def_id(),
-            rcx: self.rcx.change_root(snapshot).unwrap(),
-            region_infcx,
-            ..*self
-        }
+        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
     }
 
     pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
@@ -466,6 +460,7 @@ impl Sub {
         a: &Ty,
         b: &Ty,
     ) -> InferResult {
+        let infcx = &mut infcx.branch();
         // infcx.push_trace(TypeTrace::tys(a, b));
 
         match (a.kind(), b.kind()) {
