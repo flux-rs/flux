@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_sp
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{infer_under_mut_ref_hack, ConstrReason, InferCtxt, InferCtxtRoot},
+    infer::{ConstrReason, InferCtxt, InferCtxtRoot},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -1654,6 +1654,39 @@ fn all_predicates_of(
         })
     })
     .flatten()
+}
+
+/// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
+/// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
+/// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
+/// mutable references.
+pub fn infer_under_mut_ref_hack(
+    rcx: &mut InferCtxt,
+    actuals: &[Ty],
+    fn_sig: EarlyBinder<&PolyFnSig>,
+) -> Vec<Ty> {
+    iter::zip(
+        actuals,
+        fn_sig
+            .as_ref()
+            .skip_binder()
+            .as_ref()
+            .skip_binder()
+            .inputs(),
+    )
+    .map(|(actual, formal)| {
+        if let rty::Ref!(.., Mutability::Mut) = actual.kind()
+            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
+            && let TyKind::Indexed(..) = ty.kind()
+        {
+            rcx.hoister(AssumeInvariants::No)
+                .hoist_inside_mut_refs(true)
+                .hoist(actual)
+        } else {
+            actual.clone()
+        }
+    })
+    .collect()
 }
 
 impl Mode for ShapeMode {

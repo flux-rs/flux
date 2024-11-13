@@ -11,8 +11,7 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Region, Sort, Ty,
-        TyKind, Var,
+        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -25,7 +24,7 @@ use rustc_span::Span;
 
 use crate::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot},
+    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -420,39 +419,6 @@ impl fmt::Debug for TypeTrace {
             TypeTrace::BaseTys(a, b) => write!(f, "{a:?} - {b:?}"),
         }
     }
-}
-
-/// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
-/// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
-/// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
-/// mutable references.
-pub fn infer_under_mut_ref_hack(
-    rcx: &mut InferCtxt,
-    actuals: &[Ty],
-    fn_sig: EarlyBinder<&PolyFnSig>,
-) -> Vec<Ty> {
-    iter::zip(
-        actuals,
-        fn_sig
-            .as_ref()
-            .skip_binder()
-            .as_ref()
-            .skip_binder()
-            .inputs(),
-    )
-    .map(|(actual, formal)| {
-        if let rty::Ref!(.., Mutability::Mut) = actual.kind()
-            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
-            && let TyKind::Indexed(..) = ty.kind()
-        {
-            rcx.hoister(AssumeInvariants::No)
-                .hoist_inside_mut_refs(true)
-                .hoist(actual)
-        } else {
-            actual.clone()
-        }
-    })
-    .collect()
 }
 
 /// Context to relate two types `a` and `b` via subtyping
