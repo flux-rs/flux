@@ -837,11 +837,6 @@
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -981,14 +976,8 @@
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
         def_id: LocalDefId,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        snapshot: <span class="kw-2">&amp;</span>Snapshot,
     ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt {
-            def_id: def_id.to_def_id(),
-            rcx: <span class="self">self</span>.rcx.change_root(snapshot).unwrap(),
-            region_infcx,
-            ..<span class="kw-2">*</span><span class="self">self
-        </span>}
+        InferCtxt { def_id: def_id.to_def_id(), rcx: <span class="self">self</span>.rcx.branch(), region_infcx, ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
     <span class="kw">pub fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1310,6 +1299,7 @@
         a: <span class="kw-2">&amp;</span>Ty,
         b: <span class="kw-2">&amp;</span>Ty,
     ) -&gt; InferResult {
+        <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
         <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
 
         </span><span class="kw">match </span>(a.kind(), b.kind()) {

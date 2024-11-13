@@ -1929,8 +1929,6 @@
 <a href="#1929" id="1929">1929</a>
 <a href="#1930" id="1930">1930</a>
 <a href="#1931" id="1931">1931</a>
-<a href="#1932" id="1932">1932</a>
-<a href="#1933" id="1933">1933</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
@@ -2177,6 +2175,7 @@
     oblig_args: <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>GenericArgs, <span class="kw-2">&amp;</span>RefineArgs)&gt;,
     span: Span,
 ) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.branch();
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.at(span);
     <span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">let </span>fn_def_sig = genv.fn_sig(<span class="kw-2">*</span>def_id).with_span(span)<span class="question-mark">?</span>;
@@ -2632,7 +2631,7 @@
         <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
         infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
-        <span class="self">self</span>.check_closure_clauses(infcx, infcx.snapshot(), <span class="kw-2">&amp;</span>obligations, span)
+        <span class="self">self</span>.check_closure_clauses(infcx, <span class="kw-2">&amp;</span>obligations, span)
     }
 
     <span class="attr">#[expect(clippy::too_many_arguments)]
@@ -2652,7 +2651,6 @@
         <span class="kw">let </span>actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
 
         infcx.push_scope();
-        <span class="kw">let </span>snapshot = infcx.snapshot();
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
         </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
@@ -2668,6 +2666,22 @@
                 <span class="macro">vec!</span>[]
             }
         };
+
+        <span class="kw">let </span>clauses = <span class="kw">match </span>callee_def_id {
+            <span class="prelude-val">Some</span>(callee_def_id) =&gt; {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)<span class="question-mark">?
+                    </span>.predicates()
+                    .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
+            }
+            <span class="prelude-val">None </span>=&gt; <span class="kw">crate</span>::rty::List::empty(),
+        };
+
+        infcx
+            .at(span)
+            .check_non_closure_clauses(<span class="kw-2">&amp;</span>clauses, ConstrReason::Call)
+            .with_span(span)<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_closure_clauses(infcx, <span class="kw-2">&amp;</span>clauses, span)<span class="question-mark">?</span>;
 
         <span class="comment">// Instantiate function signature and normalize it
         </span><span class="kw">let </span>fn_sig = fn_sig
@@ -2689,21 +2703,7 @@
                 .with_span(span)<span class="question-mark">?</span>;
         }
 
-        <span class="kw">let </span>clauses = <span class="kw">match </span>callee_def_id {
-            <span class="prelude-val">Some</span>(callee_def_id) =&gt; {
-                genv.predicates_of(callee_def_id)
-                    .with_span(span)<span class="question-mark">?
-                    </span>.predicates()
-                    .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
-            }
-            <span class="prelude-val">None </span>=&gt; <span class="kw">crate</span>::rty::List::empty(),
-        };
-
-        at.check_non_closure_clauses(<span class="kw-2">&amp;</span>clauses, ConstrReason::Call)
-            .with_span(span)<span class="question-mark">?</span>;
-
         <span class="comment">// Replace evars
-        // let evars_sol = infcx.pop_scope().with_span(span)?;
         </span><span class="kw">let </span>evars_sol = infcx.pop_scope().unwrap();
         env.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
         infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
@@ -2723,7 +2723,6 @@
                 Ensures::Pred(e) =&gt; infcx.assume_pred(e),
             }
         }
-        <span class="self">self</span>.check_closure_clauses(infcx, snapshot, <span class="kw-2">&amp;</span>clauses, span)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(output.ret)
     }
@@ -2731,7 +2730,6 @@
     <span class="kw">fn </span>check_oblig_generator_pred(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        snapshot: <span class="kw-2">&amp;</span>Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="attr">#[expect(clippy::disallowed_methods, reason = <span class="string">"generators cannot be extern speced"</span>)]
@@ -2739,7 +2737,7 @@
         <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
         <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
         Checker::run(
-            infcx.change_item(def_id, <span class="kw-2">&amp;</span>body.infcx, snapshot),
+            infcx.change_item(def_id, <span class="kw-2">&amp;</span>body.infcx),
             def_id,
             <span class="self">self</span>.inherited.reborrow(),
             gen_pred.to_poly_fn_sig(),
@@ -2749,7 +2747,6 @@
     <span class="kw">fn </span>check_oblig_fn_trait_pred(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        snapshot: <span class="kw-2">&amp;</span>Snapshot,
         fn_trait_pred: FnTraitPredicate,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -2761,7 +2758,7 @@
                 <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(local_closure_id);
                 <span class="kw">let </span>body = <span class="self">self</span>.genv.mir(local_closure_id).with_span(span)<span class="question-mark">?</span>;
                 Checker::run(
-                    infcx.change_item(local_closure_id, <span class="kw-2">&amp;</span>body.infcx, snapshot),
+                    infcx.change_item(local_closure_id, <span class="kw-2">&amp;</span>body.infcx),
                     local_closure_id,
                     <span class="self">self</span>.inherited.reborrow(),
                     fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>closure_id, tys.clone(), args),
@@ -2786,17 +2783,16 @@
     <span class="kw">fn </span>check_closure_clauses(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        snapshot: Snapshot,
         clauses: <span class="kw-2">&amp;</span>[Clause],
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
             <span class="kw">match </span>clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) =&gt; {
-                    <span class="self">self</span>.check_oblig_fn_trait_pred(infcx, <span class="kw-2">&amp;</span>snapshot, fn_trait_pred, span)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.check_oblig_fn_trait_pred(infcx, fn_trait_pred, span)<span class="question-mark">?</span>;
                 }
                 rty::ClauseKind::CoroutineOblig(gen_pred) =&gt; {
-                    <span class="self">self</span>.check_oblig_generator_pred(infcx, <span class="kw-2">&amp;</span>snapshot, gen_pred)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.check_oblig_generator_pred(infcx, gen_pred)<span class="question-mark">?</span>;
                 }
                 rty::ClauseKind::Projection(<span class="kw">_</span>)
                 | rty::ClauseKind::Trait(<span class="kw">_</span>)
