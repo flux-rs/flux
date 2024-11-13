@@ -244,6 +244,7 @@ fn check_fn_subtyping<'genv, 'tcx>(
     oblig_args: Option<(&GenericArgs, &RefineArgs)>,
     span: Span,
 ) -> Result {
+    let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
     let tcx = genv.tcx();
     let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
@@ -699,7 +700,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(infcx, infcx.snapshot(), &obligations, span)
+        self.check_closure_clauses(infcx, &obligations, span)
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -719,7 +720,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
 
         infcx.push_scope();
-        let snapshot = infcx.snapshot();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
@@ -735,6 +735,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 vec![]
             }
         };
+
+        let clauses = match callee_def_id {
+            Some(callee_def_id) => {
+                genv.predicates_of(callee_def_id)
+                    .with_span(span)?
+                    .predicates()
+                    .instantiate(tcx, &generic_args, &refine_args)
+            }
+            None => crate::rty::List::empty(),
+        };
+
+        infcx
+            .at(span)
+            .check_non_closure_clauses(&clauses, ConstrReason::Call)
+            .with_span(span)?;
+        self.check_closure_clauses(infcx, &clauses, span)?;
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -756,21 +772,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .with_span(span)?;
         }
 
-        let clauses = match callee_def_id {
-            Some(callee_def_id) => {
-                genv.predicates_of(callee_def_id)
-                    .with_span(span)?
-                    .predicates()
-                    .instantiate(tcx, &generic_args, &refine_args)
-            }
-            None => crate::rty::List::empty(),
-        };
-
-        at.check_non_closure_clauses(&clauses, ConstrReason::Call)
-            .with_span(span)?;
-
         // Replace evars
-        // let evars_sol = infcx.pop_scope().with_span(span)?;
         let evars_sol = infcx.pop_scope().unwrap();
         env.replace_evars(&evars_sol);
         infcx.replace_evars(&evars_sol);
@@ -790,7 +792,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => infcx.assume_pred(e),
             }
         }
-        self.check_closure_clauses(infcx, snapshot, &clauses, span)?;
 
         Ok(output.ret)
     }
@@ -798,7 +799,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_oblig_generator_pred(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
         #[expect(clippy::disallowed_methods, reason = "generators cannot be extern speced")]
@@ -806,7 +806,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = self.genv.tcx().def_span(def_id);
         let body = self.genv.mir(def_id).with_span(span)?;
         Checker::run(
-            infcx.change_item(def_id, &body.infcx, snapshot),
+            infcx.change_item(def_id, &body.infcx),
             def_id,
             self.inherited.reborrow(),
             gen_pred.to_poly_fn_sig(),
@@ -816,7 +816,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_oblig_fn_trait_pred(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        snapshot: &Snapshot,
         fn_trait_pred: FnTraitPredicate,
         span: Span,
     ) -> Result {
@@ -828,7 +827,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let span = self.genv.tcx().def_span(local_closure_id);
                 let body = self.genv.mir(local_closure_id).with_span(span)?;
                 Checker::run(
-                    infcx.change_item(local_closure_id, &body.infcx, snapshot),
+                    infcx.change_item(local_closure_id, &body.infcx),
                     local_closure_id,
                     self.inherited.reborrow(),
                     fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
@@ -853,17 +852,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_closure_clauses(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        snapshot: Snapshot,
         clauses: &[Clause],
         span: Span,
     ) -> Result {
         for clause in clauses {
             match clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    self.check_oblig_fn_trait_pred(infcx, &snapshot, fn_trait_pred, span)?;
+                    self.check_oblig_fn_trait_pred(infcx, fn_trait_pred, span)?;
                 }
                 rty::ClauseKind::CoroutineOblig(gen_pred) => {
-                    self.check_oblig_generator_pred(infcx, &snapshot, gen_pred)?;
+                    self.check_oblig_generator_pred(infcx, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_)
                 | rty::ClauseKind::Trait(_)
