@@ -244,6 +244,7 @@ pub fn check_fn_subtyping(
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
     span: Span,
 ) -> Result {
+    let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
