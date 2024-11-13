@@ -372,10 +372,7 @@ fn refinement_generics_of(
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(
-                generics.refinement_params,
-                &wfckresults,
-            )?;
+            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
