@@ -1304,9 +1304,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
-                    //     // leave this as FnDef, and handle later during check_fn_subtyping
-                    //     BaseTy::fn_def(*def_id, args.clone()).to_ty()
-
                     let current_did = infcx.def_id;
                     let sub_sig = infcx.genv.fn_sig(*def_id).with_span(stmt_span)?;
                     // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
