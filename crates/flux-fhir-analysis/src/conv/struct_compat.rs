@@ -94,8 +94,12 @@ struct Zipper<'genv, 'tcx> {
     owner_id: MaybeExternId,
     locs: UnordMap<rty::Loc, rty::Ty>,
     holes: Holes,
-    a_index: DebruijnIndex,
-    b_index: DebruijnIndex,
+    /// Number of binders we've entered in `a`
+    a_binders: u32,
+    /// Each element in the vector correspond to a binder in `b`. For some binders we map it to
+    /// a corresponding binder in `a`. We assume that expressions filling holes will only contain
+    /// variables pointing to some of these mapped binders.
+    b_binder_to_a_binder: Vec<Option<u32>>,
     errors: Errors<'genv>,
 }
 
@@ -179,8 +183,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             owner_id,
             locs: UnordMap::default(),
             holes: Default::default(),
-            a_index: INNERMOST,
-            b_index: INNERMOST,
+            a_binders: 0,
+            b_binder_to_a_binder: vec![],
             errors: Errors::new(genv.sess()),
         }
     }
@@ -247,7 +251,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         match (a.kind(), b.kind()) {
             (rty::TyKind::Infer(vid), _) => {
                 assert_ne!(vid.as_u32(), 0);
-                let b = self.adjust_binders(b);
+                let b = self.adjust_bvars(b);
                 self.holes.types.insert(*vid, b);
                 Ok(())
             }
@@ -395,7 +399,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     fn zip_subset_ty(&mut self, a: &rty::SubsetTy, b: &rty::SubsetTy) -> Result<(), Mismatch> {
         if let rty::BaseTy::Infer(vid) = a.bty {
             assert_ne!(vid.as_u32(), 0);
-            let b = self.adjust_binders(b);
+            let b = self.adjust_bvars(b);
             self.holes.subset_tys.insert(vid, b);
             Ok(())
         } else {
@@ -425,7 +429,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_region(&mut self, a: &rty::Region, b: &ty::Region) {
         if let rty::Region::ReVar(vid) = a {
-            let re = self.adjust_binders(b);
+            let re = self.adjust_bvars(b);
             self.holes.regions.insert(*vid, re);
         }
     }
@@ -470,46 +474,90 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         })
     }
 
+    /// Enter a binder in both `a` and `b` creating a mapping between the two.
     fn enter_binders<T, R>(
         &mut self,
         a: &rty::Binder<T>,
         b: &rty::Binder<T>,
         f: impl FnOnce(&mut Self, &T, &T) -> R,
     ) -> R {
-        self.enter_a_binder(a, |this, a| this.enter_b_binder(b, |this, b| f(this, a, b)))
+        self.b_binder_to_a_binder.push(Some(self.a_binders));
+        self.a_binders += 1;
+        let r = f(self, a.skip_binder_ref(), b.skip_binder_ref());
+        self.a_binders -= 1;
+        self.b_binder_to_a_binder.pop();
+        r
     }
 
+    /// Enter a binder in `a` without a corresponding mapping in `b`
     fn enter_a_binder<T, R>(
         &mut self,
         t: &rty::Binder<T>,
         f: impl FnOnce(&mut Self, &T) -> R,
     ) -> R {
-        self.a_index.shift_in(1);
-        let r = f(self, t.as_ref().skip_binder());
-        self.a_index.shift_out(1);
+        self.a_binders += 1;
+        let r = f(self, t.skip_binder_ref());
+        self.a_binders -= 1;
         r
     }
 
+    /// Enter a binder in `b` without a corresponding mapping in `a`
     fn enter_b_binder<T, R>(
         &mut self,
         t: &rty::Binder<T>,
         f: impl FnOnce(&mut Self, &T) -> R,
     ) -> R {
-        self.b_index.shift_in(1);
-        let r = f(self, t.as_ref().skip_binder());
-        self.b_index.shift_out(1);
+        self.b_binder_to_a_binder.push(None);
+        let r = f(self, t.skip_binder_ref());
+        self.b_binder_to_a_binder.pop();
         r
     }
 
-    fn adjust_binders<T: TypeFoldable + Clone>(&self, t: &T) -> T {
-        if self.a_index >= self.b_index {
-            t.shift_in_escaping(self.a_index.as_u32() - self.b_index.as_u32())
-        } else {
-            debug_assert!(
-                !t.has_escaping_bvars_at_or_above(self.b_index.shifted_out_to_binder(self.a_index))
-            );
-            t.clone()
+    fn adjust_bvar(&self, debruijn: DebruijnIndex) -> DebruijnIndex {
+        let b_binders = self.b_binder_to_a_binder.len();
+        let mapped_binder = self.b_binder_to_a_binder[b_binders - debruijn.as_usize() - 1]
+            .unwrap_or_else(|| bug!("bound var without corresponding binder: `{debruijn:?}`"));
+        DebruijnIndex::from_u32(self.a_binders - mapped_binder - 1)
+    }
+
+    fn adjust_bvars<T: TypeFoldable + Clone + std::fmt::Debug>(&self, t: &T) -> T {
+        struct Adjuster<'a, 'genv, 'tcx> {
+            current_index: DebruijnIndex,
+            zipper: &'a Zipper<'genv, 'tcx>,
         }
+
+        impl TypeFolder for Adjuster<'_, '_, '_> {
+            fn fold_binder<T>(&mut self, t: &rty::Binder<T>) -> rty::Binder<T>
+            where
+                T: TypeFoldable,
+            {
+                self.current_index.shift_in(1);
+                let r = t.super_fold_with(self);
+                self.current_index.shift_out(1);
+                r
+            }
+
+            fn fold_region(&mut self, re: &rty::Region) -> rty::Region {
+                if let rty::ReBound(debruijn, br) = *re
+                    && debruijn >= self.current_index
+                {
+                    rty::ReBound(self.zipper.adjust_bvar(debruijn), br)
+                } else {
+                    *re
+                }
+            }
+
+            fn fold_expr(&mut self, expr: &rty::Expr) -> rty::Expr {
+                if let rty::ExprKind::Var(rty::Var::Bound(debruijn, breft)) = expr.kind()
+                    && *debruijn >= self.current_index
+                {
+                    rty::Expr::bvar(self.zipper.adjust_bvar(*debruijn), breft.var, breft.kind)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        t.fold_with(&mut Adjuster { current_index: INNERMOST, zipper: self })
     }
 
     fn emit_fn_sig_err(&mut self, err: FnSigErr, decl: &fhir::FnDecl) {
