@@ -433,7 +433,6 @@ pub trait LocEnv {
     ) -> InferResult<Ty>;
 
     fn unfold_local_ptr(&mut self, infcx: &mut InferCtxtAt, bound: &Ty) -> InferResult<Loc>;
-
     fn get(&self, path: &Path) -> Ty;
 }
 
