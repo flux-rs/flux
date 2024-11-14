@@ -227,11 +227,11 @@ impl RegionSubst {
             (rty::TyKind::Constr(_, ty_a), _) => self.rty_infer_from_ty(ty_a, b),
             (_, rty::TyKind::Constr(_, ty_b)) => self.rty_infer_from_ty(a, ty_b),
             (rty::TyKind::Indexed(bty_a, _), rty::TyKind::Indexed(bty_b, _)) => {
-                self.rty_infer_from_bty(bty_a, bty_b)
+                self.rty_infer_from_bty(bty_a, bty_b);
             }
             (rty::TyKind::StrgRef(re_a, _, ty_a), rty::TyKind::StrgRef(re_b, _, ty_b)) => {
                 self.infer_from_region(*re_a, *re_b);
-                self.rty_infer_from_ty(ty_a, ty_b)
+                self.rty_infer_from_ty(ty_a, ty_b);
             }
             _ => {}
         }
@@ -240,7 +240,7 @@ impl RegionSubst {
     fn rty_infer_from_bty(&mut self, a: &rty::BaseTy, b: &rty::BaseTy) {
         match (a, b) {
             (rty::BaseTy::Slice(ty_a), rty::BaseTy::Slice(ty_b)) => {
-                self.rty_infer_from_ty(ty_a, ty_b)
+                self.rty_infer_from_ty(ty_a, ty_b);
             }
             (rty::BaseTy::Adt(adt_def_a, args_a), rty::BaseTy::Adt(adt_def_b, args_b)) => {
                 debug_assert_eq!(adt_def_a.did(), adt_def_b.did());
@@ -274,7 +274,7 @@ impl RegionSubst {
                 }
             }
             (rty::BaseTy::Array(ty_a, _), rty::BaseTy::Array(ty_b, _)) => {
-                self.rty_infer_from_ty(ty_a, ty_b)
+                self.rty_infer_from_ty(ty_a, ty_b);
             }
             (rty::BaseTy::Dynamic(preds_a, re_a), rty::BaseTy::Dynamic(preds_b, re_b)) => {
                 for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
@@ -289,7 +289,7 @@ impl RegionSubst {
     fn rty_infer_from_generic_arg(&mut self, a: &rty::GenericArg, b: &rty::GenericArg) {
         match (a, b) {
             (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) => {
-                self.rty_infer_from_ty(ty_a, ty_b)
+                self.rty_infer_from_ty(ty_a, ty_b);
             }
             (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) => {
                 self.rty_infer_from_bty(
@@ -328,8 +328,8 @@ impl RegionSubst {
                     self.rty_infer_from_generic_arg(arg_a, arg_b);
                 }
                 self.rty_infer_from_bty(
-                    &proj_a.term.as_bty_skipping_binder(),
-                    &proj_b.term.as_bty_skipping_binder(),
+                    proj_a.term.as_bty_skipping_binder(),
+                    proj_b.term.as_bty_skipping_binder(),
                 );
             }
             _ => {}

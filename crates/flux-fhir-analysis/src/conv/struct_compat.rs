@@ -94,11 +94,11 @@ struct Zipper<'genv, 'tcx> {
     owner_id: MaybeExternId,
     locs: UnordMap<rty::Loc, rty::Ty>,
     holes: Holes,
-    /// Number of binders we've entered in the `a`
+    /// Number of binders we've entered in `a`
     a_binders: u32,
     /// Each element in the vector correspond to a binder in `b`. For some binders we map it to
     /// a corresponding binder in `a`. We assume that expressions filling holes will only contain
-    /// variables mapping to some of these binders.
+    /// variables pointing to some of these mapped binders.
     b_binder_to_a_binder: Vec<Option<u32>>,
     errors: Errors<'genv>,
 }
@@ -474,7 +474,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         })
     }
 
-    /// Enter a binder in both `a` and `b` creating a mapping between this two.
+    /// Enter a binder in both `a` and `b` creating a mapping between the two.
     fn enter_binders<T, R>(
         &mut self,
         a: &rty::Binder<T>,
