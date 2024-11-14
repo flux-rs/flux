@@ -14,8 +14,9 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, PolyFnSig, PtrKind,
-        Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -27,7 +28,7 @@ use flux_rustc_bridge::{
     },
     ty::{self, GenericArgsExt as _},
 };
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
@@ -715,7 +716,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, &obligations, span)
     }
 
-    // fn unfold_local_ptrs(
+    // CUT fn unfold_local_ptrs(
     //     &mut self,
     //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
     //     env: &mut TypeEnv,
@@ -734,7 +735,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     //     Ok(tys)
     // }
 
-    // fn fold_local_ptrs(
+    // CUT fn fold_local_ptrs(
     //     &mut self,
     //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
     //     env: &mut TypeEnv,
@@ -758,7 +759,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     //     Ok(())
     // }
 
-    // fn local_ptrs(
+    // CUT fn local_ptrs(
     //     &mut self,
     //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
     //     env: &mut TypeEnv,
@@ -794,6 +795,47 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     //     Ok((places, tys))
     // }
 
+    fn unfold_local_ptrs(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        span: Span,
+        fn_sig: &EarlyBinder<PolyFnSig>,
+        actuals: &[Ty],
+    ) -> Result<Vec<Ty>> {
+        // We *only* need to know whether each input is a &strg or not
+        let mut at = infcx.at(span);
+        let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+        let mut tys = vec![];
+        for (actual, input) in izip!(actuals, fn_sig.inputs()) {
+            let actual = if let (
+                TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
+                TyKind::StrgRef(_, _, _),
+            ) = (actual.kind(), input.kind())
+            {
+                let loc = env.unfold_local_ptr(&mut at, bound).with_span(span)?;
+                let path1 = Path::new(loc, rty::List::empty());
+                Ty::ptr(PtrKind::Mut(*re), path1)
+
+                // let ty1 = env.get(&path1);
+                // Ty::strg_ref(*re, path1, ty1)
+                //     let e1 = path1.to_expr();
+                //     let e2 = path2.to_expr();
+                //     println!("TRACE: fun_args (01) : {path1:?}");
+                //     println!("TRACE: fun_args (1) : {e1:?} ~~~ {e2:?}");
+                //     println!("TRACE: fun_args (2) : {ty1:?} <: {ty2:?}");
+            } else {
+                actual.clone()
+            };
+            tys.push(actual);
+        }
+        Ok(tys)
+    }
+
+    fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
+        let mut at = infcx.at(span);
+        env.fold_local_ptrs(&mut at).with_span(span)?;
+        Ok(())
+    }
     #[expect(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -808,8 +850,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
-
+        println!("TRACE: check_call (0): {actuals:?}");
+        let actuals = Self::unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
+        println!("TRACE: check_call (1): {actuals:?}");
+        let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
         infcx.push_scope();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -884,8 +928,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let mut at = infcx.at(span);
-        env.fold_local_ptrs(&mut at).with_span(span)?;
+        Self::fold_local_ptrs(infcx, env, span)?;
 
         Ok(output.ret)
     }

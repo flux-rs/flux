@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+#[flux::trusted]
 #[flux::sig(fn (x: &strg i32[@n]) ensures x: i32[n+1])]
 fn incr(x: &mut i32) {
     *x += 1;
