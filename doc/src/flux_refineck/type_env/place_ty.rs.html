@@ -971,32 +971,6 @@
 <a href="#971" id="971">971</a>
 <a href="#972" id="972">972</a>
 <a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1025,7 +999,6 @@
 <span class="attr">#[derive(Clone, Default)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>PlacesTree {
     map: FxHashMap&lt;Loc, Binding&gt;,
-    loc_to_place: FxHashMap&lt;Loc, Place&gt;,
 }
 
 <span class="attr">#[derive(Clone, Debug)]
@@ -1289,9 +1262,8 @@
         bindings
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, place: Place, kind: LocKind, ty: Ty) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, kind: LocKind, ty: Ty) {
         <span class="self">self</span>.map.insert(loc, Binding { kind, ty });
-        <span class="self">self</span>.loc_to_place.insert(loc, place);
     }
 
     <span class="kw">fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) -&gt; Binding {
@@ -1342,14 +1314,7 @@
     }
 
     <span class="kw">fn </span>cursor_for(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; Cursor {
-        <span class="kw">let </span>place = <span class="self">self</span>.loc_to_place[<span class="kw-2">&amp;</span>key.loc()].clone();
-        Cursor::new(key, place)
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>path_to_place(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Place {
-        <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.loc_to_place[<span class="kw-2">&amp;</span>path.loc].clone();
-        place.projection.extend(path.proj());
-        place
+        Cursor::new(key)
     }
 }
 
@@ -1383,7 +1348,7 @@
 
 <span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    insertions: Vec&lt;(Loc, Place, Binding)&gt;,
+    insertions: Vec&lt;(Loc, Binding)&gt;,
     cursor: Cursor,
     in_ref: <span class="prelude-ty">Option</span>&lt;Mutability&gt;,
     checker_conf: CheckerConfig,
@@ -1423,8 +1388,8 @@
         <span class="kw">while </span><span class="self">self</span>.should_continue() {
             <span class="kw">let </span>binding = bindings.get_loc_mut(<span class="kw-2">&amp;</span><span class="self">self</span>.cursor.loc);
             binding.ty = binding.ty.try_fold_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>)<span class="question-mark">?</span>;
-            <span class="kw">for </span>(loc, place, binding) <span class="kw">in </span><span class="self">self</span>.insertions.drain(..) {
-                bindings.insert(loc, place, binding.kind, binding.ty);
+            <span class="kw">for </span>(loc, binding) <span class="kw">in </span><span class="self">self</span>.insertions.drain(..) {
+                bindings.insert(loc, binding.kind, binding.ty);
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1496,24 +1461,17 @@
             Loc::Local(<span class="kw">_</span>) =&gt; LocKind::Local,
             Loc::Var(<span class="kw">_</span>) =&gt; LocKind::Universal,
         };
-        <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
         <span class="kw">let </span>ty = <span class="self">self
             </span>.infcx
             .hoister(AssumeInvariants::yes(<span class="self">self</span>.checker_conf.check_overflow))
             .hoist(ty);
-        <span class="self">self</span>.insertions.push((loc, place, Binding { kind, ty }));
+        <span class="self">self</span>.insertions.push((loc, Binding { kind, ty }));
     }
 
     <span class="kw">fn </span>unfold_box(<span class="kw-2">&amp;mut </span><span class="self">self</span>, deref_ty: <span class="kw-2">&amp;</span>Ty, alloc: <span class="kw-2">&amp;</span>Ty) -&gt; Loc {
         <span class="kw">let </span>loc = Loc::from(<span class="self">self</span>.infcx.define_var(<span class="kw-2">&amp;</span>Sort::Loc));
-        <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
-        <span class="self">self</span>.insertions.push((
-            loc,
-            place,
-            Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
-        ));
+        <span class="self">self</span>.insertions
+            .push((loc, Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() }));
         loc
     }
 
@@ -1704,20 +1662,18 @@
 
 <span class="kw">struct </span>Cursor {
     loc: Loc,
-    place: Place,
     proj: Vec&lt;PlaceElem&gt;,
     pos: usize,
 }
 
 <span class="kw">impl </span>Cursor {
-    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey, place: Place) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>proj = key.proj().rev().collect_vec();
         <span class="kw">let </span>pos = proj.len();
-        <span class="self">Self </span>{ loc: key.loc(), place, proj, pos }
+        <span class="self">Self </span>{ loc: key.loc(), proj, pos }
     }
 
     <span class="kw">fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) {
-        <span class="self">self</span>.place = <span class="self">self</span>.to_place();
         <span class="self">self</span>.proj.truncate(<span class="self">self</span>.pos);
         <span class="self">self</span>.proj.extend(
             path.projection()
@@ -1728,14 +1684,6 @@
         );
         <span class="self">self</span>.loc = path.loc;
         <span class="self">self</span>.pos = <span class="self">self</span>.proj.len();
-    }
-
-    <span class="kw">fn </span>to_place(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Place {
-        <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.place.clone();
-        place
-            .projection
-            .extend(<span class="self">self</span>.proj.iter().skip(<span class="self">self</span>.pos).rev().copied());
-        place
     }
 
     <span class="kw">fn </span>to_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Path {
@@ -1772,7 +1720,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Cursor {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">"{{loc: {:?}, place: {:?}, proj: ["</span>, <span class="self">self</span>.loc, <span class="self">self</span>.place)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(f, <span class="string">"{{loc: {:?}, proj: ["</span>, <span class="self">self</span>.loc)<span class="question-mark">?</span>;
         <span class="kw">for </span>(i, elem) <span class="kw">in </span><span class="self">self</span>.proj.iter().enumerate().rev() {
             <span class="kw">if </span>i &lt; <span class="self">self</span>.proj.len() - <span class="number">1 </span>{
                 <span class="macro">write!</span>(f, <span class="string">", "</span>)<span class="question-mark">?</span>;

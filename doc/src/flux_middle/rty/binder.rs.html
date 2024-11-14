@@ -412,7 +412,7 @@
     <span class="kw">pub fn </span>replace_bound_refts(<span class="kw-2">&amp;</span><span class="self">self</span>, exprs: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="kw">let </span>delegate = FnMutDelegate::new(
             |breft| exprs[breft.var.as_usize()].clone(),
-            |<span class="kw">_</span>| <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected escaping region"</span>),
+            |br| <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected escaping region {br:?}"</span>),
         );
         <span class="self">self</span>.value
             .fold_with(<span class="kw-2">&amp;mut </span>BoundVarReplacer::new(delegate))

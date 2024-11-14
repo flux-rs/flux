@@ -12,7 +12,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["flux_infer",["",[],["fixpoint_encoding.rs","infer.rs","lib.rs","refine_tree.rs"]]],\
 ["flux_macros",["",[["diagnostics",[],["diagnostic.rs","diagnostic_builder.rs","error.rs","fluent.rs","mod.rs","subdiagnostic.rs","utils.rs"]]],["fold.rs","lib.rs","primops.rs"]]],\
 ["flux_metadata",["",[],["decoder.rs","encoder.rs","lib.rs"]]],\
-["flux_middle",["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["binder.rs","canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","subst.rs"]]],["big_int.rs","cstore.rs","fhir.rs","global_env.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]]],\
+["flux_middle",["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["binder.rs","canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","region_matching.rs","subst.rs"]]],["big_int.rs","cstore.rs","fhir.rs","global_env.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]]],\
 ["flux_refineck",["",[["ghost_statements",[],["fold_unfold.rs","points_to.rs"]],["type_env",[],["place_ty.rs"]]],["checker.rs","ghost_statements.rs","invariants.rs","lib.rs","primops.rs","queue.rs","type_env.rs"]]],\
 ["flux_rs",["",[],["lib.rs"]]],\
 ["flux_rustc_bridge",["",[["ty",[],["mod.rs","subst.rs"]]],["const_eval.rs","lib.rs","lowering.rs","mir.rs"]]],\

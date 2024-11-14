@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["match_regions","replace_regions_with_unique_vars"],"struct":["BoundVarReplacer","EVarSubstFolder","FnMutDelegate","GenericArgsDelegate","GenericsSubstFolder","GenericsSubstForSort","RegionSubst","SortSubst"],"trait":["BoundVarReplacerDelegate","GenericsSubstDelegate","SortSubstDelegate"]};
+window.SIDEBAR_ITEMS = {"struct":["BoundVarReplacer","EVarSubstFolder","FnMutDelegate","GenericArgsDelegate","GenericsSubstFolder","GenericsSubstForSort","SortSubst"],"trait":["BoundVarReplacerDelegate","GenericsSubstDelegate","SortSubstDelegate"]};

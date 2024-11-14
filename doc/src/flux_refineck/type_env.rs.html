@@ -787,7 +787,6 @@
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -805,9 +804,9 @@
         canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
-        INNERMOST,
+        region_matching::{rty_match_regions, ty_match_regions},
+        BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
+        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx, INNERMOST,
     },
     PlaceExt <span class="kw">as _</span>,
 };
@@ -876,14 +875,13 @@
     }
 
     <span class="kw">fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
-        <span class="kw">let </span>ty = subst::match_regions(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty);
-        <span class="self">self</span>.bindings
-            .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, ty);
+        <span class="kw">let </span>ty = ty_match_regions(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty);
+        <span class="self">self</span>.bindings.insert(local.into(), LocKind::Local, ty);
     }
 
     <span class="kw">fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local) {
         <span class="self">self</span>.bindings
-            .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, Ty::uninit());
+            .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_infer(<span class="self">self</span>, scope: Scope) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockEnvShape&gt; {
@@ -984,9 +982,9 @@
             PtrToRefBound::Ty(t2) =&gt; {
                 <span class="comment">// FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
                 // to a place which requires annoying bookkeping.
-                </span><span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
-                <span class="kw">let </span>rust_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-                <span class="kw">let </span>t2 = subst::match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>rust_ty);
+                // let place = self.bindings.path_to_place(path);
+                // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
+                </span><span class="kw">let </span>t2 = rty_match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>t1);
                 infcx.subtyping(<span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
                 t2
             }
@@ -1024,7 +1022,7 @@
     /// assigned type are consistent with those expected by the place's original type definition.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place, new_ty: Ty) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-        <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
+        <span class="kw">let </span>new_ty = ty_match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
 
         infcx.push_scope();
