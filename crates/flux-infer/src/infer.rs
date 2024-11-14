@@ -421,7 +421,6 @@ impl fmt::Debug for TypeTrace {
     }
 }
 
-/// Context to relate two types `a` and `b` via subtyping
 pub trait LocEnv {
     fn ptr_to_ref(
         &mut self,
@@ -645,13 +644,6 @@ impl Sub {
                 tracked_span_assert_eq!(sig_a, sig_b);
                 Ok(())
             }
-            // (BaseTy::FnDef(def_id, args), BaseTy::FnPtr(sig_b)) => {
-            //     let current_did = infcx.def_id;
-            //     let sub_sig = infcx.genv.fn_sig(*def_id)?;
-            //     // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-            //     let super_sig = EarlyBinder(sig_b.clone());
-            //     check_fn_subtyping(infcx, &current_did, sub_sig, args, super_sig, None, self.span)
-            // }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
