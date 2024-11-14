@@ -26,7 +26,6 @@ type CheckerResult<T = ()> = std::result::Result<T, CheckerErrKind>;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
     map: FxHashMap<Loc, Binding>,
-    loc_to_place: FxHashMap<Loc, Place>,
 }
 
 #[derive(Clone, Debug)]
@@ -290,9 +289,8 @@ impl PlacesTree {
         bindings
     }
 
-    pub(crate) fn insert(&mut self, loc: Loc, place: Place, kind: LocKind, ty: Ty) {
+    pub(crate) fn insert(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
         self.map.insert(loc, Binding { kind, ty });
-        self.loc_to_place.insert(loc, place);
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
@@ -343,14 +341,7 @@ impl PlacesTree {
     }
 
     fn cursor_for(&self, key: &impl LookupKey) -> Cursor {
-        let place = self.loc_to_place[&key.loc()].clone();
-        Cursor::new(key, place)
-    }
-
-    pub(crate) fn path_to_place(&self, path: &Path) -> Place {
-        let mut place = self.loc_to_place[&path.loc].clone();
-        place.projection.extend(path.proj());
-        place
+        Cursor::new(key)
     }
 }
 
@@ -384,7 +375,7 @@ impl LookupResult<'_> {
 
 struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
-    insertions: Vec<(Loc, Place, Binding)>,
+    insertions: Vec<(Loc, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
     checker_conf: CheckerConfig,
@@ -424,8 +415,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
-            for (loc, place, binding) in self.insertions.drain(..) {
-                bindings.insert(loc, place, binding.kind, binding.ty);
+            for (loc, binding) in self.insertions.drain(..) {
+                bindings.insert(loc, binding.kind, binding.ty);
             }
         }
         Ok(())
@@ -497,24 +488,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
         };
-        let mut place = self.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
         let ty = self
             .infcx
             .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
             .hoist(ty);
-        self.insertions.push((loc, place, Binding { kind, ty }));
+        self.insertions.push((loc, Binding { kind, ty }));
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
         let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
-        let mut place = self.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
-        self.insertions.push((
-            loc,
-            place,
-            Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
-        ));
+        self.insertions
+            .push((loc, Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() }));
         loc
     }
 
@@ -705,20 +689,18 @@ where
 
 struct Cursor {
     loc: Loc,
-    place: Place,
     proj: Vec<PlaceElem>,
     pos: usize,
 }
 
 impl Cursor {
-    fn new(key: &impl LookupKey, place: Place) -> Self {
+    fn new(key: &impl LookupKey) -> Self {
         let proj = key.proj().rev().collect_vec();
         let pos = proj.len();
-        Self { loc: key.loc(), place, proj, pos }
+        Self { loc: key.loc(), proj, pos }
     }
 
     fn change_root(&mut self, path: &Path) {
-        self.place = self.to_place();
         self.proj.truncate(self.pos);
         self.proj.extend(
             path.projection()
@@ -729,14 +711,6 @@ impl Cursor {
         );
         self.loc = path.loc;
         self.pos = self.proj.len();
-    }
-
-    fn to_place(&self) -> Place {
-        let mut place = self.place.clone();
-        place
-            .projection
-            .extend(self.proj.iter().skip(self.pos).rev().copied());
-        place
     }
 
     fn to_path(&self) -> Path {
@@ -773,7 +747,7 @@ impl Cursor {
 
 impl fmt::Debug for Cursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{loc: {:?}, place: {:?}, proj: [", self.loc, self.place)?;
+        write!(f, "{{loc: {:?}, proj: [", self.loc)?;
         for (i, elem) in self.proj.iter().enumerate().rev() {
             if i < self.proj.len() - 1 {
                 write!(f, ", ")?;

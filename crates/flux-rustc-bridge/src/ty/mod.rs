@@ -1126,19 +1126,18 @@ impl fmt::Debug for Const {
 
 pub fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReBound(a, region) => {
-            format!("↑{:?}", a.index())
-            // match region.kind {
-            //     BoundRegionKind::BrAnon => "'<annon>".to_string(),
-            //     BoundRegionKind::BrNamed(_, sym) => {
-            //         if sym == kw::UnderscoreLifetime {
-            //             format!("{sym}{:?}", region.var)
-            //         } else {
-            //             format!("{sym}")
-            //         }
-            //     }
-            //     BoundRegionKind::BrEnv => "'<env>".to_string(),
-            // }
+        Region::ReBound(_, region) => {
+            match region.kind {
+                BoundRegionKind::BrAnon => "'<annon>".to_string(),
+                BoundRegionKind::BrNamed(_, sym) => {
+                    if sym == kw::UnderscoreLifetime {
+                        format!("{sym}{:?}", region.var)
+                    } else {
+                        format!("{sym}")
+                    }
+                }
+                BoundRegionKind::BrEnv => "'<env>".to_string(),
+            }
         }
         Region::ReEarlyParam(region) => region.name.to_string(),
         Region::ReStatic => "'static".to_string(),
