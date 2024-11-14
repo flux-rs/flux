@@ -358,7 +358,11 @@ fn refinement_generics_of(
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
     match genv.map().node(local_id)? {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(..), generics, .. })
+        fhir::Node::Item(fhir::Item {
+            kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
+            generics,
+            ..
+        })
         | fhir::Node::TraitItem(fhir::TraitItem {
             kind: fhir::TraitItemKind::Fn(..),
             generics,
@@ -368,15 +372,7 @@ fn refinement_generics_of(
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(
-                genv,
-                generics.refinement_params,
-                Some(&wfckresults),
-            )?;
-            Ok(rty::RefinementGenerics { parent, parent_count, params })
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(..), generics, .. }) => {
-            let params = conv::conv_refinement_generics(genv, generics.refinement_params, None)?;
+            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
