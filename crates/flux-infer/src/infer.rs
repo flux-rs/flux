@@ -485,7 +485,7 @@ impl Sub {
             }
             (
                 TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
-                TyKind::StrgRef(_, _, _),
+                TyKind::StrgRef(_, path2, ty2),
             ) => {
                 let mut at = infcx.at(self.span);
                 let loc = env.unfold_local_ptr(&mut at, bound)?;
