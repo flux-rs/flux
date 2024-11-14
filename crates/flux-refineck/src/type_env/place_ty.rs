@@ -131,17 +131,7 @@ impl PlacesTree {
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
         let cursor = self.cursor_for(key);
-        Unfolder::new(infcx, cursor, None, checker_conf).run(self)
-    }
-
-    pub(crate) fn unfold_local_ptr(
-        &mut self,
-        infcx: &mut InferCtxt,
-        place: &Place,
-        checker_conf: CheckerConfig,
-    ) -> CheckerResult {
-        let cursor = self.cursor_for(place);
-        Unfolder::new(infcx, cursor, Some(place.clone()), checker_conf).run(self)
+        Unfolder::new(infcx, cursor, checker_conf).run(self)
     }
 
     pub fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
@@ -307,6 +297,27 @@ impl PlacesTree {
         self.loc_to_place.insert(loc, place);
     }
 
+    pub(crate) fn insert_local(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
+        self.map.insert(loc, Binding { kind, ty });
+    }
+
+    pub(crate) fn remove_local(&mut self, loc: &Loc) {
+        self.map.remove(loc);
+    }
+
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+        self.map
+            .iter()
+            .filter_map(|(loc, binding)| {
+                if let LocKind::LocalPtr(bound) = &binding.kind {
+                    Some((*loc, bound.clone(), binding.ty.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     fn remove(&mut self, loc: &Loc) -> Binding {
         self.map.remove(loc).unwrap_or_else(|| tracked_span_bug!())
     }
@@ -399,7 +410,6 @@ struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
     insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
-    local_ptr_place: Option<Place>,
     checker_conf: CheckerConfig,
     has_work: bool,
 }
@@ -428,18 +438,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     fn new(
         infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
         cursor: Cursor,
-        local_ptr_place: Option<Place>,
         checker_conf: CheckerConfig,
     ) -> Self {
-        Unfolder {
-            infcx,
-            cursor,
-            insertions: vec![],
-            in_ref: None,
-            local_ptr_place,
-            checker_conf,
-            has_work: true,
-        }
+        Unfolder { infcx, cursor, insertions: vec![], in_ref: None, checker_conf, has_work: true }
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
@@ -451,10 +452,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             }
         }
         Ok(())
-    }
-
-    fn at_local_ptr(&self) -> bool {
-        self.local_ptr_place == Some(self.cursor.to_place())
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -472,14 +469,16 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             assert!(self.in_ref.is_none());
             self.unfold_strg_ref(path, deref_ty);
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
-        } else if let TyKind::Indexed(BaseTy::Ref(re, super_ty, Mutability::Mut), _) = ty.kind()
-            && self.in_ref.is_none()
-            && self.at_local_ptr()
-        {
-            let deref_ty = self.unpack(super_ty);
-            let loc = self.unfold_local_ptr(&deref_ty, super_ty);
-            Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
-        } else if ty.is_struct() {
+        }
+        // CUT else if let TyKind::Indexed(BaseTy::Ref(re, super_ty, Mutability::Mut), _) = ty.kind()
+        // CUT     && self.in_ref.is_none()
+        // CUT     && self.at_local_ptr()
+        // CUT {
+        // CUT     let deref_ty = self.unpack(super_ty);
+        // CUT     let loc = self.unfold_local_ptr(&deref_ty, super_ty);
+        // CUT     Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
+        // CUT }
+        else if ty.is_struct() {
             let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)
@@ -550,10 +549,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
         self.unfold_as_kind(deref_ty, LocKind::Box(alloc.clone()))
-    }
-
-    fn unfold_local_ptr(&mut self, deref_ty: &Ty, super_ty: &Ty) -> Loc {
-        self.unfold_as_kind(deref_ty, LocKind::LocalPtr(super_ty.clone()))
     }
 
     fn field(&mut self, ty: &Ty, f: FieldIdx) -> CheckerResult<Ty> {

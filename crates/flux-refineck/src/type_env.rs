@@ -16,7 +16,7 @@ use flux_middle::{
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
         INNERMOST,
     },
     PlaceExt as _,
@@ -221,6 +221,14 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
+    pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
+        for (loc, bound, ty) in self.bindings.local_ptrs() {
+            infcx.subtyping(&ty, &bound, ConstrReason::Fold)?;
+            self.bindings.remove_local(&loc);
+        }
+        Ok(())
+    }
+
     /// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
     /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
     /// constraint)
@@ -312,11 +320,13 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn unfold_local_ptr(
         &mut self,
         infcx: &mut InferCtxt,
-        place: &Place,
-        checker_conf: CheckerConfig,
-    ) -> Result<Ty> {
-        self.bindings.unfold_local_ptr(infcx, place, checker_conf)?;
-        Ok(self.bindings.lookup(place).ty)
+        bound: &Ty,
+    ) -> InferResult<Loc> {
+        let loc = Loc::from(infcx.define_var(&Sort::Loc));
+        let ty = infcx.unpack(bound);
+        self.bindings
+            .insert_local(loc, LocKind::LocalPtr(bound.clone()), ty);
+        Ok(loc)
     }
 
     pub(crate) fn unfold(
@@ -369,6 +379,10 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn get(&self, path: &Path) -> Ty {
         self.get(path)
+    }
+
+    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxtAt, bound: &Ty) -> InferResult<Loc> {
+        self.unfold_local_ptr(infcx, bound)
     }
 }
 

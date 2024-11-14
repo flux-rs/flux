@@ -11,7 +11,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
+        Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -431,6 +432,8 @@ pub trait LocEnv {
         bound: Ty,
     ) -> InferResult<Ty>;
 
+    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxtAt, bound: &Ty) -> InferResult<Loc>;
+
     fn get(&self, path: &Path) -> Ty;
 }
 
@@ -480,6 +483,15 @@ impl Sub {
                 let mut at = infcx.at(self.span);
                 env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
                 Ok(())
+            }
+            (
+                TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
+                TyKind::StrgRef(_, _, _),
+            ) => {
+                let mut at = infcx.at(self.span);
+                let loc = env.unfold_local_ptr(&mut at, bound)?;
+                let a = Ty::ptr(PtrKind::Mut(*re), Path::from(loc));
+                self.tys(infcx, &a, b)
             }
             _ => self.tys(infcx, a, b),
         }

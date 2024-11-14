@@ -27,7 +27,7 @@ use flux_rustc_bridge::{
     },
     ty::{self, GenericArgsExt as _},
 };
-use itertools::{izip, Itertools};
+use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
@@ -609,10 +609,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         // We need to get the local-ptr places _before_ checking the operands, as the latter
                         // may change the `TypeEnv`, e.g. if the arg is a `move` which "removes" the `Place`
                         // from the `TypeEnv`.
-                        let (places, bound_tys) =
-                            self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
-                        let ptr_tys =
-                            self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
+                        // let (places, bound_tys) =
+                        //    self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
+                        // let ptr_tys =
+                        //     self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
                         let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                         let res = self.check_call(
                             infcx,
@@ -623,7 +623,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &generic_args,
                             &actuals,
                         )?;
-                        self.fold_local_ptrs(infcx, env, ptr_tys, bound_tys, terminator_span)?;
+                        // self.fold_local_ptrs(infcx, env, ptr_tys, bound_tys, terminator_span)?;
                         res
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
@@ -715,84 +715,84 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, &obligations, span)
     }
 
-    fn unfold_local_ptrs(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        span: Span,
-        places: &[Place],
-    ) -> Result<Vec<Ty>> {
-        let mut at = infcx.at(span);
-        let mut tys = vec![];
-        for place in places {
-            // let bound_ty = env.lookup_place(&mut at, &place).with_span(span)?;
-            let ptr_ty = env
-                .unfold_local_ptr(&mut at, place, self.config())
-                .with_span(span)?;
-            tys.push(ptr_ty);
-        }
-        Ok(tys)
-    }
+    // fn unfold_local_ptrs(
+    //     &mut self,
+    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    //     env: &mut TypeEnv,
+    //     span: Span,
+    //     places: &[Place],
+    // ) -> Result<Vec<Ty>> {
+    //     let mut at = infcx.at(span);
+    //     let mut tys = vec![];
+    //     for place in places {
+    //         // let bound_ty = env.lookup_place(&mut at, &place).with_span(span)?;
+    //         let ptr_ty = env
+    //             .unfold_local_ptr(&mut at, place, self.config())
+    //             .with_span(span)?;
+    //         tys.push(ptr_ty);
+    //     }
+    //     Ok(tys)
+    // }
 
-    fn fold_local_ptrs(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        ptr_tys: Vec<Ty>,
-        bound_tys: Vec<Ty>,
-        span: Span,
-    ) -> Result<()> {
-        let mut at = infcx.at(span);
-        for (bound_ty, ptr_ty) in izip!(bound_tys, ptr_tys) {
-            if let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_ty.kind() {
-                env.ptr_to_ref(
-                    &mut at,
-                    ConstrReason::Other,
-                    *re,
-                    path,
-                    PtrToRefBound::Ty(bound_ty.clone()),
-                )
-                .with_span(span)?;
-            }
-        }
-        Ok(())
-    }
+    // fn fold_local_ptrs(
+    //     &mut self,
+    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    //     env: &mut TypeEnv,
+    //     ptr_tys: Vec<Ty>,
+    //     bound_tys: Vec<Ty>,
+    //     span: Span,
+    // ) -> Result<()> {
+    //     let mut at = infcx.at(span);
+    //     for (bound_ty, ptr_ty) in izip!(bound_tys, ptr_tys) {
+    //         if let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_ty.kind() {
+    //             env.ptr_to_ref(
+    //                 &mut at,
+    //                 ConstrReason::Other,
+    //                 *re,
+    //                 path,
+    //                 PtrToRefBound::Ty(bound_ty.clone()),
+    //             )
+    //             .with_span(span)?;
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
-    fn local_ptrs(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        span: Span,
-        fn_sig: &EarlyBinder<PolyFnSig>,
-        args: &[Operand],
-    ) -> Result<(Vec<Place>, Vec<Ty>)> {
-        // We _only_ need to know whether each input is a &strg or not
-        let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
-        let mut places = vec![];
-        let mut tys = vec![];
-        for (arg, input) in izip!(args, fn_sig.inputs()) {
-            if let Some(place) = arg.place() {
-                let actual = env
-                    .lookup_place(&mut infcx.at(span), &place)
-                    .with_span(span)?;
-                if let (
-                    TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), _),
-                    TyKind::StrgRef(_, _, _),
-                ) = (actual.kind(), input.kind())
-                {
-                    let Some(place) = arg.place() else {
-                        span_bug!(
-                            span,
-                            "Cannot find place for arg {arg:?} with reference type {actual:?}"
-                        );
-                    };
-                    places.push(place);
-                    tys.push(bound.clone());
-                }
-            }
-        }
-        Ok((places, tys))
-    }
+    // fn local_ptrs(
+    //     &mut self,
+    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    //     env: &mut TypeEnv,
+    //     span: Span,
+    //     fn_sig: &EarlyBinder<PolyFnSig>,
+    //     args: &[Operand],
+    // ) -> Result<(Vec<Place>, Vec<Ty>)> {
+    //     // We _only_ need to know whether each input is a &strg or not
+    //     let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    //     let mut places = vec![];
+    //     let mut tys = vec![];
+    //     for (arg, input) in izip!(args, fn_sig.inputs()) {
+    //         if let Some(place) = arg.place() {
+    //             let actual = env
+    //                 .lookup_place(&mut infcx.at(span), &place)
+    //                 .with_span(span)?;
+    //             if let (
+    //                 TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), _),
+    //                 TyKind::StrgRef(_, _, _),
+    //             ) = (actual.kind(), input.kind())
+    //             {
+    //                 let Some(place) = arg.place() else {
+    //                     span_bug!(
+    //                         span,
+    //                         "Cannot find place for arg {arg:?} with reference type {actual:?}"
+    //                     );
+    //                 };
+    //                 places.push(place);
+    //                 tys.push(bound.clone());
+    //             }
+    //         }
+    //     }
+    //     Ok((places, tys))
+    // }
 
     #[expect(clippy::too_many_arguments)]
     fn check_call(
@@ -883,6 +883,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => infcx.assume_pred(e),
             }
         }
+
+        let mut at = infcx.at(span);
+        env.fold_local_ptrs(&mut at).with_span(span)?;
 
         Ok(output.ret)
     }
