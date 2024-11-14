@@ -20,6 +20,13 @@ pub fn match_regions(a: &Ty, b: &ty::Ty) -> Ty {
     subst.apply(&a)
 }
 
+pub fn match_regions_rty(a: &Ty, b: &Ty) -> Ty {
+    let a = replace_regions_with_unique_vars(a);
+    let mut subst = RegionSubst::default();
+    subst.zip_ty(&a, b);
+    subst.apply(&a)
+}
+
 /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
 /// to have a unique identifier for each position such that we can infer a region substitution.
 fn replace_regions_with_unique_vars(ty: &Ty) -> Ty {
@@ -27,10 +34,14 @@ fn replace_regions_with_unique_vars(ty: &Ty) -> Ty {
         next_rvid: u32,
     }
     impl TypeFolder for Replacer {
-        fn fold_region(&mut self, _: &Region) -> Region {
-            let rvid = self.next_rvid;
-            self.next_rvid += 1;
-            Region::ReVar(RegionVid::from_u32(rvid))
+        fn fold_region(&mut self, re: &Region) -> Region {
+            if let Region::ReBound(..) = re {
+                *re
+            } else {
+                let rvid = self.next_rvid;
+                self.next_rvid += 1;
+                Region::ReVar(RegionVid::from_u32(rvid))
+            }
         }
     }
 
@@ -173,6 +184,120 @@ impl RegionSubst {
             }
             (GenericArg::Lifetime(re_a), ty::GenericArg::Lifetime(re_b)) => {
                 self.infer_from_region(*re_a, *re_b);
+            }
+            _ => {}
+        }
+    }
+
+    fn zip_fn_sig(&mut self, a: &FnSig, b: &FnSig) {
+        debug_assert_eq!(a.inputs().len(), b.inputs().len());
+        for (ty_a, ty_b) in iter::zip(a.inputs(), b.inputs()) {
+            self.zip_ty(ty_a, ty_b);
+        }
+        self.zip_ty(&a.output().skip_binder_ref().ret, &b.output().skip_binder_ref().ret);
+    }
+
+    fn zip_ty(&mut self, a: &Ty, b: &Ty) {
+        match (a.kind(), b.kind()) {
+            (TyKind::Exists(ctor_a), _) => {
+                self.zip_ty(ctor_a.skip_binder_ref(), b);
+            }
+            (_, TyKind::Exists(ctor_b)) => {
+                self.zip_ty(a, ctor_b.skip_binder_ref());
+            }
+            (TyKind::Constr(_, ty_a), _) => self.zip_ty(ty_a, b),
+            (_, TyKind::Constr(_, ty_b)) => self.zip_ty(a, ty_b),
+            (TyKind::Indexed(bty_a, _), TyKind::Indexed(bty_b, _)) => self.zip_bty(bty_a, bty_b),
+            (TyKind::StrgRef(re_a, _, ty_a), TyKind::StrgRef(re_b, _, ty_b)) => {
+                self.infer_from_region(*re_a, *re_b);
+                self.zip_ty(ty_a, ty_b)
+            }
+            _ => {}
+        }
+    }
+
+    fn zip_bty(&mut self, a: &BaseTy, b: &BaseTy) {
+        match (a, b) {
+            (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.zip_ty(ty_a, ty_b),
+            (BaseTy::Adt(adt_def_a, args_a), BaseTy::Adt(adt_def_b, args_b)) => {
+                debug_assert_eq!(adt_def_a.did(), adt_def_b.did());
+                for (arg_a, arg_b) in iter::zip(args_a, args_b) {
+                    self.zip_generic_arg(arg_a, arg_b);
+                }
+            }
+            (BaseTy::RawPtr(ty_a, mutbl_a), BaseTy::RawPtr(ty_b, mutbl_b)) => {
+                debug_assert_eq!(mutbl_a, mutbl_b);
+                self.zip_ty(ty_a, ty_b);
+            }
+            (BaseTy::Ref(re_a, ty_a, mutbl_a), BaseTy::Ref(re_b, ty_b, mutbl_b)) => {
+                debug_assert_eq!(mutbl_a, mutbl_b);
+                self.infer_from_region(*re_a, *re_b);
+                self.zip_ty(ty_a, ty_b);
+            }
+            (BaseTy::FnPtr(poly_sig_a), BaseTy::FnPtr(poly_sig_b)) => {
+                self.zip_fn_sig(poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
+            }
+            (BaseTy::Tuple(tys_a), BaseTy::Tuple(tys_b)) => {
+                for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
+                    self.zip_ty(ty_a, ty_b);
+                }
+            }
+            (BaseTy::Alias(_, aty_a), BaseTy::Alias(_, aty_b)) => {
+                for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
+                    self.zip_generic_arg(arg_a, arg_b);
+                }
+            }
+            (BaseTy::Array(ty_a, _), BaseTy::Array(ty_b, _)) => self.zip_ty(ty_a, ty_b),
+            (BaseTy::Dynamic(preds_a, re_a), BaseTy::Dynamic(preds_b, re_b)) => {
+                for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
+                    self.zip_poly_existential_pred(pred_a, pred_b);
+                }
+                self.infer_from_region(*re_a, *re_b);
+            }
+            _ => {}
+        }
+    }
+
+    fn zip_generic_arg(&mut self, a: &GenericArg, b: &GenericArg) {
+        match (a, b) {
+            (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => self.zip_ty(ty_a, ty_b),
+            (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
+                self.zip_bty(ctor_a.as_bty_skipping_binder(), ctor_b.as_bty_skipping_binder());
+            }
+            (GenericArg::Lifetime(re_a), GenericArg::Lifetime(re_b)) => {
+                self.infer_from_region(*re_a, *re_b);
+            }
+            _ => {}
+        }
+    }
+
+    fn zip_poly_existential_pred(
+        &mut self,
+        a: &Binder<ExistentialPredicate>,
+        b: &Binder<ExistentialPredicate>,
+    ) {
+        match (a.skip_binder_ref(), b.skip_binder_ref()) {
+            (
+                ExistentialPredicate::Trait(trait_ref_a),
+                ExistentialPredicate::Trait(trait_ref_b),
+            ) => {
+                debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
+                for (arg_a, arg_b) in iter::zip(&trait_ref_a.args, &trait_ref_b.args) {
+                    self.zip_generic_arg(arg_a, arg_b);
+                }
+            }
+            (
+                ExistentialPredicate::Projection(proj_a),
+                ExistentialPredicate::Projection(proj_b),
+            ) => {
+                debug_assert_eq!(proj_a.def_id, proj_b.def_id);
+                for (arg_a, arg_b) in iter::zip(&proj_a.args, &proj_b.args) {
+                    self.zip_generic_arg(arg_a, arg_b);
+                }
+                self.zip_bty(
+                    &proj_a.term.as_bty_skipping_binder(),
+                    &proj_b.term.as_bty_skipping_binder(),
+                );
             }
             _ => {}
         }

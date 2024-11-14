@@ -194,9 +194,9 @@ impl<'a> TypeEnv<'a> {
             PtrToRefBound::Ty(t2) => {
                 // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
                 // to a place which requires annoying bookkeping.
-                let place = self.bindings.path_to_place(path);
-                let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                let t2 = subst::match_regions(&t2, &rust_ty);
+                // let place = self.bindings.path_to_place(path);
+                // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
+                let t2 = subst::match_regions_rty(&t2, &t1);
                 infcx.subtyping(&t1, &t2, reason)?;
                 t2
             }
