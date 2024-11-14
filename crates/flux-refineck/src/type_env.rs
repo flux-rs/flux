@@ -15,9 +15,9 @@ use flux_middle::{
         canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
-        INNERMOST,
+        region_matching::{rty_match_regions, ty_match_regions},
+        BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
+        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -86,7 +86,7 @@ impl<'a> TypeEnv<'a> {
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
-        let ty = subst::match_regions(&ty, &self.local_decls[local].ty);
+        let ty = ty_match_regions(&ty, &self.local_decls[local].ty);
         self.bindings.insert(local.into(), LocKind::Local, ty);
     }
 
@@ -195,7 +195,7 @@ impl<'a> TypeEnv<'a> {
                 // to a place which requires annoying bookkeping.
                 // let place = self.bindings.path_to_place(path);
                 // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                let t2 = subst::match_regions_rty(&t2, &t1);
+                let t2 = rty_match_regions(&t2, &t1);
                 infcx.subtyping(&t1, &t2, reason)?;
                 t2
             }
@@ -233,7 +233,7 @@ impl<'a> TypeEnv<'a> {
     /// assigned type are consistent with those expected by the place's original type definition.
     pub(crate) fn assign(&mut self, infcx: &mut InferCtxtAt, place: &Place, new_ty: Ty) -> Result {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-        let new_ty = subst::match_regions(&new_ty, &rustc_ty);
+        let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
 
         infcx.push_scope();
