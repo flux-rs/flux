@@ -869,6 +869,12 @@
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
 <a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -1384,17 +1390,23 @@
         r
     }
 
-    <span class="kw">fn </span>adjust_bvar(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex) -&gt; DebruijnIndex {
-        <span class="kw">let </span>b_binders = <span class="self">self</span>.b_binder_to_a_binder.len();
-        <span class="kw">let </span>mapped_binder = <span class="self">self</span>.b_binder_to_a_binder[b_binders - debruijn.as_usize() - <span class="number">1</span>]
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"bound var without corresponding binder: `{debruijn:?}`"</span>));
-        DebruijnIndex::from_u32(<span class="self">self</span>.a_binders - mapped_binder - <span class="number">1</span>)
-    }
-
     <span class="kw">fn </span>adjust_bvars&lt;T: TypeFoldable + Clone + std::fmt::Debug&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
         <span class="kw">struct </span>Adjuster&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
             current_index: DebruijnIndex,
             zipper: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        }
+
+        <span class="kw">impl </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+            <span class="kw">fn </span>adjust(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex) -&gt; DebruijnIndex {
+                <span class="kw">let </span>b_binders = <span class="self">self</span>.zipper.b_binder_to_a_binder.len();
+                <span class="kw">let </span>mapped_binder = <span class="self">self</span>.zipper.b_binder_to_a_binder
+                    [b_binders - debruijn.as_usize() - <span class="number">1</span>]
+                    .unwrap_or_else(|| {
+                        <span class="macro">bug!</span>(<span class="string">"bound var without corresponding binder: `{debruijn:?}`"</span>)
+                    });
+                DebruijnIndex::from_u32(<span class="self">self</span>.zipper.a_binders - mapped_binder - <span class="number">1</span>)
+                    .shifted_in(<span class="self">self</span>.current_index.as_u32())
+            }
         }
 
         <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
@@ -1412,7 +1424,7 @@
                 <span class="kw">if let </span>rty::ReBound(debruijn, br) = <span class="kw-2">*</span>re
                     &amp;&amp; debruijn &gt;= <span class="self">self</span>.current_index
                 {
-                    rty::ReBound(<span class="self">self</span>.zipper.adjust_bvar(debruijn), br)
+                    rty::ReBound(<span class="self">self</span>.adjust(debruijn), br)
                 } <span class="kw">else </span>{
                     <span class="kw-2">*</span>re
                 }
@@ -1422,7 +1434,7 @@
                 <span class="kw">if let </span>rty::ExprKind::Var(rty::Var::Bound(debruijn, breft)) = expr.kind()
                     &amp;&amp; <span class="kw-2">*</span>debruijn &gt;= <span class="self">self</span>.current_index
                 {
-                    rty::Expr::bvar(<span class="self">self</span>.zipper.adjust_bvar(<span class="kw-2">*</span>debruijn), breft.var, breft.kind)
+                    rty::Expr::bvar(<span class="self">self</span>.adjust(<span class="kw-2">*</span>debruijn), breft.var, breft.kind)
                 } <span class="kw">else </span>{
                     expr.super_fold_with(<span class="self">self</span>)
                 }
