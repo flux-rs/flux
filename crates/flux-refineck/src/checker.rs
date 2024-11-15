@@ -235,7 +235,7 @@ fn find_trait_item(
 ///      f(x1,...,xn)
 ///  }
 /// TODO: copy rules from SLACK.
-pub fn check_fn_subtyping(
+fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
     sub_sig: EarlyBinder<rty::PolyFnSig>,
