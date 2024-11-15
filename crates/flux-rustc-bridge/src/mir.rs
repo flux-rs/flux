@@ -273,14 +273,6 @@ pub enum Operand {
     Constant(Constant),
 }
 
-impl Operand {
-    pub fn place(&self) -> Option<Place> {
-        match self {
-            Operand::Copy(p) | Operand::Move(p) => Some(p.clone()),
-            Operand::Constant(_) => None,
-        }
-    }
-}
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Place {
