@@ -235,49 +235,47 @@ fn find_trait_item(
 ///      f(x1,...,xn)
 ///  }
 /// TODO: copy rules from SLACK.
-fn check_fn_subtyping<'genv, 'tcx>(
-    genv: GlobalEnv<'genv, 'tcx>,
-    infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+fn check_fn_subtyping(
+    infcx: &mut InferCtxt,
     def_id: &DefId,
-    generic_args: &[GenericArg],
-    oblig_sig: EarlyBinder<rty::PolyFnSig>,
-    oblig_args: Option<(&GenericArgs, &RefineArgs)>,
+    sub_sig: EarlyBinder<rty::PolyFnSig>,
+    sub_args: &[GenericArg],
+    super_sig: EarlyBinder<rty::PolyFnSig>,
+    super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
     span: Span,
 ) -> Result {
     let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
-    let tcx = genv.tcx();
-    let fn_def_sig = genv.fn_sig(*def_id).with_span(span)?;
+    let tcx = infcx.genv.tcx();
 
-    let oblig_sig = if let Some((oblig_args, refine_args)) = oblig_args {
-        oblig_sig.instantiate(tcx, oblig_args, refine_args)
+    let super_sig = if let Some((oblig_args, refine_args)) = super_args {
+        super_sig.instantiate(tcx, oblig_args, refine_args)
     } else {
-        oblig_sig.instantiate_identity()
+        super_sig.instantiate_identity()
     };
-    let oblig_sig =
-        oblig_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
+    let super_sig =
+        super_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
-    let oblig_sig = {
-        oblig_sig
-            .normalize_projections(genv, infcx.region_infcx, *def_id)
-            .with_span(span)?
-    };
+    let super_sig = super_sig
+        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
+        .with_span(span)?;
 
     // 1. Unpack `T_g` input types
-    let actuals = oblig_sig
+    let actuals = super_sig
         .inputs()
         .iter()
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
-    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], fn_def_sig.as_ref());
+
+    let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
     infcx.push_scope();
     let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
-    let fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, &refine_args);
-    let fn_def_sig = fn_def_sig
+    let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
+    let sub_sig = sub_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(genv, infcx.region_infcx, *def_id)
+        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
 
     // 3. INPUT subtyping (g-input <: f-input)
@@ -285,15 +283,15 @@ fn check_fn_subtyping<'genv, 'tcx>(
     // for requires in fn_def_sig.requires() {
     //     at.check_pred(requires, ConstrReason::Call);
     // }
-    if !fn_def_sig.requires().is_empty() {
+    if !sub_sig.requires().is_empty() {
         span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
     }
-    for (actual, formal) in iter::zip(actuals, fn_def_sig.inputs()) {
+    for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
         let (formal, pred) = formal.unconstr();
         infcx.check_pred(&pred, ConstrReason::Call);
         // see: TODO(pack-closure)
         match (actual.kind(), formal.kind()) {
-            (TyKind::Ptr(PtrKind::Mut(_), _), _) => {
+            (TyKind::Ptr(rty::PtrKind::Mut(_), _), _) => {
                 bug!("Not yet handled: FnDef subtyping with Ptr");
             }
             _ => {
@@ -307,7 +305,7 @@ fn check_fn_subtyping<'genv, 'tcx>(
     // 4. Plug in the EVAR solution / replace evars
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
-    let output = fn_def_sig
+    let output = sub_sig
         .output()
         .replace_evars(&evars_sol)
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
@@ -315,7 +313,7 @@ fn check_fn_subtyping<'genv, 'tcx>(
     // 5. OUTPUT subtyping (f_out <: g_out)
     // RJ: new `at` to avoid borrowing errors...!
     infcx.push_scope();
-    let oblig_output = oblig_sig
+    let oblig_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
     infcx
@@ -330,7 +328,6 @@ fn check_fn_subtyping<'genv, 'tcx>(
 
     Ok(())
 }
-
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 pub fn trait_impl_subtyping(
@@ -361,16 +358,17 @@ pub fn trait_impl_subtyping(
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
         let trait_refine_args =
             RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
-
+        let impl_sig = genv.fn_sig(def_id).with_span(span)?;
         check_fn_subtyping(
-            genv,
             &mut infcx,
             &def_id.to_def_id(),
+            impl_sig,
             &impl_args,
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
             span,
-        )
+        )?;
+        Ok(())
     })?;
     Ok(Some(root_ctxt.split()))
 }
@@ -837,8 +835,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
+                let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(self.genv, infcx, def_id, args, oblig_sig, None, span)?;
+                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1298,9 +1297,31 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
             | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
-            | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance => {
                 self.refine_default(to).with_span(self.body.span())?
+            }
+            CastKind::Pointer(mir::PointerCast::ReifyFnPointer) => {
+                let to = self.refine_default(to).with_span(self.body.span())?;
+                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
+                    && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
+                {
+                    let current_did = infcx.def_id;
+                    let sub_sig = infcx.genv.fn_sig(*def_id).with_span(stmt_span)?;
+                    // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
+                    let super_sig = EarlyBinder(super_sig.clone());
+                    check_fn_subtyping(
+                        infcx,
+                        &current_did,
+                        sub_sig,
+                        args,
+                        super_sig,
+                        None,
+                        stmt_span,
+                    )?;
+                    to
+                } else {
+                    tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
+                }
             }
         };
         Ok(ty)
@@ -1652,8 +1673,8 @@ fn infer_under_mut_ref_hack(
             .inputs(),
     )
     .map(|(actual, formal)| {
-        if let Ref!(.., Mutability::Mut) = actual.kind()
-            && let Ref!(_, ty, Mutability::Mut) = formal.kind()
+        if let rty::Ref!(.., Mutability::Mut) = actual.kind()
+            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
             && let TyKind::Indexed(..) = ty.kind()
         {
             rcx.hoister(AssumeInvariants::No)
