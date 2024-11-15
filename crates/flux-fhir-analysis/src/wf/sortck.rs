@@ -20,7 +20,6 @@ use rustc_hash::FxHashMap;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
-use crate::conv;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -59,8 +58,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) else {
             return Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)));
         };
+
         let fsort = fsort.expect_mono();
-        self.insert_params(params)?;
 
         if params.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ParamCountMismatch::new(
@@ -380,16 +379,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 }
 
 impl<'genv> InferCtxt<'genv, '_> {
-    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) -> Result {
-        for param in params {
-            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var())
-                .emit(&self.genv)?;
-            self.insert_param(param.id, sort, param.kind);
-        }
-        Ok(())
-    }
-
     pub(super) fn insert_param(
         &mut self,
         id: fhir::ParamId,
@@ -547,7 +536,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         rty::Sort::Infer(rty::NumVar(self.next_num_vid()))
     }
 
-    fn next_sort_vid(&mut self) -> rty::SortVid {
+    pub(crate) fn next_sort_vid(&mut self) -> rty::SortVid {
         self.sort_unification_table.new_key(None)
     }
 

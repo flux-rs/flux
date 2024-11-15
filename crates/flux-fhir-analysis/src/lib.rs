@@ -1,4 +1,4 @@
-#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
+#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, transmutability)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
@@ -17,7 +17,7 @@ mod wf;
 
 use std::rc::Rc;
 
-use conv::{bug_on_infer_sort, struct_compat, ConvCtxt};
+use conv::{struct_compat, AfterSortck, ConvPhase};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
@@ -156,7 +156,9 @@ fn predicates_of(
     let def_id = genv.maybe_extern_id(def_id);
     if let Some(generics) = genv.map().get_generics(def_id.local_id())? {
         let wfckresults = genv.check_wf(def_id.local_id())?;
-        ConvCtxt::new(genv, &*wfckresults).conv_generic_predicates(def_id, generics)
+        AfterSortck::new(genv, &*wfckresults)
+            .into_conv_ctxt()
+            .conv_generic_predicates(def_id, generics)
     } else {
         Ok(rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx().predicates_of(def_id).parent,
@@ -215,7 +217,7 @@ fn default_assoc_refinement_def(
     if let Some(assoc_reft) = assoc_reft {
         let Some(body) = assoc_reft.body else { return Ok(None) };
         let wfckresults = genv.check_wf(trait_id.local_id())?;
-        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
         let body = cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
         Ok(Some(rty::EarlyBinder(body)))
     } else {
@@ -236,7 +238,7 @@ fn impl_assoc_refinement_def(
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;
-        let mut cx = ConvCtxt::new(genv, &*wfckresults);
+        let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
         let body =
             cx.conv_assoc_reft_body(assoc_reft.params, &assoc_reft.body, &assoc_reft.output)?;
         Ok(Some(rty::EarlyBinder(body)))
@@ -275,22 +277,26 @@ fn sort_of_assoc_reft(
     match &genv.map().expect_item(def_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let Some(assoc_reft) = trait_.find_assoc_reft(name) else { return Ok(None) };
+            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
+                .map(|p| cx.conv_sort(&p.sort))
                 .try_collect_vec()?;
-            let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
+            let output = cx.conv_sort(&assoc_reft.output)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
         fhir::ItemKind::Impl(impl_) => {
             let assoc_reft = impl_.find_assoc_reft(name).unwrap();
+            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::conv_sort(genv, &p.sort, &mut bug_on_infer_sort))
+                .map(|p| cx.conv_sort(&p.sort))
                 .try_collect_vec()?;
-            let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
+            let output = cx.conv_sort(&assoc_reft.output)?;
             Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
         _ => Err(query_bug!(def_id.local_id(), "expected trait or impl")),
@@ -303,7 +309,11 @@ fn item_bounds(
 ) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
     let wfckresults = genv.check_wf(local_id)?;
     let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
-    Ok(rty::EarlyBinder(ConvCtxt::new(genv, &*wfckresults).conv_opaque_ty(local_id, opaque_ty)?))
+    Ok(rty::EarlyBinder(
+        AfterSortck::new(genv, &*wfckresults)
+            .into_conv_ctxt()
+            .conv_opaque_ty(local_id, opaque_ty)?,
+    ))
 }
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
@@ -388,7 +398,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                 .expect_item(def_id.local_id())?
                 .expect_type_alias();
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
             let ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)?;
             struct_compat::type_alias(genv, fhir_ty_alias, &ty_alias, def_id)?;
             rty::TyOrCtor::Ctor(ty_alias)
@@ -455,7 +465,7 @@ fn variants_of(
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
             let variants = cx.conv_enum_variants(def_id, enum_def)?;
             let variants = struct_compat::variants(genv, &variants, def_id)?;
             let variants = variants
@@ -466,7 +476,7 @@ fn variants_of(
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let mut cx = ConvCtxt::new(genv, &*wfckresults);
+            let mut cx = AfterSortck::new(genv, &*wfckresults).into_conv_ctxt();
             cx.conv_struct_variant(def_id, struct_def)?
                 .map(|variant| {
                     let variants = struct_compat::variants(genv, &[variant], def_id)?;
@@ -490,7 +500,9 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let def_id = genv.maybe_extern_id(def_id);
     let fhir_fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
-    let fn_sig = ConvCtxt::new(genv, &*wfckresults).conv_fn_sig(def_id, fhir_fn_sig)?;
+    let fn_sig = AfterSortck::new(genv, &*wfckresults)
+        .into_conv_ctxt()
+        .conv_fn_sig(def_id, fhir_fn_sig)?;
     let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
     let fn_sig = normalize(genv, fn_sig)?;
 
