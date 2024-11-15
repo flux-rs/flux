@@ -606,16 +606,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &resolved_args.lowered,
                         )
                         .with_src_info(terminator.source_info)?;
-
-                        // We need to get the local-ptr places _before_ checking the operands, as the latter
-                        // may change the `TypeEnv`, e.g. if the arg is a `move` which "removes" the `Place`
-                        // from the `TypeEnv`.
-                        // let (places, bound_tys) =
-                        //    self.local_ptrs(infcx, env, terminator_span, &fn_sig, args)?;
-                        // let ptr_tys =
-                        //     self.unfold_local_ptrs(infcx, env, terminator_span, &places)?;
                         let actuals = self.check_operands(infcx, env, terminator_span, args)?;
-                        let res = self.check_call(
+                        self.check_call(
                             infcx,
                             env,
                             terminator_span,
@@ -623,9 +615,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             fn_sig,
                             &generic_args,
                             &actuals,
-                        )?;
-                        // self.fold_local_ptrs(infcx, env, ptr_tys, bound_tys, terminator_span)?;
-                        res
+                        )?
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self.check_operand(infcx, env, terminator_span, operand)?;
