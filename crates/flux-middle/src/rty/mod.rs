@@ -13,8 +13,9 @@ pub(crate) mod normalize;
 mod pretty;
 pub mod projections;
 pub mod refining;
+pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use evars::{EVar, EVarGen};
