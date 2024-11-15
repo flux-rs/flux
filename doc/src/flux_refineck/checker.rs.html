@@ -1929,6 +1929,27 @@
 <a href="#1929" id="1929">1929</a>
 <a href="#1930" id="1930">1930</a>
 <a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
@@ -2166,49 +2187,47 @@
 ///      f(x1,...,xn)
 ///  }
 /// TODO: copy rules from SLACK.
-</span><span class="kw">fn </span>check_fn_subtyping&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+</span><span class="kw">fn </span>check_fn_subtyping(
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     def_id: <span class="kw-2">&amp;</span>DefId,
-    generic_args: <span class="kw-2">&amp;</span>[GenericArg],
-    oblig_sig: EarlyBinder&lt;rty::PolyFnSig&gt;,
-    oblig_args: <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>GenericArgs, <span class="kw-2">&amp;</span>RefineArgs)&gt;,
+    sub_sig: EarlyBinder&lt;rty::PolyFnSig&gt;,
+    sub_args: <span class="kw-2">&amp;</span>[GenericArg],
+    super_sig: EarlyBinder&lt;rty::PolyFnSig&gt;,
+    super_args: <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>GenericArgs, <span class="kw-2">&amp;</span>rty::RefineArgs)&gt;,
     span: Span,
 ) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.branch();
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.at(span);
-    <span class="kw">let </span>tcx = genv.tcx();
-    <span class="kw">let </span>fn_def_sig = genv.fn_sig(<span class="kw-2">*</span>def_id).with_span(span)<span class="question-mark">?</span>;
+    <span class="kw">let </span>tcx = infcx.genv.tcx();
 
-    <span class="kw">let </span>oblig_sig = <span class="kw">if let </span><span class="prelude-val">Some</span>((oblig_args, refine_args)) = oblig_args {
-        oblig_sig.instantiate(tcx, oblig_args, refine_args)
+    <span class="kw">let </span>super_sig = <span class="kw">if let </span><span class="prelude-val">Some</span>((oblig_args, refine_args)) = super_args {
+        super_sig.instantiate(tcx, oblig_args, refine_args)
     } <span class="kw">else </span>{
-        oblig_sig.instantiate_identity()
+        super_sig.instantiate_identity()
     };
-    <span class="kw">let </span>oblig_sig =
-        oblig_sig.replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort));
+    <span class="kw">let </span>super_sig =
+        super_sig.replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort));
 
-    <span class="kw">let </span>oblig_sig = {
-        oblig_sig
-            .normalize_projections(genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)
-            .with_span(span)<span class="question-mark">?
-    </span>};
+    <span class="kw">let </span>super_sig = super_sig
+        .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)
+        .with_span(span)<span class="question-mark">?</span>;
 
     <span class="comment">// 1. Unpack `T_g` input types
-    </span><span class="kw">let </span>actuals = oblig_sig
+    </span><span class="kw">let </span>actuals = super_sig
         .inputs()
         .iter()
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
-    <span class="kw">let </span>actuals = infer_under_mut_ref_hack(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>actuals[..], fn_def_sig.as_ref());
+
+    <span class="kw">let </span>actuals = infer_under_mut_ref_hack(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>actuals[..], sub_sig.as_ref());
 
     <span class="comment">// 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
     </span>infcx.push_scope();
     <span class="kw">let </span>refine_args = infcx.instantiate_refine_args(<span class="kw-2">*</span>def_id).with_span(span)<span class="question-mark">?</span>;
-    <span class="kw">let </span>fn_def_sig = fn_def_sig.instantiate(tcx, generic_args, <span class="kw-2">&amp;</span>refine_args);
-    <span class="kw">let </span>fn_def_sig = fn_def_sig
+    <span class="kw">let </span>sub_sig = sub_sig.instantiate(tcx, sub_args, <span class="kw-2">&amp;</span>refine_args);
+    <span class="kw">let </span>sub_sig = sub_sig
         .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)
+        .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)
         .with_span(span)<span class="question-mark">?</span>;
 
     <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
@@ -2216,15 +2235,15 @@
     // for requires in fn_def_sig.requires() {
     //     at.check_pred(requires, ConstrReason::Call);
     // }
-    </span><span class="kw">if </span>!fn_def_sig.requires().is_empty() {
+    </span><span class="kw">if </span>!sub_sig.requires().is_empty() {
         <span class="macro">span_bug!</span>(span, <span class="string">"Not yet handled: requires predicates {def_id:?}"</span>);
     }
-    <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, fn_def_sig.inputs()) {
+    <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, sub_sig.inputs()) {
         <span class="kw">let </span>(formal, pred) = formal.unconstr();
         infcx.check_pred(<span class="kw-2">&amp;</span>pred, ConstrReason::Call);
         <span class="comment">// see: TODO(pack-closure)
         </span><span class="kw">match </span>(actual.kind(), formal.kind()) {
-            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
+            (TyKind::Ptr(rty::PtrKind::Mut(<span class="kw">_</span>), <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"Not yet handled: FnDef subtyping with Ptr"</span>);
             }
             <span class="kw">_ </span>=&gt; {
@@ -2238,7 +2257,7 @@
     <span class="comment">// 4. Plug in the EVAR solution / replace evars
     </span><span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
     infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-    <span class="kw">let </span>output = fn_def_sig
+    <span class="kw">let </span>output = sub_sig
         .output()
         .replace_evars(<span class="kw-2">&amp;</span>evars_sol)
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
@@ -2246,7 +2265,7 @@
     <span class="comment">// 5. OUTPUT subtyping (f_out &lt;: g_out)
     // RJ: new `at` to avoid borrowing errors...!
     </span>infcx.push_scope();
-    <span class="kw">let </span>oblig_output = oblig_sig
+    <span class="kw">let </span>oblig_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
     infcx
@@ -2261,7 +2280,6 @@
 
     <span class="prelude-val">Ok</span>(())
 }
-
 <span class="doccomment">/// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 </span><span class="kw">pub fn </span>trait_impl_subtyping(
@@ -2292,16 +2310,17 @@
         <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>trait_ref.args);
         <span class="kw">let </span>trait_refine_args =
             RefineArgs::identity_for_item(<span class="kw-2">&amp;</span>genv, trait_method_id).with_span(span)<span class="question-mark">?</span>;
-
+        <span class="kw">let </span>impl_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
         check_fn_subtyping(
-            genv,
             <span class="kw-2">&amp;mut </span>infcx,
             <span class="kw-2">&amp;</span>def_id.to_def_id(),
+            impl_sig,
             <span class="kw-2">&amp;</span>impl_args,
             trait_fn_sig,
             <span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>trait_args, <span class="kw-2">&amp;</span>trait_refine_args)),
             span,
-        )
+        )<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     })<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(root_ctxt.split()))
 }
@@ -2768,8 +2787,9 @@
                 <span class="comment">// Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
-                </span><span class="kw">let </span>oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(<span class="self">self</span>.genv, infcx, def_id, args, oblig_sig, <span class="prelude-val">None</span>, span)<span class="question-mark">?</span>;
+                </span><span class="kw">let </span>sub_sig = <span class="self">self</span>.genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
+                <span class="kw">let </span>oblig_sig = fn_trait_pred.fndef_poly_sig();
+                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, <span class="prelude-val">None</span>, span)<span class="question-mark">?</span>;
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="comment">// TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -3229,10 +3249,32 @@
             | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
             | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
-            | CastKind::Pointer(mir::PointerCast::ReifyFnPointer)
             | CastKind::PointerWithExposedProvenance =&gt; {
                 <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
             </span>}
+            CastKind::Pointer(mir::PointerCast::ReifyFnPointer) =&gt; {
+                <span class="kw">let </span>to = <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
+                <span class="kw">if let </span>TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), <span class="kw">_</span>) = from.kind()
+                    &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::FnPtr(super_sig), <span class="kw">_</span>) = to.kind()
+                {
+                    <span class="kw">let </span>current_did = infcx.def_id;
+                    <span class="kw">let </span>sub_sig = infcx.genv.fn_sig(<span class="kw-2">*</span>def_id).with_span(stmt_span)<span class="question-mark">?</span>;
+                    <span class="comment">// // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
+                    </span><span class="kw">let </span>super_sig = EarlyBinder(super_sig.clone());
+                    check_fn_subtyping(
+                        infcx,
+                        <span class="kw-2">&amp;</span>current_did,
+                        sub_sig,
+                        args,
+                        super_sig,
+                        <span class="prelude-val">None</span>,
+                        stmt_span,
+                    )<span class="question-mark">?</span>;
+                    to
+                } <span class="kw">else </span>{
+                    <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid cast from `{from:?}` to `{to:?}`"</span>)
+                }
+            }
         };
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -3583,8 +3625,8 @@
             .inputs(),
     )
     .map(|(actual, formal)| {
-        <span class="kw">if let </span><span class="macro">Ref!</span>(.., Mutability::Mut) = actual.kind()
-            &amp;&amp; <span class="kw">let </span><span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
+        <span class="kw">if let </span><span class="macro">rty::Ref!</span>(.., Mutability::Mut) = actual.kind()
+            &amp;&amp; <span class="kw">let </span><span class="macro">rty::Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
             &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
         {
             rcx.hoister(AssumeInvariants::No)
