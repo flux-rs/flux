@@ -7,5 +7,5 @@ fn incr(x: &mut i32) {
 
 #[flux::sig(fn (x: &mut i32{v: v<=10}))]
 fn client_unsafe(z: &mut i32) {
-    incr(z); //~ ERROR cannot prove this code safe
+    incr(z); //~ ERROR type invariant
 }

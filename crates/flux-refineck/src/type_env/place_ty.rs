@@ -456,16 +456,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             assert!(self.in_ref.is_none());
             self.unfold_strg_ref(path, deref_ty);
             Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
-        }
-        // CUT else if let TyKind::Indexed(BaseTy::Ref(re, super_ty, Mutability::Mut), _) = ty.kind()
-        // CUT     && self.in_ref.is_none()
-        // CUT     && self.at_local_ptr()
-        // CUT {
-        // CUT     let deref_ty = self.unpack(super_ty);
-        // CUT     let loc = self.unfold_local_ptr(&deref_ty, super_ty);
-        // CUT     Ok(Ty::ptr(PtrKind::Mut(*re), Path::from(loc)))
-        // CUT }
-        else if ty.is_struct() {
+        } else if ty.is_struct() {
             let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)

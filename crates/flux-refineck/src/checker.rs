@@ -716,85 +716,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, &obligations, span)
     }
 
-    // CUT fn unfold_local_ptrs(
-    //     &mut self,
-    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    //     env: &mut TypeEnv,
-    //     span: Span,
-    //     places: &[Place],
-    // ) -> Result<Vec<Ty>> {
-    //     let mut at = infcx.at(span);
-    //     let mut tys = vec![];
-    //     for place in places {
-    //         // let bound_ty = env.lookup_place(&mut at, &place).with_span(span)?;
-    //         let ptr_ty = env
-    //             .unfold_local_ptr(&mut at, place, self.config())
-    //             .with_span(span)?;
-    //         tys.push(ptr_ty);
-    //     }
-    //     Ok(tys)
-    // }
-
-    // CUT fn fold_local_ptrs(
-    //     &mut self,
-    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    //     env: &mut TypeEnv,
-    //     ptr_tys: Vec<Ty>,
-    //     bound_tys: Vec<Ty>,
-    //     span: Span,
-    // ) -> Result<()> {
-    //     let mut at = infcx.at(span);
-    //     for (bound_ty, ptr_ty) in izip!(bound_tys, ptr_tys) {
-    //         if let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_ty.kind() {
-    //             env.ptr_to_ref(
-    //                 &mut at,
-    //                 ConstrReason::Other,
-    //                 *re,
-    //                 path,
-    //                 PtrToRefBound::Ty(bound_ty.clone()),
-    //             )
-    //             .with_span(span)?;
-    //         }
-    //     }
-    //     Ok(())
-    // }
-
-    // CUT fn local_ptrs(
-    //     &mut self,
-    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    //     env: &mut TypeEnv,
-    //     span: Span,
-    //     fn_sig: &EarlyBinder<PolyFnSig>,
-    //     args: &[Operand],
-    // ) -> Result<(Vec<Place>, Vec<Ty>)> {
-    //     // We _only_ need to know whether each input is a &strg or not
-    //     let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
-    //     let mut places = vec![];
-    //     let mut tys = vec![];
-    //     for (arg, input) in izip!(args, fn_sig.inputs()) {
-    //         if let Some(place) = arg.place() {
-    //             let actual = env
-    //                 .lookup_place(&mut infcx.at(span), &place)
-    //                 .with_span(span)?;
-    //             if let (
-    //                 TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), _),
-    //                 TyKind::StrgRef(_, _, _),
-    //             ) = (actual.kind(), input.kind())
-    //             {
-    //                 let Some(place) = arg.place() else {
-    //                     span_bug!(
-    //                         span,
-    //                         "Cannot find place for arg {arg:?} with reference type {actual:?}"
-    //                     );
-    //                 };
-    //                 places.push(place);
-    //                 tys.push(bound.clone());
-    //             }
-    //         }
-    //     }
-    //     Ok((places, tys))
-    // }
-
     fn unfold_local_ptrs(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
@@ -815,14 +736,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let loc = env.unfold_local_ptr(&mut at, bound).with_span(span)?;
                 let path1 = Path::new(loc, rty::List::empty());
                 Ty::ptr(PtrKind::Mut(*re), path1)
-
-                // let ty1 = env.get(&path1);
-                // Ty::strg_ref(*re, path1, ty1)
-                //     let e1 = path1.to_expr();
-                //     let e2 = path2.to_expr();
-                //     println!("TRACE: fun_args (01) : {path1:?}");
-                //     println!("TRACE: fun_args (1) : {e1:?} ~~~ {e2:?}");
-                //     println!("TRACE: fun_args (2) : {ty1:?} <: {ty2:?}");
             } else {
                 actual.clone()
             };
@@ -850,9 +763,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        println!("TRACE: check_call (0): {actuals:?}");
         let actuals = Self::unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
-        println!("TRACE: check_call (1): {actuals:?}");
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
         infcx.push_scope();
 

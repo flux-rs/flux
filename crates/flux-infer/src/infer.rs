@@ -214,7 +214,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             && let scope = &evars.data(evar.cx())
             && !scope.has_free_vars(e1)
         {
-            println!("TRACE: unify_exprs {e1:?} vs {e2:?}");
             evars.unify(*evar, e1, false);
         }
     }
@@ -465,7 +464,6 @@ impl Sub {
     ) -> InferResult {
         let infcx = &mut infcx.branch();
         // infcx.push_trace(TypeTrace::tys(a, b));
-        println!("TRACE: fun_args (0): {a:?} <: {b:?}");
         match (a.kind(), b.kind()) {
             (_, TyKind::Exists(ctor_b)) => {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, a, &ty_b))
@@ -484,24 +482,6 @@ impl Sub {
                 env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
                 Ok(())
             }
-            // CUT (
-            //     TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), _),
-            //     TyKind::StrgRef(_, path2, ty2),
-            // ) => {
-            //     let mut at = infcx.at(self.span);
-            //     let loc = env.unfold_local_ptr(&mut at, bound)?;
-            //     let path1 = Path::new(loc, List::empty());
-            //     let ty1 = env.get(&path1);
-            //     let e1 = path1.to_expr();
-            //     let e2 = path2.to_expr();
-            //     println!("TRACE: fun_args (01) : {path1:?}");
-            //     println!("TRACE: fun_args (1) : {e1:?} ~~~ {e2:?}");
-            //     println!("TRACE: fun_args (2) : {ty1:?} <: {ty2:?}");
-            //     infcx.unify_exprs(&e1, &e2);
-            //     self.tys(infcx, &ty1, ty2)
-            //     // let a = Ty::ptr(PtrKind::Mut(*re), Path::from(loc));
-            //     // self.tys(infcx, &a, b)
-            // }
             _ => self.tys(infcx, a, b),
         }
     }
