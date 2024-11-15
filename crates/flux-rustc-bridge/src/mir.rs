@@ -273,7 +273,6 @@ pub enum Operand {
     Constant(Constant),
 }
 
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Place {
     /// the "root" of the place, e.g. `_1` in `*_1.f.g.h`
