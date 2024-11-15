@@ -836,7 +836,6 @@
 <a href="#836" id="836">836</a>
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -1301,7 +1300,6 @@
     ) -&gt; InferResult {
         <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
         <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
-
         </span><span class="kw">match </span>(a.kind(), b.kind()) {
             (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.fun_args(infcx, env, a, <span class="kw-2">&amp;</span>ty_b))

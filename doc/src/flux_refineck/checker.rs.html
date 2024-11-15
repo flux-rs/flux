@@ -1950,6 +1950,59 @@
 <a href="#1950" id="1950">1950</a>
 <a href="#1951" id="1951">1951</a>
 <a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
@@ -1966,8 +2019,9 @@
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, PolyFnSig, PtrKind,
-        Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgs, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
 };
 <span class="kw">use </span>flux_rustc_bridge::{
@@ -1979,7 +2033,7 @@
     },
     ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>},
 };
-<span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::{
@@ -2325,6 +2379,55 @@
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(root_ctxt.split()))
 }
 
+<span class="doccomment">/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &amp;mut to an &amp;strg
+/// to allow for the call to be checked. This is done by unfolding the &amp;mut into a local pointer
+/// at the call-site and then folding the pointer back into the &amp;mut upon return.
+/// See [NOTE:Fold-Local-Pointers]
+///
+/// unpack(T) = T'
+/// ---------------------------------------[local-unfold]
+/// Γ ; &amp;mut T =&gt; Γ, l:[&lt;: T] T' ; ptr(l)
+
+</span><span class="kw">fn </span>unfold_local_ptrs(
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+    env: <span class="kw-2">&amp;mut </span>TypeEnv,
+    span: Span,
+    fn_sig: <span class="kw-2">&amp;</span>EarlyBinder&lt;PolyFnSig&gt;,
+    actuals: <span class="kw-2">&amp;</span>[Ty],
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;&gt; {
+    <span class="comment">// We *only* need to know whether each input is a &amp;strg or not
+    // let mut at = infcx.at(span);
+    </span><span class="kw">let </span>fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    <span class="kw">let </span><span class="kw-2">mut </span>tys = <span class="macro">vec!</span>[];
+    <span class="kw">for </span>(actual, input) <span class="kw">in </span><span class="macro">izip!</span>(actuals, fn_sig.inputs()) {
+        <span class="kw">let </span>actual = <span class="kw">if let </span>(
+            TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), <span class="kw">_</span>),
+            TyKind::StrgRef(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>),
+        ) = (actual.kind(), input.kind())
+        {
+            <span class="kw">let </span>loc = env.unfold_local_ptr(infcx, bound).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>path1 = Path::new(loc, rty::List::empty());
+            Ty::ptr(PtrKind::Mut(<span class="kw-2">*</span>re), path1)
+        } <span class="kw">else </span>{
+            actual.clone()
+        };
+        tys.push(actual);
+    }
+    <span class="prelude-val">Ok</span>(tys)
+}
+
+<span class="doccomment">/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
+/// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &amp;mut.
+///
+/// T1 &lt;: T2
+/// --------------------- [local-fold]
+/// Γ, l:[&lt;: T2] T1 =&gt; Γ
+</span><span class="kw">fn </span>fold_local_ptrs(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, env: <span class="kw-2">&amp;mut </span>TypeEnv, span: Span) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);
+    env.fold_local_ptrs(<span class="kw-2">&amp;mut </span>at).with_span(span)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
     <span class="kw">fn </span>run(
         <span class="kw-2">mut </span>infcx: InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -2424,8 +2527,10 @@
                 Point::BeforeLocation(location),
                 span,
             )<span class="question-mark">?</span>;
+
             bug::track_span(span, || {
                 <span class="macro">dbg::terminator!</span>(<span class="string">"start"</span>, terminator, infcx, env);
+
                 <span class="kw">let </span>successors =
                     <span class="self">self</span>.check_terminator(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, terminator, last_stmt_span)<span class="question-mark">?</span>;
                 <span class="macro">dbg::terminator!</span>(<span class="string">"end"</span>, terminator, infcx, env);
@@ -2554,7 +2659,6 @@
                             <span class="kw-2">&amp;</span>resolved_args.lowered,
                         )
                         .with_src_info(terminator.source_info)<span class="question-mark">?</span>;
-
                         <span class="self">self</span>.check_call(
                             infcx,
                             env,
@@ -2667,8 +2771,8 @@
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">let </span>tcx = genv.tcx();
 
-        <span class="kw">let </span>actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
-
+        <span class="kw">let </span>actuals = unfold_local_ptrs(infcx, env, span, <span class="kw-2">&amp;</span>fn_sig, actuals)<span class="question-mark">?</span>;
+        <span class="kw">let </span>actuals = infer_under_mut_ref_hack(infcx, <span class="kw-2">&amp;</span>actuals, fn_sig.as_ref());
         infcx.push_scope();
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
@@ -2742,6 +2846,8 @@
                 Ensures::Pred(e) =&gt; infcx.assume_pred(e),
             }
         }
+
+        fold_local_ptrs(infcx, env, span)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(output.ret)
     }

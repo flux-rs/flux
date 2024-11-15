@@ -787,6 +787,26 @@
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -806,7 +826,8 @@
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
-        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx, INNERMOST,
+        Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        INNERMOST,
     },
     PlaceExt <span class="kw">as _</span>,
 };
@@ -1009,6 +1030,14 @@
         <span class="prelude-val">Ok</span>(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_local_ptrs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; InferResult&lt;()&gt; {
+        <span class="kw">for </span>(loc, bound, ty) <span class="kw">in </span><span class="self">self</span>.bindings.local_ptrs() {
+            infcx.subtyping(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span>bound, ConstrReason::Fold)<span class="question-mark">?</span>;
+            <span class="self">self</span>.bindings.remove_local(<span class="kw-2">&amp;</span>loc);
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="doccomment">/// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
     /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
     /// constraint)
@@ -1024,7 +1053,6 @@
         <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
         <span class="kw">let </span>new_ty = ty_match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
-
         infcx.push_scope();
         <span class="kw">if </span>result.is_strg {
             result.update(new_ty);
@@ -1096,6 +1124,18 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">self</span>.bindings.lookup(place).fold(infcx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold_local_ptr(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        bound: <span class="kw-2">&amp;</span>Ty,
+    ) -&gt; InferResult&lt;Loc&gt; {
+        <span class="kw">let </span>loc = Loc::from(infcx.define_var(<span class="kw-2">&amp;</span>Sort::Loc));
+        <span class="kw">let </span>ty = infcx.unpack(bound);
+        <span class="self">self</span>.bindings
+            .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
+        <span class="prelude-val">Ok</span>(loc)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(

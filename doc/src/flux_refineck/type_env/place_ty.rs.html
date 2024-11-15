@@ -971,6 +971,26 @@
 <a href="#971" id="971">971</a>
 <a href="#972" id="972">972</a>
 <a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1011,6 +1031,8 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>LocKind {
     Local,
     Box(Ty),
+    <span class="comment">// An &amp;mut T unfolded "locally" at a call-site; with the super-type T
+    </span>LocalPtr(Ty),
     Universal,
 }
 
@@ -1264,6 +1286,23 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, kind: LocKind, ty: Ty) {
         <span class="self">self</span>.map.insert(loc, Binding { kind, ty });
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>remove_local(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) {
+        <span class="self">self</span>.map.remove(loc);
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>local_ptrs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;(Loc, Ty, Ty)&gt; {
+        <span class="self">self</span>.map
+            .iter()
+            .filter_map(|(loc, binding)| {
+                <span class="kw">if let </span>LocKind::LocalPtr(bound) = <span class="kw-2">&amp;</span>binding.kind {
+                    <span class="prelude-val">Some</span>((<span class="kw-2">*</span>loc, bound.clone(), binding.ty.clone()))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            })
+            .collect()
     }
 
     <span class="kw">fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) -&gt; Binding {
@@ -1924,6 +1963,7 @@
             <span class="kw">match </span><span class="self">self </span>{
                 LocKind::Local | LocKind::Universal =&gt; <span class="prelude-val">Ok</span>(()),
                 LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"[box]"</span>),
+                LocKind::LocalPtr(ty) =&gt; <span class="macro">w!</span>(<span class="string">"[local-ptr({ty:?})]"</span>),
             }
         }
     }
