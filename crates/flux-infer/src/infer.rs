@@ -11,8 +11,7 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
-        Var,
+        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -432,7 +431,6 @@ pub trait LocEnv {
         bound: Ty,
     ) -> InferResult<Ty>;
 
-    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxtAt, bound: &Ty) -> InferResult<Loc>;
     fn get(&self, path: &Path) -> Ty;
 }
 

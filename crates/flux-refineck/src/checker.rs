@@ -376,6 +376,55 @@ pub fn trait_impl_subtyping(
     Ok(Some(root_ctxt.split()))
 }
 
+/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &mut to an &strg
+/// to allow for the call to be checked. This is done by unfolding the &mut into a local pointer
+/// at the call-site and then folding the pointer back into the &mut upon return.
+/// See [NOTE:Fold-Local-Pointers]
+///
+/// unpack(T) = T'
+/// ---------------------------------------[local-unfold]
+/// Γ ; &mut T => Γ, l:[<: T] T' ; ptr(l)
+
+fn unfold_local_ptrs(
+    infcx: &mut InferCtxt,
+    env: &mut TypeEnv,
+    span: Span,
+    fn_sig: &EarlyBinder<PolyFnSig>,
+    actuals: &[Ty],
+) -> Result<Vec<Ty>> {
+    // We *only* need to know whether each input is a &strg or not
+    // let mut at = infcx.at(span);
+    let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    let mut tys = vec![];
+    for (actual, input) in izip!(actuals, fn_sig.inputs()) {
+        let actual = if let (
+            TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
+            TyKind::StrgRef(_, _, _),
+        ) = (actual.kind(), input.kind())
+        {
+            let loc = env.unfold_local_ptr(infcx, bound).with_span(span)?;
+            let path1 = Path::new(loc, rty::List::empty());
+            Ty::ptr(PtrKind::Mut(*re), path1)
+        } else {
+            actual.clone()
+        };
+        tys.push(actual);
+    }
+    Ok(tys)
+}
+
+/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
+/// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &mut.
+///
+/// T1 <: T2
+/// --------------------- [local-fold]
+/// Γ, l:[<: T2] T1 => Γ
+fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
+    let mut at = infcx.at(span);
+    env.fold_local_ptrs(&mut at).with_span(span)?;
+    Ok(())
+}
+
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -592,6 +641,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
+                let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
                         let fn_sig = self
@@ -606,7 +656,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &resolved_args.lowered,
                         )
                         .with_src_info(terminator.source_info)?;
-                        let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                         self.check_call(
                             infcx,
                             env,
@@ -621,7 +670,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let ty = self.check_operand(infcx, env, terminator_span, operand)?;
                         if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
                         {
-                            let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                             self.check_call(
                                 infcx,
                                 env,
@@ -706,39 +754,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.check_closure_clauses(infcx, &obligations, span)
     }
 
-    fn unfold_local_ptrs(
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        span: Span,
-        fn_sig: &EarlyBinder<PolyFnSig>,
-        actuals: &[Ty],
-    ) -> Result<Vec<Ty>> {
-        // We *only* need to know whether each input is a &strg or not
-        let mut at = infcx.at(span);
-        let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
-        let mut tys = vec![];
-        for (actual, input) in izip!(actuals, fn_sig.inputs()) {
-            let actual = if let (
-                TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
-                TyKind::StrgRef(_, _, _),
-            ) = (actual.kind(), input.kind())
-            {
-                let loc = env.unfold_local_ptr(&mut at, bound).with_span(span)?;
-                let path1 = Path::new(loc, rty::List::empty());
-                Ty::ptr(PtrKind::Mut(*re), path1)
-            } else {
-                actual.clone()
-            };
-            tys.push(actual);
-        }
-        Ok(tys)
-    }
-
-    fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
-        let mut at = infcx.at(span);
-        env.fold_local_ptrs(&mut at).with_span(span)?;
-        Ok(())
-    }
     #[expect(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -753,7 +768,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals = Self::unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
+        let actuals = unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
         infcx.push_scope();
 
@@ -829,7 +844,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        Self::fold_local_ptrs(infcx, env, span)?;
+        fold_local_ptrs(infcx, env, span)?;
 
         Ok(output.ret)
     }

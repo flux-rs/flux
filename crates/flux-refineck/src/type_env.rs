@@ -221,6 +221,12 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
+    /// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
+    /// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &mut.
+    ///
+    /// T1 <: T2
+    /// --------------------- [local-fold]
+    /// Γ, l:[<: T2] T1 => Γ
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
         for (loc, bound, ty) in self.bindings.local_ptrs() {
             infcx.subtyping(&ty, &bound, ConstrReason::Fold)?;
@@ -379,10 +385,6 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn get(&self, path: &Path) -> Ty {
         self.get(path)
-    }
-
-    fn unfold_local_ptr(&mut self, infcx: &mut InferCtxtAt, bound: &Ty) -> InferResult<Loc> {
-        self.unfold_local_ptr(infcx, bound)
     }
 }
 
