@@ -513,17 +513,23 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         r
     }
 
-    fn adjust_bvar(&self, debruijn: DebruijnIndex) -> DebruijnIndex {
-        let b_binders = self.b_binder_to_a_binder.len();
-        let mapped_binder = self.b_binder_to_a_binder[b_binders - debruijn.as_usize() - 1]
-            .unwrap_or_else(|| bug!("bound var without corresponding binder: `{debruijn:?}`"));
-        DebruijnIndex::from_u32(self.a_binders - mapped_binder - 1)
-    }
-
     fn adjust_bvars<T: TypeFoldable + Clone + std::fmt::Debug>(&self, t: &T) -> T {
         struct Adjuster<'a, 'genv, 'tcx> {
             current_index: DebruijnIndex,
             zipper: &'a Zipper<'genv, 'tcx>,
+        }
+
+        impl Adjuster<'_, '_, '_> {
+            fn adjust(&self, debruijn: DebruijnIndex) -> DebruijnIndex {
+                let b_binders = self.zipper.b_binder_to_a_binder.len();
+                let mapped_binder = self.zipper.b_binder_to_a_binder
+                    [b_binders - debruijn.as_usize() - 1]
+                    .unwrap_or_else(|| {
+                        bug!("bound var without corresponding binder: `{debruijn:?}`")
+                    });
+                DebruijnIndex::from_u32(self.zipper.a_binders - mapped_binder - 1)
+                    .shifted_in(self.current_index.as_u32())
+            }
         }
 
         impl TypeFolder for Adjuster<'_, '_, '_> {
@@ -541,7 +547,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 if let rty::ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    rty::ReBound(self.zipper.adjust_bvar(debruijn), br)
+                    rty::ReBound(self.adjust(debruijn), br)
                 } else {
                     *re
                 }
@@ -551,7 +557,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 if let rty::ExprKind::Var(rty::Var::Bound(debruijn, breft)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    rty::Expr::bvar(self.zipper.adjust_bvar(*debruijn), breft.var, breft.kind)
+                    rty::Expr::bvar(self.adjust(*debruijn), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
