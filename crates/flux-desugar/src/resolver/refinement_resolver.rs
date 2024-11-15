@@ -296,8 +296,13 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_func(*func, expr.node_id);
             }
             surface::ExprKind::Dot(path, _) => self.on_path(path),
-            surface::ExprKind::Constructor(path, _, spread) => {
+            surface::ExprKind::Constructor(path, field_exprs, spread) => {
                 self.on_path(path);
+                // also need to deal with exprs in the constructor
+                // This is the case becasuse field exprs are different fields
+                for expr in field_exprs {
+                    self.visit_expr(&expr.expr);
+                }
                 if let Some(s) = spread {
                     self.on_path(&s.path);
                 }
