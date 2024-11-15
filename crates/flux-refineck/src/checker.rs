@@ -1658,7 +1658,7 @@ fn all_predicates_of(
 /// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
 /// mutable references.
-pub fn infer_under_mut_ref_hack(
+fn infer_under_mut_ref_hack(
     rcx: &mut InferCtxt,
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
