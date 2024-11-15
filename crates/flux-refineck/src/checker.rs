@@ -14,8 +14,9 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, PolyFnSig, PtrKind,
-        Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -27,7 +28,7 @@ use flux_rustc_bridge::{
     },
     ty::{self, GenericArgsExt as _},
 };
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
@@ -373,6 +374,55 @@ pub fn trait_impl_subtyping(
     Ok(Some(root_ctxt.split()))
 }
 
+/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &mut to an &strg
+/// to allow for the call to be checked. This is done by unfolding the &mut into a local pointer
+/// at the call-site and then folding the pointer back into the &mut upon return.
+/// See [NOTE:Fold-Local-Pointers]
+///
+/// unpack(T) = T'
+/// ---------------------------------------[local-unfold]
+/// Γ ; &mut T => Γ, l:[<: T] T' ; ptr(l)
+
+fn unfold_local_ptrs(
+    infcx: &mut InferCtxt,
+    env: &mut TypeEnv,
+    span: Span,
+    fn_sig: &EarlyBinder<PolyFnSig>,
+    actuals: &[Ty],
+) -> Result<Vec<Ty>> {
+    // We *only* need to know whether each input is a &strg or not
+    // let mut at = infcx.at(span);
+    let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    let mut tys = vec![];
+    for (actual, input) in izip!(actuals, fn_sig.inputs()) {
+        let actual = if let (
+            TyKind::Indexed(BaseTy::Ref(re, bound, Mutability::Mut), _),
+            TyKind::StrgRef(_, _, _),
+        ) = (actual.kind(), input.kind())
+        {
+            let loc = env.unfold_local_ptr(infcx, bound).with_span(span)?;
+            let path1 = Path::new(loc, rty::List::empty());
+            Ty::ptr(PtrKind::Mut(*re), path1)
+        } else {
+            actual.clone()
+        };
+        tys.push(actual);
+    }
+    Ok(tys)
+}
+
+/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
+/// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &mut.
+///
+/// T1 <: T2
+/// --------------------- [local-fold]
+/// Γ, l:[<: T2] T1 => Γ
+fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
+    let mut at = infcx.at(span);
+    env.fold_local_ptrs(&mut at).with_span(span)?;
+    Ok(())
+}
+
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
@@ -472,8 +522,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Point::BeforeLocation(location),
                 span,
             )?;
+
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, infcx, env);
+
                 let successors =
                     self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, infcx, env);
@@ -602,7 +654,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &resolved_args.lowered,
                         )
                         .with_src_info(terminator.source_info)?;
-
                         self.check_call(
                             infcx,
                             env,
@@ -715,8 +766,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals = infer_under_mut_ref_hack(infcx, actuals, fn_sig.as_ref());
-
+        let actuals = unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
+        let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
         infcx.push_scope();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -790,6 +841,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => infcx.assume_pred(e),
             }
         }
+
+        fold_local_ptrs(infcx, env, span)?;
 
         Ok(output.ret)
     }

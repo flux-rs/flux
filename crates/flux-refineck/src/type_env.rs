@@ -17,7 +17,8 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
-        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx, INNERMOST,
+        Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        INNERMOST,
     },
     PlaceExt as _,
 };
@@ -220,6 +221,14 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
+    pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
+        for (loc, bound, ty) in self.bindings.local_ptrs() {
+            infcx.subtyping(&ty, &bound, ConstrReason::Fold)?;
+            self.bindings.remove_local(&loc);
+        }
+        Ok(())
+    }
+
     /// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
     /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
     /// constraint)
@@ -235,7 +244,6 @@ impl<'a> TypeEnv<'a> {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
-
         infcx.push_scope();
         if result.is_strg {
             result.update(new_ty);
@@ -307,6 +315,18 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
         self.bindings.lookup(place).fold(infcx)?;
         Ok(())
+    }
+
+    pub(crate) fn unfold_local_ptr(
+        &mut self,
+        infcx: &mut InferCtxt,
+        bound: &Ty,
+    ) -> InferResult<Loc> {
+        let loc = Loc::from(infcx.define_var(&Sort::Loc));
+        let ty = infcx.unpack(bound);
+        self.bindings
+            .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
+        Ok(loc)
     }
 
     pub(crate) fn unfold(

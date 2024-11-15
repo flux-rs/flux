@@ -38,6 +38,8 @@ pub(crate) struct Binding {
 pub(crate) enum LocKind {
     Local,
     Box(Ty),
+    // An &mut T unfolded "locally" at a call-site; with the super-type T
+    LocalPtr(Ty),
     Universal,
 }
 
@@ -291,6 +293,23 @@ impl PlacesTree {
 
     pub(crate) fn insert(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
         self.map.insert(loc, Binding { kind, ty });
+    }
+
+    pub(crate) fn remove_local(&mut self, loc: &Loc) {
+        self.map.remove(loc);
+    }
+
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+        self.map
+            .iter()
+            .filter_map(|(loc, binding)| {
+                if let LocKind::LocalPtr(bound) = &binding.kind {
+                    Some((*loc, bound.clone(), binding.ty.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
@@ -951,6 +970,7 @@ mod pretty {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!("[box]"),
+                LocKind::LocalPtr(ty) => w!("[local-ptr({ty:?})]"),
             }
         }
     }
