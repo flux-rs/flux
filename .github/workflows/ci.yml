@@ -36,7 +36,7 @@ jobs:
         run: |
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
-      
+
       - name: Upload Fixpoint
         uses: actions/upload-artifact@v4.3.6
         with:
@@ -66,7 +66,7 @@ jobs:
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
 
@@ -83,7 +83,7 @@ jobs:
     needs: fixpoint
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Download Fixpoint
         uses: actions/download-artifact@v4.1.8
         with:
@@ -100,7 +100,7 @@ jobs:
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
 
@@ -146,6 +146,9 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
+
+      - name: Run check
+        run: cargo check -- -Dwarnings
 
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7
