@@ -79,6 +79,26 @@ impl<T> RVec<T> {
         self.inner.as_mut_slice()
     }
 
+
+    #[flux::trusted]
+    #[flux::sig(fn(arr:_) -> RVec<T>[N])]
+    pub fn from_array<const N: usize>(arr: [T; N]) -> Self {
+        Self {
+            inner: Vec::from(arr),
+        }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(xs:&[T][@n]) -> RVec<T>[n])]
+    pub fn from_slice(xs: &[T]) -> Self
+    where
+        T: Clone,
+    {
+        Self {
+            inner: Vec::from(xs),
+        }
+    }
+
     #[flux::trusted]
     #[flux::sig(fn(T, n: usize) -> RVec<T>[n])]
     pub fn from_elem_n(elem: T, n: usize) -> Self
