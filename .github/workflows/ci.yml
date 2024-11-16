@@ -26,7 +26,7 @@ jobs:
 
       - name: Install Haskell
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
-        uses: haskell/actions/setup@v2.3.7
+        uses: haskell/actions/setup@v2.7.0
         with:
           enable-stack: true
           stack-version: "latest"
@@ -38,7 +38,7 @@ jobs:
           stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
 
       - name: Upload Fixpoint
-        uses: actions/upload-artifact@v4.3.6
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: fixpoint
           path: ${{ env.local_binaries_path }}/fixpoint
@@ -60,7 +60,7 @@ jobs:
       - run: which fixpoint
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.0.9
+        uses: cda-tum/setup-z3@v1.6.1
         with:
           version: 4.12.1
           platform: linux
@@ -94,7 +94,7 @@ jobs:
         run: chmod 755 ~/.local/bin/fixpoint && echo ~/.local/bin >> $GITHUB_PATH
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.0.9
+        uses: cda-tum/setup-z3@v1.6.1
         with:
           version: 4.12.1
           platform: linux
