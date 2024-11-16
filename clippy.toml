@@ -1,7 +1,7 @@
 disallowed-methods = [
-  "rustc_span::def_id::DefId::is_local",
-  "rustc_span::def_id::DefId::expect_local",
-  "rustc_span::def_id::DefId::as_local",
+  { path = "rustc_span::def_id::DefId::is_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
+  { path = "rustc_span::def_id::DefId::expect_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
+  { path = "rustc_span::def_id::DefId::as_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
   { path = "flux-fhir-analysis::variants_of", reason = "method should be called through query" },
   { path = "flux-fhir-analysis::spec_func_defns", reason = "method should be called through query" },
   { path = "flux-fhir-analysis::spec_func_decl", reason = "method should be called through query" },
