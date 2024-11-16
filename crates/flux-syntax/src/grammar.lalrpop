@@ -369,15 +369,20 @@ pub Ty: surface::Ty = {
 }
 
 ConstArg: surface::ConstArg = {
-   <lo:@L> <lit:Lit> <hi:@R> => {
+   <lo:@L> <lit:Lit> <hi:@R> =>? {
        let span = cx.map_span(lo, hi);
-       // TODO(RJ): hack to avoid having to resolve the generic DefId
        let mut kind = surface::ConstArgKind::Infer;
        if let surface::LitKind::Integer = lit.kind {
         if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
-            kind = surface::ConstArgKind::Lit(val);
+            let kind = surface::ConstArgKind::Lit(val);
+            return Ok(surface::ConstArg { kind, span });
         }
        }
+       Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+   },
+   <lo:@L> <id:Ident> <hi:@R> => {
+       let span = cx.map_span(lo, hi);
+       let kind = surface::ConstArgKind::Infer; // TODO(RJ): hack to avoid having to resolve the generic DefId
        surface::ConstArg { kind, span }
    },
    <lo:@L> "_" <hi:@R> => {
