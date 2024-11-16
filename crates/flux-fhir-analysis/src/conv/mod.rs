@@ -48,7 +48,7 @@ use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
-use crate::{adt_sort_def_of, compare_impl_item::errors::InvalidAssocReft};
+use crate::compare_impl_item::errors::InvalidAssocReft;
 
 pub struct ConvCtxt<'genv, 'tcx, P> {
     genv: GlobalEnv<'genv, 'tcx>,
@@ -1641,22 +1641,18 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         exprs: &[fhir::FieldExpr],
         _spread: &Option<fhir::Spread>,
     ) -> QueryResult<List<rty::Expr>> {
-        if let Some(local_def_id) = struct_def_id.as_local() {
-            let struct_adt = adt_sort_def_of(self.genv, local_def_id)?;
-            let field_names = struct_adt.field_names();
-            let mut assns = Vec::new();
-            for expr_val in exprs {
-                let field_symbol = expr_val.ident.name;
-                let pos = field_names.iter().position(|s| *s == field_symbol);
-                if let Some(idx) = pos {
-                    assns.push((self.conv_expr(env, &expr_val.expr)?, idx))
-                }
+        let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
+        let field_names = struct_adt.field_names();
+        let mut assns = Vec::new();
+        for expr_val in exprs {
+            let field_symbol = expr_val.ident.name;
+            let pos = field_names.iter().position(|s| *s == field_symbol);
+            if let Some(idx) = pos {
+                assns.push((self.conv_expr(env, &expr_val.expr)?, idx))
             }
-            assns.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
-            Ok(assns.into_iter().map(|x| x.0).collect())
-        } else {
-            todo!()
         }
+        assns.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
+        Ok(assns.into_iter().map(|x| x.0).collect())
     }
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {

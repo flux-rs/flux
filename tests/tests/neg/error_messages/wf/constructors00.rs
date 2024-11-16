@@ -6,9 +6,9 @@ pub struct X {
     y: u32,
 }
 
-#[flux::sig(fn (x: X[@old_x]) -> X[X { y: 1, x: 1 }])]
-fn f1(mut x: X) -> X {
+#[flux::sig(fn (x: X[@old_x]) -> X[Y { y: 2, x: 1 }])] //~ ERROR cannot find value `Y` in this scope
+fn f(mut x: X) -> X {
     x.x = 1;
     x.y = 2;
-    x //~ ERROR refinement type error [E0999]
+    x
 }

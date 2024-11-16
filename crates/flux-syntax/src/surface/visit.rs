@@ -468,7 +468,7 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
 
 pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
     vis.visit_ident(expr.ident);
-    walk_expr(vis, &expr.expr);
+    vis.visit_expr(&expr.expr);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {

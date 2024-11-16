@@ -86,7 +86,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn check_constructor(
         &mut self,
-        path: &fhir::PathExpr,
+        expr_span: Span,
         field_exprs: &[fhir::FieldExpr],
         _spread: &Option<fhir::Spread>,
         expected: &rty::Sort,
@@ -108,12 +108,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             Ok(())
         } else {
-            Err(self.emit_err(errors::ArgCountMismatch::new(
-                Some(path.span),
-                String::from("type"),
-                1,
-                field_exprs.len(),
-            )))
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr_span, expected)))
         }
     }
 
@@ -175,8 +170,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, refine_params, body, expected)?
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
-            fhir::ExprKind::Constructor(path, exprs, spread) => {
-                self.check_constructor(path, exprs, spread, expected)?
+            fhir::ExprKind::Constructor(_path, exprs, spread) => {
+                self.check_constructor(expr.span, exprs, spread, expected)?
             }
         }
         Ok(())

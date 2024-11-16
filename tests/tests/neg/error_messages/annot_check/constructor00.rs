@@ -6,9 +6,10 @@ pub struct X {
     y: u32,
 }
 
-#[flux::sig(fn (x: X[@old_x]) -> X[X { y: 1, x: 1 }])]
+// mismatched type inside of constructor (y should be int)
+#[flux::sig(fn (x: X[@old_x]) -> X[X { y: true, x: 1 }])] //~ ERROR mismatched sorts
 fn f1(mut x: X) -> X {
     x.x = 1;
     x.y = 2;
-    x //~ ERROR refinement type error [E0999]
+    x
 }

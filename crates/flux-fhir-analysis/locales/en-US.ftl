@@ -56,6 +56,10 @@ fhir_analysis_unexpected_fun =
     mismatched sorts
     .label = expected `{$sort}`, found function
 
+fhir_analysis_unexpected_constructor = 
+    mismatched sorts
+    .label = expected `{$sort}`, found constructor
+
 fhir_analysis_param_count_mismatch =
     parameter count mismatch
     .label = this function has {$found ->

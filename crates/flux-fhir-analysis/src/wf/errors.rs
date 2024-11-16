@@ -138,6 +138,21 @@ impl<'a> UnexpectedFun<'a> {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_unexpected_constructor, code = E0999)]
+pub(super) struct UnexpectedConstructor<'a> {
+    #[primary_span]
+    #[label]
+    span: Span,
+    sort: &'a rty::Sort,
+}
+
+impl<'a> UnexpectedConstructor<'a> {
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
+        Self { span, sort }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_invalid_field_update, code = E0999)]
 pub(super) struct InvalidFieldUpdate {
     #[primary_span]
