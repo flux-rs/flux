@@ -1,10 +1,11 @@
-#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, transmutability)]
+#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_span;
 extern crate rustc_target;

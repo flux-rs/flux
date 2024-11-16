@@ -748,6 +748,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .sort_of_self_ty_alias(alias_to)?
                     .unwrap_or(rty::Sort::Err));
             }
+            fhir::SortRes::SelfParamAssoc { trait_id, ident } => {
+                let res = fhir::Res::SelfTyParam { trait_: trait_id };
+                let assoc_segment =
+                    fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
+                let mut env = Env::empty();
+                let alias_ty =
+                    self.conv_type_relative_path(&mut env, ident.span, res, &assoc_segment)?;
+                return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
+            }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
                 if path.args.len() != 1 {
                     // Has to have one argument
@@ -1270,9 +1279,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.conv_qpath(env, *qself, path)
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
-                let bty = self
-                    .conv_type_relative_path(env, qself, segment)?
+                let qself_res =
+                    if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
+                let alias_ty = self
+                    .conv_type_relative_path(env, qself.span, qself_res, segment)?
                     .shift_in_escaping(1);
+                let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -1289,18 +1301,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_type_relative_path(
         &mut self,
         env: &mut Env,
-        qself: &fhir::Ty,
+        qself_span: Span,
+        qself_res: fhir::Res,
         assoc_segment: &fhir::PathSegment,
-    ) -> QueryResult<rty::BaseTy> {
+    ) -> QueryResult<rty::AliasTy> {
         let tcx = self.tcx();
         let assoc_ident = assoc_segment.ident;
-        let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
 
         let bound = match qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
                 let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
                     // A cycle error occurred most likely (comment copied from rustc)
-                    span_bug!(qself.span, "expected cycle error");
+                    span_bug!(qself_span, "expected cycle error");
                 };
 
                 self.probe_single_bound_for_assoc_item(
@@ -1366,7 +1378,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let args = List::from_vec(args);
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-        Ok(rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty))
+        Ok(alias_ty)
     }
 
     /// Return the generics of the containing owner item

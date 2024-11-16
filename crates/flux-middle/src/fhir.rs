@@ -831,7 +831,9 @@ pub enum SortRes {
     /// A primitive sort.
     PrimSort(PrimSort),
     /// A user declared sort.
-    User { name: Symbol },
+    User {
+        name: Symbol,
+    },
     /// A sort parameter inside a polymorphic function or data sort.
     SortParam(usize),
     /// The sort associated to a (generic) type parameter
@@ -845,6 +847,10 @@ pub enum SortRes {
     SelfAlias {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
+    },
+    SelfParamAssoc {
+        trait_id: DefId,
+        ident: Ident,
     },
     /// The sort of an adt (enum/struct).
     Adt(DefId),
@@ -1468,6 +1474,9 @@ impl fmt::Debug for SortRes {
             }
             SortRes::SelfAlias { alias_to } => {
                 write!(f, "{}::Self::sort", def_id_to_string(*alias_to))
+            }
+            SortRes::SelfParamAssoc { ident: assoc, .. } => {
+                write!(f, "Self::{assoc}")
             }
             SortRes::User { name } => write!(f, "{name}"),
             SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
