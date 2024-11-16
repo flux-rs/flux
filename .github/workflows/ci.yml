@@ -148,7 +148,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.2.1
 
       - name: Run check
-        run: cargo check -- -Dwarnings
+        run: RUSTFLAGS="-Dwarnings" cargo check
 
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7
