@@ -7,7 +7,3 @@ pub fn char00() -> char {
 pub fn lowercase(c: char) -> bool {
     'c' == 'c'
 }
-
-pub fn TESTlowercase(c: char) -> bool {
-    'c' == 'c'
-}

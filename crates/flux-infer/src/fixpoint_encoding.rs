@@ -597,7 +597,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
         rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
         rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
-        rty::Constant::Char(c) => panic!(),//fixpoint::Constant::Numeral(c as BigInt),
+        rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(c)),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
     }
 }
@@ -1120,8 +1120,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
+        // TODO: I understand zero of this  
         let e = match sort {
-            rty::Sort::Int | rty::Sort::Real => {
+            rty::Sort::Int | rty::Sort::Real | rty::Sort::Char | rty::Sort::Str => {
                 fixpoint::Expr::Atom(
                     rel,
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use flux_rs::extern_spec;
+
 pub fn str01() -> usize {
     let x = "str";
     x.len()
@@ -20,12 +22,17 @@ pub fn test_eq() {
     require_eq("a", "a");
     // require_eq("a", "b"); //~ ERROR refinement type
 }
-pub fn panic() {
-    panic!("a panic")
+
+/// PITFALL: The following function will fail to verify due to Flux implementation
+/// details. Constant strings in the compiled binary will get parsed by `lower_constant`
+/// in `lowering.rs`. The `Ty`pe of the constant string will be `&&str`. This is
+/// due to constant promotion (https://github.com/rust-lang/const-eval/blob/master/promotion.md).
+/// This is not a fundamental limitation in Flux, but is a current limitation in the
+/// implementation.
+pub fn identity() -> bool {
+    // "cat" == "cat" //~ FAILURE to verify
+    true
 }
-
-
-use flux_rs::extern_spec;
 
 #[extern_spec]
 impl str {
@@ -37,10 +44,4 @@ impl str {
 pub fn str_len_good() -> usize {
     let x = "hog";
     x.len()
-}
-
-#[flux::sig(fn() -> usize[3])]
-pub fn str_len_bad() -> usize {
-    let x = "piglet";
-    // x.len() //~ ERROR refinement type
 }

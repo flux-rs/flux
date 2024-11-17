@@ -1437,6 +1437,10 @@ impl BaseTy {
         matches!(self, BaseTy::Char)
     }
 
+    pub fn is_str(&self) -> bool {
+        matches!(self, BaseTy::Str)
+    }
+
     pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {
         if let BaseTy::Adt(adt_def, args) = self
             && adt_def.is_box()
