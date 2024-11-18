@@ -184,6 +184,41 @@ impl FieldNotFound {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_constructor_missing_fields, code = E0999)]
+pub(super) struct ConstructorMissingFields {
+    #[primary_span]
+    constructor_span: Span,
+    missing_fields: String,
+}
+
+impl ConstructorMissingFields {
+    pub(super) fn new(constructor_span: Span, missing_fields: Vec<Symbol>) -> Self {
+        let missing_fields = missing_fields
+            .into_iter()
+            .map(|x| format!("`{x}`"))
+            .collect::<Vec<String>>()
+            .join(", ");
+        Self { constructor_span, missing_fields }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_duplicate_field_used, code = E0999)]
+pub(super) struct DuplicateFieldUsed {
+    #[primary_span]
+    span: Span,
+    fld: Ident,
+    #[help]
+    previous_span: Span,
+}
+
+impl DuplicateFieldUsed {
+    pub(super) fn new(fld: Ident, previous_fld: Ident) -> Self {
+        Self { span: fld.span, fld, previous_span: previous_fld.span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_invalid_primitive_dot_access, code = E0999)]
 pub(super) struct InvalidPrimitiveDotAccess<'a> {
     #[primary_span]

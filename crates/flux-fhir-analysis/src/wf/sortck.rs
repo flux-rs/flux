@@ -88,27 +88,54 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         &mut self,
         expr_span: Span,
         field_exprs: &[fhir::FieldExpr],
-        _spread: &Option<fhir::Spread>,
+        spread: &Option<fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
             // these are ordered
-            let field_names = sort_def.field_names();
-            let sorts = sort_def.field_sorts(sort_args);
+            let mut fields_remaining = sort_def.field_names().clone();
+            let mut sorts = sort_def.field_sorts(sort_args).to_vec();
+            // keep a list of used fields
+            let mut fields_used = Vec::with_capacity(fields_remaining.capacity());
             for expr in field_exprs {
                 // make sure that the field is actually a field
-                if let Some(idx) = field_names.iter().position(|s| *s == expr.ident.name) {
+                if let Some(idx) = fields_remaining.iter().position(|s| *s == expr.ident.name) {
                     // check that field sort is the same as the expr sort
                     let sort = &sorts[idx];
-                    self.check_expr(&expr.expr, sort)?
+                    let res = self.check_expr(&expr.expr, sort)?;
+                    // remove the field from spread
+                    fields_remaining.remove(idx);
+                    // remove the field from sorts so it is identical to fields_remaining
+                    sorts.remove(idx);
+                    // push the field onto used fields
+                    fields_used.push(expr.ident);
+                    res
                 } else {
                     // emit an error because we have a mismatched field
-                    return Err(
-                        self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
-                    );
+                    if let Some(idx) = fields_used.iter().position(|f| *f == expr.ident) {
+                        // duplicate field error
+                        return Err(self.emit_err(errors::DuplicateFieldUsed::new(
+                            expr.ident,
+                            fields_used[idx],
+                        )));
+                    } else {
+                        // non existent field found
+                        return Err(
+                            self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
+                        );
+                    }
                 }
             }
-            Ok(())
+            if let Some(_spread) = spread {
+                // must check that the spread is of the same sort as the constructor
+                todo!()
+            } else if fields_remaining.len() > 0 {
+                // emit an error because all fields are not used
+                return Err(self
+                    .emit_err(errors::ConstructorMissingFields::new(expr_span, fields_remaining)));
+            } else {
+                Ok(())
+            }
         } else {
             Err(self.emit_err(errors::UnexpectedConstructor::new(expr_span, expected)))
         }
