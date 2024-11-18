@@ -1,7 +1,7 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, Ensures, EnumDef, Expr, ExprKind,
     ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
     GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
     RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
@@ -135,7 +135,7 @@ pub trait Visitor: Sized {
         walk_ty(self, ty);
     }
 
-    fn visit_array_len(&mut self, _array_len: &ArrayLen) {}
+    fn visit_const_arg(&mut self, _const_arg: &ConstArg) {}
 
     fn visit_bty(&mut self, bty: &BaseTy) {
         walk_bty(self, bty);
@@ -426,7 +426,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             walk_list!(vis, visit_ty, tys);
         }
         TyKind::Array(ty, len) => {
-            vis.visit_array_len(len);
+            vis.visit_const_arg(len);
             vis.visit_ty(ty);
         }
         TyKind::ImplTrait(_node_id, trait_ref) => {

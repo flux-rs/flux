@@ -1072,9 +1072,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(ty)?;
-                let const_arg =
-                    fhir::ConstArg { kind: fhir::ConstArgKind::Lit(len.val), span: len.span };
-                fhir::TyKind::Array(self.genv().alloc(ty), const_arg)
+                let len = Self::desugar_const_arg(len)?;
+                fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?
@@ -1082,6 +1081,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::TyKind::Hole => fhir::TyKind::Infer,
         };
         Ok(fhir::Ty { kind, span })
+    }
+
+    fn desugar_const_arg(const_arg: &surface::ConstArg) -> Result<fhir::ConstArg> {
+        let kind = match const_arg.kind {
+            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(val),
+            surface::ConstArgKind::Infer => fhir::ConstArgKind::Infer,
+        };
+        Ok(fhir::ConstArg { kind, span: const_arg.span })
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy) -> Result<fhir::BaseTy<'genv>> {
