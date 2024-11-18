@@ -6,7 +6,7 @@ pub struct X {
     y: u32,
 }
 
-#[flux::sig(fn (x: X[@old_x]) -> X[Y { y: 2, x: 1 }])] //~ ERROR cannot find value `Y` in this scope
+#[flux::sig(fn (x: X[@old_x]) -> X[X { y: 2 }])] //~ ERROR missing fields in constructor: `x`
 fn f(mut x: X) -> X {
     x.x = 1;
     x.y = 2;
