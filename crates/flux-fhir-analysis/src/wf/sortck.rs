@@ -103,7 +103,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(&expr.expr, sort)?
                 } else {
                     // emit an error because we have a mismatched field
-                    return Err(self.emit_err(errors::InvalidFieldUpdate::new(expr.ident.span)));
+                    return Err(
+                        self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
+                    );
                 }
             }
             Ok(())

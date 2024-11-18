@@ -7,7 +7,7 @@ pub struct X {
 }
 
 // z is not a valid field for X
-#[flux::sig(fn (x: X[@old_x]) -> X[X { y: 2, x: 1, z: 3 }])] //~ ERROR invalid field referenced in constructor
+#[flux::sig(fn (x: X[@old_x]) -> X[X { y: 2, x: 1, z: 3 }])] //~ ERROR no field `z` on sort `X`
 fn f1(mut x: X) -> X {
     x.x = 1;
     x.y = 2;
