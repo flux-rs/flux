@@ -605,6 +605,12 @@
 <a href="#605" id="605">605</a>
 <a href="#606" id="606">606</a>
 <a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -944,7 +950,7 @@
     <span class="doccomment">/// Constrained type: an exists without binder
     </span>Constr(Expr, Box&lt;Ty&gt;),
     Tuple(Vec&lt;Ty&gt;),
-    Array(Box&lt;Ty&gt;, ArrayLen),
+    Array(Box&lt;Ty&gt;, ConstArg),
     <span class="doccomment">/// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     </span>ImplTrait(NodeId, GenericBounds),
     Hole,
@@ -992,10 +998,16 @@
     Slice(Box&lt;Ty&gt;),
 }
 
-<span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">pub struct </span>ArrayLen {
-    <span class="kw">pub </span>val: usize,
+<span class="attr">#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+</span><span class="kw">pub struct </span>ConstArg {
+    <span class="kw">pub </span>kind: ConstArgKind,
     <span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+</span><span class="kw">pub enum </span>ConstArgKind {
+    Lit(usize),
+    Infer,
 }
 
 <span class="attr">#[derive(Debug)]

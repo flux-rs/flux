@@ -504,7 +504,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
-    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, Ensures, EnumDef, Expr, ExprKind,
     ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
     GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
     RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
@@ -638,7 +638,7 @@
         walk_ty(<span class="self">self</span>, ty);
     }
 
-    <span class="kw">fn </span>visit_array_len(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _array_len: <span class="kw-2">&amp;</span>ArrayLen) {}
+    <span class="kw">fn </span>visit_const_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _const_arg: <span class="kw-2">&amp;</span>ConstArg) {}
 
     <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) {
         walk_bty(<span class="self">self</span>, bty);
@@ -929,7 +929,7 @@
             <span class="macro">walk_list!</span>(vis, visit_ty, tys);
         }
         TyKind::Array(ty, len) =&gt; {
-            vis.visit_array_len(len);
+            vis.visit_const_arg(len);
             vis.visit_ty(ty);
         }
         TyKind::ImplTrait(_node_id, trait_ref) =&gt; {
