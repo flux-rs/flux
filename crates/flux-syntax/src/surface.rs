@@ -394,7 +394,6 @@ pub struct ConstArg {
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub enum ConstArgKind {
     Lit(usize),
-    // Param(DefId),
     Infer,
 }
 
