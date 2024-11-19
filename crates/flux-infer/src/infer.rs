@@ -11,7 +11,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
+        Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -431,6 +432,7 @@ pub trait LocEnv {
         bound: Ty,
     ) -> InferResult<Ty>;
 
+    fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
     fn get(&self, path: &Path) -> Ty;
 }
 
@@ -471,6 +473,12 @@ impl Sub {
                 self.fun_args(infcx, env, a, ty_b)
             }
             (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                let ty1 = env.get(path1);
+                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                self.tys(infcx, &ty1, ty2)
+            }
+            (TyKind::StrgRef(_, path1, ty1), TyKind::StrgRef(_, path2, ty2)) => {
+                env.unfold_strg_ref(infcx, path1, ty1)?;
                 let ty1 = env.get(path1);
                 infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
                 self.tys(infcx, &ty1, ty2)
@@ -530,7 +538,7 @@ impl Sub {
                 }
                 Ok(())
             }
-            _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
+            _ => panic!("incompatible types: `{a:?}` - `{b:?}`"), // _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
         }
     }
 

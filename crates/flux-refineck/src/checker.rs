@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_sp
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -243,6 +243,7 @@ fn check_fn_subtyping(
     sub_args: &[GenericArg],
     super_sig: EarlyBinder<rty::PolyFnSig>,
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
+    overflow_checking: bool,
     span: Span,
 ) -> Result {
     let mut infcx = infcx.branch();
@@ -279,6 +280,8 @@ fn check_fn_subtyping(
         .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
 
+    let mut env = TypeEnv::empty();
+
     // 3. INPUT subtyping (g-input <: f-input)
     // TODO: Check requires predicates (?)
     // for requires in fn_def_sig.requires() {
@@ -288,19 +291,23 @@ fn check_fn_subtyping(
         span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-        let (formal, pred) = formal.unconstr();
-        infcx.check_pred(&pred, ConstrReason::Call);
-        // see: TODO(pack-closure)
-        match (actual.kind(), formal.kind()) {
-            (TyKind::Ptr(rty::PtrKind::Mut(_), _), _) => {
-                bug!("Not yet handled: FnDef subtyping with Ptr");
-            }
-            _ => {
-                infcx
-                    .subtyping(&actual, &formal, ConstrReason::Call)
-                    .with_span(span)?;
-            }
-        }
+        infcx
+            .fun_arg_subtyping(&mut env, &actual, formal, ConstrReason::Call)
+            .with_span(span)?;
+
+        // let (formal, pred) = formal.unconstr();
+        // infcx.check_pred(&pred, ConstrReason::Call);
+        // // see: TODO(pack-closure)
+        // match (actual.kind(), formal.kind()) {
+        //     (TyKind::Ptr(rty::PtrKind::Mut(_), _), _) => {
+        //         bug!("Not yet handled: FnDef subtyping with Ptr");
+        //     }
+        //     _ => {
+        //         infcx
+        //             .subtyping(&actual, &formal, ConstrReason::Call)
+        //             .with_span(span)?;
+        //     }
+        // }
     }
 
     // 4. Plug in the EVAR solution / replace evars
@@ -314,26 +321,66 @@ fn check_fn_subtyping(
     // 5. OUTPUT subtyping (f_out <: g_out)
     // RJ: new `at` to avoid borrowing errors...!
     infcx.push_scope();
-    let oblig_output = super_sig
+    let super_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
     infcx
-        .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+        .subtyping(&output.ret, &super_output.ret, ConstrReason::Ret)
         .with_span(span)?;
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
 
-    if !output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
-        span_bug!(span, "Not yet handled: subtyping with ensures predicates {def_id:?}");
-    }
+    // println!("TRACE: check_fn_subtyping (0): {env:?}");
+    // // 6. Update state with Output "ensures"
+    // update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
+    // println!("TRACE: check_fn_subtyping (1): {env:?}");
+    // // 7. Check ensures predicates
+    // check_ensures(&mut infcx, &mut env, &super_output, span)?;
 
     Ok(())
 }
+
+fn update_ensures(
+    infcx: &mut InferCtxt,
+    env: &mut TypeEnv,
+    output: &FnOutput,
+    overflow_checking: bool,
+) -> Result {
+    for ensure in &output.ensures {
+        match ensure {
+            Ensures::Type(path, updated_ty) => {
+                let updated_ty = infcx.unpack(updated_ty);
+                infcx.assume_invariants(&updated_ty, overflow_checking);
+                env.update_path(path, updated_ty);
+            }
+            Ensures::Pred(e) => infcx.assume_pred(e),
+        }
+    }
+    Ok(())
+}
+
+fn check_ensures(at: &mut InferCtxtAt, env: &mut TypeEnv, output: &FnOutput, span: Span) -> Result {
+    for constraint in &output.ensures {
+        match constraint {
+            Ensures::Type(path, ty) => {
+                let actual_ty = env.get(path);
+                at.subtyping(&actual_ty, ty, ConstrReason::Ret)
+                    .with_span(span)?;
+            }
+            Ensures::Pred(e) => {
+                at.check_pred(e, ConstrReason::Ret);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 pub fn trait_impl_subtyping(
     genv: GlobalEnv,
     def_id: LocalDefId,
+    overflow_checking: bool,
     span: Span,
 ) -> Result<Option<(RefineTree, KVarGen)>> {
     // Skip the check if this is not an impl method
@@ -367,6 +414,7 @@ pub fn trait_impl_subtyping(
             &impl_args,
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
+            overflow_checking,
             span,
         )?;
         Ok(())
@@ -733,18 +781,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
             .with_span(span)?;
 
-        for constraint in &output.ensures {
-            match constraint {
-                Ensures::Type(path, ty) => {
-                    let actual_ty = env.get(path);
-                    at.subtyping(&actual_ty, ty, ConstrReason::Ret)
-                        .with_span(span)?;
-                }
-                Ensures::Pred(e) => {
-                    at.check_pred(e, ConstrReason::Ret);
-                }
-            }
-        }
+        check_ensures(&mut at, env, &output, span)?;
 
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
@@ -831,16 +868,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        for ensures in &output.ensures {
-            match ensures {
-                Ensures::Type(path, updated_ty) => {
-                    let updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(&updated_ty, self.check_overflow());
-                    env.update_path(path, updated_ty);
-                }
-                Ensures::Pred(e) => infcx.assume_pred(e),
-            }
-        }
+        update_ensures(infcx, env, &output, self.check_overflow())?;
+        // for ensures in &output.ensures {
+        //     match ensures {
+        //         Ensures::Type(path, updated_ty) => {
+        //             let updated_ty = infcx.unpack(updated_ty);
+        //             infcx.assume_invariants(&updated_ty, self.check_overflow());
+        //             env.update_path(path, updated_ty);
+        //         }
+        //         Ensures::Pred(e) => infcx.assume_pred(e),
+        //     }
+        // }
 
         fold_local_ptrs(infcx, env, span)?;
 
@@ -890,7 +928,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)?;
+                check_fn_subtyping(
+                    infcx,
+                    def_id,
+                    sub_sig,
+                    args,
+                    oblig_sig,
+                    None,
+                    self.check_overflow(),
+                    span,
+                )?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1369,6 +1416,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         args,
                         super_sig,
                         None,
+                        self.check_overflow(),
                         stmt_span,
                     )?;
                     to

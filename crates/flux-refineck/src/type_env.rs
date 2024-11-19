@@ -28,6 +28,7 @@ use flux_rustc_bridge::{
     ty,
 };
 use itertools::{izip, Itertools};
+use rustc_index::IndexSlice;
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 use rustc_type_ir::BoundVar;
 
@@ -84,6 +85,25 @@ impl<'a> TypeEnv<'a> {
 
         env.alloc(RETURN_PLACE);
         env
+    }
+
+    pub fn empty() -> TypeEnv<'a> {
+        TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
+        // for requires in fn_sig.requires() {
+        //     infcx.assume_pred(requires);
+        // }
+
+        // for ty in fn_sig.inputs() {
+        //     let ty = infcx.unpack(ty);
+        //     infcx.assume_invariants(&ty, check_overflow);
+        //     if let TyKind::StrgRef(_, path, ty) = ty.kind() {
+        //         let loc = path.to_loc().unwrap();
+        //         env.bindings.insert(loc, LocKind::Universal, ty.clone());
+        //     }
+        // }
+
+        // env.alloc(RETURN_PLACE);
+        // env
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -329,6 +349,21 @@ impl<'a> TypeEnv<'a> {
         Ok(loc)
     }
 
+    pub(crate) fn unfold_strg_ref(
+        &mut self,
+        infcx: &mut InferCtxt,
+        path: &Path,
+        ty: &Ty,
+    ) -> InferResult<Loc> {
+        if let Some(loc) = path.to_loc() {
+            let ty = infcx.unpack(ty);
+            self.bindings.insert(loc, LocKind::Universal, ty);
+            Ok(loc)
+        } else {
+            bug!("unfold_strg_ref: unexpected path {path:?}")
+        }
+    }
+
     pub(crate) fn unfold(
         &mut self,
         infcx: &mut InferCtxt,
@@ -379,6 +414,10 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn get(&self, path: &Path) -> Ty {
         self.get(path)
+    }
+
+    fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc> {
+        self.unfold_strg_ref(infcx, path, ty)
     }
 }
 
