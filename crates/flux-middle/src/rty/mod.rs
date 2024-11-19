@@ -4,6 +4,7 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
+
 mod binder;
 pub mod canonicalize;
 pub mod evars;
@@ -247,18 +248,104 @@ pub struct Clause {
     kind: Binder<ClauseKind>,
 }
 
+impl Clause {
+    pub fn new(vars: impl Into<List<BoundVariableKind>>, kind: ClauseKind) -> Self {
+        Clause { kind: Binder::bind_with_vars(kind, vars.into()) }
+    }
+
+    pub fn kind(&self) -> Binder<ClauseKind> {
+        self.kind.clone()
+    }
+
+    fn as_trait_clause(&self) -> Option<Binder<TraitPredicate>> {
+        let clause = self.kind();
+        if let ClauseKind::Trait(trait_clause) = clause.skip_binder_ref() {
+            Some(clause.rebind(trait_clause.clone()))
+        } else {
+            None
+        }
+    }
+
+    pub fn as_projection_clause(&self) -> Option<Binder<ProjectionPredicate>> {
+        let clause = self.kind();
+        if let ClauseKind::Projection(proj_clause) = clause.skip_binder_ref() {
+            Some(clause.rebind(proj_clause.clone()))
+        } else {
+            None
+        }
+    }
+
+    // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of
+    // blindly skipping it here
+    pub fn kind_skipping_binder(&self) -> ClauseKind {
+        self.kind.clone().skip_binder()
+    }
+
+    /// Group `Fn` trait clauses with their corresponding `FnOnce::Output` projection
+    /// predicate. This assumes there's exactly one corresponding projection predicate and will
+    /// crash otherwise.
+    pub fn split_off_fn_trait_clauses(
+        genv: GlobalEnv,
+        clauses: &Clauses,
+    ) -> (Vec<Clause>, Vec<Binder<FnTraitPredicate>>) {
+        let mut fn_trait_clauses = vec![];
+        let mut fn_trait_output_clauses = vec![];
+        let mut rest = vec![];
+        for clause in clauses {
+            if let Some(trait_clause) = clause.as_trait_clause()
+                && let Some(kind) = genv.tcx().fn_trait_kind_from_def_id(trait_clause.def_id())
+            {
+                fn_trait_clauses.push((kind, trait_clause));
+            } else if let Some(proj_clause) = clause.as_projection_clause()
+                && genv.is_fn_once_output(proj_clause.projection_def_id())
+            {
+                fn_trait_output_clauses.push(proj_clause);
+            } else {
+                rest.push(clause.clone());
+            }
+        }
+
+        let fn_trait_clauses = fn_trait_clauses
+            .into_iter()
+            .map(|(kind, fn_trait_clause)| {
+                let mut candidates = vec![];
+                for fn_trait_output_clause in &fn_trait_output_clauses {
+                    if fn_trait_output_clause.self_ty() == fn_trait_clause.self_ty() {
+                        candidates.push(fn_trait_output_clause.clone());
+                    }
+                }
+                tracked_span_assert_eq!(candidates.len(), 1);
+                let proj_pred = candidates.pop().unwrap().skip_binder();
+                fn_trait_clause.map(|fn_trait_clause| {
+                    FnTraitPredicate {
+                        kind,
+                        self_ty: fn_trait_clause.self_ty().to_ty(),
+                        tupled_args: fn_trait_clause.trait_ref.args[1].expect_base().to_ty(),
+                        output: proj_pred.term.to_ty(),
+                    }
+                })
+            })
+            .collect_vec();
+        (rest, fn_trait_clauses)
+    }
+}
+
+impl From<Binder<ClauseKind>> for Clause {
+    fn from(kind: Binder<ClauseKind>) -> Self {
+        Clause { kind }
+    }
+}
+
 pub type Clauses = List<Clause>;
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub enum ClauseKind {
-    FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
-    CoroutineOblig(CoroutineObligPredicate),
 }
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
@@ -270,7 +357,23 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
+impl TraitPredicate {
+    fn self_ty(&self) -> SubsetTyCtor {
+        self.trait_ref.self_ty()
+    }
+}
+
 pub type PolyTraitPredicate = Binder<TraitPredicate>;
+
+impl PolyTraitPredicate {
+    fn def_id(&self) -> DefId {
+        self.skip_binder_ref().trait_ref.def_id
+    }
+
+    fn self_ty(&self) -> Binder<SubsetTyCtor> {
+        self.clone().map(|predicate| predicate.self_ty())
+    }
+}
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
@@ -278,6 +381,12 @@ pub type PolyTraitPredicate = Binder<TraitPredicate>;
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+impl TraitRef {
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.args[0].expect_base().clone()
+    }
 }
 
 impl<'tcx> ToRustc<'tcx> for TraitRef {
@@ -386,6 +495,24 @@ pub struct ExistentialProjection {
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
     pub term: SubsetTyCtor,
+}
+
+impl ProjectionPredicate {
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.projection_ty.self_ty().clone()
+    }
+}
+
+pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
+
+impl PolyProjectionPredicate {
+    fn projection_def_id(&self) -> DefId {
+        self.skip_binder_ref().projection_ty.def_id
+    }
+
+    pub fn self_ty(&self) -> Binder<SubsetTyCtor> {
+        self.clone().map(|predicate| predicate.self_ty())
+    }
 }
 
 #[derive(
@@ -928,12 +1055,6 @@ pub struct SpecFuncDecl {
     pub name: Symbol,
     pub sort: PolyFuncSort,
     pub kind: SpecFuncKind,
-}
-
-#[derive(Debug)]
-pub struct ClosureOblig {
-    pub oblig_def_id: DefId,
-    pub oblig_sig: PolyFnSig,
 }
 
 pub type TyCtor = Binder<Ty>;
@@ -1539,6 +1660,38 @@ pub struct AliasTy {
     pub refine_args: RefineArgs,
 }
 
+impl AliasTy {
+    pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
+        AliasTy { args, refine_args, def_id }
+    }
+}
+
+/// This methods work only with associated type projections (i.e., no opaque types)
+impl AliasTy {
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.args[0].expect_base().clone()
+    }
+
+    pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
+        Self {
+            def_id: self.def_id,
+            args: [GenericArg::Base(self_ty)]
+                .into_iter()
+                .chain(self.args.iter().skip(1).cloned())
+                .collect(),
+            refine_args: self.refine_args.clone(),
+        }
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for AliasTy {
+    type T = rustc_middle::ty::AliasTy<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
+}
+
 pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]
@@ -1687,6 +1840,7 @@ pub enum GenericArg {
 }
 
 impl GenericArg {
+    #[track_caller]
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {
             ty
@@ -1695,6 +1849,7 @@ impl GenericArg {
         }
     }
 
+    #[track_caller]
     pub fn expect_base(&self) -> &SubsetTyCtor {
         if let GenericArg::Base(ctor) = self {
             ctor
@@ -1900,28 +2055,6 @@ impl From<TyOrBase> for TyOrCtor {
             TyOrBase::Ty(ty) => TyOrCtor::Ty(ty),
             TyOrBase::Base(ctor) => TyOrCtor::Ctor(ctor.to_ty_ctor()),
         }
-    }
-}
-
-impl Clause {
-    pub fn new(vars: impl Into<List<BoundVariableKind>>, kind: ClauseKind) -> Self {
-        Clause { kind: Binder::bind_with_vars(kind, vars.into()) }
-    }
-
-    pub fn kind(&self) -> Binder<ClauseKind> {
-        self.kind.clone()
-    }
-
-    // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of
-    // blindly skipping it here
-    pub fn kind_skipping_binder(&self) -> ClauseKind {
-        self.kind.clone().skip_binder()
-    }
-}
-
-impl From<Binder<ClauseKind>> for Clause {
-    fn from(kind: Binder<ClauseKind>) -> Self {
-        Clause { kind }
     }
 }
 
@@ -2191,25 +2324,6 @@ impl EarlyBinder<PolyVariant> {
 impl TyKind {
     fn intern(self) -> Ty {
         Ty(Interned::new(self))
-    }
-}
-
-impl AliasTy {
-    pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
-        AliasTy { args, refine_args, def_id }
-    }
-
-    /// This method work only with associated type projections (i.e., no opaque tpes)
-    pub fn self_ty(&self) -> &Ty {
-        self.args[0].expect_type()
-    }
-}
-
-impl<'tcx> ToRustc<'tcx> for AliasTy {
-    type T = rustc_middle::ty::AliasTy<'tcx>;
-
-    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
-        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
     }
 }
 
