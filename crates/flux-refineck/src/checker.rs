@@ -235,7 +235,7 @@ fn find_trait_item(
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
-/// TODO: copy rules from SLACK.
+#[expect(clippy::too_many_arguments)]
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
