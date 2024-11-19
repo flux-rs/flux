@@ -302,21 +302,12 @@ impl Clause {
                 rest.push(clause.clone());
             }
         }
-        eprintln!("");
-        eprintln!("split off");
-        eprintln!("{clauses:#?}");
-        eprintln!("{rest:#?}");
-        eprintln!("{}", fn_trait_clauses.len());
-        eprintln!("{}", fn_trait_output_clauses.len());
 
         let fn_trait_clauses = fn_trait_clauses
             .into_iter()
             .map(|(kind, fn_trait_clause)| {
                 let mut candidates = vec![];
                 for fn_trait_output_clause in &fn_trait_output_clauses {
-                    eprintln!("");
-                    eprintln!("{:?}", fn_trait_output_clause.self_ty());
-                    eprintln!("{:?}", fn_trait_clause.self_ty());
                     if fn_trait_output_clause.self_ty() == fn_trait_clause.self_ty() {
                         candidates.push(fn_trait_output_clause.clone());
                     }
@@ -327,7 +318,7 @@ impl Clause {
                     FnTraitPredicate {
                         kind,
                         self_ty: fn_trait_clause.self_ty().to_ty(),
-                        tupled_args: fn_trait_clause.trait_ref.args[1].expect_type().clone(),
+                        tupled_args: fn_trait_clause.trait_ref.args[1].expect_base().to_ty(),
                         output: proj_pred.term.to_ty(),
                     }
                 })

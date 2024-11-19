@@ -156,6 +156,7 @@ impl WfckResultsProvider for WfckResults {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Env {
     layers: Vec<Layer>,
     early_params: FxIndexMap<fhir::ParamId, Symbol>,
@@ -721,6 +722,10 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
+        let generic_params = &poly_trait_ref.bound_generic_params;
+        let layer = Layer::list(self.results(), generic_params.len() as u32, &[]);
+        env.push_layer(layer);
+
         let trait_id = poly_trait_ref.trait_def_id();
         let generics = self.genv.generics_of(trait_id)?;
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
@@ -731,8 +736,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .into()];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
 
-        let vars = poly_trait_ref
-            .bound_generic_params
+        env.pop_layer();
+        let vars = generic_params
             .iter()
             .map(|param| self.param_as_bound_var(param))
             .try_collect_vec()?;
