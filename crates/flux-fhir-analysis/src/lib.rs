@@ -358,7 +358,11 @@ fn refinement_generics_of(
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
     match genv.map().node(local_id)? {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(..), generics, .. })
+        fhir::Node::Item(fhir::Item {
+            kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
+            generics,
+            ..
+        })
         | fhir::Node::TraitItem(fhir::TraitItem {
             kind: fhir::TraitItemKind::Fn(..),
             generics,
@@ -368,22 +372,14 @@ fn refinement_generics_of(
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) => {
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(
-                genv,
-                generics.refinement_params,
-                Some(&wfckresults),
-            )?;
-            Ok(rty::RefinementGenerics { parent, parent_count, params })
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(..), generics, .. }) => {
-            let params = conv::conv_refinement_generics(genv, generics.refinement_params, None)?;
+            let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
     }
 }
 
-fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
     let def_id = genv.maybe_extern_id(def_id);
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
@@ -394,7 +390,8 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             let wfckresults = genv.check_wf(def_id.local_id())?;
             let mut cx = ConvCtxt::new(genv, &*wfckresults);
             let ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)?;
-            struct_compat::type_alias(genv, fhir_ty_alias, &ty_alias, def_id)?
+            struct_compat::type_alias(genv, fhir_ty_alias, &ty_alias, def_id)?;
+            rty::TyOrCtor::Ctor(ty_alias)
         }
         DefKind::TyParam => {
             match def_id {
@@ -405,22 +402,25 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                         fhir::GenericParamKind::Type { default: Some(ty) } => {
                             let parent = genv.tcx().local_parent(local_id);
                             let wfckresults = genv.check_wf(parent)?;
-                            conv::conv_ty(genv, &ty, &wfckresults)?
+                            conv::conv_default_type_parameter(genv, def_id, &ty, &wfckresults)?
+                                .into()
                         }
                         k => Err(query_bug!(local_id, "non-type def def {k:?} {def_id:?}"))?,
                     }
                 }
                 MaybeExternId::Extern(_, extern_id) => {
-                    let generics = genv.generics_of(ty_param_owner(genv, extern_id))?;
                     let ty = genv.lower_type_of(extern_id)?.skip_binder();
-                    Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
+                    Refiner::default(genv, ty_param_owner(genv, extern_id))?
+                        .refine_ty_or_base(&ty)?
+                        .into()
                 }
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
-            let generics = genv.generics_of(def_id)?;
             let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
-            Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
+            Refiner::default(genv, def_id.resolved_id())?
+                .refine_ty_or_base(&ty)?
+                .into()
         }
         kind => {
             Err(query_bug!(

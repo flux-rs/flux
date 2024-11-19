@@ -15,12 +15,13 @@ use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     subst::{GenericsSubstDelegate, GenericsSubstFolder},
     AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, Ty, TyKind,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor,
+    Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::fold::TypeVisitable,
+    rty::{fold::TypeVisitable, refining::Refiner},
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
@@ -99,7 +100,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
     //       by suitably chasing down the super-trait predicates,
     //       see https://github.com/flux-rs/flux/issues/737
-    fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
+    fn normalize_projection_ty_with_rustc(
+        &mut self,
+        obligation: &AliasTy,
+    ) -> QueryResult<SubsetTyCtor> {
         let projection_ty = obligation.to_rustc(self.tcx());
         let cause = ObligationCause::dummy();
         let param_env = self.tcx().param_env(self.def_id);
@@ -114,27 +118,31 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         )
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
-        let generics = self.genv.generics_of(self.def_id)?;
-        let ty = self.genv.refine_default(&generics, &rustc_ty)?;
-        Ok(ty)
+        Ok(Refiner::default(self.genv, self.def_id)?
+            .refine_ty_or_base(&rustc_ty)?
+            .expect_base())
     }
 
-    fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, Ty)> {
+    fn normalize_projection_ty(
+        &mut self,
+        obligation: &AliasTy,
+    ) -> QueryResult<(bool, SubsetTyCtor)> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            let orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
+            let orig_ty =
+                BaseTy::Alias(AliasKind::Projection, obligation.clone()).to_subset_ty_ctor();
             let ty = self.normalize_projection_ty_with_rustc(obligation)?;
             return Ok((ty != orig_ty, ty));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
         }
-        let ty = self.confirm_candidate(candidates.pop().unwrap(), obligation)?;
-        Ok((true, ty))
+        let ctor = self.confirm_candidate(candidates.pop().unwrap(), obligation)?;
+        Ok((true, ctor))
     }
 
     fn find_resolved_predicates(
@@ -187,15 +195,19 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             }
             for p in resolved {
                 let obligation = &p.projection_ty;
-                let (_, ty) = self.normalize_projection_ty(obligation)?;
-                subst.tys(&p.term, &ty);
+                let (_, ctor) = self.normalize_projection_ty(obligation)?;
+                subst.subset_tys(&p.term, &ctor);
             }
             projection_preds = unresolved;
         }
         Ok(())
     }
 
-    fn confirm_candidate(&mut self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
+    fn confirm_candidate(
+        &mut self,
+        candidate: Candidate,
+        obligation: &AliasTy,
+    ) -> QueryResult<SubsetTyCtor> {
         match candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
             Candidate::UserDefinedImpl(impl_def_id) => {
@@ -216,6 +228,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
+                // eprintln!();
+                // eprintln!("{:#?}", generics);
+                // eprintln!("{:?}", impl_trait_ref.args);
+                // eprintln!("{:?}", obligation.args);
 
                 let mut subst = TVarSubst::new(generics);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
@@ -241,7 +257,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .genv
                     .type_of(assoc_type_id)?
                     .instantiate(tcx, &args, &[])
-                    .to_ty())
+                    .expect_subset_ty_ctor())
             }
         }
     }
@@ -264,9 +280,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
-        if let GenericArg::Ty(ty) = &obligation.args[0]
-            && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
+        if let GenericArg::Base(ctor) = &obligation.args[0]
+            && let BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
+            debug_assert!(!alias_ty.has_escaping_bvars());
             let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
                 self.tcx(),
                 &alias_ty.args,
@@ -320,6 +337,8 @@ fn assemble_candidates_from_predicates(
 ) {
     for predicate in predicates {
         if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
+            // FIXME(nilehmann) make this matching resilient with respect to syntactic differences
+            // in refinements
             if &pred.projection_ty == obligation {
                 candidates.push(ctor(pred.clone()));
             }
@@ -331,33 +350,43 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     type Error = QueryErr;
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
-        if let Sort::Alias(alias_ty) = sort {
-            self.genv
-                .normalize_weak_alias_sort(alias_ty)?
-                .try_fold_with(self)
-        } else {
-            sort.try_super_fold_with(self)
+        match sort {
+            Sort::Alias(AliasKind::Weak, alias_ty) => {
+                self.genv
+                    .normalize_weak_alias_sort(alias_ty)?
+                    .try_fold_with(self)
+            }
+            Sort::Alias(AliasKind::Projection, alias_ty) => {
+                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+                let sort = ctor.sort();
+                if changed {
+                    sort.try_fold_with(self)
+                } else {
+                    Ok(sort)
+                }
+            }
+            _ => sort.try_super_fold_with(self),
         }
     }
 
-    // As shown in https://github.com/flux-rs/flux/issues/711
-    // one round of `normalize_projections` can replace one
-    // projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item`
-    // with another e.g. `<Iter<[i32]> as Iterator>::Item`
-    // We want to compute a "fixpoint" i.e. keep going until
-    // no change, so that e.g. the above is normalized all the way to `i32`,
-    // which is what the `changed` is for.
+    // As shown in https://github.com/flux-rs/flux/issues/711 one round of `normalize_projections`
+    // can replace one projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item` with another e.g.
+    // `<Iter<[i32]> as Iterator>::Item` We want to compute a "fixpoint" i.e. keep going until no
+    // change, so that e.g. the above is normalized all the way to `i32`, which is what the `changed`
+    // is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(alias_ty), idx) => {
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) => {
                 Ok(self
                     .genv
                     .type_of(alias_ty.def_id)?
                     .instantiate(self.genv.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .expect_ctor()
                     .replace_bound_reft(idx))
             }
-            TyKind::Alias(AliasKind::Projection, alias_ty) => {
-                let (changed, ty) = self.normalize_projection_ty(alias_ty)?;
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
+                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+                let ty = ctor.replace_bound_reft(idx).to_ty();
                 if changed {
                     ty.try_fold_with(self)
                 } else {
@@ -365,6 +394,28 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
                 }
             }
             _ => ty.try_super_fold_with(self),
+        }
+    }
+
+    fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
+        match &sty.bty {
+            BaseTy::Alias(AliasKind::Weak, _alias_ty) => {
+                // Weak aliases are always expanded during conversion. We could in theory normalize
+                // them here but we don't guaranatee that type aliases expand to a subset ty. If we
+                // ever stop expanding aliases during conv we would need to guarantee that aliases
+                // used as a generic base expand to a subset type.
+                tracked_span_bug!()
+            }
+            BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
+                let ty = ctor.replace_bound_reft(&sty.idx);
+                if changed {
+                    ty.try_fold_with(self)
+                } else {
+                    Ok(ty)
+                }
+            }
+            _ => sty.try_super_fold_with(self),
         }
     }
 
@@ -407,15 +458,23 @@ impl GenericsSubstDelegate for &TVarSubst {
         }
     }
 
-    fn sort_for_param(
-        &mut self,
-        _param_ty: rustc_middle::ty::ParamTy,
-    ) -> Result<super::Sort, Self::Error> {
-        tracked_span_bug!()
+    fn sort_for_param(&mut self, param_ty: rustc_middle::ty::ParamTy) -> Result<Sort, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Base(ctor))) => Ok(ctor.sort()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
     }
 
-    fn ctor_for_param(&mut self, _param_ty: rustc_middle::ty::ParamTy) -> super::SubsetTyCtor {
-        tracked_span_bug!()
+    fn ctor_for_param(
+        &mut self,
+        param_ty: rustc_middle::ty::ParamTy,
+    ) -> Result<SubsetTyCtor, Self::Error> {
+        match self.args.get(param_ty.index as usize) {
+            Some(Some(GenericArg::Base(ctor))) => Ok(ctor.clone()),
+            Some(None) => Err(()),
+            arg => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+        }
     }
 
     fn region_for_param(&mut self, _ebr: rustc_middle::ty::EarlyParamRegion) -> Region {
@@ -465,7 +524,7 @@ impl TVarSubst {
             (GenericArg::Ty(a), GenericArg::Ty(b)) => self.tys(a, b),
             (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) => self.regions(*a, *b),
             (GenericArg::Base(a), GenericArg::Base(b)) => {
-                self.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
+                self.subset_tys(a, b);
             }
             (GenericArg::Const(a), GenericArg::Const(b)) => self.consts(a, b),
             _ => {}
@@ -477,11 +536,23 @@ impl TVarSubst {
             if !b.has_escaping_bvars() {
                 self.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
             }
-            return;
+        } else {
+            let Some(a_bty) = a.as_bty_skipping_existentials() else { return };
+            let Some(b_bty) = b.as_bty_skipping_existentials() else { return };
+            self.btys(a_bty, b_bty);
         }
-        let Some(a_bty) = a.as_bty_skipping_existentials() else { return };
-        let Some(b_bty) = b.as_bty_skipping_existentials() else { return };
-        self.btys(a_bty, b_bty);
+    }
+
+    fn subset_tys(&mut self, a: &SubsetTyCtor, b: &SubsetTyCtor) {
+        let bty_a = a.as_bty_skipping_binder();
+        let bty_b = b.as_bty_skipping_binder();
+        if let BaseTy::Param(param_ty) = bty_a {
+            if !b.has_escaping_bvars() {
+                self.insert_generic_arg(param_ty.index, GenericArg::Base(b.clone()));
+            }
+        } else {
+            self.btys(bty_a, bty_b);
+        }
     }
 
     fn btys(&mut self, a: &BaseTy, b: &BaseTy) {

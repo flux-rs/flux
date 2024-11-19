@@ -135,7 +135,7 @@ pub trait Visitor: Sized {
         walk_ty(self, ty);
     }
 
-    fn visit_array_len(&mut self, _array_len: &ArrayLen) {}
+    fn visit_const_arg(&mut self, _const_arg: &ConstArg) {}
 
     fn visit_bty(&mut self, bty: &BaseTy) {
         walk_bty(self, bty);
@@ -263,7 +263,9 @@ pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
     vis.visit_ident(ty_alias.ident);
     vis.visit_generics(&ty_alias.generics);
     walk_list!(vis, visit_refine_param, &ty_alias.params);
-    walk_list!(vis, visit_refine_param, &ty_alias.refined_by);
+    if let Some(index) = &ty_alias.index {
+        vis.visit_refine_param(index);
+    }
     vis.visit_ty(&ty_alias.ty);
 }
 
@@ -431,7 +433,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             walk_list!(vis, visit_ty, tys);
         }
         TyKind::Array(ty, len) => {
-            vis.visit_array_len(len);
+            vis.visit_const_arg(len);
             vis.visit_ty(ty);
         }
         TyKind::ImplTrait(_node_id, trait_ref) => {

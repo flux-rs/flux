@@ -1,9 +1,6 @@
-use std::{cmp::Ordering, collections::hash_map};
+use std::cmp::Ordering;
 
 use flux_common::{bug, tracked_span_bug};
-use flux_rustc_bridge::ty;
-use rustc_hash::FxHashMap;
-use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 
 use self::fold::FallibleTypeFolder;
@@ -12,187 +9,6 @@ use super::{
     fold::{TypeFolder, TypeSuperFoldable},
 };
 use crate::rty::*;
-
-/// See `flux_refineck::type_env::TypeEnv::assign`
-pub fn match_regions(a: &Ty, b: &ty::Ty) -> Ty {
-    let a = replace_regions_with_unique_vars(a);
-    let mut subst = RegionSubst::default();
-    subst.infer_from_ty(&a, b);
-    subst.apply(&a)
-}
-
-/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-/// to have a unique identifier for each position such that we can infer a region substitution.
-fn replace_regions_with_unique_vars(ty: &Ty) -> Ty {
-    struct Replacer {
-        next_rvid: u32,
-    }
-    impl TypeFolder for Replacer {
-        fn fold_region(&mut self, _: &Region) -> Region {
-            let rvid = self.next_rvid;
-            self.next_rvid += 1;
-            Region::ReVar(RegionVid::from_u32(rvid))
-        }
-    }
-
-    ty.fold_with(&mut Replacer { next_rvid: 0 })
-}
-
-#[derive(Default, Debug)]
-struct RegionSubst {
-    map: UnordMap<RegionVid, Region>,
-}
-
-impl RegionSubst {
-    fn apply<T: TypeFoldable>(&self, t: &T) -> T {
-        struct Folder<'a>(&'a RegionSubst);
-        impl TypeFolder for Folder<'_> {
-            fn fold_region(&mut self, re: &Region) -> Region {
-                // FIXME the map should always contain a region
-                if let ReVar(rvid) = re
-                    && let Some(region) = self.0.map.get(rvid)
-                {
-                    *region
-                } else {
-                    *re
-                }
-            }
-        }
-        t.fold_with(&mut Folder(self))
-    }
-
-    fn infer_from_fn_sig(&mut self, a: &FnSig, b: &ty::FnSig) {
-        debug_assert_eq!(a.inputs().len(), b.inputs().len());
-        for (ty_a, ty_b) in iter::zip(a.inputs(), b.inputs()) {
-            self.infer_from_ty(ty_a, ty_b);
-        }
-        self.infer_from_ty(&a.output().skip_binder_ref().ret, b.output());
-    }
-
-    fn infer_from_ty(&mut self, a: &Ty, b: &ty::Ty) {
-        match (a.kind(), b.kind()) {
-            (TyKind::Exists(ty_a), _) => {
-                self.infer_from_ty(ty_a.as_ref().skip_binder(), b);
-            }
-            (TyKind::Constr(_, ty_a), _) => {
-                self.infer_from_ty(ty_a, b);
-            }
-            (TyKind::Indexed(bty_a, _), _) => {
-                self.infer_from_bty(bty_a, b);
-            }
-            (TyKind::Ptr(PtrKind::Mut(re_a), _), ty::TyKind::Ref(re_b, _, mutbl)) => {
-                debug_assert!(mutbl.is_mut());
-                self.infer_from_region(*re_a, *re_b);
-            }
-            (TyKind::StrgRef(re_a, ..), ty::TyKind::Ref(re_b, _, mutbl)) => {
-                debug_assert!(mutbl.is_mut());
-                self.infer_from_region(*re_a, *re_b);
-            }
-            _ => {}
-        }
-    }
-
-    fn infer_from_bty(&mut self, a: &BaseTy, ty: &ty::Ty) {
-        match (a, ty.kind()) {
-            (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
-                self.infer_from_generic_args(args_a, args_b);
-            }
-            (BaseTy::Array(ty_a, _), ty::TyKind::Array(ty_b, _)) => {
-                self.infer_from_ty(ty_a, ty_b);
-            }
-            (BaseTy::Ref(re_a, ty_a, mutbl_a), ty::TyKind::Ref(re_b, ty_b, mutbl_b)) => {
-                debug_assert_eq!(mutbl_a, mutbl_b);
-                self.infer_from_region(*re_a, *re_b);
-                self.infer_from_ty(ty_a, ty_b);
-            }
-            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
-                debug_assert_eq!(fields_a.len(), fields_b.len());
-                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
-                    self.infer_from_ty(ty_a, ty_b);
-                }
-            }
-            (BaseTy::Slice(ty_a), ty::TyKind::Slice(ty_b)) => {
-                self.infer_from_ty(ty_a, ty_b);
-            }
-            (BaseTy::FnPtr(poly_sig_a), ty::TyKind::FnPtr(poly_sig_b)) => {
-                self.infer_from_fn_sig(poly_sig_a.skip_binder_ref(), poly_sig_b.skip_binder_ref());
-            }
-            (BaseTy::RawPtr(ty_a, mutbl_a), ty::TyKind::RawPtr(ty_b, mutbl_b)) => {
-                debug_assert_eq!(mutbl_a, mutbl_b);
-                self.infer_from_ty(ty_a, ty_b);
-            }
-            (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) => {
-                debug_assert_eq!(preds_a.len(), preds_b.len());
-                self.infer_from_region(*re_a, *re_b);
-                for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
-                    self.infer_from_existential_pred(pred_a, pred_b);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn infer_from_existential_pred(
-        &mut self,
-        a: &PolyExistentialPredicate,
-        b: &ty::PolyExistentialPredicate,
-    ) {
-        match (a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
-            (
-                ExistentialPredicate::Trait(trait_ref_a),
-                ty::ExistentialPredicate::Trait(trait_ref_b),
-            ) => {
-                debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
-                self.infer_from_generic_args(&trait_ref_a.args, &trait_ref_b.args);
-            }
-            (
-                ExistentialPredicate::Projection(proj_a),
-                ty::ExistentialPredicate::Projection(proj_b),
-            ) => {
-                debug_assert_eq!(proj_a.def_id, proj_b.def_id);
-                self.infer_from_generic_args(&proj_a.args, &proj_b.args);
-                self.infer_from_ty(&proj_a.term, &proj_b.term);
-            }
-            _ => {}
-        }
-    }
-
-    fn infer_from_generic_args(&mut self, a: &GenericArgs, b: &ty::GenericArgs) {
-        debug_assert_eq!(a.len(), b.len());
-        for (arg_a, arg_b) in iter::zip(a, b) {
-            self.infer_from_generic_arg(arg_a, arg_b);
-        }
-    }
-
-    fn infer_from_generic_arg(&mut self, a: &GenericArg, b: &ty::GenericArg) {
-        match (a, b) {
-            (GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) => {
-                self.infer_from_bty(ctor_a.as_bty_skipping_binder(), ty_b);
-            }
-            (GenericArg::Ty(ty_a), ty::GenericArg::Ty(ty_b)) => {
-                self.infer_from_ty(ty_a, ty_b);
-            }
-            (GenericArg::Lifetime(re_a), ty::GenericArg::Lifetime(re_b)) => {
-                self.infer_from_region(*re_a, *re_b);
-            }
-            _ => {}
-        }
-    }
-
-    fn infer_from_region(&mut self, a: Region, b: Region) {
-        let ReVar(var) = a else { return };
-        match self.map.entry(var) {
-            hash_map::Entry::Occupied(entry) => {
-                if entry.get() != &b {
-                    bug!("ambiguous region substitution: {:?} -> [{:?}, {:?}]", a, entry.get(), b);
-                }
-            }
-            hash_map::Entry::Vacant(entry) => {
-                entry.insert(b);
-            }
-        }
-    }
-}
 
 /// Substitution for late bound variables
 pub(super) struct BoundVarReplacer<D> {
@@ -335,7 +151,7 @@ pub trait GenericsSubstDelegate {
 
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Result<Ty, Self::Error>;
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, Self::Error>;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
@@ -366,9 +182,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         }
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(ctor)) => ctor.clone(),
+            Some(GenericArg::Base(ctor)) => Ok(ctor.clone()),
             Some(arg) => {
                 tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
             }
@@ -437,7 +253,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Result<SubsetTyCtor, E> {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -451,23 +267,6 @@ where
 
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         bug!("unexpected param_const {param_const:?}");
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
-
-impl ConstGenericArgs {
-    pub fn empty() -> Self {
-        Self(FxHashMap::default())
-    }
-
-    pub fn insert(&mut self, index: u32, expr: Expr) {
-        self.0.insert(index, expr);
-    }
-
-    pub fn lookup(&self, index: u32) -> Expr {
-        self.0.get(&index).unwrap().clone()
     }
 }
 
@@ -502,7 +301,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
                 let idx = idx.try_fold_with(self)?;
                 Ok(self
                     .delegate
-                    .ctor_for_param(*param_ty)
+                    .ctor_for_param(*param_ty)?
                     .replace_bound_reft(&idx)
                     .to_ty())
             }
@@ -512,11 +311,13 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, D::Error> {
         if let BaseTy::Param(param_ty) = &sty.bty {
+            let idx = sty.idx.try_fold_with(self)?;
+            let pred = sty.pred.try_fold_with(self)?;
             Ok(self
                 .delegate
-                .ctor_for_param(*param_ty)
-                .replace_bound_reft(&sty.idx)
-                .strengthen(&sty.pred))
+                .ctor_for_param(*param_ty)?
+                .replace_bound_reft(&idx)
+                .strengthen(pred))
         } else {
             sty.try_super_fold_with(self)
         }

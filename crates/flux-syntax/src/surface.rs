@@ -80,7 +80,7 @@ pub struct TyAlias {
     pub ident: Ident,
     pub generics: Generics,
     pub params: RefineParams,
-    pub refined_by: RefineParams,
+    pub index: Option<RefineParam>,
     pub ty: Ty,
     pub node_id: NodeId,
     pub span: Span,
@@ -337,7 +337,7 @@ pub enum TyKind {
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
-    Array(Box<Ty>, ArrayLen),
+    Array(Box<Ty>, ConstArg),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
     Hole,
@@ -385,10 +385,16 @@ pub enum BaseTyKind {
     Slice(Box<Ty>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ArrayLen {
-    pub val: usize,
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+pub struct ConstArg {
+    pub kind: ConstArgKind,
     pub span: Span,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+pub enum ConstArgKind {
+    Lit(usize),
+    Infer,
 }
 
 #[derive(Debug)]

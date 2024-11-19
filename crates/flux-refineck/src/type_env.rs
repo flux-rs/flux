@@ -5,7 +5,7 @@ use std::{iter, ops::ControlFlow};
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
 use flux_middle::{
@@ -15,8 +15,10 @@ use flux_middle::{
         canonicalize::{Hoister, LocalHoister},
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda,
-        List, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        region_matching::{rty_match_regions, ty_match_regions},
+        BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
+        Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
+        INNERMOST,
     },
     PlaceExt as _,
 };
@@ -31,7 +33,7 @@ use rustc_type_ir::BoundVar;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
-use crate::{checker::errors::CheckerErrKind, rty::VariantIdx, CheckerConfig};
+use crate::{checker::errors::CheckerErrKind, CheckerConfig};
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 
@@ -85,14 +87,13 @@ impl<'a> TypeEnv<'a> {
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
-        let ty = subst::match_regions(&ty, &self.local_decls[local].ty);
-        self.bindings
-            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, ty);
+        let ty = ty_match_regions(&ty, &self.local_decls[local].ty);
+        self.bindings.insert(local.into(), LocKind::Local, ty);
     }
 
     fn alloc(&mut self, local: Local) {
         self.bindings
-            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, Ty::uninit());
+            .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape> {
@@ -163,7 +164,6 @@ impl<'a> TypeEnv<'a> {
     /// That's it, we first get the current type `t₁` at location `ℓ` and check it is a subtype
     /// of `t₂`. Then, we update the type of `ℓ` to `t₂` and block the place.
     ///
-    ///
     /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), explicitly provided
     /// ([`PtrToRefBound::Ty`]), or made equal to `t₁` ([`PtrToRefBound::Identity`]).
     ///
@@ -183,7 +183,7 @@ impl<'a> TypeEnv<'a> {
         re: Region,
         path: &Path,
         bound: PtrToRefBound,
-    ) -> Result<Ty> {
+    ) -> InferResult<Ty> {
         infcx.push_scope();
 
         // ℓ: t1
@@ -193,10 +193,10 @@ impl<'a> TypeEnv<'a> {
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
                 // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
-                // to a place which requires annoying bookkepping.
-                let place = self.bindings.path_to_place(path);
-                let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                let t2 = subst::match_regions(&t2, &rust_ty);
+                // to a place which requires annoying bookkeping.
+                // let place = self.bindings.path_to_place(path);
+                // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
+                let t2 = rty_match_regions(&t2, &t1);
                 infcx.subtyping(&t1, &t2, reason)?;
                 t2
             }
@@ -221,6 +221,14 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
+    pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
+        for (loc, bound, ty) in self.bindings.local_ptrs() {
+            infcx.subtyping(&ty, &bound, ConstrReason::Fold)?;
+            self.bindings.remove_local(&loc);
+        }
+        Ok(())
+    }
+
     /// Updates the type of `place` to `new_ty`. This may involve a *strong update* if we have
     /// ownership of `place` or a *weak update* if it's behind a reference (which fires a subtyping
     /// constraint)
@@ -234,9 +242,8 @@ impl<'a> TypeEnv<'a> {
     /// assigned type are consistent with those expected by the place's original type definition.
     pub(crate) fn assign(&mut self, infcx: &mut InferCtxtAt, place: &Place, new_ty: Ty) -> Result {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-        let new_ty = subst::match_regions(&new_ty, &rustc_ty);
+        let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
-
         infcx.push_scope();
         if result.is_strg {
             result.update(new_ty);
@@ -272,7 +279,7 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
-        self.bindings.lookup(place).unblock(rcx, check_overflow);
+        self.bindings.unblock(rcx, place, check_overflow);
     }
 
     pub(crate) fn check_goto(
@@ -308,6 +315,18 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
         self.bindings.lookup(place).fold(infcx)?;
         Ok(())
+    }
+
+    pub(crate) fn unfold_local_ptr(
+        &mut self,
+        infcx: &mut InferCtxt,
+        bound: &Ty,
+    ) -> InferResult<Loc> {
+        let loc = Loc::from(infcx.define_var(&Sort::Loc));
+        let ty = infcx.unpack(bound);
+        self.bindings
+            .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
+        Ok(loc)
     }
 
     pub(crate) fn unfold(
@@ -346,6 +365,23 @@ pub(crate) enum PtrToRefBound {
     Identity,
 }
 
+impl flux_infer::infer::LocEnv for TypeEnv<'_> {
+    fn ptr_to_ref(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        reason: ConstrReason,
+        re: Region,
+        path: &Path,
+        bound: Ty,
+    ) -> InferResult<Ty> {
+        self.ptr_to_ref(infcx, reason, re, path, PtrToRefBound::Ty(bound))
+    }
+
+    fn get(&self, path: &Path) -> Ty {
+        self.get(path)
+    }
+}
+
 impl BasicBlockEnvShape {
     pub fn enter<'a>(&self, local_decls: &'a LocalDecls) -> TypeEnv<'a> {
         TypeEnv { bindings: self.bindings.clone(), local_decls }
@@ -374,10 +410,6 @@ impl BasicBlockEnvShape {
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields)
             }
             TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
-            TyKind::Alias(..) => {
-                assert!(!scope.has_free_vars(ty));
-                ty.clone()
-            }
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
             | TyKind::Discr(..)
@@ -519,11 +551,6 @@ impl BasicBlockEnvShape {
                     .collect();
                 Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
-            (TyKind::Alias(kind1, alias_ty1), TyKind::Alias(kind2, alias_ty2)) => {
-                debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(alias_ty1, alias_ty2);
-                Ty::alias(*kind1, alias_ty1.clone())
-            }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
@@ -590,6 +617,11 @@ impl BasicBlockEnvShape {
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
                 BaseTy::Tuple(fields)
+            }
+            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
+                debug_assert_eq!(kind1, kind2);
+                debug_assert_eq!(alias_ty1, alias_ty2);
+                BaseTy::Alias(*kind1, alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(r1, r2);

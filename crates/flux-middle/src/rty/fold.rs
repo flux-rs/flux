@@ -168,6 +168,14 @@ pub trait TypeVisitable: Sized {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy>;
 
     fn has_escaping_bvars(&self) -> bool {
+        self.has_escaping_bvars_at_or_above(INNERMOST)
+    }
+
+    /// Returns `true` if `self` has any late-bound vars that are either
+    /// bound by `binder` or bound by some binder outside of `binder`.
+    /// If `binder` is `ty::INNERMOST`, this indicates whether
+    /// there are any late-bound vars that appear free.
+    fn has_escaping_bvars_at_or_above(&self, binder: DebruijnIndex) -> bool {
         struct HasEscapingVars {
             /// Anything bound by `outer_index` or "above" is escaping.
             outer_index: DebruijnIndex,
@@ -197,7 +205,7 @@ pub trait TypeVisitable: Sized {
                 }
             }
         }
-        let mut visitor = HasEscapingVars { outer_index: INNERMOST };
+        let mut visitor = HasEscapingVars { outer_index: binder };
         self.visit_with(&mut visitor).is_break()
     }
 
@@ -249,7 +257,7 @@ pub trait TypeFoldable: TypeVisitable {
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
     /// all the *layers* of [bound] variables at the point the hole was found. Each layer corresponds
-    /// to the list of sorts bound at that level. The list is ordered from outermost to innermost
+    /// to the list of bound variables at that level. The list is ordered from outermost to innermost
     /// binder, i.e., the last element is the binder closest to the hole.
     ///
     /// [holes]: ExprKind::Hole
@@ -295,6 +303,10 @@ pub trait TypeFoldable: TypeVisitable {
                 } else {
                     ty.super_fold_with(self)
                 }
+            }
+
+            fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
+                SubsetTy::new(constr.bty.clone(), constr.idx.clone(), Expr::hole(HoleKind::Pred))
             }
         }
 
@@ -431,7 +443,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
             Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
-            Sort::Alias(alias_ty) => alias_ty.visit_with(visitor),
+            Sort::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -458,7 +470,7 @@ impl TypeSuperFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(ctor.clone(), sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
-            Sort::Alias(alias_ty) => Sort::Alias(alias_ty.try_fold_with(folder)?),
+            Sort::Alias(kind, alias_ty) => Sort::Alias(*kind, alias_ty.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -607,7 +619,6 @@ impl TypeSuperVisitable for Ty {
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
-            TyKind::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             TyKind::Infer(_) | TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => {
                 ControlFlow::Continue(())
             }
@@ -664,7 +675,6 @@ impl TypeSuperFoldable for Ty {
                 )
             }
             TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
-            TyKind::Alias(kind, alias_ty) => Ty::alias(*kind, alias_ty.try_fold_with(folder)?),
             TyKind::Infer(_) | TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => {
                 self.clone()
             }
@@ -723,7 +733,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
-            BaseTy::Alias(alias_ty) => alias_ty.visit_with(visitor),
+            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Coroutine(_, resume_ty, upvars) => {
                 resume_ty.visit_with(visitor)?;
@@ -762,7 +772,7 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::FnPtr(decl) => BaseTy::FnPtr(decl.try_fold_with(folder)?),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
-            BaseTy::Alias(alias_ty) => BaseTy::Alias(alias_ty.try_fold_with(folder)?),
+            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
             }
@@ -832,7 +842,7 @@ impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
-            GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
+            GenericArg::Base(ctor) => GenericArg::Base(ctor.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
             GenericArg::Const(c) => GenericArg::Const(c.try_fold_with(folder)?),
         };
@@ -956,42 +966,8 @@ where
     }
 }
 
-pub struct BottomUpFolder<F, G, H>
-where
-    F: FnMut(Ty) -> Ty,
-    G: FnMut(Region) -> Region,
-    H: FnMut(Const) -> Const,
-{
-    pub ty_op: F,
-    pub lt_op: G,
-    pub ct_op: H,
-}
-
-impl<F, G, H> TypeFolder for BottomUpFolder<F, G, H>
-where
-    F: FnMut(Ty) -> Ty,
-    G: FnMut(Region) -> Region,
-    H: FnMut(Const) -> Const,
-{
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        let t = ty.super_fold_with(self);
-        (self.ty_op)(t)
-    }
-
-    fn fold_region(&mut self, r: &Region) -> Region {
-        // This one is a little different, because `super_fold_with` is not
-        // implemented on non-recursive `Region`.
-        (self.lt_op)(*r)
-    }
-
-    fn fold_const(&mut self, ct: &Const) -> Const {
-        let ct = ct.super_fold_with(self);
-        (self.ct_op)(ct)
-    }
-}
-
-/// Used for types that are `Copy` and which **do not care arena
-/// allocated data** (i.e., don't need to be folded).
+/// Used for types that are `Copy` and which **do not care arena allocated data** (i.e., don't need
+/// to be folded).
 macro_rules! TrivialTypeTraversalImpls {
     ($($ty:ty,)+) => {
         $(

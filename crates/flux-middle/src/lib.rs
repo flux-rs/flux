@@ -451,11 +451,12 @@ pub struct ResolverOutput {
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }
 
-/// This enum serves as a type-level reminder that local ids can wrap an extern spec. The
-/// abstraction is not infallible, so one should still be careful and decide in each situation
-/// whether to use the [_local id_] or the [_resolved id_]. Although the construction of
-/// [`MaybeExternId`] is not encapsulated, it is recommended to use [`GlobalEnv::maybe_extern_id`]
-/// to create one.
+/// This enum serves as a type-level reminder that a local definition _may be_ a wrapper for an
+/// extern spec. This abstraction is not infallible, so one should be careful and decide in each
+/// situation whether to use the [_local id_] or the [_resolved id_].
+///
+/// The construction of [`MaybeExternId`] is not encapsulated, but it is recommended to use
+/// [`GlobalEnv::maybe_extern_id`] to create one.
 ///
 /// The enum is generic on the local `Id` as we use it with various kinds of local ids, e.g.,
 /// [`LocalDefId`], [`OwnerId`], ...
@@ -467,8 +468,8 @@ pub struct ResolverOutput {
 pub enum MaybeExternId<Id = LocalDefId> {
     /// An id for a local spec.
     Local(Id),
-    /// A "dummy" local definition wrapping an external spec. The `Id` is the local id of a definition
-    /// corresponding to the extern spec. The `DefId` is the resolved id for the external definition.
+    /// A "dummy" local definition wrapping an external spec. The `Id` is the local id of the definition
+    /// corresponding to the extern spec. The `DefId` is the _resolved_ id for the external definition.
     Extern(Id, DefId),
 }
 
@@ -549,7 +550,8 @@ impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
 
 /// Normally, a [`DefId`] is either local or external, and [`DefId::as_local`] can be used to
 /// distinguish between the two. However, extern specs introduce a third case: a local definition
-/// wrapping an extern spec. This enum is used to differentiate between the three cases.
+/// wrapping an extern spec. This enum is a type level reminder used to differentiate between these
+/// three cases.
 ///
 /// The construction of [`ResolvedDefId`] is not encapsulated, but it is recommended to use
 /// [`GlobalEnv::resolve_id`] to create one.

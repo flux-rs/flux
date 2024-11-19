@@ -7,6 +7,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
@@ -25,7 +26,6 @@ type CheckerResult<T = ()> = std::result::Result<T, CheckerErrKind>;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
     map: FxHashMap<Loc, Binding>,
-    loc_to_place: FxHashMap<Loc, Place>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,6 +38,8 @@ pub(crate) struct Binding {
 pub(crate) enum LocKind {
     Local,
     Box(Ty),
+    // An &mut T unfolded "locally" at a call-site; with the super-type T
+    LocalPtr(Ty),
     Universal,
 }
 
@@ -67,6 +69,7 @@ impl LookupKey for Path {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
@@ -128,6 +131,42 @@ impl PlacesTree {
     ) -> CheckerResult {
         let cursor = self.cursor_for(key);
         Unfolder::new(infcx, cursor, checker_conf).run(self)
+    }
+
+    pub fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
+        let mut cursor = self.cursor_for(place);
+        let mut ty = self.get_loc(&cursor.loc).ty.clone();
+        while let Some(elem) = cursor.next() {
+            match elem {
+                PlaceElem::Deref => {
+                    if let TyKind::Ptr(_, path) = ty.kind() {
+                        cursor.change_root(path);
+                        ty = self.get_loc(&cursor.loc).ty.clone();
+                    } else {
+                        return;
+                    }
+                }
+                PlaceElem::Field(f) => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Tuple(fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
+                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
+                        | TyKind::Downcast(.., fields) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
+                    };
+                }
+                PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => return,
+                PlaceElem::Downcast(..) => {}
+            }
+        }
+        cursor.reset();
+        Updater::update(self, cursor, |_, ty| {
+            let unblocked = ty.unblocked();
+            rcx.hoister(AssumeInvariants::yes(check_overflow))
+                .hoist(&unblocked)
+        });
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -252,9 +291,25 @@ impl PlacesTree {
         bindings
     }
 
-    pub(crate) fn insert(&mut self, loc: Loc, place: Place, kind: LocKind, ty: Ty) {
+    pub(crate) fn insert(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
         self.map.insert(loc, Binding { kind, ty });
-        self.loc_to_place.insert(loc, place);
+    }
+
+    pub(crate) fn remove_local(&mut self, loc: &Loc) {
+        self.map.remove(loc);
+    }
+
+    pub(crate) fn local_ptrs(&self) -> Vec<(Loc, Ty, Ty)> {
+        self.map
+            .iter()
+            .filter_map(|(loc, binding)| {
+                if let LocKind::LocalPtr(bound) = &binding.kind {
+                    Some((*loc, bound.clone(), binding.ty.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
@@ -305,14 +360,7 @@ impl PlacesTree {
     }
 
     fn cursor_for(&self, key: &impl LookupKey) -> Cursor {
-        let place = self.loc_to_place[&key.loc()].clone();
-        Cursor::new(key, place)
-    }
-
-    pub(crate) fn path_to_place(&self, path: &Path) -> Place {
-        let mut place = self.loc_to_place[&path.loc].clone();
-        place.projection.extend(path.proj());
-        place
+        Cursor::new(key)
     }
 }
 
@@ -329,31 +377,11 @@ impl LookupResult<'_> {
         old
     }
 
-    pub(crate) fn unblock(self, rcx: &mut RefineCtxt, check_overflow: bool) {
-        if self.ty.is_uninit() {
-            return;
-        }
-        Updater::update(self.bindings, self.cursor, |_, ty| {
-            // FIXME(nilehmann) in some situations we are calling unblock on a place that's not actually
-            // blocked. This happens when taking a reference to an array or with a shared reborrow.
-            // To avoid crashing, we call `Ty::unblocked` which would simply return the original
-            // type if it wasn't unblocked. We should instead properly block the place in the first place
-            // and ensure we are only unblocking blocked places.
-            let mut unblocked = ty.unblocked();
-            if self.is_strg {
-                unblocked = rcx
-                    .hoister(AssumeInvariants::yes(check_overflow))
-                    .hoist(&unblocked);
-            }
-            unblocked
-        });
-    }
-
     pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> CheckerResult<Ty> {
+    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> QueryResult<Ty> {
         let ty = fold(self.bindings, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
@@ -366,7 +394,7 @@ impl LookupResult<'_> {
 
 struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
-    insertions: Vec<(Loc, Place, Binding)>,
+    insertions: Vec<(Loc, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
     checker_conf: CheckerConfig,
@@ -406,8 +434,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
-            for (loc, place, binding) in self.insertions.drain(..) {
-                bindings.insert(loc, place, binding.kind, binding.ty);
+            for (loc, binding) in self.insertions.drain(..) {
+                bindings.insert(loc, binding.kind, binding.ty);
             }
         }
         Ok(())
@@ -479,21 +507,17 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
         };
-        let mut place = self.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
-        self.insertions
-            .push((loc, place, Binding { kind, ty: ty.clone() }));
+        let ty = self
+            .infcx
+            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .hoist(ty);
+        self.insertions.push((loc, Binding { kind, ty }));
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
         let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
-        let mut place = self.cursor.to_place();
-        place.projection.push(PlaceElem::Deref);
-        self.insertions.push((
-            loc,
-            place,
-            Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
-        ));
+        self.insertions
+            .push((loc, Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() }));
         loc
     }
 
@@ -615,8 +639,8 @@ where
 
     fn update(bindings: &mut PlacesTree, cursor: Cursor, new_ty: F) {
         let binding = bindings.get_loc_mut(&cursor.loc);
-        let lookup = Updater::new(cursor, new_ty);
-        binding.ty = lookup.fold_ty(&binding.ty);
+        let updater = Updater::new(cursor, new_ty);
+        binding.ty = updater.fold_ty(&binding.ty);
     }
 
     fn fold_ty(mut self, ty: &Ty) -> Ty {
@@ -628,8 +652,8 @@ where
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => self.fold_ty(ty),
             PlaceElem::Index(_) | PlaceElem::ConstantIndex { .. } => {
-                // When unblocking under an array/slice we stop at the array/slice because the entire
-                // array has to be blocked when taking references to an element
+                // When unblocking under an array/slice we stop at the array/slice because
+                // the entire array has to be blocked when taking references to an element
                 (self.new_ty)(self.cursor, ty)
             }
         }
@@ -684,20 +708,18 @@ where
 
 struct Cursor {
     loc: Loc,
-    place: Place,
     proj: Vec<PlaceElem>,
     pos: usize,
 }
 
 impl Cursor {
-    fn new(key: &impl LookupKey, place: Place) -> Self {
+    fn new(key: &impl LookupKey) -> Self {
         let proj = key.proj().rev().collect_vec();
         let pos = proj.len();
-        Self { loc: key.loc(), place, proj, pos }
+        Self { loc: key.loc(), proj, pos }
     }
 
     fn change_root(&mut self, path: &Path) {
-        self.place = self.to_place();
         self.proj.truncate(self.pos);
         self.proj.extend(
             path.projection()
@@ -708,14 +730,6 @@ impl Cursor {
         );
         self.loc = path.loc;
         self.pos = self.proj.len();
-    }
-
-    fn to_place(&self) -> Place {
-        let mut place = self.place.clone();
-        place
-            .projection
-            .extend(self.proj.iter().skip(self.pos).rev().copied());
-        place
     }
 
     fn to_path(&self) -> Path {
@@ -752,7 +766,7 @@ impl Cursor {
 
 impl fmt::Debug for Cursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{loc: {:?}, place: {:?}, proj: [", self.loc, self.place)?;
+        write!(f, "{{loc: {:?}, proj: [", self.loc)?;
         for (i, elem) in self.proj.iter().enumerate().rev() {
             if i < self.proj.len() - 1 {
                 write!(f, ", ")?;
@@ -866,7 +880,7 @@ fn fold(
     infcx: &mut InferCtxtAt,
     ty: &Ty,
     is_strg: bool,
-) -> CheckerResult<Ty> {
+) -> QueryResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
             let loc = path.to_loc().unwrap_or_else(|| tracked_span_bug!());
@@ -946,9 +960,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PrettyCx {
-            PrettyCx::default(tcx)
-                .kvar_args(KVarArgs::Hide)
-                .hide_binder(true)
+            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
         }
     }
 
@@ -958,6 +970,7 @@ mod pretty {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!("[box]"),
+                LocKind::LocalPtr(ty) => w!("[local-ptr({ty:?})]"),
             }
         }
     }

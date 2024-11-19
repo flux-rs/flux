@@ -53,7 +53,7 @@ pub TyAlias: surface::TyAlias = {
     <ident:Ident>
     <mut generics:GenericsWithAngleBrackets>
     <params:("(" <RefineParams<"!">> ")")?>
-    <refined_by:("[" <RefineParams<"!">> "]")?>
+    <index:("[" <RefineParam<"!">> "]")?>
     "="
     <ty:Ty>
     <hi:@R> => {
@@ -61,7 +61,7 @@ pub TyAlias: surface::TyAlias = {
             ident,
             generics,
             params: params.unwrap_or_default(),
-            refined_by: refined_by.unwrap_or_default(),
+            index,
             ty,
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi)
@@ -368,6 +368,25 @@ pub Ty: surface::Ty = {
     }
 }
 
+ConstArg: surface::ConstArg = {
+   <lo:@L> <lit:Lit> <hi:@R> =>? {
+       let span = cx.map_span(lo, hi);
+       let mut kind = surface::ConstArgKind::Infer;
+       if let surface::LitKind::Integer = lit.kind {
+        if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
+            let kind = surface::ConstArgKind::Lit(val);
+            return Ok(surface::ConstArg { kind, span });
+        }
+       }
+       Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+   },
+   <lo:@L> "_" <hi:@R> => {
+       let span = cx.map_span(lo, hi);
+       let kind = surface::ConstArgKind::Infer;
+       surface::ConstArg { kind, span }
+   }
+}
+
 TyKind: surface::TyKind = {
     "_"                                               => surface::TyKind::Hole,
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
@@ -381,14 +400,8 @@ TyKind: surface::TyKind = {
     "&" <ty:Ty>                     => surface::TyKind::Ref(surface::Mutability::Not, Box::new(ty)),
     "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::Mutability::Mut, Box::new(ty)),
 
-    "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
-        let span = cx.map_span(lo, hi);
-        if let surface::LitKind::Integer = lit.kind {
-            if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
-                return Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }));
-            }
-        }
-        Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    "[" <ty:Ty> ";" <len:ConstArg> "]" =>? {
+        return Ok(surface::TyKind::Array(Box::new(ty), len));
     },
 
     "impl" <bounds:GenericBounds> => surface::TyKind::ImplTrait(cx.next_node_id(), bounds),

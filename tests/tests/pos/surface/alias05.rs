@@ -1,7 +1,9 @@
-#[flux::alias(type Nat[n: int] = {i32[n] | 0 <= n})]
+// Test we convert existential in type aliases into type constructors
+
+#[flux::alias(type Nat = i32{n: 0 <= n})]
 type Nat = i32;
 
-#[flux::alias(type Lb(n: int)[v: int] = {i32[v] | n <= v})]
+#[flux::alias(type Lb(n: int) = i32{v: n <= v})]
 type Lb = i32;
 
 #[flux::sig(fn(x: Nat) -> Nat)]
