@@ -4,11 +4,11 @@
 //! types in [`rty`].
 
 use flux_arc_interner::List;
-use flux_common::{bug, tracked_span_assert_eq};
+use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
 use rustc_hir::{def::DefKind, def_id::DefId};
-use rustc_middle::ty::{ClosureKind, ParamTy};
+use rustc_middle::ty::ParamTy;
 use rustc_target::abi::VariantIdx;
 
 use super::fold::TypeFoldable;
@@ -114,32 +114,20 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub(crate) fn refine_clauses(&self, clauses: &[ty::Clause]) -> QueryResult<List<rty::Clause>> {
         let clauses = clauses
             .iter()
-            .flat_map(|clause| self.refine_clause(clauses, clause).transpose())
+            .flat_map(|clause| self.refine_clause(clause).transpose())
             .try_collect()?;
 
         Ok(clauses)
     }
 
-    /// https://www.google.com
-    fn refine_clause(
-        &self,
-        clauses: &[ty::Clause],
-        clause: &ty::Clause,
-    ) -> QueryResult<Option<rty::Clause>> {
+    fn refine_clause(&self, clause: &ty::Clause) -> QueryResult<Option<rty::Clause>> {
         let kind = match &clause.kind.as_ref().skip_binder() {
             ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = &trait_pred.trait_ref;
-                // if let Some(kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
-                //     self.refine_fn_trait_pred(clauses, kind, trait_ref)?
-                // } else {
                 let pred = rty::TraitPredicate { trait_ref: self.refine_trait_ref(trait_ref)? };
                 rty::ClauseKind::Trait(pred)
-                // }
             }
             ty::ClauseKind::Projection(proj_pred) => {
-                // if self.genv.is_fn_once_output(proj_pred.projection_ty.def_id) {
-                //     return Ok(None);
-                // }
                 let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&proj_pred.term)? else {
                     return Err(query_bug!(
                         self.def_id,
@@ -164,32 +152,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let kind = rty::Binder::bind_with_vars(kind, List::empty());
         Ok(Some(rty::Clause { kind }))
     }
-
-    // fn refine_fn_trait_pred(
-    //     &self,
-    //     clauses: &[ty::Clause],
-    //     kind: ClosureKind,
-    //     trait_ref: &ty::TraitRef,
-    // ) -> QueryResult<rty::ClauseKind> {
-    //     let mut candidates = vec![];
-    //     for clause in clauses {
-    //         if let ty::ClauseKind::Projection(trait_pred) = &clause.kind.as_ref().skip_binder()
-    //             && self.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
-    //             && trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
-    //         {
-    //             candidates.push(trait_pred);
-    //         }
-    //     }
-    //     tracked_span_assert_eq!(candidates.len(), 1);
-    //     let pred = candidates.first().unwrap();
-    //     let pred = rty::FnTraitPredicate {
-    //         kind,
-    //         self_ty: self.refine_ty(trait_ref.args[0].expect_type())?,
-    //         tupled_args: self.refine_ty(trait_ref.args[1].expect_type())?,
-    //         output: self.refine_ty(&pred.term)?,
-    //     };
-    //     Ok(rty::ClauseKind::FnTrait(pred))
-    // }
 
     pub fn refine_existential_predicate(
         &self,

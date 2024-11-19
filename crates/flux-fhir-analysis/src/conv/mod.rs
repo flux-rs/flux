@@ -674,17 +674,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         for bound in bounds {
             match bound {
                 fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) => {
-                    // let trait_id = poly_trait_ref.trait_def_id();
-                    // if let Some(closure_kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_id)
-                    // {
-                    //     self.conv_fn_bound(
-                    //         env,
-                    //         &bounded_ty,
-                    //         poly_trait_ref,
-                    //         closure_kind,
-                    //         &mut clauses,
-                    //     )?;
-                    // } else {
                     self.conv_poly_trait_ref(
                         env,
                         bounded_ty_span,
@@ -692,7 +681,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                         poly_trait_ref,
                         &mut clauses,
                     )?;
-                    // }
                 }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft);
@@ -802,37 +790,6 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .into();
 
         clauses.push(clause);
-        Ok(())
-    }
-
-    fn conv_fn_bound(
-        &mut self,
-        env: &mut Env,
-        self_ty: &rty::Ty,
-        trait_ref: &fhir::PolyTraitRef,
-        kind: rty::ClosureKind,
-        clauses: &mut Vec<rty::Clause>,
-    ) -> QueryResult {
-        let path = &trait_ref.trait_ref;
-        let layer = Layer::list(self.results(), trait_ref.bound_generic_params.len() as u32, &[]);
-        env.push_layer(layer);
-
-        let fhir::AssocItemConstraintKind::Equality { term } =
-            &path.last_segment().constraints[0].kind;
-
-        let pred = rty::FnTraitPredicate {
-            self_ty: self_ty.clone(),
-            tupled_args: self.conv_ty(env, path.last_segment().args[0].expect_type())?,
-            output: self.conv_ty(env, term)?,
-            kind,
-        };
-        // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
-        let vars = trait_ref
-            .bound_generic_params
-            .iter()
-            .map(|param| self.param_as_bound_var(param))
-            .try_collect_vec()?;
-        // clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         Ok(())
     }
 

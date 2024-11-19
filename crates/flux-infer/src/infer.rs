@@ -760,21 +760,16 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_ty(infcx, bty, pred.projection_ty.def_id)?;
+                    let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
+                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+                        .to_ty()
+                        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
             }
         }
         Ok(())
-    }
-
-    fn project_ty(infcx: &InferCtxt, self_ty: &BaseTy, assoc_item_id: DefId) -> InferResult<Ty> {
-        let args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
-        let alias_ty = rty::AliasTy::new(assoc_item_id, args, List::empty());
-        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty)
-            .to_ty()
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?)
     }
 }
 

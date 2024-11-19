@@ -38,12 +38,10 @@ use flux_rustc_bridge::{
     ty::{self, VariantDef},
     ToRustc,
 };
-use flux_syntax::surface::Trait;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use refining::Refiner;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
@@ -282,6 +280,9 @@ impl Clause {
         self.kind.clone().skip_binder()
     }
 
+    /// Match together `Fn` trait clauses with their corresponding `FnOnce::Output` projection
+    /// predicate. This assumes there's exactly one corresponding projection predicate and will
+    /// crash otherwise
     pub fn split_off_fn_trait_clauses(
         genv: GlobalEnv,
         clauses: &Clauses,
@@ -508,10 +509,6 @@ pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
 impl PolyProjectionPredicate {
     fn projection_def_id(&self) -> DefId {
         self.skip_binder_ref().projection_ty.def_id
-    }
-
-    fn term(&self) -> Binder<SubsetTyCtor> {
-        self.clone().map(|predicate| predicate.term)
     }
 
     pub fn self_ty(&self) -> Binder<SubsetTyCtor> {
@@ -1668,10 +1665,23 @@ impl AliasTy {
     pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
         AliasTy { args, refine_args, def_id }
     }
+}
 
-    /// This method work only with associated type projections (i.e., no opaque tpes)
+/// This methods work only with associated type projections (i.e., no opaque types)
+impl AliasTy {
     pub fn self_ty(&self) -> SubsetTyCtor {
         self.args[0].expect_base().clone()
+    }
+
+    pub fn with_self_ty(&self, self_ty: SubsetTyCtor) -> Self {
+        Self {
+            def_id: self.def_id,
+            args: [GenericArg::Base(self_ty)]
+                .into_iter()
+                .chain(self.args.iter().skip(1).cloned())
+                .collect(),
+            refine_args: self.refine_args.clone(),
+        }
     }
 }
 
