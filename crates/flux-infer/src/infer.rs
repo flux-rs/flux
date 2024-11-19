@@ -59,6 +59,10 @@ pub enum ConstrReason {
     Goto(BasicBlock),
     Overflow,
     Other,
+    SubtypeIn,
+    SubtypeReq,
+    SubtypeOut,
+    SubtypeEns,
 }
 
 pub struct InferCtxtRoot<'genv, 'tcx> {

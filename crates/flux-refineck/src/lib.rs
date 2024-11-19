@@ -207,9 +207,13 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
     for err in errors {
         let span = err.src_span;
         e = Some(match err.reason {
-            ConstrReason::Call => call_error(genv, span, err.dst_span),
+            ConstrReason::Call | ConstrReason::SubtypeIn | ConstrReason::SubtypeReq => {
+                call_error(genv, span, err.dst_span)
+            }
             ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
-            ConstrReason::Ret => ret_error(genv, span, err.dst_span),
+            ConstrReason::Ret | ConstrReason::SubtypeOut | ConstrReason::SubtypeEns => {
+                ret_error(genv, span, err.dst_span)
+            }
             ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
             ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),

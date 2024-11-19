@@ -1,6 +1,6 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
@@ -283,31 +283,17 @@ fn check_fn_subtyping(
     let mut env = TypeEnv::empty();
 
     // 3. INPUT subtyping (g-input <: f-input)
-    // TODO: Check requires predicates (?)
-    // for requires in fn_def_sig.requires() {
-    //     at.check_pred(requires, ConstrReason::Call);
-    // }
-    if !sub_sig.requires().is_empty() {
-        span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
+    for requires in super_sig.requires() {
+        infcx.assume_pred(requires);
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
         infcx
-            .fun_arg_subtyping(&mut env, &actual, formal, ConstrReason::Call)
+            .fun_arg_subtyping(&mut env, &actual, formal, ConstrReason::SubtypeIn)
             .with_span(span)?;
-
-        // let (formal, pred) = formal.unconstr();
-        // infcx.check_pred(&pred, ConstrReason::Call);
-        // // see: TODO(pack-closure)
-        // match (actual.kind(), formal.kind()) {
-        //     (TyKind::Ptr(rty::PtrKind::Mut(_), _), _) => {
-        //         bug!("Not yet handled: FnDef subtyping with Ptr");
-        //     }
-        //     _ => {
-        //         infcx
-        //             .subtyping(&actual, &formal, ConstrReason::Call)
-        //             .with_span(span)?;
-        //     }
-        // }
+    }
+    // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
+    for requires in sub_sig.requires() {
+        infcx.check_pred(requires, ConstrReason::SubtypeReq);
     }
 
     // 4. Plug in the EVAR solution / replace evars
@@ -325,15 +311,12 @@ fn check_fn_subtyping(
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
     infcx
-        .subtyping(&output.ret, &super_output.ret, ConstrReason::Ret)
+        .subtyping(&output.ret, &super_output.ret, ConstrReason::SubtypeOut)
         .with_span(span)?;
 
-    // println!("TRACE: check_fn_subtyping (0): {env:?}");
-    // // 6. Update state with Output "ensures"
+    // 6. Update state with Output "ensures" and check super ensures
     update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
-    // println!("TRACE: check_fn_subtyping (1): {env:?}");
-    // // 7. Check ensures predicates
-    check_ensures(&mut infcx, &mut env, &super_output, span)?;
+    check_ensures(&mut infcx, &mut env, &super_output, ConstrReason::SubtypeEns, span)?;
 
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
@@ -360,13 +343,18 @@ fn update_ensures(
     Ok(())
 }
 
-fn check_ensures(at: &mut InferCtxtAt, env: &mut TypeEnv, output: &FnOutput, span: Span) -> Result {
+fn check_ensures(
+    at: &mut InferCtxtAt,
+    env: &mut TypeEnv,
+    output: &FnOutput,
+    reason: ConstrReason,
+    span: Span,
+) -> Result {
     for constraint in &output.ensures {
         match constraint {
             Ensures::Type(path, ty) => {
                 let actual_ty = env.get(path);
-                at.subtyping(&actual_ty, ty, ConstrReason::Ret)
-                    .with_span(span)?;
+                at.subtyping(&actual_ty, ty, reason).with_span(span)?;
             }
             Ensures::Pred(e) => {
                 at.check_pred(e, ConstrReason::Ret);
@@ -782,7 +770,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
             .with_span(span)?;
 
-        check_ensures(&mut at, env, &output, span)?;
+        check_ensures(&mut at, env, &output, ConstrReason::Ret, span)?;
 
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
