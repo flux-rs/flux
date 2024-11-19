@@ -609,10 +609,6 @@
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_arc_interner::List;
@@ -843,12 +839,8 @@
                     .skip_binder();
 
                 <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(impl_def_id);
-                <span class="comment">// eprintln!();
-                // eprintln!("{:#?}", generics);
-                // eprintln!("{:?}", impl_trait_ref.args);
-                // eprintln!("{:?}", obligation.args);
 
-                </span><span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
+                <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
                 <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>obligation.args) {
                     subst.generic_args(a, b);
                 }

@@ -2351,46 +2351,6 @@
 <a href="#2351" id="2351">2351</a>
 <a href="#2352" id="2352">2352</a>
 <a href="#2353" id="2353">2353</a>
-<a href="#2354" id="2354">2354</a>
-<a href="#2355" id="2355">2355</a>
-<a href="#2356" id="2356">2356</a>
-<a href="#2357" id="2357">2357</a>
-<a href="#2358" id="2358">2358</a>
-<a href="#2359" id="2359">2359</a>
-<a href="#2360" id="2360">2360</a>
-<a href="#2361" id="2361">2361</a>
-<a href="#2362" id="2362">2362</a>
-<a href="#2363" id="2363">2363</a>
-<a href="#2364" id="2364">2364</a>
-<a href="#2365" id="2365">2365</a>
-<a href="#2366" id="2366">2366</a>
-<a href="#2367" id="2367">2367</a>
-<a href="#2368" id="2368">2368</a>
-<a href="#2369" id="2369">2369</a>
-<a href="#2370" id="2370">2370</a>
-<a href="#2371" id="2371">2371</a>
-<a href="#2372" id="2372">2372</a>
-<a href="#2373" id="2373">2373</a>
-<a href="#2374" id="2374">2374</a>
-<a href="#2375" id="2375">2375</a>
-<a href="#2376" id="2376">2376</a>
-<a href="#2377" id="2377">2377</a>
-<a href="#2378" id="2378">2378</a>
-<a href="#2379" id="2379">2379</a>
-<a href="#2380" id="2380">2380</a>
-<a href="#2381" id="2381">2381</a>
-<a href="#2382" id="2382">2382</a>
-<a href="#2383" id="2383">2383</a>
-<a href="#2384" id="2384">2384</a>
-<a href="#2385" id="2385">2385</a>
-<a href="#2386" id="2386">2386</a>
-<a href="#2387" id="2387">2387</a>
-<a href="#2388" id="2388">2388</a>
-<a href="#2389" id="2389">2389</a>
-<a href="#2390" id="2390">2390</a>
-<a href="#2391" id="2391">2391</a>
-<a href="#2392" id="2392">2392</a>
-<a href="#2393" id="2393">2393</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2549,7 +2509,8 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Env {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Env {
     layers: Vec&lt;Layer&gt;,
     early_params: FxIndexMap&lt;fhir::ParamId, Symbol&gt;,
 }
@@ -3066,25 +3027,13 @@
         <span class="kw">for </span>bound <span class="kw">in </span>bounds {
             <span class="kw">match </span>bound {
                 fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) =&gt; {
-                    <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(closure_kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_id)
-                    {
-                        <span class="self">self</span>.conv_fn_bound(
-                            env,
-                            <span class="kw-2">&amp;</span>bounded_ty,
-                            poly_trait_ref,
-                            closure_kind,
-                            <span class="kw-2">&amp;mut </span>clauses,
-                        )<span class="question-mark">?</span>;
-                    } <span class="kw">else </span>{
-                        <span class="self">self</span>.conv_poly_trait_ref(
-                            env,
-                            bounded_ty_span,
-                            <span class="kw-2">&amp;</span>bounded_ty,
-                            poly_trait_ref,
-                            <span class="kw-2">&amp;mut </span>clauses,
-                        )<span class="question-mark">?</span>;
-                    }
+                    <span class="self">self</span>.conv_poly_trait_ref(
+                        env,
+                        bounded_ty_span,
+                        <span class="kw-2">&amp;</span>bounded_ty,
+                        poly_trait_ref,
+                        <span class="kw-2">&amp;mut </span>clauses,
+                    )<span class="question-mark">?</span>;
                 }
                 fhir::GenericBound::Outlives(lft) =&gt; {
                     <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
@@ -3114,6 +3063,10 @@
         poly_trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
+        <span class="kw">let </span>generic_params = <span class="kw-2">&amp;</span>poly_trait_ref.bound_generic_params;
+        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[]);
+        env.push_layer(layer);
+
         <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
@@ -3124,8 +3077,8 @@
             </span>.into()];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>vars = poly_trait_ref
-            .bound_generic_params
+        env.pop_layer();
+        <span class="kw">let </span>vars = generic_params
             .iter()
             .map(|param| <span class="self">self</span>.param_as_bound_var(param))
             .try_collect_vec()<span class="question-mark">?</span>;
@@ -3190,37 +3143,6 @@
             .into();
 
         clauses.push(clause);
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>conv_fn_bound(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
-        self_ty: <span class="kw-2">&amp;</span>rty::Ty,
-        trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
-        kind: rty::ClosureKind,
-        clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
-    ) -&gt; QueryResult {
-        <span class="kw">let </span>path = <span class="kw-2">&amp;</span>trait_ref.trait_ref;
-        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[]);
-        env.push_layer(layer);
-
-        <span class="kw">let </span>fhir::AssocItemConstraintKind::Equality { term } =
-            <span class="kw-2">&amp;</span>path.last_segment().constraints[<span class="number">0</span>].kind;
-
-        <span class="kw">let </span>pred = rty::FnTraitPredicate {
-            self_ty: self_ty.clone(),
-            tupled_args: <span class="self">self</span>.conv_ty(env, path.last_segment().args[<span class="number">0</span>].expect_type())<span class="question-mark">?</span>,
-            output: <span class="self">self</span>.conv_ty(env, term)<span class="question-mark">?</span>,
-            kind,
-        };
-        <span class="comment">// FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
-        </span><span class="kw">let </span>vars = trait_ref
-            .bound_generic_params
-            .iter()
-            .map(|param| <span class="self">self</span>.param_as_bound_var(param))
-            .try_collect_vec()<span class="question-mark">?</span>;
-        clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -3390,9 +3312,7 @@
                     projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
                 rty::ClauseKind::TypeOutlives(<span class="kw">_</span>) =&gt; {}
-                rty::ClauseKind::FnTrait(..)
-                | rty::ClauseKind::ConstArgHasType(..)
-                | rty::ClauseKind::CoroutineOblig(..) =&gt; {
+                rty::ClauseKind::ConstArgHasType(..) =&gt; {
                     <span class="macro">bug!</span>(<span class="string">"did not expect {pred:?} clause in object bounds"</span>);
                 }
             }

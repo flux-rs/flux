@@ -556,8 +556,6 @@
 <a href="#556" id="556">556</a>
 <a href="#557" id="557">557</a>
 <a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -571,10 +569,8 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            ClauseKind::FnTrait(pred) =&gt; <span class="macro">w!</span>(<span class="string">"FnTrait ({pred:?})"</span>),
             ClauseKind::Trait(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Trait ({pred:?})"</span>),
             ClauseKind::Projection(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Projection ({pred:?})"</span>),
-            ClauseKind::CoroutineOblig(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Projection ({pred:?})"</span>),
             ClauseKind::TypeOutlives(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Outlives ({:?}, {:?})"</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>),
             ClauseKind::ConstArgHasType(c, ty) =&gt; <span class="macro">w!</span>(<span class="string">"ConstArgHasType ({:?}, {:?})"</span>, c, ty),
         }

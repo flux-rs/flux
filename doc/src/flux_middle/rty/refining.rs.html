@@ -454,53 +454,17 @@
 <a href="#454" id="454">454</a>
 <a href="#455" id="455">455</a>
 <a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
 
 </span><span class="kw">use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq};
+<span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_rustc_bridge::{ty, ty::GenericArgsExt <span class="kw">as _</span>};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId};
-<span class="kw">use </span>rustc_middle::ty::{ClosureKind, ParamTy};
+<span class="kw">use </span>rustc_middle::ty::ParamTy;
 <span class="kw">use </span>rustc_target::abi::VariantIdx;
 
 <span class="kw">use </span><span class="kw">super</span>::fold::TypeFoldable;
@@ -606,31 +570,21 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_clauses(<span class="kw-2">&amp;</span><span class="self">self</span>, clauses: <span class="kw-2">&amp;</span>[ty::Clause]) -&gt; QueryResult&lt;List&lt;rty::Clause&gt;&gt; {
         <span class="kw">let </span>clauses = clauses
             .iter()
-            .flat_map(|clause| <span class="self">self</span>.refine_clause(clauses, clause).transpose())
+            .flat_map(|clause| <span class="self">self</span>.refine_clause(clause).transpose())
             .try_collect()<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(clauses)
     }
 
-    <span class="kw">fn </span>refine_clause(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        clauses: <span class="kw-2">&amp;</span>[ty::Clause],
-        clause: <span class="kw-2">&amp;</span>ty::Clause,
-    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Clause&gt;&gt; {
+    <span class="kw">fn </span>refine_clause(<span class="kw-2">&amp;</span><span class="self">self</span>, clause: <span class="kw-2">&amp;</span>ty::Clause) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Clause&gt;&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>clause.kind.as_ref().skip_binder() {
             ty::ClauseKind::Trait(trait_pred) =&gt; {
-                <span class="kw">let </span>trait_ref = <span class="kw-2">&amp;</span>trait_pred.trait_ref;
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
-                    <span class="self">self</span>.refine_fn_trait_pred(clauses, kind, trait_ref)<span class="question-mark">?
-                </span>} <span class="kw">else </span>{
-                    <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: <span class="self">self</span>.refine_trait_ref(trait_ref)<span class="question-mark">? </span>};
-                    rty::ClauseKind::Trait(pred)
-                }
+                <span class="kw">let </span>pred = rty::TraitPredicate {
+                    trait_ref: <span class="self">self</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_pred.trait_ref)<span class="question-mark">?</span>,
+                };
+                rty::ClauseKind::Trait(pred)
             }
             ty::ClauseKind::Projection(proj_pred) =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.genv.is_fn_once_output(proj_pred.projection_ty.def_id) {
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
-                }
                 <span class="kw">let </span>rty::TyOrBase::Base(term) = <span class="self">self</span>.refine_ty_or_base(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">? </span><span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
                         <span class="self">self</span>.def_id,
@@ -654,32 +608,6 @@
         };
         <span class="kw">let </span>kind = rty::Binder::bind_with_vars(kind, List::empty());
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Clause { kind }))
-    }
-
-    <span class="kw">fn </span>refine_fn_trait_pred(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        clauses: <span class="kw-2">&amp;</span>[ty::Clause],
-        kind: ClosureKind,
-        trait_ref: <span class="kw-2">&amp;</span>ty::TraitRef,
-    ) -&gt; QueryResult&lt;rty::ClauseKind&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>clause <span class="kw">in </span>clauses {
-            <span class="kw">if let </span>ty::ClauseKind::Projection(trait_pred) = <span class="kw-2">&amp;</span>clause.kind.as_ref().skip_binder()
-                &amp;&amp; <span class="self">self</span>.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
-                &amp;&amp; trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
-            {
-                candidates.push(trait_pred);
-            }
-        }
-        <span class="macro">tracked_span_assert_eq!</span>(candidates.len(), <span class="number">1</span>);
-        <span class="kw">let </span>pred = candidates.first().unwrap();
-        <span class="kw">let </span>pred = rty::FnTraitPredicate {
-            kind,
-            self_ty: <span class="self">self</span>.refine_ty(trait_ref.args[<span class="number">0</span>].expect_type())<span class="question-mark">?</span>,
-            tupled_args: <span class="self">self</span>.refine_ty(trait_ref.args[<span class="number">1</span>].expect_type())<span class="question-mark">?</span>,
-            output: <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>pred.term)<span class="question-mark">?</span>,
-        };
-        <span class="prelude-val">Ok</span>(rty::ClauseKind::FnTrait(pred))
     }
 
     <span class="kw">pub fn </span>refine_existential_predicate(

@@ -359,8 +359,8 @@
         <span class="self">self</span>.as_ref().skip_binder()
     }
 
-    <span class="kw">pub fn </span>rebind&lt;U&gt;(<span class="self">self</span>, value: U) -&gt; Binder&lt;U&gt; {
-        Binder { vars: <span class="self">self</span>.vars, value }
+    <span class="kw">pub fn </span>rebind&lt;U&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: U) -&gt; Binder&lt;U&gt; {
+        Binder { vars: <span class="self">self</span>.vars.clone(), value }
     }
 
     <span class="kw">pub fn </span>map&lt;U&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; U) -&gt; Binder&lt;U&gt; {
