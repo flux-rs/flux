@@ -462,6 +462,12 @@ pub struct Spread {
 }
 
 #[derive(Debug)]
+pub enum ConstructorArgs {
+    FieldExpr(FieldExpr),
+    Spread(Spread),
+}
+
+#[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     pub node_id: NodeId,
@@ -478,7 +484,7 @@ pub enum ExprKind {
     App(Ident, Vec<Expr>),
     Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
-    Constructor(ExprPath, Vec<FieldExpr>, Option<Spread>),
+    Constructor(ExprPath, Vec<ConstructorArgs>),
 }
 
 /// A [`Path`] but for refinement expressions

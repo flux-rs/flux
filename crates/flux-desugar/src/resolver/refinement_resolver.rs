@@ -7,7 +7,7 @@ use flux_middle::{
     ResolverOutput,
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, Ident, NodeId},
+    surface::{self, visit::Visitor as _, ConstructorArgs, Ident, NodeId},
     walk_list,
 };
 use rustc_data_structures::{
@@ -296,11 +296,18 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_func(*func, expr.node_id);
             }
             surface::ExprKind::Dot(path, _) => self.on_path(path),
-            surface::ExprKind::Constructor(path, _, spread) => {
+            surface::ExprKind::Constructor(path, args) => {
+                // walk constructor path
                 self.on_path(path);
-                if let Some(s) = spread {
-                    self.on_path(&s.path);
-                }
+                // walk spread if there is one
+                args.iter()
+                    .filter_map(|arg| {
+                        match arg {
+                            ConstructorArgs::FieldExpr(_) => None,
+                            ConstructorArgs::Spread(s) => Some(s),
+                        }
+                    })
+                    .for_each(|arg| self.on_path(&arg.path));
             }
             _ => {}
         }

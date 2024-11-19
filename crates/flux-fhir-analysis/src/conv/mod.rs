@@ -1639,17 +1639,49 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         struct_def_id: DefId,
         env: &mut Env,
         exprs: &[fhir::FieldExpr],
-        _spread: &Option<fhir::Spread>,
+        spread: &Option<fhir::Spread>,
     ) -> QueryResult<List<rty::Expr>> {
         let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
-        let field_names = struct_adt.field_names();
+        let sort_and_idx_by_field = struct_adt.sort_and_idx_by_field_name();
+        let mut used_fields = FxHashSet::default();
         let mut assns = Vec::new();
         for expr_val in exprs {
             let field_symbol = expr_val.ident.name;
-            let pos = field_names.iter().position(|s| *s == field_symbol);
-            if let Some(idx) = pos {
+            if let Some((idx, _)) = sort_and_idx_by_field.get(&field_symbol) {
                 assns.push((self.conv_expr(env, &expr_val.expr)?, idx))
             }
+            used_fields.replace(field_symbol);
+        }
+        if let Some(spread) = spread {
+            // compute the unused fields and
+            // create projections from unused fields
+            // and push them into assignments
+            sort_and_idx_by_field
+                .iter()
+                .filter_map(|(fld, (idx, _))| {
+                    match used_fields.get(fld) {
+                        None => {
+                            match spread.path.res {
+                                ExprRes::Param(..) => {
+                                    let expr = env.lookup(&spread.path).to_expr();
+                                    let proj = rty::FieldProj::Adt {
+                                        def_id: struct_def_id,
+                                        field: *idx as u32,
+                                    };
+                                    Some((rty::Expr::field_proj(expr, proj), idx))
+                                }
+                                _ => {
+                                    span_bug!(
+                                        spread.span,
+                                        "unexpected path in constructor's spread after desugaring"
+                                    )
+                                }
+                            }
+                        }
+                        Some(_) => None,
+                    }
+                })
+                .for_each(|proj| assns.push(proj));
         }
         assns.sort_by(|lhs, rhs| lhs.1.cmp(&rhs.1));
         Ok(assns.into_iter().map(|x| x.0).collect())

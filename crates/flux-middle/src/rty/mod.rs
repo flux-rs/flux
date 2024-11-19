@@ -40,6 +40,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
+use rustc_hash::FxHashMap;
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
@@ -114,14 +115,27 @@ impl AdtSortDef {
         &self.0.field_names
     }
 
-    pub fn sort_by_field_name(&self) -> HashMap<Symbol, &Sort> {
-        let mut map = HashMap::new();
+    pub fn sort_by_field_name(&self) -> FxHashMap<Symbol, &Sort> {
+        let mut map = FxHashMap::default();
         self.0
             .sorts
             .iter()
             .zip(self.0.field_names.iter())
             .for_each(|(sort, field_name)| {
                 map.insert(*field_name, sort);
+            });
+        map
+    }
+
+    pub fn sort_and_idx_by_field_name(&self) -> HashMap<Symbol, (usize, &Sort)> {
+        let mut map = HashMap::new();
+        self.0
+            .sorts
+            .iter()
+            .zip(self.0.field_names.iter())
+            .enumerate()
+            .for_each(|(idx, (sort, field_name))| {
+                map.insert(*field_name, (idx, sort));
             });
         map
     }

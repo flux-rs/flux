@@ -1,11 +1,11 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
-    ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
-    GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment,
-    Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft,
-    TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, ConstructorArgs, Ensures, EnumDef,
+    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
+    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
+    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
+    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -153,8 +153,11 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_field_expr(&mut self, expr: &FieldExpr) {
-        walk_field_expr(self, expr);
+    fn visit_constructor_args(&mut self, expr: &ConstructorArgs) {
+        match expr {
+            ConstructorArgs::FieldExpr(field_expr) => walk_field_expr(self, field_expr),
+            ConstructorArgs::Spread(spread) => walk_path_expr(self, &spread.path),
+        }
     }
 
     fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
@@ -498,12 +501,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
-        ExprKind::Constructor(path, exprs, spread) => {
+        ExprKind::Constructor(path, exprs) => {
             vis.visit_path_expr(path);
-            walk_list!(vis, visit_field_expr, exprs);
-            if let Some(s) = spread {
-                vis.visit_path_expr(&s.path);
-            }
+            walk_list!(vis, visit_constructor_args, exprs);
         }
     }
 }
