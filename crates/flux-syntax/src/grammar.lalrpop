@@ -562,9 +562,9 @@ ConstructorArgs: surface::ConstructorArgs = {
 	    span: cx.map_span(lo, hi)
 	})
     },
-    <lo:@L> ".." <spread:ExprPath> <hi:@L> => {
+    <lo:@L> ".." <spread:Level1<"true">> <hi:@L> => {
     	surface::ConstructorArgs::Spread(surface::Spread {
-	    path: spread,
+	    expr: spread,
 	    node_id: cx.next_node_id(),
 	    span: cx.map_span(lo, hi)
 	})

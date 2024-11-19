@@ -156,7 +156,7 @@ pub trait Visitor: Sized {
     fn visit_constructor_args(&mut self, expr: &ConstructorArgs) {
         match expr {
             ConstructorArgs::FieldExpr(field_expr) => walk_field_expr(self, field_expr),
-            ConstructorArgs::Spread(spread) => walk_path_expr(self, &spread.path),
+            ConstructorArgs::Spread(spread) => self.visit_expr(&spread.expr),
         }
     }
 

@@ -16,9 +16,6 @@ desugar_invalid_dot_var =
 desugar_invalid_constructor_path =
     invalid use of path in constructor
 
-desugar_invalid_constructor_spread =
-    invalid spread in constructor
-
 desugar_invalid_func_as_var =
     invalid use of function
     .label = function not supported in this position

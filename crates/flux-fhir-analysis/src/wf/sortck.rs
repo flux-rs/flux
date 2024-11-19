@@ -88,7 +88,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         &mut self,
         expr_span: Span,
         field_exprs: &[fhir::FieldExpr],
-        spread: &Option<fhir::Spread>,
+        spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), _) = expected {
@@ -112,20 +112,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             if let Some(spread) = spread {
                 // must check that the spread is of the same sort as the constructor
-                match spread.path.res {
-                    ExprRes::Param(_, id) => {
-                        let found = self.param_sort(id);
-                        if !self.is_coercible(&found, expected, spread.fhir_id) {
-                            return Err(self.emit_sort_mismatch(spread.span, &expected, &found));
-                        }
-                    }
-                    _ => {
-                        span_bug!(
-                            spread.span,
-                            "unexpected path in constructor's spread after desugaring"
-                        )
-                    }
-                }
+                self.check_expr(&spread.expr, expected)?;
                 Ok(())
             } else if sort_by_field_name.len() != used_fields.len() {
                 // emit an error because all fields are not used

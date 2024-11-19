@@ -496,7 +496,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_path_expr(&path);
             walk_list!(vis, visit_field_expr, exprs);
             if let Some(s) = spread {
-                vis.visit_path_expr(&s.path);
+                vis.visit_expr(&s.expr);
             }
         }
     }

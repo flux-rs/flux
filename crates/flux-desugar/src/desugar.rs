@@ -1425,16 +1425,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     None
                 } else if spreads.len() == 1 {
                     let s = spreads[0];
-                    Some(fhir::Spread {
-                        path: self.desugar_spread_path(&s.path)?,
+                    let spread = fhir::Spread {
+                        expr: self.desugar_expr(&s.expr)?,
                         span: s.span,
                         fhir_id: self.next_fhir_id(),
-                    })
+                    };
+                    Some(self.genv().alloc(spread))
                 } else {
                     // Multiple spreads found - emit and error
                     return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
-                        &spreads[1].path,
-                        &spreads[0].path,
+                        spreads[1].span,
+                        spreads[0].span,
                     )));
                 };
                 fhir::ExprKind::Constructor(path, field_exprs, spread)
@@ -1442,18 +1443,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         };
 
         Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })
-    }
-
-    fn desugar_spread_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {
-        let res = self.resolver_output().expr_path_res_map[&path.node_id];
-        if let ExprRes::Param(..) = res {
-            let segments = self
-                .genv()
-                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: path.span })
-        } else {
-            Err(self.emit_err(errors::InvalidConstructorSpread { span: path.span }))
-        }
     }
 
     fn desugar_constructor_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {

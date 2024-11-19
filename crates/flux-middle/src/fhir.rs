@@ -911,7 +911,7 @@ pub struct FieldExpr<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Spread<'fhir> {
-    pub path: PathExpr<'fhir>,
+    pub expr: Expr<'fhir>,
     pub span: Span,
     pub fhir_id: FhirId,
 }
@@ -935,7 +935,7 @@ pub enum ExprKind<'fhir> {
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
-    Constructor(PathExpr<'fhir>, &'fhir [FieldExpr<'fhir>], Option<Spread<'fhir>>),
+    Constructor(PathExpr<'fhir>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
 }
 
 impl<'fhir> Expr<'fhir> {

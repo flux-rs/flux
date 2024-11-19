@@ -456,7 +456,7 @@ pub struct FieldExpr {
 
 #[derive(Debug)]
 pub struct Spread {
-    pub path: ExprPath,
+    pub expr: Expr,
     pub span: Span,
     pub node_id: NodeId,
 }
