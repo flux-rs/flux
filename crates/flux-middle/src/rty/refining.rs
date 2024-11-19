@@ -123,8 +123,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     fn refine_clause(&self, clause: &ty::Clause) -> QueryResult<Option<rty::Clause>> {
         let kind = match &clause.kind.as_ref().skip_binder() {
             ty::ClauseKind::Trait(trait_pred) => {
-                let trait_ref = &trait_pred.trait_ref;
-                let pred = rty::TraitPredicate { trait_ref: self.refine_trait_ref(trait_ref)? };
+                let pred = rty::TraitPredicate {
+                    trait_ref: self.refine_trait_ref(&trait_pred.trait_ref)?,
+                };
                 rty::ClauseKind::Trait(pred)
             }
             ty::ClauseKind::Projection(proj_pred) => {

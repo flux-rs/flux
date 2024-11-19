@@ -959,7 +959,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
                 rty::ClauseKind::TypeOutlives(_) => {}
-                rty::ClauseKind::ConstArgHasType(..) | rty::ClauseKind::CoroutineOblig(..) => {
+                rty::ClauseKind::ConstArgHasType(..) => {
                     bug!("did not expect {pred:?} clause in object bounds");
                 }
             }

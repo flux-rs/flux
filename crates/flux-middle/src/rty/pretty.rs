@@ -13,7 +13,6 @@ impl Pretty for ClauseKind {
         match self {
             ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
             ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
-            ClauseKind::CoroutineOblig(pred) => w!("Projection ({pred:?})"),
             ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
             ClauseKind::ConstArgHasType(c, ty) => w!("ConstArgHasType ({:?}, {:?})", c, ty),
         }

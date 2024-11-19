@@ -281,9 +281,9 @@ impl Clause {
         self.kind.clone().skip_binder()
     }
 
-    /// Match together `Fn` trait clauses with their corresponding `FnOnce::Output` projection
+    /// Group `Fn` trait clauses with their corresponding `FnOnce::Output` projection
     /// predicate. This assumes there's exactly one corresponding projection predicate and will
-    /// crash otherwise
+    /// crash otherwise.
     pub fn split_off_fn_trait_clauses(
         genv: GlobalEnv,
         clauses: &Clauses,
@@ -299,7 +299,7 @@ impl Clause {
             } else if let Some(proj_clause) = clause.as_projection_clause()
                 && genv.is_fn_once_output(proj_clause.projection_def_id())
             {
-                fn_trait_output_clauses.push(proj_clause)
+                fn_trait_output_clauses.push(proj_clause);
             } else {
                 rest.push(clause.clone());
             }
@@ -342,12 +342,10 @@ pub type Clauses = List<Clause>;
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
 )]
 pub enum ClauseKind {
-    // FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
-    CoroutineOblig(CoroutineObligPredicate),
 }
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
