@@ -1,4 +1,4 @@
-use std::iter;
+use std::{collections::HashSet, iter};
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -91,46 +91,36 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            // these are ordered
-            let mut fields_remaining = sort_def.field_names().clone();
-            let mut sorts = sort_def.field_sorts(sort_args).to_vec();
-            // keep a list of used fields
-            let mut fields_used = Vec::with_capacity(fields_remaining.capacity());
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), _) = expected {
+            let sort_by_field_name = sort_def.sort_by_field_name();
+            let mut used_fields = HashSet::new();
+
             for expr in field_exprs {
                 // make sure that the field is actually a field
-                if let Some(idx) = fields_remaining.iter().position(|s| *s == expr.ident.name) {
-                    // check that field sort is the same as the expr sort
-                    let sort = &sorts[idx];
-                    let res = self.check_expr(&expr.expr, sort)?;
-                    // remove the field from spread
-                    fields_remaining.remove(idx);
-                    // remove the field from sorts so it is identical to fields_remaining
-                    sorts.remove(idx);
-                    // push the field onto used fields
-                    fields_used.push(expr.ident);
-                    res
+                if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
+                    self.check_expr(&expr.expr, sort)?;
                 } else {
-                    // emit an error because we have a mismatched field
-                    if let Some(idx) = fields_used.iter().position(|f| *f == expr.ident) {
-                        // duplicate field error
-                        return Err(self.emit_err(errors::DuplicateFieldUsed::new(
-                            expr.ident,
-                            fields_used[idx],
-                        )));
-                    } else {
-                        // non existent field found
-                        return Err(
-                            self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
-                        );
-                    }
+                    return Err(
+                        self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
+                    );
+                }
+                if let Some(old_field) = used_fields.replace(expr.ident) {
+                    return Err(
+                        self.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field))
+                    );
                 }
             }
             if let Some(_spread) = spread {
                 // must check that the spread is of the same sort as the constructor
                 todo!()
-            } else if fields_remaining.len() > 0 {
+            } else if sort_by_field_name.len() != used_fields.len() {
                 // emit an error because all fields are not used
+                let used_field_names: Vec<rustc_span::Symbol> =
+                    used_fields.into_iter().map(|k| k.name).collect();
+                let fields_remaining = sort_by_field_name
+                    .into_keys()
+                    .filter(|x| !used_field_names.contains(x))
+                    .collect();
                 return Err(self
                     .emit_err(errors::ConstructorMissingFields::new(expr_span, fields_remaining)));
             } else {

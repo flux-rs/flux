@@ -14,7 +14,7 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, collections::HashMap, hash::Hash, iter, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use evars::{EVar, EVarGen};
@@ -112,6 +112,18 @@ impl AdtSortDef {
 
     pub fn field_names(&self) -> &Vec<Symbol> {
         &self.0.field_names
+    }
+
+    pub fn sort_by_field_name(&self) -> HashMap<Symbol, &Sort> {
+        let mut map = HashMap::new();
+        self.0
+            .sorts
+            .iter()
+            .zip(self.0.field_names.iter())
+            .for_each(|(sort, field_name)| {
+                map.insert(*field_name, sort);
+            });
+        map
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
