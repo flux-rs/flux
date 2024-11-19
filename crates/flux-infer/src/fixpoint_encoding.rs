@@ -1120,7 +1120,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        // TODO: I understand zero of this
         let e = match sort {
             rty::Sort::Int | rty::Sort::Real | rty::Sort::Char | rty::Sort::Str => {
                 fixpoint::Expr::Atom(
