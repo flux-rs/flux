@@ -4,6 +4,7 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
+
 mod binder;
 pub mod canonicalize;
 pub mod evars;
