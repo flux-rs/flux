@@ -327,15 +327,16 @@ fn check_fn_subtyping(
     infcx
         .subtyping(&output.ret, &super_output.ret, ConstrReason::Ret)
         .with_span(span)?;
-    let evars_sol = infcx.pop_scope().with_span(span)?;
-    infcx.replace_evars(&evars_sol);
 
     // println!("TRACE: check_fn_subtyping (0): {env:?}");
     // // 6. Update state with Output "ensures"
-    // update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
+    update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
     // println!("TRACE: check_fn_subtyping (1): {env:?}");
     // // 7. Check ensures predicates
-    // check_ensures(&mut infcx, &mut env, &super_output, span)?;
+    check_ensures(&mut infcx, &mut env, &super_output, span)?;
+
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
 
     Ok(())
 }
@@ -869,16 +870,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
         update_ensures(infcx, env, &output, self.check_overflow())?;
-        // for ensures in &output.ensures {
-        //     match ensures {
-        //         Ensures::Type(path, updated_ty) => {
-        //             let updated_ty = infcx.unpack(updated_ty);
-        //             infcx.assume_invariants(&updated_ty, self.check_overflow());
-        //             env.update_path(path, updated_ty);
-        //         }
-        //         Ensures::Pred(e) => infcx.assume_pred(e),
-        //     }
-        // }
 
         fold_local_ptrs(infcx, env, span)?;
 
