@@ -1,7 +1,7 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, ConstructorArgs, Ensures, EnumDef,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArgs, Ensures, EnumDef,
     Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
     GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
     PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,

@@ -40,9 +40,8 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use refining::Refiner;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
