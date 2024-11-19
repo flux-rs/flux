@@ -1200,9 +1200,8 @@ mod pretty {
                 Constant::Int(i) => w!("{i}"),
                 Constant::Real(r) => w!("{}.0", ^r.0),
                 Constant::Bool(b) => w!("{b}"),
-                Constant::Str(sym) => w!("{sym}"),
-                Constant::Char(c) => panic!(),
-                // Constant::Char(char) => w!("{}", unsafe { char::from_u32_unchecked(*char) }),
+                Constant::Str(sym) => w!("\"{sym}\""),
+                Constant::Char(c) => write!(f, "\'{}\'", unsafe { char::from_u32_unchecked(*c) }),
             }
         }
     }

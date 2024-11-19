@@ -1,10 +1,10 @@
 /// This file defines the refinement rules for primitive operations.
 /// Flux needs to define how to reason about primitive operations on different
 /// [`BaseTy`]s. This is done by defining a set of rules for each operation.
-/// 
+///
 /// For example, equality checks depend on whether the `BaseTy` is treated as
 /// refineable or opaque.
-/// 
+///
 /// ```
 /// // Make the rules for `a == b`.
 /// fn mk_eq_rules() -> RuleMatcher<2> {

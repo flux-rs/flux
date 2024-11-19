@@ -1470,8 +1470,7 @@ impl fmt::Debug for Lit {
             Lit::Real(r) => write!(f, "{r}real"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
-            Lit::Char(c) => write!(f, "\"{c:?}\""),
-            // Lit::Char(c) => write!(f, "\"{char::from_u32(c)}\""),
+            Lit::Char(c) => write!(f, "\'{}\'", unsafe { char::from_u32_unchecked(*c) }),
         }
     }
 }

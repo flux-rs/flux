@@ -198,6 +198,7 @@ pub enum StatementKind {
     Nop,
 }
 
+/// Corresponds to https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html
 pub enum Rvalue {
     Use(Operand),
     Repeat(Operand, Const),
@@ -749,7 +750,7 @@ impl fmt::Debug for Constant {
             Constant::Bool(b) => write!(f, "{b}"),
             Constant::Unit => write!(f, "()"),
             Constant::Str(s) => write!(f, "\"{s:?}\""),
-            Constant::Char(c) => write!(f, "\"{}\"", unsafe { char::from_u32_unchecked(*c) }),
+            Constant::Char(c) => write!(f, "\'{}\'", unsafe { char::from_u32_unchecked(*c) }),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
             Constant::Param(p, _) => write!(f, "{:?}", p),
         }
