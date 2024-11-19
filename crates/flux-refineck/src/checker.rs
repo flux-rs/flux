@@ -749,7 +749,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(infcx, &obligations, span)
+        self.check_coroutine_obligations(infcx, obligations)
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -795,11 +795,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
+        let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
-        self.check_closure_clauses(infcx, &clauses, span)?;
+        self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -847,27 +848,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(output.ret)
     }
 
-    fn check_oblig_generator_pred(
+    fn check_coroutine_obligations(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        gen_pred: CoroutineObligPredicate,
+        obligs: Vec<Binder<CoroutineObligPredicate>>,
     ) -> Result {
-        #[expect(clippy::disallowed_methods, reason = "generators cannot be extern speced")]
-        let def_id = gen_pred.def_id.expect_local();
-        let span = self.genv.tcx().def_span(def_id);
-        let body = self.genv.mir(def_id).with_span(span)?;
-        Checker::run(
-            infcx.change_item(def_id, &body.infcx),
-            def_id,
-            self.inherited.reborrow(),
-            gen_pred.to_poly_fn_sig(),
-        )
+        for oblig in obligs {
+            // FIXME(nilehmann) we shouldn't be skipping this binder
+            let oblig = oblig.skip_binder();
+
+            #[expect(clippy::disallowed_methods, reason = "coroutines cannot be extern speced")]
+            let def_id = oblig.def_id.expect_local();
+            let span = self.genv.tcx().def_span(def_id);
+            let body = self.genv.mir(def_id).with_span(span)?;
+            Checker::run(
+                infcx.change_item(def_id, &body.infcx),
+                def_id,
+                self.inherited.reborrow(),
+                oblig.to_poly_fn_sig(),
+            )?;
+        }
+        Ok(())
     }
 
-    fn check_oblig_fn_trait_pred(
+    fn check_fn_trait_clause(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        fn_trait_pred: FnTraitPredicate,
+        fn_trait_pred: &FnTraitPredicate,
         span: Span,
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
@@ -904,22 +911,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_closure_clauses(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        clauses: &[Clause],
+        clauses: &[Binder<FnTraitPredicate>],
         span: Span,
     ) -> Result {
         for clause in clauses {
-            match clause.kind_skipping_binder() {
-                rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    self.check_oblig_fn_trait_pred(infcx, fn_trait_pred, span)?;
-                }
-                rty::ClauseKind::CoroutineOblig(gen_pred) => {
-                    self.check_oblig_generator_pred(infcx, gen_pred)?;
-                }
-                rty::ClauseKind::Projection(_)
-                | rty::ClauseKind::Trait(_)
-                | rty::ClauseKind::TypeOutlives(_)
-                | rty::ClauseKind::ConstArgHasType(_, _) => {}
-            }
+            // FIXME(nilehmann) we shouldn't be skipping this binder
+            let clause = clause.skip_binder_ref();
+
+            self.check_fn_trait_clause(infcx, clause, span)?;
         }
         Ok(())
     }

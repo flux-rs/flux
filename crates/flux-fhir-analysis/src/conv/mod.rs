@@ -673,25 +673,25 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         for bound in bounds {
             match bound {
                 fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) => {
-                    let trait_id = poly_trait_ref.trait_def_id();
-                    if let Some(closure_kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_id)
-                    {
-                        self.conv_fn_bound(
-                            env,
-                            &bounded_ty,
-                            poly_trait_ref,
-                            closure_kind,
-                            &mut clauses,
-                        )?;
-                    } else {
-                        self.conv_poly_trait_ref(
-                            env,
-                            bounded_ty_span,
-                            &bounded_ty,
-                            poly_trait_ref,
-                            &mut clauses,
-                        )?;
-                    }
+                    // let trait_id = poly_trait_ref.trait_def_id();
+                    // if let Some(closure_kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_id)
+                    // {
+                    //     self.conv_fn_bound(
+                    //         env,
+                    //         &bounded_ty,
+                    //         poly_trait_ref,
+                    //         closure_kind,
+                    //         &mut clauses,
+                    //     )?;
+                    // } else {
+                    self.conv_poly_trait_ref(
+                        env,
+                        bounded_ty_span,
+                        &bounded_ty,
+                        poly_trait_ref,
+                        &mut clauses,
+                    )?;
+                    // }
                 }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft);
@@ -827,7 +827,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             .iter()
             .map(|param| self.param_as_bound_var(param))
             .try_collect_vec()?;
-        clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
+        // clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         Ok(())
     }
 
@@ -997,9 +997,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
                 rty::ClauseKind::TypeOutlives(_) => {}
-                rty::ClauseKind::FnTrait(..)
-                | rty::ClauseKind::ConstArgHasType(..)
-                | rty::ClauseKind::CoroutineOblig(..) => {
+                rty::ClauseKind::ConstArgHasType(..) | rty::ClauseKind::CoroutineOblig(..) => {
                     bug!("did not expect {pred:?} clause in object bounds");
                 }
             }

@@ -330,7 +330,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult<Vec<rty::Clause>> {
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut sub = Sub::new(reason, self.span);
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
@@ -441,7 +441,7 @@ struct Sub {
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
     /// directly here. The implementation is really messy and we may be missing some obligations.
-    obligations: Vec<rty::Clause>,
+    obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
 }
 
 impl Sub {
@@ -784,19 +784,19 @@ fn mk_coroutine_obligations(
     resume_ty: &Ty,
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
-) -> InferResult<Vec<rty::Clause>> {
+) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
-        if let rty::ClauseKind::Projection(proj) = bound.kind_skipping_binder() {
-            let output = proj.term;
-            let pred = CoroutineObligPredicate {
-                def_id: *generator_did,
-                resume_ty: resume_ty.clone(),
-                upvar_tys: upvar_tys.clone(),
-                output: output.to_ty(),
-            };
-            let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
-            return Ok(vec![clause]);
+        if let Some(proj_clause) = bound.as_projection_clause() {
+            return Ok(vec![proj_clause.map(|proj_clause| {
+                let output = proj_clause.term;
+                CoroutineObligPredicate {
+                    def_id: *generator_did,
+                    resume_ty: resume_ty.clone(),
+                    upvar_tys: upvar_tys.clone(),
+                    output: output.to_ty(),
+                }
+            })]);
         }
     }
     bug!("no projection predicate")

@@ -101,8 +101,8 @@ impl<T> Binder<T> {
         self.as_ref().skip_binder()
     }
 
-    pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars, value }
+    pub fn rebind<U>(&self, value: U) -> Binder<U> {
+        Binder { vars: self.vars.clone(), value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {

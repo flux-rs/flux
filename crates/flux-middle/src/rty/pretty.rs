@@ -11,7 +11,6 @@ impl Pretty for ClauseKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(_cx, f);
         match self {
-            ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
             ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
             ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
             ClauseKind::CoroutineOblig(pred) => w!("Projection ({pred:?})"),
