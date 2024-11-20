@@ -1361,22 +1361,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     })
                     .collect::<Vec<&Spread>>();
 
-                let spread = if spreads.len() == 0 {
-                    None
-                } else if spreads.len() == 1 {
-                    let s = spreads[0];
-                    let spread = fhir::Spread {
-                        expr: self.desugar_expr(&s.expr)?,
-                        span: s.span,
-                        fhir_id: self.next_fhir_id(),
-                    };
-                    Some(self.genv().alloc(spread))
-                } else {
-                    // Multiple spreads found - emit and error
-                    return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
-                        spreads[1].span,
-                        spreads[0].span,
-                    )));
+                let spread = match &spreads[..] {
+                    [] => None,
+                    [s] => {
+                        let spread = fhir::Spread {
+                            expr: self.desugar_expr(&s.expr)?,
+                            span: s.span,
+                            fhir_id: self.next_fhir_id(),
+                        };
+                        Some(self.genv().alloc(spread))
+                    }
+                    [s1, s2, ..] => {
+                        // Multiple spreads found - emit an error
+                        return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
+                            s1.span, s2.span,
+                        )));
+                    }
                 };
                 fhir::ExprKind::Constructor(path, field_exprs, spread)
             }
