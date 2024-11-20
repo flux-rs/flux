@@ -318,7 +318,7 @@ fn check_fn_subtyping(
         .with_span(span)?;
 
     // 6. Update state with Output "ensures" and check super ensures
-    update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
+    update_ensures(&mut infcx, &mut env, &output, overflow_checking);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
     check_ensures(
         &mut infcx,
@@ -339,7 +339,7 @@ fn update_ensures(
     env: &mut TypeEnv,
     output: &FnOutput,
     overflow_checking: bool,
-) -> Result {
+) {
     for ensure in &output.ensures {
         match ensure {
             Ensures::Type(path, updated_ty) => {
@@ -350,7 +350,6 @@ fn update_ensures(
             Ensures::Pred(e) => infcx.assume_pred(e),
         }
     }
-    Ok(())
 }
 
 fn check_ensures(
@@ -867,7 +866,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        update_ensures(infcx, env, &output, self.check_overflow())?;
+        update_ensures(infcx, env, &output, self.check_overflow());
 
         fold_local_ptrs(infcx, env, span)?;
 
