@@ -269,6 +269,8 @@ fn check_fn_subtyping(
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
 
+    let mut env = TypeEnv::empty();
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, span, &sub_sig, &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
@@ -279,8 +281,6 @@ fn check_fn_subtyping(
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
         .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
-
-    let mut env = TypeEnv::empty();
 
     // 3. INPUT subtyping (g-input <: f-input)
     for requires in super_sig.requires() {
@@ -316,6 +316,7 @@ fn check_fn_subtyping(
 
     // 6. Update state with Output "ensures" and check super ensures
     update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
+    fold_local_ptrs(&mut infcx, &mut env, span)?;
     check_ensures(&mut infcx, &mut env, &super_output, ConstrReason::SubtypeEns, span)?;
 
     let evars_sol = infcx.pop_scope().with_span(span)?;
