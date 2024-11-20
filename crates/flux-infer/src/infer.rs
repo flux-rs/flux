@@ -561,7 +561,7 @@ impl Sub {
                 }
                 Ok(())
             }
-            _ => panic!("incompatible types: `{a:?}` - `{b:?}`"), // _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
+            _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
         }
     }
 

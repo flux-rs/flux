@@ -89,21 +89,6 @@ impl<'a> TypeEnv<'a> {
 
     pub fn empty() -> TypeEnv<'a> {
         TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
-        // for requires in fn_sig.requires() {
-        //     infcx.assume_pred(requires);
-        // }
-
-        // for ty in fn_sig.inputs() {
-        //     let ty = infcx.unpack(ty);
-        //     infcx.assume_invariants(&ty, check_overflow);
-        //     if let TyKind::StrgRef(_, path, ty) = ty.kind() {
-        //         let loc = path.to_loc().unwrap();
-        //         env.bindings.insert(loc, LocKind::Universal, ty.clone());
-        //     }
-        // }
-
-        // env.alloc(RETURN_PLACE);
-        // env
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -349,6 +334,10 @@ impl<'a> TypeEnv<'a> {
         Ok(loc)
     }
 
+    /// ```
+    /// -----------------------------------
+    /// Γ ; &strg <ℓ: t> => Γ,ℓ: t ; ptr(ℓ)
+    /// ```
     pub(crate) fn unfold_strg_ref(
         &mut self,
         infcx: &mut InferCtxt,
