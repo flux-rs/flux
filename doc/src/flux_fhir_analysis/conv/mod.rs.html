@@ -2351,6 +2351,7 @@
 <a href="#2351" id="2351">2351</a>
 <a href="#2352" id="2352">2352</a>
 <a href="#2353" id="2353">2353</a>
+<a href="#2354" id="2354">2354</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -4437,6 +4438,7 @@
         fhir::Lit::Real(r) =&gt; rty::Constant::Real(rty::Real(r)),
         fhir::Lit::Bool(b) =&gt; rty::Constant::from(b),
         fhir::Lit::Str(s) =&gt; rty::Constant::from(s),
+        fhir::Lit::Char(c) =&gt; rty::Constant::from(c),
     }
 }
 <span class="kw">fn </span>conv_un_op(op: fhir::UnOp) -&gt; rty::UnOp {

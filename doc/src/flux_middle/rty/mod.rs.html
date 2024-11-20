@@ -2559,6 +2559,22 @@
 <a href="#2559" id="2559">2559</a>
 <a href="#2560" id="2560">2560</a>
 <a href="#2561" id="2561">2561</a>
+<a href="#2562" id="2562">2562</a>
+<a href="#2563" id="2563">2563</a>
+<a href="#2564" id="2564">2564</a>
+<a href="#2565" id="2565">2565</a>
+<a href="#2566" id="2566">2566</a>
+<a href="#2567" id="2567">2567</a>
+<a href="#2568" id="2568">2568</a>
+<a href="#2569" id="2569">2569</a>
+<a href="#2570" id="2570">2570</a>
+<a href="#2571" id="2571">2571</a>
+<a href="#2572" id="2572">2572</a>
+<a href="#2573" id="2573">2573</a>
+<a href="#2574" id="2574">2574</a>
+<a href="#2575" id="2575">2575</a>
+<a href="#2576" id="2576">2576</a>
+<a href="#2577" id="2577">2577</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3310,6 +3326,7 @@
     Real,
     BitVec(BvSize),
     Str,
+    Char,
     Loc,
     Param(ParamTy),
     Tuple(List&lt;Sort&gt;),
@@ -3832,6 +3849,13 @@
             .unwrap_or_default()
     }
 
+    <span class="doccomment">/// Whether the type is a `char`
+    </span><span class="kw">pub fn </span>is_char(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.as_bty_skipping_existentials()
+            .map(BaseTy::is_char)
+            .unwrap_or_default()
+    }
+
     <span class="kw">pub fn </span>is_uninit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), TyKind::Uninit)
     }
@@ -4103,6 +4127,14 @@
 
     <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_box())
+    }
+
+    <span class="kw">pub fn </span>is_char(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Char)
+    }
+
+    <span class="kw">pub fn </span>is_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Str)
     }
 
     <span class="kw">pub fn </span>unpack_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty)&gt; {

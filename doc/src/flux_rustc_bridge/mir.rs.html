@@ -963,7 +963,8 @@
     Nop,
 }
 
-<span class="kw">pub enum </span>Rvalue {
+<span class="doccomment">/// Corresponds to &lt;https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html&gt;
+</span><span class="kw">pub enum </span>Rvalue {
     Use(Operand),
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
@@ -1106,8 +1107,7 @@
     Float(u128, FloatTy),
     Bool(bool),
     Str(Symbol),
-    <span class="doccomment">/// We only support opaque chars, so no data stored here for now
-    </span>Char,
+    Char(char),
     Unit,
     Param(ParamConst, Ty),
     <span class="doccomment">/// General catch-all for constants of a given Ty
@@ -1515,7 +1515,7 @@
             Constant::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
             Constant::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">"()"</span>),
             Constant::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"\"{s:?}\""</span>),
-            Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque char&gt;\""</span>),
+            Constant::Char(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"\'{c}\'"</span>),
             Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
             Constant::Param(p, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
         }

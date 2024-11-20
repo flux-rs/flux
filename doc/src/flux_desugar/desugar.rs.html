@@ -1497,6 +1497,14 @@
 <a href="#1497" id="1497">1497</a>
 <a href="#1498" id="1498">1498</a>
 <a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -2498,7 +2506,11 @@
         <span class="prelude-val">Ok</span>((<span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>fhir_args), <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>constraints)))
     }
 
-    <span class="kw">fn </span>desugar_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="doccomment">/// This is the mega desugaring function [`surface::Ty`] -&gt; [`fhir::Ty`].
+    /// These are both similar representations. The most important difference is that
+    /// [`fhir::Ty`] has explicit refinement parameters and [`surface::Ty`] does not.
+    /// Refinements are implicitly scoped in surface.
+    </span><span class="kw">fn </span>desugar_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>node_id = ty.node_id;
         <span class="kw">let </span>span = ty.span;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
@@ -2857,7 +2869,8 @@
         }
     }
 
-    <span class="kw">fn </span>desugar_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, lit: surface::Lit) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lit&gt; {
+    <span class="doccomment">/// Desugar surface literal
+    </span><span class="kw">fn </span>desugar_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, lit: surface::Lit) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lit&gt; {
         <span class="kw">match </span>lit.kind {
             surface::LitKind::Integer =&gt; {
                 <span class="kw">let </span>n = <span class="self">self</span>.try_parse_int_lit(span, lit.symbol.as_str())<span class="question-mark">?</span>;
@@ -2872,6 +2885,9 @@
             }
             surface::LitKind::Bool =&gt; <span class="prelude-val">Ok</span>(fhir::Lit::Bool(lit.symbol == kw::True)),
             surface::LitKind::Str =&gt; <span class="prelude-val">Ok</span>(fhir::Lit::Str(lit.symbol)),
+            surface::LitKind::Char =&gt; {
+                <span class="prelude-val">Ok</span>(fhir::Lit::Char(lit.symbol.as_str().parse::&lt;char&gt;().unwrap()))
+            }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

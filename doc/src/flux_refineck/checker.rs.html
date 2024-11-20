@@ -1994,6 +1994,11 @@
 <a href="#1994" id="1994">1994</a>
 <a href="#1995" id="1995">1995</a>
 <a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2629,7 +2634,7 @@
             }
             TerminatorKind::SwitchInt { discr, targets } =&gt; {
                 <span class="kw">let </span>discr_ty = <span class="self">self</span>.check_operand(infcx, env, terminator_span, discr)<span class="question-mark">?</span>;
-                <span class="kw">if </span>discr_ty.is_integral() || discr_ty.is_bool() {
+                <span class="kw">if </span>discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     <span class="prelude-val">Ok</span>(<span class="self">Self</span>::check_if(<span class="kw-2">&amp;</span>discr_ty, targets))
                 } <span class="kw">else </span>{
                     <span class="prelude-val">Ok</span>(<span class="self">Self</span>::check_match(<span class="kw-2">&amp;</span>discr_ty, targets))
@@ -2939,7 +2944,9 @@
         <span class="prelude-val">Ok</span>(Guard::Pred(pred))
     }
 
-    <span class="kw">fn </span>check_if(discr_ty: <span class="kw-2">&amp;</span>Ty, targets: <span class="kw-2">&amp;</span>SwitchTargets) -&gt; Vec&lt;(BasicBlock, Guard)&gt; {
+    <span class="doccomment">/// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
+    </span><span class="kw">fn </span>check_if(discr_ty: <span class="kw-2">&amp;</span>Ty, targets: <span class="kw-2">&amp;</span>SwitchTargets) -&gt; Vec&lt;(BasicBlock, Guard)&gt; {
         <span class="kw">let </span>mk = |bits| {
             <span class="kw">match </span>discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, idx) =&gt; {
@@ -2949,7 +2956,7 @@
                         idx.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>)), idx) =&gt; {
+                TyKind::Indexed(bty @ (BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Char), idx) =&gt; {
                     Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected discr_ty {:?}"</span>, discr_ty),
@@ -3482,7 +3489,10 @@
                 <span class="kw">let </span>idx = Expr::constant(rty::Constant::from(<span class="kw-2">*</span>s));
                 <span class="prelude-val">Ok</span>(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
             }
-            Constant::Char =&gt; <span class="prelude-val">Ok</span>(Ty::char()),
+            Constant::Char(c) =&gt; {
+                <span class="kw">let </span>idx = Expr::constant(rty::Constant::from(<span class="kw-2">*</span>c));
+                <span class="prelude-val">Ok</span>(Ty::indexed(BaseTy::Char, idx))
+            }
             Constant::Param(param_const, ty) =&gt; {
                 <span class="kw">let </span>idx = Expr::const_generic(<span class="kw-2">*</span>param_const);
                 <span class="kw">let </span>ctor = <span class="self">self

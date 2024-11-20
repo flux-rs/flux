@@ -779,6 +779,7 @@
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -1493,6 +1494,7 @@
         fhir::Lit::Bool(<span class="kw">_</span>) =&gt; rty::Sort::Bool,
         fhir::Lit::Real(<span class="kw">_</span>) =&gt; rty::Sort::Real,
         fhir::Lit::Str(<span class="kw">_</span>) =&gt; rty::Sort::Str,
+        fhir::Lit::Char(<span class="kw">_</span>) =&gt; rty::Sort::Char,
     }
 }
 

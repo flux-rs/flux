@@ -171,6 +171,7 @@
         <span class="kw">let </span>sort = <span class="kw">match </span>ty.kind() {
             ty::TyKind::Bool =&gt; <span class="prelude-val">Some</span>(rty::Sort::Bool),
             ty::TyKind::Slice(<span class="kw">_</span>) | ty::TyKind::Int(<span class="kw">_</span>) | ty::TyKind::Uint(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Int),
+            ty::TyKind::Char =&gt; <span class="prelude-val">Some</span>(rty::Sort::Char),
             ty::TyKind::Str =&gt; <span class="prelude-val">Some</span>(rty::Sort::Str),
             ty::TyKind::Adt(adt_def, args) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
@@ -192,7 +193,6 @@
                 <span class="self">self</span>.sort_of_generic_param(generic_param_def.def_id)<span class="question-mark">?
             </span>}
             ty::TyKind::Float(<span class="kw">_</span>)
-            | ty::TyKind::Char
             | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(<span class="kw">_</span>)
@@ -229,6 +229,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             rty::BaseTy::Int(<span class="kw">_</span>) | rty::BaseTy::Uint(<span class="kw">_</span>) | rty::BaseTy::Slice(<span class="kw">_</span>) =&gt; rty::Sort::Int,
             rty::BaseTy::Bool =&gt; rty::Sort::Bool,
+            rty::BaseTy::Char =&gt; rty::Sort::Char,
             rty::BaseTy::Adt(adt_def, args) =&gt; adt_def.sort(args),
             rty::BaseTy::Param(param_ty) =&gt; rty::Sort::Param(<span class="kw-2">*</span>param_ty),
             rty::BaseTy::Str =&gt; rty::Sort::Str,
@@ -242,7 +243,6 @@
                 rty::Sort::Alias(<span class="kw-2">*</span>kind, alias_ty)
             }
             rty::BaseTy::Float(<span class="kw">_</span>)
-            | rty::BaseTy::Char
             | rty::BaseTy::RawPtr(..)
             | rty::BaseTy::Ref(..)
             | rty::BaseTy::FnPtr(..)

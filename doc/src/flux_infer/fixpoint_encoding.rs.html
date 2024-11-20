@@ -1383,6 +1383,8 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1562,6 +1564,7 @@
             rty::Sort::Real =&gt; fixpoint::Sort::Real,
             rty::Sort::Bool =&gt; fixpoint::Sort::Bool,
             rty::Sort::Str =&gt; fixpoint::Sort::Str,
+            rty::Sort::Char =&gt; fixpoint::Sort::Int,
             rty::Sort::BitVec(size) =&gt; fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(<span class="kw-2">*</span>size))),
             <span class="comment">// There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
             // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
@@ -1982,6 +1985,7 @@
         rty::Constant::Int(i) =&gt; fixpoint::Constant::Numeral(i),
         rty::Constant::Real(r) =&gt; fixpoint::Constant::Decimal(r),
         rty::Constant::Bool(b) =&gt; fixpoint::Constant::Boolean(b),
+        rty::Constant::Char(c) =&gt; fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
         rty::Constant::Str(s) =&gt; fixpoint::Constant::String(fixpoint::SymStr(s)),
     }
 }
@@ -2505,7 +2509,7 @@
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
     ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>e = <span class="kw">match </span>sort {
-            rty::Sort::Int | rty::Sort::Real =&gt; {
+            rty::Sort::Int | rty::Sort::Real | rty::Sort::Char =&gt; {
                 fixpoint::Expr::Atom(
                     rel,
                     Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
