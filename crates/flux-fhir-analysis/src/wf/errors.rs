@@ -20,6 +20,21 @@ impl SortMismatch {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_sort_mismatch_found_omitted, code = E0999)]
+pub(super) struct SortMismatchFoundOmitted {
+    #[primary_span]
+    #[label]
+    span: Span,
+    expected: rty::Sort,
+}
+
+impl SortMismatchFoundOmitted {
+    pub(super) fn new(span: Span, expected: rty::Sort) -> Self {
+        Self { span, expected }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_arg_count_mismatch, code = E0999)]
 pub(super) struct ArgCountMismatch {
     #[primary_span]

@@ -116,15 +116,7 @@ impl AdtSortDef {
         &self.0.field_names
     }
 
-    pub fn sort_by_field_name(&self) -> FxIndexMap<Symbol, &Sort> {
-        let mut map = FxIndexMap::default();
-        std::iter::zip(self.0.sorts.iter(), self.0.field_names.iter()).for_each(|(sort, field_name)| {
-            map.insert(*field_name, sort);
-        });
-        map
-    }
-
-    pub fn sort_by_field_name_subst(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
+    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
         let mut map = FxIndexMap::default();
         let folded = self.0.sorts.fold_with(&mut SortSubst::new(args));
         std::iter::zip(folded.iter(), self.0.field_names.iter()).for_each(|(sort, field_name)| {

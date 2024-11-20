@@ -27,7 +27,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
@@ -1666,7 +1666,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         spread: &Option<&fhir::Spread>,
     ) -> QueryResult<List<rty::Expr>> {
         let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
-        let sort_by_field = struct_adt.sort_by_field_name();
+        let sort_by_field = FxIndexSet::from_iter(struct_adt.field_names());
         let mut used_fields = FxHashSet::default();
         let mut assns = Vec::new();
         for expr_val in exprs {
@@ -1684,7 +1684,7 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
             sort_by_field
                 .iter()
                 .enumerate()
-                .filter_map(|(idx, (fld, _))| {
+                .filter_map(|(idx, fld)| {
                     match used_fields.get(fld) {
                         None => {
                             let proj =
