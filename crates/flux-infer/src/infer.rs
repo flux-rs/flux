@@ -11,7 +11,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
+        Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -47,6 +48,14 @@ impl Tag {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+pub enum SubtypeReason {
+    Input,
+    Output,
+    Requires,
+    Ensures,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum ConstrReason {
     Call,
     Assign,
@@ -57,6 +66,7 @@ pub enum ConstrReason {
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Subtype(SubtypeReason),
     Other,
 }
 
@@ -431,6 +441,7 @@ pub trait LocEnv {
         bound: Ty,
     ) -> InferResult<Ty>;
 
+    fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
     fn get(&self, path: &Path) -> Ty;
 }
 
@@ -443,6 +454,20 @@ struct Sub {
     /// directly here. The implementation is really messy and we may be missing some obligations.
     obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
 }
+
+/// [NOTE:unfold_strg_ref] We use this function to unfold a strong reference prior to a subtyping check.
+/// Normally, when checking a function body, a `StrgRef` is automatically unfolded
+/// i.e. `x:&strg T` is turned into turned into a `x:Ptr(l); l: T` where `l` is some
+/// fresh location. However, we need the below to do a similar unfolding in `check_fn_subtyping`
+/// where we just have the super-type signature that needs to be unfolded.
+/// We also add the binding to the environment so that we can:
+/// (1) UPDATE the location after the call, and
+/// (2) CHECK the relevant `ensures` clauses of the super-sig.
+/// Nico: More importantly, we are assuming functions always give back the "ownership"
+/// of the location so even though we should technically "consume" the ownership and
+/// remove the location from the environment, the type is always going to be overwritten.
+/// (there's a check for this btw, if you write an &strg we require an ensures for that
+/// location for the signature to be well-formed)
 
 impl Sub {
     fn new(reason: ConstrReason, span: Span) -> Self {
@@ -471,6 +496,12 @@ impl Sub {
                 self.fun_args(infcx, env, a, ty_b)
             }
             (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                let ty1 = env.get(path1);
+                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                self.tys(infcx, &ty1, ty2)
+            }
+            (TyKind::StrgRef(_, path1, ty1), TyKind::StrgRef(_, path2, ty2)) => {
+                env.unfold_strg_ref(infcx, path1, ty1)?; // see [NOTE:unfold_strg_ref]
                 let ty1 = env.get(path1);
                 infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
                 self.tys(infcx, &ty1, ty2)
