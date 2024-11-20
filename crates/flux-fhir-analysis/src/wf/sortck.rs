@@ -91,14 +91,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), _) = expected {
-            let sort_by_field_name = sort_def.sort_by_field_name();
+        let expected = self.resolve_vars_if_possible(expected);
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = &expected {
+            let sort_by_field_name = sort_def.sort_by_field_name_subst(&sort_args);
             let mut used_fields = FxHashSet::default();
-
             for expr in field_exprs {
                 // make sure that the field is actually a field
                 if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
-                    self.check_expr(&expr.expr, sort)?;
+                    self.check_expr(&expr.expr, &sort)?;
                 } else {
                     return Err(
                         self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident))
@@ -112,7 +112,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             if let Some(spread) = spread {
                 // must check that the spread is of the same sort as the constructor
-                self.check_expr(&spread.expr, expected)?;
+                self.check_expr(&spread.expr, &expected)?;
                 Ok(())
             } else if sort_by_field_name.len() != used_fields.len() {
                 // emit an error because all fields are not used
@@ -128,7 +128,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(())
             }
         } else {
-            Err(self.emit_err(errors::UnexpectedConstructor::new(expr_span, expected)))
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr_span, &expected)))
         }
     }
 
