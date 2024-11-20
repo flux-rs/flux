@@ -20,6 +20,21 @@ impl SortMismatch {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_sort_mismatch_found_omitted, code = E0999)]
+pub(super) struct SortMismatchFoundOmitted {
+    #[primary_span]
+    #[label]
+    span: Span,
+    expected: rty::Sort,
+}
+
+impl SortMismatchFoundOmitted {
+    pub(super) fn new(span: Span, expected: rty::Sort) -> Self {
+        Self { span, expected }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_arg_count_mismatch, code = E0999)]
 pub(super) struct ArgCountMismatch {
     #[primary_span]
@@ -138,6 +153,21 @@ impl<'a> UnexpectedFun<'a> {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_unexpected_constructor, code = E0999)]
+pub(super) struct UnexpectedConstructor<'a> {
+    #[primary_span]
+    #[label]
+    span: Span,
+    sort: &'a rty::Sort,
+}
+
+impl<'a> UnexpectedConstructor<'a> {
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
+        Self { span, sort }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_param_count_mismatch, code = E0999)]
 pub(super) struct ParamCountMismatch {
     #[primary_span]
@@ -165,6 +195,41 @@ pub(super) struct FieldNotFound {
 impl FieldNotFound {
     pub(super) fn new(sort: rty::Sort, fld: Ident) -> Self {
         Self { span: fld.span, sort, fld }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_constructor_missing_fields, code = E0999)]
+pub(super) struct ConstructorMissingFields {
+    #[primary_span]
+    constructor_span: Span,
+    missing_fields: String,
+}
+
+impl ConstructorMissingFields {
+    pub(super) fn new(constructor_span: Span, missing_fields: Vec<Symbol>) -> Self {
+        let missing_fields = missing_fields
+            .into_iter()
+            .map(|x| format!("`{x}`"))
+            .collect::<Vec<String>>()
+            .join(", ");
+        Self { constructor_span, missing_fields }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_duplicate_field_used, code = E0999)]
+pub(super) struct DuplicateFieldUsed {
+    #[primary_span]
+    span: Span,
+    fld: Ident,
+    #[help]
+    previous_span: Span,
+}
+
+impl DuplicateFieldUsed {
+    pub(super) fn new(fld: Ident, previous_fld: Ident) -> Self {
+        Self { span: fld.span, fld, previous_span: previous_fld.span }
     }
 }
 

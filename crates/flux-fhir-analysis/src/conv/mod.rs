@@ -1550,6 +1550,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     ExprRes::GlobalFunc(..) => {
                         span_bug!(var.span, "unexpected func in var position")
                     }
+                    ExprRes::Struct(..) => span_bug!(var.span, "unexpected struct in var position"),
+                    ExprRes::Enum(..) => span_bug!(var.span, "unexpected enum in var position"),
                 }
             }
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
@@ -1604,8 +1606,41 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     .try_collect()?;
                 rty::Expr::adt(def_id, flds)
             }
+            fhir::ExprKind::Constructor(path, exprs, spread) => {
+                let def_id = match path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                    _ => span_bug!(path.span, "unexpected path in constructor"),
+                };
+                let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
+                rty::Expr::adt(def_id, assns)
+            }
         };
         Ok(self.add_coercions(expr, fhir_id))
+    }
+
+    fn conv_constructor_exprs(
+        &mut self,
+        struct_def_id: DefId,
+        env: &mut Env,
+        exprs: &[fhir::FieldExpr],
+        spread: &Option<&fhir::Spread>,
+    ) -> QueryResult<List<rty::Expr>> {
+        let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
+        let spread = spread
+            .map(|spread| self.conv_expr(env, &spread.expr))
+            .transpose()?;
+        let field_exprs_by_name: FxIndexMap<Symbol, &fhir::FieldExpr> =
+            exprs.iter().map(|e| (e.ident.name, e)).collect();
+        let mut assns = Vec::new();
+        for (idx, field_name) in struct_adt.field_names().iter().enumerate() {
+            if let Some(field_expr) = field_exprs_by_name.get(field_name) {
+                assns.push(self.conv_expr(env, &field_expr.expr)?);
+            } else if let Some(spread) = &spread {
+                let proj = rty::FieldProj::Adt { def_id: struct_def_id, field: idx as u32 };
+                assns.push(rty::Expr::field_proj(spread, proj));
+            }
+        }
+        Ok(List::from_vec(assns))
     }
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {

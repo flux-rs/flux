@@ -3,6 +3,11 @@
 fhir_analysis_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
+
+fhir_analysis_sort_mismatch_found_omitted =
+    mismatched sorts
+    .label = expected `{$expected}`
+
 fhir_analysis_arg_count_mismatch =
     this {$thing} takes {$expected ->
         [one] {$expected} refinement argument
@@ -56,6 +61,10 @@ fhir_analysis_unexpected_fun =
     mismatched sorts
     .label = expected `{$sort}`, found function
 
+fhir_analysis_unexpected_constructor = 
+    mismatched sorts
+    .label = expected `{$sort}`, found constructor
+
 fhir_analysis_param_count_mismatch =
     parameter count mismatch
     .label = this function has {$found ->
@@ -68,6 +77,13 @@ fhir_analysis_param_count_mismatch =
 
 fhir_analysis_field_not_found =
     no field `{$fld}` on sort `{$sort}`
+
+fhir_analysis_constructor_missing_fields = 
+    missing fields in constructor: {$missing_fields}
+
+fhir_analysis_duplicate_field_used = 
+    field `{$fld}` was previously used in constructor
+    .help = field `{$fld}` previously used here, consider removing it
 
 fhir_analysis_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields

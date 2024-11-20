@@ -9,7 +9,7 @@ use flux_middle::{
     try_alloc_slice, MaybeExternId, ResolverOutput,
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, NodeId},
+    surface::{self, visit::Visitor as _, ConstructorArgs, FieldExpr, NodeId, Spread},
     walk_list,
 };
 use hir::{def::DefKind, ItemKind};
@@ -1333,9 +1333,72 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     self.genv().alloc(e2?),
                 )
             }
+            surface::ExprKind::Constructor(path, constructor_args) => {
+                let path = self.desugar_constructor_path(path)?;
+                let field_exprs = constructor_args
+                    .iter()
+                    .filter_map(|arg| {
+                        match arg {
+                            ConstructorArgs::FieldExpr(e) => Some(e),
+                            ConstructorArgs::Spread(_) => None,
+                        }
+                    })
+                    .collect::<Vec<&FieldExpr>>();
+
+                let field_exprs = try_alloc_slice!(self.genv(), field_exprs, |field_expr| {
+                    let e = self.desugar_expr(&field_expr.expr)?;
+                    Ok(fhir::FieldExpr {
+                        ident: field_expr.ident,
+                        expr: e,
+                        fhir_id: self.next_fhir_id(),
+                        span: e.span,
+                    })
+                })?;
+
+                let spreads = constructor_args
+                    .iter()
+                    .filter_map(|arg| {
+                        match arg {
+                            ConstructorArgs::FieldExpr(_) => None,
+                            ConstructorArgs::Spread(s) => Some(s),
+                        }
+                    })
+                    .collect::<Vec<&Spread>>();
+
+                let spread = match &spreads[..] {
+                    [] => None,
+                    [s] => {
+                        let spread = fhir::Spread {
+                            expr: self.desugar_expr(&s.expr)?,
+                            span: s.span,
+                            fhir_id: self.next_fhir_id(),
+                        };
+                        Some(self.genv().alloc(spread))
+                    }
+                    [s1, s2, ..] => {
+                        // Multiple spreads found - emit an error
+                        return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
+                            s1.span, s2.span,
+                        )));
+                    }
+                };
+                fhir::ExprKind::Constructor(path, field_exprs, spread)
+            }
         };
 
         Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })
+    }
+
+    fn desugar_constructor_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {
+        let res = self.resolver_output().expr_path_res_map[&path.node_id];
+        if let ExprRes::Struct(..) | ExprRes::Enum(..) = res {
+            let segments = self
+                .genv()
+                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
+            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: path.span })
+        } else {
+            Err(self.emit_err(errors::InvalidConstructorPath { span: path.span }))
+        }
     }
 
     fn desugar_exprs(&mut self, exprs: &[surface::Expr]) -> Result<&'genv [fhir::Expr<'genv>]> {

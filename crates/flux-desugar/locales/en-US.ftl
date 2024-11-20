@@ -13,6 +13,9 @@ desugar_unexpected_literal =
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
+desugar_invalid_constructor_path =
+    invalid use of path in constructor
+
 desugar_invalid_func_as_var =
     invalid use of function
     .label = function not supported in this position
@@ -34,6 +37,10 @@ desugar_unresolved_generic_param =
 
 desugar_invalid_variant_ret =
     invalid variant return type
+
+desugar_multiple_spreads_in_constructor = 
+    multiple spreads found in constructor
+    .help = previous spread found here. consider removing it
 
 # Resolve errors
 

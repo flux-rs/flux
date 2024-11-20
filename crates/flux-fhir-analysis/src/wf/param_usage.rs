@@ -118,6 +118,11 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.check_func_params_uses(field, is_top_level_conj, is_top_level_var);
                 }
             }
+            fhir::ExprKind::Constructor(_path, exprs, _spread) => {
+                for expr in exprs {
+                    self.check_func_params_uses(&expr.expr, false, false);
+                }
+            }
         }
     }
 
