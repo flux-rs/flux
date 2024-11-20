@@ -1607,9 +1607,13 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 rty::Expr::adt(def_id, flds)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) => {
-                let def_id = match path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
-                    _ => span_bug!(path.span, "unexpected path in constructor"),
+                let def_id = if let Some(path) = path {
+                    match path.res {
+                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                        _ => span_bug!(path.span, "unexpected path in constructor"),
+                    }
+                } else {
+                    self.results().record_ctor(expr.fhir_id)
                 };
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
                 rty::Expr::adt(def_id, assns)

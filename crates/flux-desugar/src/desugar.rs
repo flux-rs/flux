@@ -1334,7 +1334,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 )
             }
             surface::ExprKind::Constructor(path, constructor_args) => {
-                let path = self.desugar_constructor_path(path)?;
+                let path = match path {
+                    Some(path) => Some(self.desugar_constructor_path(path)?),
+                    None => None,
+                };
                 let field_exprs = constructor_args
                     .iter()
                     .filter_map(|arg| {
