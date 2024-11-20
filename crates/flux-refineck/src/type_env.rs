@@ -334,6 +334,10 @@ impl<'a> TypeEnv<'a> {
         Ok(loc)
     }
 
+    /// ```
+    /// -----------------------------------
+    /// Γ ; &strg <ℓ: t> => Γ,ℓ: t ; ptr(ℓ)
+    /// ```
     pub(crate) fn unfold_strg_ref(
         &mut self,
         infcx: &mut InferCtxt,
