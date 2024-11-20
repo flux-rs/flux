@@ -2084,6 +2084,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Real(r) => rty::Constant::Real(rty::Real(r)),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
         fhir::Lit::Str(s) => rty::Constant::from(s),
+        fhir::Lit::Char(c) => rty::Constant::from(c),
     }
 }
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {

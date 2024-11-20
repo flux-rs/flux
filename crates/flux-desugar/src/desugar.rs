@@ -999,6 +999,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         Ok((self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&constraints)))
     }
 
+    /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
+    /// These are both similar representations. The most important difference is that
+    /// [`fhir::Ty`] has explicit refinement parameters and [`surface::Ty`] does not.
+    /// Refinements are implicitly scoped in surface.
     fn desugar_ty(&mut self, ty: &surface::Ty) -> Result<fhir::Ty<'genv>> {
         let node_id = ty.node_id;
         let span = ty.span;
@@ -1358,6 +1362,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
     }
 
+    /// Desugar surface literal
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit> {
         match lit.kind {
             surface::LitKind::Integer => {
@@ -1373,6 +1378,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
             surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
+            surface::LitKind::Char => {
+                Ok(fhir::Lit::Char(lit.symbol.as_str().parse::<char>().unwrap()))
+            }
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

@@ -177,6 +177,7 @@ impl SortEncodingCtxt {
             rty::Sort::Real => fixpoint::Sort::Real,
             rty::Sort::Bool => fixpoint::Sort::Bool,
             rty::Sort::Str => fixpoint::Sort::Str,
+            rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
             // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
             // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
@@ -597,6 +598,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
         rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
         rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
+        rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
     }
 }
@@ -1120,7 +1122,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         let e = match sort {
-            rty::Sort::Int | rty::Sort::Real => {
+            rty::Sort::Int | rty::Sort::Real | rty::Sort::Char => {
                 fixpoint::Expr::Atom(
                     rel,
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),

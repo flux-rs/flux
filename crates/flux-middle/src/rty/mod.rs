@@ -749,6 +749,7 @@ pub enum Sort {
     Real,
     BitVec(BvSize),
     Str,
+    Char,
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -1271,6 +1272,13 @@ impl Ty {
             .unwrap_or_default()
     }
 
+    /// Whether the type is a `char`
+    pub fn is_char(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_char)
+            .unwrap_or_default()
+    }
+
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
     }
@@ -1542,6 +1550,14 @@ impl BaseTy {
 
     pub fn is_box(&self) -> bool {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
+    }
+
+    pub fn is_char(&self) -> bool {
+        matches!(self, BaseTy::Char)
+    }
+
+    pub fn is_str(&self) -> bool {
+        matches!(self, BaseTy::Str)
     }
 
     pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {

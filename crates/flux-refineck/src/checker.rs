@@ -633,7 +633,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(infcx, env, terminator_span, discr)?;
-                if discr_ty.is_integral() || discr_ty.is_bool() {
+                if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
                     Ok(Self::check_match(&discr_ty, targets))
@@ -943,6 +943,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(Guard::Pred(pred))
     }
 
+    /// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
     fn check_if(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
@@ -953,7 +955,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         idx.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Char), idx) => {
                     Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
@@ -1486,7 +1488,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let idx = Expr::constant(rty::Constant::from(*s));
                 Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
             }
-            Constant::Char => Ok(Ty::char()),
+            Constant::Char(c) => {
+                let idx = Expr::constant(rty::Constant::from(*c));
+                Ok(Ty::indexed(BaseTy::Char, idx))
+            }
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
                 let ctor = self
