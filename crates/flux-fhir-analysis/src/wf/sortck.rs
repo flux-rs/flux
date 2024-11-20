@@ -93,12 +93,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        let sort_by_field_name = sort_def.sort_by_field_name(&sort_args);
+        let sort_by_field_name = sort_def.sort_by_field_name(sort_args);
         let mut used_fields = FxHashSet::default();
         for expr in field_exprs {
             // make sure that the field is actually a field
             if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
-                self.check_expr(&expr.expr, &sort)?;
+                self.check_expr(&expr.expr, sort)?;
             } else {
                 return Err(self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
             }
@@ -155,7 +155,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)?;
             Ok(())
         } else {
-            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, &expected)))
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
         }
     }
 
