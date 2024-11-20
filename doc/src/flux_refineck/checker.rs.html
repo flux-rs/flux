@@ -1994,21 +1994,13 @@
 <a href="#1994" id="1994">1994</a>
 <a href="#1995" id="1995">1995</a>
 <a href="#1996" id="1996">1996</a>
-<a href="#1997" id="1997">1997</a>
-<a href="#1998" id="1998">1998</a>
-<a href="#1999" id="1999">1999</a>
-<a href="#2000" id="2000">2000</a>
-<a href="#2001" id="2001">2001</a>
-<a href="#2002" id="2002">2002</a>
-<a href="#2003" id="2003">2003</a>
-<a href="#2004" id="2004">2004</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
-<span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{<span class="self">self</span>, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot},
+    infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 <span class="kw">use </span>flux_middle::{
@@ -2017,10 +2009,9 @@
     query_bug,
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnTraitPredicate, GenericArg,
+        GenericArgs, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, Ref,
+        RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 <span class="kw">use </span>flux_rustc_bridge::{
@@ -2239,7 +2230,7 @@
 ///  fn g(x1:T1,...,xn:Tn) -&gt; T {
 ///      f(x1,...,xn)
 ///  }
-/// TODO: copy rules from SLACK.
+</span><span class="attr">#[expect(clippy::too_many_arguments)]
 </span><span class="kw">fn </span>check_fn_subtyping(
     infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     def_id: <span class="kw-2">&amp;</span>DefId,
@@ -2247,6 +2238,7 @@
     sub_args: <span class="kw-2">&amp;</span>[GenericArg],
     super_sig: EarlyBinder&lt;rty::PolyFnSig&gt;,
     super_args: <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>GenericArgs, <span class="kw-2">&amp;</span>rty::RefineArgs)&gt;,
+    overflow_checking: bool,
     span: Span,
 ) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.branch();
@@ -2272,6 +2264,8 @@
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
 
+    <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::empty();
+    <span class="kw">let </span>actuals = unfold_local_ptrs(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, span, <span class="kw-2">&amp;</span>sub_sig, <span class="kw-2">&amp;</span>actuals)<span class="question-mark">?</span>;
     <span class="kw">let </span>actuals = infer_under_mut_ref_hack(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>actuals[..], sub_sig.as_ref());
 
     <span class="comment">// 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
@@ -2284,27 +2278,19 @@
         .with_span(span)<span class="question-mark">?</span>;
 
     <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
-    // TODO: Check requires predicates (?)
-    // for requires in fn_def_sig.requires() {
-    //     at.check_pred(requires, ConstrReason::Call);
-    // }
-    </span><span class="kw">if </span>!sub_sig.requires().is_empty() {
-        <span class="macro">span_bug!</span>(span, <span class="string">"Not yet handled: requires predicates {def_id:?}"</span>);
+    </span><span class="kw">for </span>requires <span class="kw">in </span>super_sig.requires() {
+        infcx.assume_pred(requires);
     }
     <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, sub_sig.inputs()) {
-        <span class="kw">let </span>(formal, pred) = formal.unconstr();
-        infcx.check_pred(<span class="kw-2">&amp;</span>pred, ConstrReason::Call);
-        <span class="comment">// see: TODO(pack-closure)
-        </span><span class="kw">match </span>(actual.kind(), formal.kind()) {
-            (TyKind::Ptr(rty::PtrKind::Mut(<span class="kw">_</span>), <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"Not yet handled: FnDef subtyping with Ptr"</span>);
-            }
-            <span class="kw">_ </span>=&gt; {
-                infcx
-                    .subtyping(<span class="kw-2">&amp;</span>actual, <span class="kw-2">&amp;</span>formal, ConstrReason::Call)
-                    .with_span(span)<span class="question-mark">?</span>;
-            }
-        }
+        <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Input);
+        infcx
+            .fun_arg_subtyping(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>actual, formal, reason)
+            .with_span(span)<span class="question-mark">?</span>;
+    }
+    <span class="comment">// we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
+    </span><span class="kw">for </span>requires <span class="kw">in </span>sub_sig.requires() {
+        <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Requires);
+        infcx.check_pred(requires, reason);
     }
 
     <span class="comment">// 4. Plug in the EVAR solution / replace evars
@@ -2318,26 +2304,32 @@
     <span class="comment">// 5. OUTPUT subtyping (f_out &lt;: g_out)
     // RJ: new `at` to avoid borrowing errors...!
     </span>infcx.push_scope();
-    <span class="kw">let </span>oblig_output = super_sig
+    <span class="kw">let </span>super_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
+    <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Output);
     infcx
-        .subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>oblig_output.ret, ConstrReason::Ret)
+        .subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>super_output.ret, reason)
         .with_span(span)<span class="question-mark">?</span>;
+
+    <span class="comment">// 6. Update state with Output "ensures" and check super ensures
+    </span>env.update_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>output, overflow_checking);
+    fold_local_ptrs(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, span)<span class="question-mark">?</span>;
+    env.check_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
+        .with_span(span)<span class="question-mark">?</span>;
+
     <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
     infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
-    <span class="kw">if </span>!output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
-        <span class="macro">span_bug!</span>(span, <span class="string">"Not yet handled: subtyping with ensures predicates {def_id:?}"</span>);
-    }
-
     <span class="prelude-val">Ok</span>(())
 }
+
 <span class="doccomment">/// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
 </span><span class="kw">pub fn </span>trait_impl_subtyping(
     genv: GlobalEnv,
     def_id: LocalDefId,
+    overflow_checking: bool,
     span: Span,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(RefineTree, KVarGen)&gt;&gt; {
     <span class="comment">// Skip the check if this is not an impl method
@@ -2371,6 +2363,7 @@
             <span class="kw-2">&amp;</span>impl_args,
             trait_fn_sig,
             <span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>trait_args, <span class="kw-2">&amp;</span>trait_refine_args)),
+            overflow_checking,
             span,
         )<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
@@ -2737,18 +2730,8 @@
             .subtyping(<span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret, ConstrReason::Ret)
             .with_span(span)<span class="question-mark">?</span>;
 
-        <span class="kw">for </span>constraint <span class="kw">in </span><span class="kw-2">&amp;</span>output.ensures {
-            <span class="kw">match </span>constraint {
-                Ensures::Type(path, ty) =&gt; {
-                    <span class="kw">let </span>actual_ty = env.get(path);
-                    at.subtyping(<span class="kw-2">&amp;</span>actual_ty, ty, ConstrReason::Ret)
-                        .with_span(span)<span class="question-mark">?</span>;
-                }
-                Ensures::Pred(e) =&gt; {
-                    at.check_pred(e, ConstrReason::Ret);
-                }
-            }
-        }
+        env.check_ensures(<span class="kw-2">&amp;mut </span>at, <span class="kw-2">&amp;</span>output, ConstrReason::Ret)
+            .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
         infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
@@ -2836,16 +2819,7 @@
             .replace_evars(<span class="kw-2">&amp;</span>evars_sol)
             .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
 
-        <span class="kw">for </span>ensures <span class="kw">in </span><span class="kw-2">&amp;</span>output.ensures {
-            <span class="kw">match </span>ensures {
-                Ensures::Type(path, updated_ty) =&gt; {
-                    <span class="kw">let </span>updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(<span class="kw-2">&amp;</span>updated_ty, <span class="self">self</span>.check_overflow());
-                    env.update_path(path, updated_ty);
-                }
-                Ensures::Pred(e) =&gt; infcx.assume_pred(e),
-            }
-        }
+        env.update_ensures(infcx, <span class="kw-2">&amp;</span>output, <span class="self">self</span>.check_overflow());
 
         fold_local_ptrs(infcx, env, span)<span class="question-mark">?</span>;
 
@@ -2901,7 +2875,16 @@
                 // See `tests/neg/surface/fndef00.rs`
                 </span><span class="kw">let </span>sub_sig = <span class="self">self</span>.genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, <span class="prelude-val">None</span>, span)<span class="question-mark">?</span>;
+                check_fn_subtyping(
+                    infcx,
+                    def_id,
+                    sub_sig,
+                    args,
+                    oblig_sig,
+                    <span class="prelude-val">None</span>,
+                    <span class="self">self</span>.check_overflow(),
+                    span,
+                )<span class="question-mark">?</span>;
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="comment">// TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -3372,6 +3355,7 @@
                         args,
                         super_sig,
                         <span class="prelude-val">None</span>,
+                        <span class="self">self</span>.check_overflow(),
                         stmt_span,
                     )<span class="question-mark">?</span>;
                     to

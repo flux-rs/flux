@@ -831,6 +831,37 @@
 <a href="#831" id="831">831</a>
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -844,7 +875,8 @@
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
+        Var,
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
@@ -880,6 +912,14 @@
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+</span><span class="kw">pub enum </span>SubtypeReason {
+    Input,
+    Output,
+    Requires,
+    Ensures,
+}
+
+<span class="attr">#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 </span><span class="kw">pub enum </span>ConstrReason {
     Call,
     Assign,
@@ -890,6 +930,7 @@
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Subtype(SubtypeReason),
     Other,
 }
 
@@ -1264,6 +1305,7 @@
         bound: Ty,
     ) -&gt; InferResult&lt;Ty&gt;;
 
+    <span class="kw">fn </span>unfold_strg_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, path: <span class="kw-2">&amp;</span>Path, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Loc&gt;;
     <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty;
 }
 
@@ -1277,7 +1319,21 @@
     </span>obligations: Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;,
 }
 
-<span class="kw">impl </span>Sub {
+<span class="doccomment">/// [NOTE:unfold_strg_ref] We use this function to unfold a strong reference prior to a subtyping check.
+/// Normally, when checking a function body, a `StrgRef` is automatically unfolded
+/// i.e. `x:&amp;strg T` is turned into turned into a `x:Ptr(l); l: T` where `l` is some
+/// fresh location. However, we need the below to do a similar unfolding in `check_fn_subtyping`
+/// where we just have the super-type signature that needs to be unfolded.
+/// We also add the binding to the environment so that we can:
+/// (1) UPDATE the location after the call, and
+/// (2) CHECK the relevant `ensures` clauses of the super-sig.
+/// Nico: More importantly, we are assuming functions always give back the "ownership"
+/// of the location so even though we should technically "consume" the ownership and
+/// remove the location from the environment, the type is always going to be overwritten.
+/// (there's a check for this btw, if you write an &amp;strg we require an ensures for that
+/// location for the signature to be well-formed)
+
+</span><span class="kw">impl </span>Sub {
     <span class="kw">fn </span>new(reason: ConstrReason, span: Span) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ reason, span, obligations: <span class="macro">vec!</span>[] }
     }
@@ -1305,6 +1361,12 @@
             }
             (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
                 <span class="kw">let </span>ty1 = env.get(path1);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            }
+            (TyKind::StrgRef(<span class="kw">_</span>, path1, ty1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+                env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>; <span class="comment">// see [NOTE:unfold_strg_ref]
+                </span><span class="kw">let </span>ty1 = env.get(path1);
                 infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
             }

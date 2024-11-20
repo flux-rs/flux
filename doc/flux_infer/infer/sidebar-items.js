@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConstrReason","InferErr","TypeTrace"],"fn":["mk_coroutine_obligations"],"mod":["pretty"],"struct":["InferCtxt","InferCtxtAt","InferCtxtInner","InferCtxtRoot","Sub","Tag"],"trait":["LocEnv"],"type":["InferResult"]};
+window.SIDEBAR_ITEMS = {"enum":["ConstrReason","InferErr","SubtypeReason","TypeTrace"],"fn":["mk_coroutine_obligations"],"mod":["pretty"],"struct":["InferCtxt","InferCtxtAt","InferCtxtInner","InferCtxtRoot","Sub","Tag"],"trait":["LocEnv"],"type":["InferResult"]};
