@@ -48,6 +48,14 @@ impl Tag {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+pub enum SubtypeReason {
+    Input,
+    Output,
+    Requires,
+    Ensures,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum ConstrReason {
     Call,
     Assign,
@@ -58,11 +66,8 @@ pub enum ConstrReason {
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Subtype(SubtypeReason),
     Other,
-    SubtypeIn,
-    SubtypeReq,
-    SubtypeOut,
-    SubtypeEns,
 }
 
 pub struct InferCtxtRoot<'genv, 'tcx> {

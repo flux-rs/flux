@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, SubtypeReason},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -287,13 +287,15 @@ fn check_fn_subtyping(
         infcx.assume_pred(requires);
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
+        let reason = ConstrReason::Subtype(SubtypeReason::Input);
         infcx
-            .fun_arg_subtyping(&mut env, &actual, formal, ConstrReason::SubtypeIn)
+            .fun_arg_subtyping(&mut env, &actual, formal, reason)
             .with_span(span)?;
     }
     // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
     for requires in sub_sig.requires() {
-        infcx.check_pred(requires, ConstrReason::SubtypeReq);
+        let reason = ConstrReason::Subtype(SubtypeReason::Requires);
+        infcx.check_pred(requires, reason);
     }
 
     // 4. Plug in the EVAR solution / replace evars
@@ -310,14 +312,21 @@ fn check_fn_subtyping(
     let super_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+    let reason = ConstrReason::Subtype(SubtypeReason::Output);
     infcx
-        .subtyping(&output.ret, &super_output.ret, ConstrReason::SubtypeOut)
+        .subtyping(&output.ret, &super_output.ret, reason)
         .with_span(span)?;
 
     // 6. Update state with Output "ensures" and check super ensures
     update_ensures(&mut infcx, &mut env, &output, overflow_checking)?;
     fold_local_ptrs(&mut infcx, &mut env, span)?;
-    check_ensures(&mut infcx, &mut env, &super_output, ConstrReason::SubtypeEns, span)?;
+    check_ensures(
+        &mut infcx,
+        &mut env,
+        &super_output,
+        ConstrReason::Subtype(SubtypeReason::Ensures),
+        span,
+    )?;
 
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
