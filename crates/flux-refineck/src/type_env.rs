@@ -16,9 +16,9 @@ use flux_middle::{
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
-        Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
-        INNERMOST,
+        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnOutput, FnSig, GenericArg,
+        HoleKind, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
+        TyKind, VariantIdx, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -380,6 +380,44 @@ impl<'a> TypeEnv<'a> {
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
+    }
+
+    pub(crate) fn update_ensures(
+        &mut self,
+        infcx: &mut InferCtxt,
+        output: &FnOutput,
+        overflow_checking: bool,
+    ) {
+        for ensure in &output.ensures {
+            match ensure {
+                Ensures::Type(path, updated_ty) => {
+                    let updated_ty = infcx.unpack(updated_ty);
+                    infcx.assume_invariants(&updated_ty, overflow_checking);
+                    self.update_path(path, updated_ty);
+                }
+                Ensures::Pred(e) => infcx.assume_pred(e),
+            }
+        }
+    }
+
+    pub(crate) fn check_ensures(
+        &mut self,
+        at: &mut InferCtxtAt,
+        output: &FnOutput,
+        reason: ConstrReason,
+    ) -> InferResult {
+        for constraint in &output.ensures {
+            match constraint {
+                Ensures::Type(path, ty) => {
+                    let actual_ty = self.get(path);
+                    at.subtyping(&actual_ty, ty, reason)?;
+                }
+                Ensures::Pred(e) => {
+                    at.check_pred(e, ConstrReason::Ret);
+                }
+            }
+        }
+        Ok(())
     }
 }
 

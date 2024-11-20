@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, SubtypeReason},
+    infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -13,10 +13,9 @@ use flux_middle::{
     query_bug,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnTraitPredicate, GenericArg,
+        GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, Ref,
+        RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -318,58 +317,14 @@ fn check_fn_subtyping(
         .with_span(span)?;
 
     // 6. Update state with Output "ensures" and check super ensures
-    update_ensures(&mut infcx, &mut env, &output, overflow_checking);
+    env.update_ensures(&mut infcx, &output, overflow_checking);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
-    check_ensures(
-        &mut infcx,
-        &mut env,
-        &super_output,
-        ConstrReason::Subtype(SubtypeReason::Ensures),
-        span,
-    )?;
+    env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
+        .with_span(span)?;
 
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
 
-    Ok(())
-}
-
-fn update_ensures(
-    infcx: &mut InferCtxt,
-    env: &mut TypeEnv,
-    output: &FnOutput,
-    overflow_checking: bool,
-) {
-    for ensure in &output.ensures {
-        match ensure {
-            Ensures::Type(path, updated_ty) => {
-                let updated_ty = infcx.unpack(updated_ty);
-                infcx.assume_invariants(&updated_ty, overflow_checking);
-                env.update_path(path, updated_ty);
-            }
-            Ensures::Pred(e) => infcx.assume_pred(e),
-        }
-    }
-}
-
-fn check_ensures(
-    at: &mut InferCtxtAt,
-    env: &mut TypeEnv,
-    output: &FnOutput,
-    reason: ConstrReason,
-    span: Span,
-) -> Result {
-    for constraint in &output.ensures {
-        match constraint {
-            Ensures::Type(path, ty) => {
-                let actual_ty = env.get(path);
-                at.subtyping(&actual_ty, ty, reason).with_span(span)?;
-            }
-            Ensures::Pred(e) => {
-                at.check_pred(e, ConstrReason::Ret);
-            }
-        }
-    }
     Ok(())
 }
 
@@ -779,7 +734,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
             .with_span(span)?;
 
-        check_ensures(&mut at, env, &output, ConstrReason::Ret, span)?;
+        env.check_ensures(&mut at, &output, ConstrReason::Ret)
+            .with_span(span)?;
 
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
@@ -866,7 +822,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        update_ensures(infcx, env, &output, self.check_overflow());
+        env.update_ensures(infcx, &output, self.check_overflow());
 
         fold_local_ptrs(infcx, env, span)?;
 
