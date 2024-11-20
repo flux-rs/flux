@@ -983,6 +983,15 @@
 <a href="#983" id="983">983</a>
 <a href="#984" id="984">984</a>
 <a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1281,6 +1290,9 @@
                 <span class="self">self</span>.on_func(<span class="kw-2">*</span>func, expr.node_id);
             }
             surface::ExprKind::Dot(path, <span class="kw">_</span>) =&gt; <span class="self">self</span>.on_path(path),
+            surface::ExprKind::Constructor(path, <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.on_path(path);
+            }
             <span class="kw">_ </span>=&gt; {}
         }
         surface::visit::walk_expr(<span class="self">self</span>, expr);
@@ -1541,13 +1553,19 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         segments: <span class="kw-2">&amp;</span>[S],
     ) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
-        <span class="kw">let </span>res = <span class="self">self
-            </span>.resolver
-            .resolve_path_with_ribs(segments, ValueNS)<span class="question-mark">?
-            </span>.full_res()<span class="question-mark">?</span>;
+        <span class="kw">let </span>res = <span class="kw">match </span><span class="self">self</span>.resolver.resolve_path_with_ribs(segments, ValueNS) {
+            <span class="prelude-val">Some</span>(r) =&gt; r.full_res()<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; {
+                <span class="self">self</span>.resolver
+                    .resolve_path_with_ribs(segments, TypeNS)<span class="question-mark">?
+                    </span>.full_res()<span class="question-mark">?
+            </span>}
+        };
         <span class="kw">match </span>res {
             fhir::Res::Def(DefKind::ConstParam, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Const(def_id)),
+            fhir::Res::Def(DefKind::Struct, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Struct(def_id)),
+            fhir::Res::Def(DefKind::Enum, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Enum(def_id)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

@@ -611,6 +611,28 @@
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -1066,6 +1088,27 @@
 }
 
 <span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>FieldExpr {
+    <span class="kw">pub </span>ident: Ident,
+    <span class="kw">pub </span>expr: Expr,
+    <span class="kw">pub </span>span: Span,
+    <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Spread {
+    <span class="kw">pub </span>expr: Expr,
+    <span class="kw">pub </span>span: Span,
+    <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>ConstructorArgs {
+    FieldExpr(FieldExpr),
+    Spread(Spread),
+}
+
+<span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Expr {
     <span class="kw">pub </span>kind: ExprKind,
     <span class="kw">pub </span>node_id: NodeId,
@@ -1082,6 +1125,7 @@
     App(Ident, Vec&lt;Expr&gt;),
     Alias(AliasReft, Vec&lt;Expr&gt;),
     IfThenElse(Box&lt;[Expr; <span class="number">3</span>]&gt;),
+    Constructor(ExprPath, Vec&lt;ConstructorArgs&gt;),
 }
 
 <span class="doccomment">/// A [`Path`] but for refinement expressions

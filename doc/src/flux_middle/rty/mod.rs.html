@@ -2575,6 +2575,16 @@
 <a href="#2575" id="2575">2575</a>
 <a href="#2576" id="2576">2576</a>
 <a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
+<a href="#2579" id="2579">2579</a>
+<a href="#2580" id="2580">2580</a>
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2619,7 +2629,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>refining::Refiner;
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
+<span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 <span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem, Safety};
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
@@ -2688,6 +2698,16 @@
 
     <span class="kw">pub fn </span>projections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = FieldProj&gt; + <span class="lifetime">'_ </span>{
         (<span class="number">0</span>..<span class="self">self</span>.fields()).map(|i| FieldProj::Adt { def_id: <span class="self">self</span>.did(), field: i <span class="kw">as </span>u32 })
+    }
+
+    <span class="kw">pub fn </span>field_names(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;Symbol&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.field_names
+    }
+
+    <span class="kw">pub fn </span>sort_by_field_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FxIndexMap&lt;Symbol, Sort&gt; {
+        std::iter::zip(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.field_names, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args)))
+            .map(|(name, sort)| (<span class="kw-2">*</span>name, sort.clone()))
+            .collect()
     }
 
     <span class="kw">pub fn </span>field_by_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort], name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;(FieldProj, Sort)&gt; {

@@ -215,6 +215,11 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Code to check whether refinement parameters are used in allowed positions.
 //!
 //! The correct usage of a parameter depends on whether its infer mode is [evar] or [kvar].
@@ -333,6 +338,11 @@
             fhir::ExprKind::Record(fields) =&gt; {
                 <span class="kw">for </span>field <span class="kw">in </span>fields {
                     <span class="self">self</span>.check_func_params_uses(field, is_top_level_conj, is_top_level_var);
+                }
+            }
+            fhir::ExprKind::Constructor(_path, exprs, _spread) =&gt; {
+                <span class="kw">for </span>expr <span class="kw">in </span>exprs {
+                    <span class="self">self</span>.check_func_params_uses(<span class="kw-2">&amp;</span>expr.expr, <span class="bool-val">false</span>, <span class="bool-val">false</span>);
                 }
             }
         }

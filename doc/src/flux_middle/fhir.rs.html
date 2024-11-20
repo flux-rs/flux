@@ -1499,6 +1499,33 @@
 <a href="#1499" id="1499">1499</a>
 <a href="#1500" id="1500">1500</a>
 <a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2399,6 +2426,21 @@
     <span class="kw">pub </span>name: Symbol,
 }
 
+<span class="attr">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub struct </span>FieldExpr&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>ident: Ident,
+    <span class="kw">pub </span>expr: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>fhir_id: FhirId,
+    <span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub struct </span>Spread&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>expr: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>span: Span,
+    <span class="kw">pub </span>fhir_id: FhirId,
+}
+
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>Expr&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>kind: ExprKind&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -2418,6 +2460,7 @@
     IfThenElse(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
+    Constructor(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Expr&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -2446,6 +2489,8 @@
 </span><span class="kw">pub enum </span>ExprRes&lt;Id = ParamId&gt; {
     Param(ParamKind, Id),
     Const(DefId),
+    Struct(DefId),
+    Enum(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
@@ -2459,6 +2504,8 @@
             ExprRes::NumConst(val) =&gt; ExprRes::NumConst(val),
             ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
             ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
+            ExprRes::Struct(def_id) =&gt; ExprRes::Struct(def_id),
+            ExprRes::Enum(def_id) =&gt; ExprRes::Enum(def_id),
         }
     }
 
@@ -2911,6 +2958,13 @@
             }
             ExprKind::Record(flds) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
+            }
+            ExprKind::Constructor(path, exprs, spread) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = spread {
+                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?}, ..{:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>), s)
+                } <span class="kw">else </span>{
+                    <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>))
+                }
             }
         }
     }
