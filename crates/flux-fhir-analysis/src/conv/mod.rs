@@ -65,6 +65,9 @@ pub struct ConvCtxt<'genv, 'tcx, P> {
 pub trait ConvPhase {
     /// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     const EXPAND_TYPE_ALIASES: bool;
+    /// Whether we have elaborated information or not (in the first phase we will not, but in the
+    /// second we will)
+    const HAS_ELABORATED_INFORMATION: bool;
 
     type Results: WfckResultsProvider;
 
@@ -99,6 +102,7 @@ pub trait WfckResultsProvider: Sized {
 
 impl<'a> ConvPhase for &'a WfckResults {
     const EXPAND_TYPE_ALIASES: bool = true;
+    const HAS_ELABORATED_INFORMATION: bool = true;
 
     type Results = WfckResults;
 
@@ -1629,6 +1633,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         exprs: &[fhir::FieldExpr],
         spread: &Option<&fhir::Spread>,
     ) -> QueryResult<List<rty::Expr>> {
+        if !P::HAS_ELABORATED_INFORMATION {
+            return Ok(List::default());
+        };
         let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
         let spread = spread
             .map(|spread| self.conv_expr(env, &spread.expr))

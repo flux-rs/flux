@@ -396,6 +396,7 @@ impl<'genv, 'tcx> ConvPhase for &mut InferCtxt<'genv, 'tcx> {
     /// We don't expand type aliases before sort checking because we need every base type in `fhir`
     /// to match a type in `rty`.
     const EXPAND_TYPE_ALIASES: bool = false;
+    const HAS_ELABORATED_INFORMATION: bool = false;
 
     type Results = InferCtxt<'genv, 'tcx>;
 

@@ -12,3 +12,10 @@ fn f(mut x: X) -> X {
     x.y = 2;
     x
 }
+
+#[flux::sig(fn (x: X[@old_x]) -> X[{ y: 2, x: 1, x: 1 }])] //~ ERROR field `x` was previously used in constructor
+fn f2(mut x: X) -> X {
+    x.x = 1;
+    x.y = 2;
+    x
+}

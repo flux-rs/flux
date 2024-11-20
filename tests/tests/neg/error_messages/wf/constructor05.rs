@@ -23,4 +23,11 @@ impl S {
         self.x = 1;
         self.y = 1;
     }
+
+    // The constructor's spread `..e` is wrong
+    #[flux::sig(fn (self: &strg S[@old_x], E[@e]) ensures self: S[{ x: 1, ..e }])] //~ERROR mismatched sorts
+    pub fn crazy2(&mut self, _e: E) {
+        self.x = 1;
+        self.y = 1;
+    }
 }
