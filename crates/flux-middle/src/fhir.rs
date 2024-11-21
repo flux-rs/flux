@@ -1438,6 +1438,8 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "{:?} {{ {:?}, ..{:?} }}", path, exprs.iter().format(", "), s)
                 } else if let Some(path) = path {
                     write!(f, "{:?} {{ {:?} }}", path, exprs.iter().format(", "))
+                } else if let Some(s) = spread {
+                    write!(f, "{{ {:?} ..{:?} }}", exprs.iter().format(", "), s)
                 } else {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
