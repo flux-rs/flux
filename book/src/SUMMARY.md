@@ -15,6 +15,7 @@
 - [Introducing Flux](blog/01-introducing-flux.md)
 - [Ownership in Flux](blog/02-ownership.md)
 - [Refined Vectors](blog/03-vectors.md)
+- [Arrays and Const Generics](blog/04-arrays.md)
 - [Iterators]()
 - [Structs]()
 - [Enums]()
