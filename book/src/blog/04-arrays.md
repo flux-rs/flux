@@ -44,7 +44,7 @@ Similarly, `rustc` will wag a finger if you try to access a `Pixel` at an invali
 
 ## ... Run-time Panic!
 
-However, the plain type system works only upto a point. For example, consider the
+However, `rustc`'s checks only work upto a point. For example, consider the
 following function to compute the average `color` value of a collection of `&[Pixel]`
 
 ```rust
@@ -115,7 +115,7 @@ fn dot<const N:usize>(x: [f32;N], y: [f32;N]) -> f32 {
 This is very convenient because `rustc` will prevent us from calling `dot` with
 arrays of different sizes, for example we get a compile-time error
 
-```
+```rust
    |
 68 |     dot([1.0, 2.0], [3.0, 4.0, 5.0]);
    |     ---             ^^^^^^^^^^^^^^^ expected an array with a fixed size of 2 elements, found one with 3 elements
@@ -138,7 +138,7 @@ fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
 
 Now, unfortunately, `rustc` will not prevent us from calling `dot_k` with `k` set to a value that is too large!
 
-```rust
+```
 thread 'main' panicked at ... index out of bounds: the len is 2 but the index is 2
 ```
 
@@ -172,7 +172,7 @@ fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
 * The **strict** approach is to require that `k` be less than or equal to `N`
 
 ```rust
-#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k <= N}) -> f32]
+#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k <= N}) -> f32)]
 fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
     let mut sum = 0.0;
     for i in 0..k {
