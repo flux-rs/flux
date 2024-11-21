@@ -1510,9 +1510,170 @@ compound structures and APIs from simple ones.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>Why not use an iterator? We'll get there in due course!</p>
 </div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="arrays-and-const-generics"><a class="header" href="#arrays-and-const-generics">Arrays and Const Generics</a></h1>
+<p><a href="http://goto.ucsd.edu:8091/index.html#?demo=arrays.rs">Online demo</a></p>
+<p>Rust has a built-in notion of <em>arrays</em> : collections of objects of
+the same type <code>T</code> whose size is known at compile time. The fact that
+the sizes are known allows them to be allocated contiguously in memory,
+which makes for fast access and manipulation.</p>
+<p>When I asked ChatGPT what arrays were useful for, it replied
+with several nice examples, including low-level systems programming (e.g.
+packets of data represented as <code>struct</code>s with array-valued fields), storing configuration data, or small sets of related values (e.g. RGB values for a pixel).</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>type Pixel = [u8; 3]; // RGB values
+
+let pix0: Pixel = [255,   0, 127];
+let pix1: Pixel = [  0, 255, 127];
+<span class="boring">}</span></code></pre></pre>
+<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-time Safety...</a></h2>
+<p>As the size of the array is known at compile time, Rust can make sure that
+we don't <em>create</em> arrays of the wrong size, or <em>access</em> them out of bounds.</p>
+<p>For example, <code>rustc</code> will grumble if you try to make a <code>Pixel</code> with 4 elements:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>   |
+52 | let pix2 : Pixel = [0,0,0,0];
+   |            -----   ^^^^^^^^^ expected an array with a fixed size of 3 elements, found one with 4 elements
+   |            |
+   |            expected due to this
+<span class="boring">}</span></code></pre></pre>
+<p>Similarly, <code>rustc</code> will wag a finger if you try to access a <code>Pixel</code> at an invalid index.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>   |
+54 |  let blue0 = pix0[3];
+   |              ^^^^^^^ index out of bounds: the length is 3 but the index is 3
+   |
+<span class="boring">}</span></code></pre></pre>
+<h2 id="-run-time-panic"><a class="header" href="#-run-time-panic">... Run-time Panic!</a></h2>
+<p>However, the plain type system works only upto a point. For example, consider the
+following function to compute the average <code>color</code> value of a collection of <code>&amp;[Pixel]</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn average_color(pixels: &amp;[Pixel], i: usize) -&gt; u64 {
+    let mut sum = 0;
+    for p in pixels {
+        sum += p[i] as u64;
+    }
+    sum / pixels.len() as u64
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now, <code>rustc</code> will not complain about the above code, even though it may panic if
+<code>color</code> is out of bounds (or of course, if the slice <code>pixels</code> is empty!).
+For example, the following code</p>
+<pre><pre class="playground"><code class="language-rust">fn main() {
+    let pixels = [ [255, 0, 0], [0, 255, 0], [0, 0, 255] ];
+    let avg = average(&amp;pixels, 3);
+    println!("Average: {}", avg);
+}</code></pre></pre>
+<p>panics at runtime:</p>
+<pre><code>thread 'main' panicked ... index out of bounds: the len is 3 but the index is 3
+</code></pre>
+<h2 id="refined-compile-time-safety"><a class="header" href="#refined-compile-time-safety">Refined Compile-time Safety</a></h2>
+<p>Fortunately, <code>flux</code> knows about the sizes of arrays and slices. At compile time,
+<code>flux</code> warns about two possible errors in <code>average_color</code></p>
+<img src="blog/../img/04-arrays-average-error.png" width="100%">
+<ol>
+<li>The index <code>i</code> may be out of bounds when accessing <code>p[i]</code> and</li>
+<li>The division can panic as <code>pixels</code> may be empty (i.e. have length <code>0</code>).</li>
+</ol>
+<p>We can fix these errors by requiring that the input</p>
+<ul>
+<li><code>i</code> be a valid color index, i.e. <code>i &lt; 3</code> and</li>
+<li><code>pixels</code> be non-empty, i.e. have size <code>n</code> where <code>n &gt; 0</code></li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[sig(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
+<span class="boring">}</span></code></pre></pre>
+<img src="blog/../img/04-arrays-average-fix.gif" width="100%">
+<h2 id="const-generics"><a class="header" href="#const-generics">Const Generics</a></h2>
+<p>Rust also lets us write arrays that are <em>generic</em> over the size. For example,
+suppose we want to take two input arrays <code>x</code> and <code>y</code> of the same size <code>N</code> and
+compute their dot product. We can write</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot&lt;const N:usize&gt;(x: [f32;N], y: [f32;N]) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..N {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This is very convenient because <code>rustc</code> will prevent us from calling <code>dot</code> with
+arrays of different sizes, for example we get a compile-time error</p>
+<pre><code>   |
+68 |     dot([1.0, 2.0], [3.0, 4.0, 5.0]);
+   |     ---             ^^^^^^^^^^^^^^^ expected an array with a fixed size of 2 elements, found one with 3 elements
+   |     |
+   |     arguments to this function are incorrect
+   |
+</code></pre>
+<p>However, suppose we wanted to compute the <code>dot</code> product of just the first <code>k</code> elements</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..k {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now, unfortunately, <code>rustc</code> will not prevent us from calling <code>dot_k</code> with <code>k</code> set to a value that is too large!</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>thread 'main' panicked at ... index out of bounds: the len is 2 but the index is 2
+<span class="boring">}</span></code></pre></pre>
+<p>Yikes.</p>
+<h2 id="refined-const-generics"><a class="header" href="#refined-const-generics">Refined Const Generics</a></h2>
+<p>Fortunately, <code>flux</code> understands const-generics as well!</p>
+<p>First off, it warns us about the fact that the accesses with the index may be out of bounds.</p>
+<img src="blog/../img/04-arrays-dotk-error.png" width="100%">
+<p>We can fix it in two ways.</p>
+<ul>
+<li>The <strong>permissive</strong> approach is to accept any <code>k</code> but restrict the iteration to the valid elements</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    let n = if k &lt; N { k } else { N };
+    for i in 0..n {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<img src="blog/../img/04-arrays-dotk-permissive.gif" width="100%">
+<ul>
+<li>The <strong>strict</strong> approach is to require that <code>k</code> be less than or equal to <code>N</code></li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32]
+fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..k {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<img src="blog/../img/04-arrays-dotk-strict.gif" width="100%">
+<p>Do you understand why</p>
+<p>(1) Adding the type signature moved the error from the body of <code>dot_k</code> into the call-site inside <code>test</code>?
+(2) Then editing <code>test</code> to call <code>dot_k</code> with <code>k=2</code> fixed the error?</p>
+<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
+<p>Rust's (sized) arrays are great, and <code>flux</code>'s refinements make them even better,
+by ensuring indices are guaranteed to be within the arrays bounds. Const generics
+let us write functions that are polymorphic over array sizes, and again, refinements
+let us precisely track those sizes to prevent out-of-bounds errors!</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="about-flux"><a class="header" href="#about-flux">About Flux</a></h1>
 <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
-<p>Flux is a research project described in <a href="https://arxiv.org/abs/2207.04034">the paper</a></p>
+<p>Flux is a research project described in [the paper][paper] [PLDI 23 talk][talk]</p>
 <h2 id="team"><a class="header" href="#team">Team</a></h2>
 <p>Flux is being developed by</p>
 <ul>
