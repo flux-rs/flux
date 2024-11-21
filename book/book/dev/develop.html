@@ -89,9 +89,11 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html" class="active"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html" class="active"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><a href="../blog/04-arrays.html"><strong aria-hidden="true">8.</strong> Arrays and Const Generics</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -300,7 +302,7 @@ check_crate
 total time: 17014.19ms
 </code></pre>
 <h2 id="macro-expansion"><a class="header" href="#macro-expansion">Macro expansion</a></h2>
-<p>For example if you have code like  in <code>path/to/file.rs</code></p>
+<p>For example if you have code like in <code>path/to/file.rs</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[extern_spec]
@@ -308,10 +310,37 @@ total time: 17014.19ms
 struct HashSet&lt;T, S = RandomState&gt;;
 <span class="boring">}</span></code></pre></pre>
 <p>and you want to see what the <code>extern_spec</code> macro expands it out to, then run</p>
-<pre><code>cargo x run -- -Zunpretty=expanded path/to/file.rs
+<pre><code class="language-shell">cargo x run -- -Zunpretty=expanded path/to/file.rs
 </code></pre>
 <p>Or you can run the <code>xtask</code> command directly</p>
-<pre><code>cargo x expand path/to/file.rs
+<pre><code class="language-shell">cargo x expand path/to/file.rs
+</code></pre>
+<h2 id="reporting-and-dealing-with-bugs"><a class="header" href="#reporting-and-dealing-with-bugs">Reporting and dealing with bugs</a></h2>
+<p>As Flux is under active development, there are many aspects of Rust that Flux does not yet support, are
+only partially implemented, or where the implementation may contain bugs. These issues typically manifest
+as unreachable arms in a match statement (that turn out not to be unreachable) or preemtive assertions to
+guard against code we don't yet support. To help identify the code that triggers these bugs, there are a few
+recommended methods for reporting them:</p>
+<ul>
+<li><code>QueryErr::bug</code>: Use this method to report a bug if the code already returns a <code>QueryResult</code>. This
+approach is preferred because we will correctly recover from the error.</li>
+<li><code>span_bug!</code>: When you have a <code>Span</code> at hand, you can use this macro in place of <code>panic!</code> to report
+the span before panicking.</li>
+<li><code>tracked_span_bug!</code>: This macro is similar to <code>span_bug!</code>, but it uses a span stored in a thread local
+variable (if one exists). To track a span in the thread local variable you can use <code>flux_common::bug::track_span</code>.</li>
+<li><code>bug!</code>: For other cases where none of the above applies, you can use the <code>bug!</code> macro. This behaves
+mostly like <code>panic!</code> but with nicer formatting.</li>
+</ul>
+<p>When running Flux in a new code base, consider setting the flag <code>FLUX_CATCH_BUGS=1</code>. If this flag is set,
+Flux will try to catch and recover from panics emitted with one of the bug macros (using
+<code>std::panic::catch_unwind</code>). Bugs are caught at item boundaries. This may leave Flux or rustc
+in an inconsistent state, so there are no guarantees that Flux will behave correctly after recovering
+from a panic. However, this may still be useful to gather as many errors as possible. Code can
+be selectively ignored later.</p>
+<h2 id="dumping-the-checker-trace"><a class="header" href="#dumping-the-checker-trace">Dumping the Checker Trace</a></h2>
+<pre><code>cargo x install --debug
+FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
+python3  path/to/flux/tools/logreader.py
 </code></pre>
 
                     </main>
@@ -343,6 +372,22 @@ struct HashSet&lt;T, S = RandomState&gt;;
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 

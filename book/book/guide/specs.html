@@ -89,9 +89,11 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html" class="active"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html" class="active"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><a href="../blog/04-arrays.html"><strong aria-hidden="true">8.</strong> Arrays and Const Generics</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -189,7 +191,7 @@
 <p>binds <code>n</code> over the entire scope of the function to specify that it takes an <code>i32</code> equal to <code>n</code> and returns an <code>i32</code> equal to <code>n + 1</code>. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type <code>a -&gt; a</code> in Haskell is polymorphic on the type <code>a</code> which is bound for the scope of the entire function type.</p>
 </li>
 <li>
-<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[x]</code>.</p>
+<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[a]</code>.</p>
 <ul>
 <li><code>i32{v: v &gt; 0}</code>: set of positive <code>i32</code> values.</li>
 <li><code>List&lt;T&gt;{v: v &gt; 0}</code>: set of non-empty lists.</li>
@@ -200,7 +202,7 @@
 <p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
 <p>Constraint types serve a similar role as existentials as they can also be used to constraint some
 refinement value with a predicate, but an existential type can only be used to constraint refinement
-variable that it bound locally, in contrast constraint types can be used to constraint a &quot;non-local&quot; parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
+variable that it bound locally, in contrast constraint types can be used to constraint a "non-local" parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
 because it has to be used in the return type.</p>
 </li>
 </ul>
@@ -216,8 +218,8 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 <p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
 <h2 id="extern-specs"><a class="header" href="#extern-specs">Extern specs</a></h2>
 <p>Sometimes you may want to refine a struct or function that outside your code. We
-refer to such a specification as an &quot;extern spec,&quot; which is short for &quot;external
-specification.&quot;</p>
+refer to such a specification as an "extern spec," which is short for "external
+specification."</p>
 <p>Flux right now has rudimentary support for extern specs: they are supported for
 functions, impls, and structs. Impls are only supported for structs and if you
 have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
@@ -229,7 +231,7 @@ Right now this needs to be done as a local dependency since it is not published.
 Below is an example of how you can include it, although the version may be
 different.</p>
 <pre><code class="language-toml">[dependencies]
-flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&quot; }
+flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
 </code></pre>
 <p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
 <pre><code>use flux_rs::extern_spec;
@@ -240,7 +242,7 @@ flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&
 <p>To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.</p>
 <pre><code>#[extern_spec(std::mem)]
-#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
 fn swap(a: &amp;mut i32, b: &amp;mut i32);
 </code></pre>
 <ol>
@@ -248,8 +250,8 @@ fn swap(a: &amp;mut i32, b: &amp;mut i32);
 in the above example, this is <code>std::mem</code>. You can use this path to qualify
 the function. So in the above example, the function we are targeting has the
 full path of <code>std::mem::swap</code>.</li>
-<li>Add a <code>#[flux::sig(...)]</code> attribute. This is required for any extern spec on
-a function. This signature behaves as if the <code>#[flux::trusted]</code> attribute was
+<li>Add a <code>#[flux_rs::sig(...)]</code> attribute. This is required for any extern spec on
+a function. This signature behaves as if the <code>#[flux_rs::trusted]</code> attribute was
 added, because we can't actually check the implementation. We just verify
 some simple things, like that the function arguments have compatible types.</li>
 <li>Write a function stub that matches the external function.</li>
@@ -258,8 +260,8 @@ some simple things, like that the function arguments have compatible types.</li>
 above type.</p>
 <p>You shouldn't need to know the details, but here's how the macro works. It
 parses the <code>std::mem</code> into a module path and then transforms the function into</p>
-<pre><code>#[flux::extern_spec]
-#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+<pre><code>#[flux_rs::extern_spec]
+#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
 #[allow(unused, dead_code)]
 fn __flux_extern_spec_swap(a: &amp;mut i32, b: &amp;mut i32) {
     std::mem::swap(a, b)
@@ -276,7 +278,7 @@ A simpler example just involving structs can be found
 <p>The syntax for an extern spec on a struct is very similar to that for a
 function. Once again, each line in the example happens to correspond to a step.</p>
 <pre><code>#[extern_spec(std::string)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct String;
 </code></pre>
 <ol>
@@ -284,9 +286,9 @@ struct String;
 in the above example, this is <code>std::string</code>. You can use this path to qualify
 the function. So in the above example, the struct we are targeting has the
 full path of <code>std::string::String</code>.</li>
-<li>Add a <code>#[flux::refined_by(...)]</code> attribute. This is required for any extern
+<li>Add a <code>#[flux_rs::refined_by(...)]</code> attribute. This is required for any extern
 spec on a struct. Right now these attributes behave as if they were opaque
-(<code>#[flux::opaque]</code>), although we may support non-opaque extern structs.</li>
+(<code>#[flux_rs::opaque]</code>), although we may support non-opaque extern structs.</li>
 <li>Write a stub for the extern struct.</li>
 </ol>
 <p>If you do the above, you can use <code>std::string::String</code> as if it were refined by
@@ -295,10 +297,10 @@ an integer index.</p>
 structs.</p>
 <pre><code>#[extern_spec(std::string)]
 impl String {
-    #[flux::sig(fn() -&gt; String[0])]
+    #[flux_rs::sig(fn() -&gt; String[0])]
     fn new() -&gt; String;
 
-    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
     fn len(s: &amp;String) -&gt; usize;
 }
 </code></pre>
@@ -317,9 +319,9 @@ of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>
 they were refined.</p>
 <p>You shouldn't need to know the details, but here's how the above two macros expand.</p>
 <p>For structs:</p>
-<pre><code>#[flux::extern_spec]
+<pre><code>#[flux_rs::extern_spec]
 #[allow(unused, dead_code)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 struct __FluxExternSpecString(std::string::String);
 </code></pre>
 <p>For impls (this was translated manually so there might be some bugs):</p>
@@ -328,14 +330,14 @@ struct __FluxExternImplStructString;
 
 #[allow(unused, dead_code)]
 impl __FluxExternImplStructString {
-    #[flux::extern_spec]
-    #[flux::sig(fn() -&gt; String[0])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn() -&gt; String[0])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_new() -&gt; String {
        std::string::String::new::&lt;&gt;()
     }
-    #[flux::extern_spec]
-    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    #[flux_rs::extern_spec]
+    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_len(s: &amp;String) -&gt; usize {
        std::string::String::len::&lt;&gt;(s)
@@ -364,20 +366,21 @@ impl __FluxExternImplStructString {
     | !r                    // negation
 </code></pre>
 <h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
-<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux::ignore]</code> and <code>#[flux::trusted]</code>.</p>
+<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
 <ul>
-<li><code>#[flux::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
-<li><code>#[flux::trusted]</code>: This attribute only applies to functions. When a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
+<li><code>#[flux_rs::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
+<li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
 </ul>
-<p>The above means that an <em>ignored</em> function can only be called from other ignored or trusted code, while a <em>trusted</em> function can also be called from code being analyzed.</p>
-<p>The <code>#[flux::ignore]</code> attribute applies recursively. For instance, if a module is marked as <code>#[flux::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis.</p>
+<p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::ignore]
+</span>#[flux_rs::ignore]
 mod A {
 
-   #[flux::ignore(no)]
+   #[flux_rs::ignore(no)]
    mod B {
       mod C {
          fn f1() {}
@@ -392,10 +395,59 @@ mod A {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
-<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate and then selectively include specific sections for analysis.</p>
+<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
 <div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
-<p><code>#[flux::ignore]</code> is shorthand for <code>#[flux::ignore(yes)]</code>.</p>
+<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>).</p>
 </div>
+<h2 id="opaque"><a class="header" href="#opaque">Opaque</a></h2>
+<p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*;
+
+#[opaque]
+#[refined_by(vals: Map&lt;K, V&gt;)]
+pub struct RMap&lt;K, V&gt; {
+    inner: std::collections::HashMap&lt;K, V&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Note that opaque structs <strong>can not</strong> have refined fields.</strong></p>
+<p>Now, we can define <code>get</code> for our refined map as follows:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[generics(K as base, V as base)]
+impl&lt;K, V&gt; RMap&lt;K, V&gt; {
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&amp;RMap&lt;K, V&gt;[@m], &amp;K[@k]) -&gt; Option&lt;&amp;V[map_select(m.vals, k)]&gt;)]
+    pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+    where
+        K: Eq + Hash,
+    {
+        self.inner.get(k)
+    }
+
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Note that if we do not mark these methods as <code>trusted</code>, we will get an error that looks like...</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[E0999]: cannot access fields of opaque struct `RMap`.
+  --&gt; ../opaque.rs:22:9
+   |
+22 |         self.inner.get(k)
+   |         ^^^^^^^^^^
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
+   |
+help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
+  --&gt; ../opaque.rs:18:5
+   |
+18 | /     pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+19 | |     where
+20 | |         K: Eq + std::hash::Hash,
+   | |________________________________^
+   = note: fields of opaque structs can only be accessed inside trusted code
+<span class="boring">}</span></code></pre></pre>
 
                     </main>
 
@@ -426,6 +478,22 @@ mod A {
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 

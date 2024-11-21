@@ -89,9 +89,11 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html" class="active"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html" class="active"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><a href="../blog/04-arrays.html"><strong aria-hidden="true">8.</strong> Arrays and Const Generics</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -187,12 +189,12 @@ and ensure --- at compile time --- that vector accesses <em>cannot</em> fail at 
 around the standard <code>Vec</code> type</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::refined_by(len: int)]
+</span>#[flux_rs::refined_by(len: int)]
 pub struct RVec&lt;T&gt; {
     inner: Vec&lt;T&gt;,
 }
 <span class="boring">}</span></code></pre></pre>
-<p>The <code>#[flux::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
+<p>The <code>#[flux_rs::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
 is indexed by a <code>len</code> refinement which tracks the <em>size</em> of the underlying vector, just
 like the indices for <code>i32</code> and <code>bool</code> tracked the actual <em>value</em> of the underlying
 <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">integer or boolean</a>). The idea is that the type</p>
@@ -208,16 +210,16 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.</p
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; RVec&lt;T&gt; {
-    #[flux::trusted]
-    #[flux::sig(fn() -&gt; RVec&lt;T&gt;[0])]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn() -&gt; RVec&lt;T&gt;[0])]
     pub fn new() -&gt; Self {
         Self { inner: Vec::new() }
     }
 }
 <span class="boring">}</span></code></pre></pre>
 <p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
-The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
-&quot;check&quot; here, as we are <em>defining</em> the API itself and trusting
+The <code>#[flux_rs::trusted]</code> attribute tells Flux there is nothing to
+"check" here, as we are <em>defining</em> the API itself and trusting
 that the implementation (using <code>vec</code> is correct).
 However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
 back a vector indexed with <code>0</code> i.e. an empty vector.</p>
@@ -226,8 +228,8 @@ back a vector indexed with <code>0</code> i.e. an empty vector.</p>
 <p>To be of any use, we need to be able to <code>push</code> values into the container, like so</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
             ensures self: RVec&lt;T&gt;[n+1])]
 pub fn push(&amp;mut self, item: T) {
     self.inner.push(item);
@@ -245,8 +247,8 @@ of the vector. Aha, but what if the vector is empty? You could return an
 only be called with non-empty vectors.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
             ensures self: RVec&lt;T&gt;[n-1])]
 pub fn pop(&amp;mut self) -&gt; T {
   self.inner.pop().unwrap()
@@ -271,7 +273,7 @@ does not hold</p>
 note: this is the condition that cannot be proved
   --&gt; src/rvec.rs:78:47
    |
-78 |     #[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+78 |     #[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
    |                                               ^^^^^
 <span class="boring">}</span></code></pre></pre>
 <!--
@@ -285,13 +287,13 @@ we <code>pop</code> it. We can do that with a <code>len</code> method whose type
 is, in fact, the size of the input vector</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::trusted]
-#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
+</span>#[flux_rs::trusted]
+#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
 pub fn len(&amp;self) -&gt; usize {
     self.inner.len()
 }
 <span class="boring">}</span></code></pre></pre>
-<p>Now, flux &quot;knows&quot; that after two <code>push</code>es, the size of the vector is <code>2</code> and after
+<p>Now, flux "knows" that after two <code>push</code>es, the size of the vector is <code>2</code> and after
 the two <code>pop</code>s, the size is <code>0</code> again</p>
 <img src="../img/push_pop_len.gif" width="100%">
 <h3 id="random-access"><a class="header" href="#random-access">Random Access</a></h3>
@@ -304,12 +306,12 @@ called with a <em>valid index</em> that is between <code>0</code> and the
 vector's size</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+</span>#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
 pub fn get(&amp;self, i: usize) -&gt; &amp;T {
     &amp;self.inner[i]
 }
 
-#[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+#[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
 pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
     &amp;mut self.inner[i]
 }
@@ -325,14 +327,14 @@ the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> wh
 </span><span class="boring">fn main() {
 </span>impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
     type Output = T;
-    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
+    #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
     fn index(&amp;self, index: usize) -&gt; &amp;T {
         self.get(index)
     }
 }
 
 impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
-    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
+    #[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
     fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
         self.get_mut(index)
     }
@@ -341,7 +343,7 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
 <p>And now the above <code>vec_sum</code> example looks a little nicer</p>
 <img src="../img/vec_sum_index.gif" width="100%">
 <h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
-<p>Lets put the whole API to work in this &quot;memoized&quot; version of the fibonacci
+<p>Lets put the whole API to work in this "memoized" version of the fibonacci
 function which uses a vector to store the results of previous calls</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -375,7 +377,7 @@ which returns the <em>last</em> value as the result.</p>
 <span class="boring">}</span></code></pre></pre>
 <p>Flux complains that the vector may be <em>empty</em> and so the <code>pop</code> call may
 fail ... but why? Can you spot the problem?</p>
-<p>Indeed, we missed a &quot;corner&quot; case -- when <code>n</code> is <code>0</code> we skip the loop and
+<p>Indeed, we missed a "corner" case -- when <code>n</code> is <code>0</code> we skip the loop and
 so the vector is empty! Once we add a test for that, flux is happy.</p>
 <img src="../img/fib.gif" width="100%">
 <h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>
@@ -415,7 +417,7 @@ so the vector is empty! Once we add a test for that, flux is happy.</p>
 note: this is the condition that cannot be proved
    --&gt; src/rvec.rs:189:44
     |
-189 |     #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+189 |     #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
     |                                            ^^^^^
 
 error[FLUX]: arithmetic operation may overflow
@@ -452,7 +454,7 @@ compound structures and APIs from simple ones.</p>
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../about.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../blog/04-arrays.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -466,13 +468,29 @@ compound structures and APIs from simple ones.</p>
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../about.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../blog/04-arrays.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 
