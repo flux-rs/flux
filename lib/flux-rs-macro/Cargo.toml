@@ -1,0 +1,13 @@
+[package]
+name = "flux-rs-macro"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+flux-attrs = { path = "../flux-attrs", version = "0.1.0" }
+
+[lints]
+workspace = true
