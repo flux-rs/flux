@@ -278,6 +278,7 @@ impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
     }
 }
 
+#[derive(Debug)]
 pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     pub span: Span,
@@ -524,7 +525,6 @@ impl Sub {
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         let a = infcx.unpack(a);
-
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
                 bug!("existentials should be removed by the unpacking");

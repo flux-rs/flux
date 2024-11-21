@@ -281,8 +281,6 @@ fn check_fn_subtyping(
         .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
 
-    println!("TRACE: check_fn_subtyping: {sub_sig} <: {super_sig}");
-
     // 3. INPUT subtyping (g-input <: f-input)
     for requires in super_sig.requires() {
         infcx.assume_pred(requires);
@@ -317,13 +315,15 @@ fn check_fn_subtyping(
     infcx
         .subtyping(&output.ret, &super_output.ret, reason)
         .with_span(span)?;
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
 
     // 6. Update state with Output "ensures" and check super ensures
+    infcx.push_scope();
     env.update_ensures(&mut infcx, &output, overflow_checking);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
     env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
         .with_span(span)?;
-
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
 
