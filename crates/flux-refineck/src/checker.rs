@@ -281,6 +281,8 @@ fn check_fn_subtyping(
         .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
         .with_span(span)?;
 
+    println!("TRACE: check_fn_subtyping: {sub_sig} <: {super_sig}");
+
     // 3. INPUT subtyping (g-input <: f-input)
     for requires in super_sig.requires() {
         infcx.assume_pred(requires);
