@@ -1568,6 +1568,9 @@
 <a href="#1568" id="1568">1568</a>
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
@@ -2904,7 +2907,10 @@
                 )
             }
             surface::ExprKind::Constructor(path, constructor_args) =&gt; {
-                <span class="kw">let </span>path = <span class="self">self</span>.desugar_constructor_path(path)<span class="question-mark">?</span>;
+                <span class="kw">let </span>path = <span class="kw">match </span>path {
+                    <span class="prelude-val">Some</span>(path) =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.desugar_constructor_path(path)<span class="question-mark">?</span>),
+                    <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+                };
                 <span class="kw">let </span>field_exprs = constructor_args
                     .iter()
                     .filter_map(|arg| {

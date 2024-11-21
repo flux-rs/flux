@@ -857,6 +857,14 @@
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -952,12 +960,12 @@
         spread: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::Spread&gt;,
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>sort_by_field_name = sort_def.sort_by_field_name(<span class="kw-2">&amp;</span>sort_args);
+        <span class="kw">let </span>sort_by_field_name = sort_def.sort_by_field_name(sort_args);
         <span class="kw">let </span><span class="kw-2">mut </span>used_fields = FxHashSet::default();
         <span class="kw">for </span>expr <span class="kw">in </span>field_exprs {
             <span class="comment">// make sure that the field is actually a field
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = sort_by_field_name.get(<span class="kw-2">&amp;</span>expr.ident.name) {
-                <span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>expr.expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>expr.expr, sort)<span class="question-mark">?</span>;
             } <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
             }
@@ -987,26 +995,34 @@
 
     <span class="kw">fn </span>check_constructor(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        expr_span: Span,
-        path: <span class="kw-2">&amp;</span>PathExpr,
+        expr: <span class="kw-2">&amp;</span>fhir::Expr,
+        path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathExpr&gt;,
         field_exprs: <span class="kw-2">&amp;</span>[fhir::FieldExpr],
         spread: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::Spread&gt;,
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
             <span class="kw">let </span>expected_def_id = sort_def.did();
-            <span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
-                ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
-                <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr_span, <span class="string">"unexpected path in constructor"</span>),
-            };
-            <span class="kw">if </span>path_def_id != expected_def_id {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
-                    </span>.emit_err(errors::SortMismatchFoundOmitted::new(path.span, expected.clone())));
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
+                <span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
+                    <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected path in constructor"</span>),
+                };
+                <span class="kw">if </span>path_def_id != expected_def_id {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortMismatchFoundOmitted::new(
+                        path.span,
+                        expected.clone(),
+                    )));
+                }
+            } <span class="kw">else </span>{
+                <span class="self">self</span>.wfckresults
+                    .record_ctors_mut()
+                    .insert(expr.fhir_id, sort_def.did());
             }
-            <span class="self">self</span>.check_field_exprs(expr_span, sort_def, sort_args, field_exprs, spread, expected)<span class="question-mark">?</span>;
+            <span class="self">self</span>.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedConstructor::new(expr_span, <span class="kw-2">&amp;</span>expected)))
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
         }
     }
 
@@ -1070,7 +1086,7 @@
             fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
             fhir::ExprKind::Constructor(path, exprs, spread) =&gt; {
                 <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
-                <span class="self">self</span>.check_constructor(expr.span, path, exprs, spread, <span class="kw-2">&amp;</span>expected)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_constructor(expr, path, exprs, spread, <span class="kw-2">&amp;</span>expected)<span class="question-mark">?</span>;
             }
         }
         <span class="prelude-val">Ok</span>(())

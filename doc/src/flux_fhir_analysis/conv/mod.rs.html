@@ -2387,6 +2387,17 @@
 <a href="#2387" id="2387">2387</a>
 <a href="#2388" id="2388">2388</a>
 <a href="#2389" id="2389">2389</a>
+<a href="#2390" id="2390">2390</a>
+<a href="#2391" id="2391">2391</a>
+<a href="#2392" id="2392">2392</a>
+<a href="#2393" id="2393">2393</a>
+<a href="#2394" id="2394">2394</a>
+<a href="#2395" id="2395">2395</a>
+<a href="#2396" id="2396">2396</a>
+<a href="#2397" id="2397">2397</a>
+<a href="#2398" id="2398">2398</a>
+<a href="#2399" id="2399">2399</a>
+<a href="#2400" id="2400">2400</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2454,6 +2465,9 @@
 </span><span class="kw">pub trait </span>ConvPhase {
     <span class="doccomment">/// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     </span><span class="kw">const </span>EXPAND_TYPE_ALIASES: bool;
+    <span class="doccomment">/// Whether we have elaborated information or not (in the first phase we will not, but in the
+    /// second we will)
+    </span><span class="kw">const </span>HAS_ELABORATED_INFORMATION: bool;
 
     <span class="kw">type </span>Results: WfckResultsProvider;
 
@@ -2488,6 +2502,7 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ConvPhase <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults {
     <span class="kw">const </span>EXPAND_TYPE_ALIASES: bool = <span class="bool-val">true</span>;
+    <span class="kw">const </span>HAS_ELABORATED_INFORMATION: bool = <span class="bool-val">true</span>;
 
     <span class="kw">type </span>Results = WfckResults;
 
@@ -3996,9 +4011,13 @@
                 rty::Expr::adt(def_id, flds)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) =&gt; {
-                <span class="kw">let </span>def_id = <span class="kw">match </span>path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
-                    <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected path in constructor"</span>),
+                <span class="kw">let </span>def_id = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
+                    <span class="kw">match </span>path.res {
+                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
+                        <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected path in constructor"</span>),
+                    }
+                } <span class="kw">else </span>{
+                    <span class="self">self</span>.results().record_ctor(expr.fhir_id)
                 };
                 <span class="kw">let </span>assns = <span class="self">self</span>.conv_constructor_exprs(def_id, env, exprs, spread)<span class="question-mark">?</span>;
                 rty::Expr::adt(def_id, assns)
@@ -4014,6 +4033,9 @@
         exprs: <span class="kw-2">&amp;</span>[fhir::FieldExpr],
         spread: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::Spread&gt;,
     ) -&gt; QueryResult&lt;List&lt;rty::Expr&gt;&gt; {
+        <span class="kw">if </span>!P::HAS_ELABORATED_INFORMATION {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(List::default());
+        };
         <span class="kw">let </span>struct_adt = <span class="self">self</span>.genv.adt_sort_def_of(struct_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>spread = spread
             .map(|spread| <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>spread.expr))

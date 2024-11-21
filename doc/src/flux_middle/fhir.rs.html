@@ -1526,6 +1526,12 @@
 <a href="#1526" id="1526">1526</a>
 <a href="#1527" id="1527">1527</a>
 <a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2460,7 +2466,7 @@
     IfThenElse(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
-    Constructor(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
+    Constructor(<span class="prelude-ty">Option</span>&lt;PathExpr&lt;<span class="lifetime">'fhir</span>&gt;&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Expr&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -2960,10 +2966,16 @@
                 <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, flds.iter().format(<span class="string">", "</span>))
             }
             ExprKind::Constructor(path, exprs, spread) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = spread {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path
+                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(s) = spread
+                {
                     <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?}, ..{:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>), s)
-                } <span class="kw">else </span>{
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(path) = path {
                     <span class="macro">write!</span>(f, <span class="string">"{:?} {{ {:?} }}"</span>, path, exprs.iter().format(<span class="string">", "</span>))
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(s) = spread {
+                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} ..{:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>), s)
+                } <span class="kw">else </span>{
+                    <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>))
                 }
             }
         }
