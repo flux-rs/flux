@@ -36,3 +36,21 @@ fn mickey(n: i32) {
         assert(i < n);
     }
 }
+
+#[flux_rs::trusted]
+fn cond() -> bool {
+    todo!()
+}
+
+fn test(len: i32) {
+    if len >= 0 {
+        let mut del = 0;
+        for i in 0..len {
+            assert(del <= i);
+            if cond() {
+                del += 1;
+            }
+        }
+        assert(del <= len)
+    }
+}
