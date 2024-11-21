@@ -80,7 +80,7 @@ thread 'main' panicked ... index out of bounds: the len is 3 but the index is 3
 Fortunately, `flux` knows about the sizes of arrays and slices. At compile time,
 `flux` warns about two possible errors in `average_color`
 
-<img src="../img/04-arrays-fig1-average-error.png" width="100%">
+<img src="../img/04-arrays-average-error.png" width="100%">
 
 1. The index `i` may be out of bounds when accessing `p[i]` and
 2. The division can panic as `pixels` may be empty (i.e. have length `0`).
@@ -93,7 +93,7 @@ We can fix these errors by requiring that the input
 ```rust
 #[sig(fn(pixels: &[Pixel][@n], i:usize{i < 3}) -> u64 requires n > 0)]
 ```
-<img src="../img/04-array-average-color-fix.gif" width="100%">
+<img src="../img/04-arrays-average-fix.gif" width="100%">
 
 
 ## Const Generics
@@ -150,7 +150,7 @@ Fortunately, `flux` understands const-generics as well!
 
 First off, it warns us about the fact that the accesses with the index may be out of bounds.
 
-<img src="../img/04-arrays-fig1-average-error.png" width="100%">
+<img src="../img/04-arrays-dotk-error.png" width="100%">
 
 We can fix it in two ways.
 
