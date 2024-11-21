@@ -504,7 +504,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs) => {
-            vis.visit_path_expr(path);
+            if let Some(path) = path {
+                vis.visit_path_expr(path);
+            }
             walk_list!(vis, visit_constructor_args, exprs);
         }
     }

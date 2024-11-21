@@ -93,12 +93,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        let sort_by_field_name = sort_def.sort_by_field_name(&sort_args);
+        let sort_by_field_name = sort_def.sort_by_field_name(sort_args);
         let mut used_fields = FxHashSet::default();
         for expr in field_exprs {
             // make sure that the field is actually a field
             if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
-                self.check_expr(&expr.expr, &sort)?;
+                self.check_expr(&expr.expr, sort)?;
             } else {
                 return Err(self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
             }
@@ -128,26 +128,34 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn check_constructor(
         &mut self,
-        expr_span: Span,
-        path: &PathExpr,
+        expr: &fhir::Expr,
+        path: &Option<PathExpr>,
         field_exprs: &[fhir::FieldExpr],
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
             let expected_def_id = sort_def.did();
-            let path_def_id = match path.res {
-                ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
-                _ => span_bug!(expr_span, "unexpected path in constructor"),
-            };
-            if path_def_id != expected_def_id {
-                return Err(self
-                    .emit_err(errors::SortMismatchFoundOmitted::new(path.span, expected.clone())));
+            if let Some(path) = path {
+                let path_def_id = match path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                    _ => span_bug!(expr.span, "unexpected path in constructor"),
+                };
+                if path_def_id != expected_def_id {
+                    return Err(self.emit_err(errors::SortMismatchFoundOmitted::new(
+                        path.span,
+                        expected.clone(),
+                    )));
+                }
+            } else {
+                self.wfckresults
+                    .record_ctors_mut()
+                    .insert(expr.fhir_id, sort_def.did());
             }
-            self.check_field_exprs(expr_span, sort_def, sort_args, field_exprs, spread, expected)?;
+            self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)?;
             Ok(())
         } else {
-            Err(self.emit_err(errors::UnexpectedConstructor::new(expr_span, &expected)))
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
         }
     }
 
@@ -211,7 +219,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let expected = self.resolve_vars_if_possible(expected);
-                self.check_constructor(expr.span, path, exprs, spread, &expected)?;
+                self.check_constructor(expr, path, exprs, spread, &expected)?;
             }
         }
         Ok(())

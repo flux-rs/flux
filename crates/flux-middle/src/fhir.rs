@@ -932,7 +932,7 @@ pub enum ExprKind<'fhir> {
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
-    Constructor(PathExpr<'fhir>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
+    Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
 }
 
 impl<'fhir> Expr<'fhir> {
@@ -1432,10 +1432,16 @@ impl fmt::Debug for Expr<'_> {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
             ExprKind::Constructor(path, exprs, spread) => {
-                if let Some(s) = spread {
+                if let Some(path) = path
+                    && let Some(s) = spread
+                {
                     write!(f, "{:?} {{ {:?}, ..{:?} }}", path, exprs.iter().format(", "), s)
-                } else {
+                } else if let Some(path) = path {
                     write!(f, "{:?} {{ {:?} }}", path, exprs.iter().format(", "))
+                } else if let Some(s) = spread {
+                    write!(f, "{{ {:?} ..{:?} }}", exprs.iter().format(", "), s)
+                } else {
+                    write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
             }
         }

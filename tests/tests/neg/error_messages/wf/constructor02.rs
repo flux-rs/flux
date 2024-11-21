@@ -13,3 +13,11 @@ fn f1(mut x: X) -> X {
     x.y = 2;
     x
 }
+
+// mismatched type inside of constructor (y should be int)
+#[flux::sig(fn (x: X[@old_x]) -> X[{ y: true, x: 1 }])] //~ ERROR mismatched sorts
+fn f2(mut x: X) -> X {
+    x.x = 1;
+    x.y = 2;
+    x
+}

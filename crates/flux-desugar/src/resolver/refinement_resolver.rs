@@ -296,7 +296,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_func(*func, expr.node_id);
             }
             surface::ExprKind::Dot(path, _) => self.on_path(path),
-            surface::ExprKind::Constructor(path, _) => {
+            surface::ExprKind::Constructor(Some(path), _) => {
                 self.on_path(path);
             }
             _ => {}

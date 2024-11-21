@@ -65,6 +65,9 @@ pub struct ConvCtxt<'genv, 'tcx, P> {
 pub trait ConvPhase {
     /// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     const EXPAND_TYPE_ALIASES: bool;
+    /// Whether we have elaborated information or not (in the first phase we will not, but in the
+    /// second we will)
+    const HAS_ELABORATED_INFORMATION: bool;
 
     type Results: WfckResultsProvider;
 
@@ -99,6 +102,7 @@ pub trait WfckResultsProvider: Sized {
 
 impl<'a> ConvPhase for &'a WfckResults {
     const EXPAND_TYPE_ALIASES: bool = true;
+    const HAS_ELABORATED_INFORMATION: bool = true;
 
     type Results = WfckResults;
 
@@ -1607,9 +1611,13 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                 rty::Expr::adt(def_id, flds)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) => {
-                let def_id = match path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
-                    _ => span_bug!(path.span, "unexpected path in constructor"),
+                let def_id = if let Some(path) = path {
+                    match path.res {
+                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                        _ => span_bug!(path.span, "unexpected path in constructor"),
+                    }
+                } else {
+                    self.results().record_ctor(expr.fhir_id)
                 };
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
                 rty::Expr::adt(def_id, assns)
@@ -1625,6 +1633,9 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
         exprs: &[fhir::FieldExpr],
         spread: &Option<&fhir::Spread>,
     ) -> QueryResult<List<rty::Expr>> {
+        if !P::HAS_ELABORATED_INFORMATION {
+            return Ok(List::default());
+        };
         let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
         let spread = spread
             .map(|spread| self.conv_expr(env, &spread.expr))

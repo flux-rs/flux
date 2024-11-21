@@ -517,7 +517,14 @@ Level9<AllowStruct> = {
 Level10<AllowStruct>: surface::Expr = {
     <lo:@L> <name:ExprPath> "{" <args:Comma<ConstructorArgs>> "}" <hi:@L> if AllowStruct == "true" => {
     	surface::Expr {
-            kind: surface::ExprKind::Constructor(name, args) ,
+            kind: surface::ExprKind::Constructor(Some(name), args) ,
+	    node_id: cx.next_node_id(),
+	    span: cx.map_span(lo, hi),
+	}
+    },
+    <lo:@L> "{" <args:Comma<ConstructorArgs>> "}" <hi:@L> if AllowStruct == "true" => {
+    	surface::Expr {
+            kind: surface::ExprKind::Constructor(None, args) ,
 	    node_id: cx.next_node_id(),
 	    span: cx.map_span(lo, hi),
 	}
