@@ -18,6 +18,13 @@ pub(super) struct UnexpectedLiteral {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_invalid_constructor_path, code = E0999)]
+pub(super) struct InvalidConstructorPath {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_invalid_dot_var, code = E0999)]
 pub(super) struct InvalidDotVar {
     #[primary_span]
@@ -86,5 +93,20 @@ pub(super) struct InvalidVariantRet {
 impl InvalidVariantRet {
     pub(super) fn new(path: &surface::Path) -> Self {
         Self { span: path.span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_multiple_spreads_in_constructor, code = E0999)]
+pub(super) struct MultipleSpreadsInConstructor {
+    #[primary_span]
+    pub(super) span: Span,
+    #[help]
+    pub(super) prev_span: Span,
+}
+
+impl MultipleSpreadsInConstructor {
+    pub(super) fn new(span: Span, prev_span: Span) -> Self {
+        Self { span, prev_span }
     }
 }

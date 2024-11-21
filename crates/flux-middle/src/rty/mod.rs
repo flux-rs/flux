@@ -42,7 +42,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use refining::Refiner;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{def_id::DefId, LangItem, Safety};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
@@ -111,6 +111,16 @@ impl AdtSortDef {
 
     pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+    }
+
+    pub fn field_names(&self) -> &Vec<Symbol> {
+        &self.0.field_names
+    }
+
+    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
+        std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
+            .map(|(name, sort)| (*name, sort.clone()))
+            .collect()
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
@@ -749,6 +759,7 @@ pub enum Sort {
     Real,
     BitVec(BvSize),
     Str,
+    Char,
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -1271,6 +1282,13 @@ impl Ty {
             .unwrap_or_default()
     }
 
+    /// Whether the type is a `char`
+    pub fn is_char(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_char)
+            .unwrap_or_default()
+    }
+
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
     }
@@ -1542,6 +1560,14 @@ impl BaseTy {
 
     pub fn is_box(&self) -> bool {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
+    }
+
+    pub fn is_char(&self) -> bool {
+        matches!(self, BaseTy::Char)
+    }
+
+    pub fn is_str(&self) -> bool {
+        matches!(self, BaseTy::Str)
     }
 
     pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {

@@ -68,6 +68,7 @@ pub enum Token {
     As,
     Hrn,
     Hdl,
+    DotDot,
 }
 
 pub(crate) struct Cursor<'t> {
@@ -188,6 +189,7 @@ impl<'t> Cursor<'t> {
             }
             TokenKind::Not => Token::Not,
             TokenKind::PathSep => Token::PathSep,
+            TokenKind::DotDot => Token::DotDot,
             _ => Token::Invalid,
         };
         self.push_token(span.lo(), token, span.hi());

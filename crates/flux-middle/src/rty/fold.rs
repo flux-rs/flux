@@ -448,6 +448,7 @@ impl TypeSuperVisitable for Sort {
             | Sort::Bool
             | Sort::Real
             | Sort::Str
+            | Sort::Char
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
@@ -476,6 +477,7 @@ impl TypeSuperFoldable for Sort {
             | Sort::Real
             | Sort::Loc
             | Sort::Str
+            | Sort::Char
             | Sort::BitVec(_)
             | Sort::Param(_)
             | Sort::Var(_)

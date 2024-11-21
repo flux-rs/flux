@@ -37,6 +37,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let sort = match ty.kind() {
             ty::TyKind::Bool => Some(rty::Sort::Bool),
             ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Some(rty::Sort::Int),
+            ty::TyKind::Char => Some(rty::Sort::Char),
             ty::TyKind::Str => Some(rty::Sort::Str),
             ty::TyKind::Adt(adt_def, args) => {
                 let mut sort_args = vec![];
@@ -58,7 +59,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 self.sort_of_generic_param(generic_param_def.def_id)?
             }
             ty::TyKind::Float(_)
-            | ty::TyKind::Char
             | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(_)
@@ -95,6 +95,7 @@ impl rty::BaseTy {
         match self {
             rty::BaseTy::Int(_) | rty::BaseTy::Uint(_) | rty::BaseTy::Slice(_) => rty::Sort::Int,
             rty::BaseTy::Bool => rty::Sort::Bool,
+            rty::BaseTy::Char => rty::Sort::Char,
             rty::BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             rty::BaseTy::Param(param_ty) => rty::Sort::Param(*param_ty),
             rty::BaseTy::Str => rty::Sort::Str,
@@ -108,7 +109,6 @@ impl rty::BaseTy {
                 rty::Sort::Alias(*kind, alias_ty)
             }
             rty::BaseTy::Float(_)
-            | rty::BaseTy::Char
             | rty::BaseTy::RawPtr(..)
             | rty::BaseTy::Ref(..)
             | rty::BaseTy::FnPtr(..)

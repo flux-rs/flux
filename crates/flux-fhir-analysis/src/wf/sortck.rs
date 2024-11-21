@@ -4,19 +4,19 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
-    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
+    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId, PathExpr},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
         self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
-        WfckResults,
+        AdtSortDef, WfckResults,
     },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
@@ -84,6 +84,81 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn check_field_exprs(
+        &mut self,
+        expr_span: Span,
+        sort_def: &AdtSortDef,
+        sort_args: &[rty::Sort],
+        field_exprs: &[fhir::FieldExpr],
+        spread: &Option<&fhir::Spread>,
+        expected: &rty::Sort,
+    ) -> Result {
+        let sort_by_field_name = sort_def.sort_by_field_name(sort_args);
+        let mut used_fields = FxHashSet::default();
+        for expr in field_exprs {
+            // make sure that the field is actually a field
+            if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
+                self.check_expr(&expr.expr, sort)?;
+            } else {
+                return Err(self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
+            }
+            if let Some(old_field) = used_fields.replace(expr.ident) {
+                return Err(self.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field)));
+            }
+        }
+        if let Some(spread) = spread {
+            // must check that the spread is of the same sort as the constructor
+            self.check_expr(&spread.expr, expected)?;
+            Ok(())
+        } else if sort_by_field_name.len() != used_fields.len() {
+            // emit an error because all fields are not used
+            let used_field_names: Vec<rustc_span::Symbol> =
+                used_fields.into_iter().map(|k| k.name).collect();
+            let fields_remaining = sort_by_field_name
+                .into_keys()
+                .filter(|x| !used_field_names.contains(x))
+                .collect();
+            return Err(
+                self.emit_err(errors::ConstructorMissingFields::new(expr_span, fields_remaining))
+            );
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_constructor(
+        &mut self,
+        expr: &fhir::Expr,
+        path: &Option<PathExpr>,
+        field_exprs: &[fhir::FieldExpr],
+        spread: &Option<&fhir::Spread>,
+        expected: &rty::Sort,
+    ) -> Result {
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
+            let expected_def_id = sort_def.did();
+            if let Some(path) = path {
+                let path_def_id = match path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                    _ => span_bug!(expr.span, "unexpected path in constructor"),
+                };
+                if path_def_id != expected_def_id {
+                    return Err(self.emit_err(errors::SortMismatchFoundOmitted::new(
+                        path.span,
+                        expected.clone(),
+                    )));
+                }
+            } else {
+                self.wfckresults
+                    .record_ctors_mut()
+                    .insert(expr.fhir_id, sort_def.did());
+            }
+            self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)?;
+            Ok(())
+        } else {
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
+        }
+    }
+
     fn check_record(
         &mut self,
         arg: &fhir::Expr,
@@ -142,6 +217,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, refine_params, body, expected)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Constructor(path, exprs, spread) => {
+                let expected = self.resolve_vars_if_possible(expected);
+                self.check_constructor(expr, path, exprs, spread, &expected)?;
+            }
         }
         Ok(())
     }
@@ -209,6 +288,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::NumConst(_) => rty::Sort::Int,
             ExprRes::GlobalFunc(_, _) => {
                 span_bug!(path.span, "unexpected func in var position")
+            }
+            ExprRes::Struct(_) => {
+                span_bug!(path.span, "unexpected struct in var position")
+            }
+            ExprRes::Enum(_) => {
+                span_bug!(path.span, "unexpected enum in var position")
             }
         }
     }
@@ -712,6 +797,7 @@ fn synth_lit(lit: fhir::Lit) -> rty::Sort {
         fhir::Lit::Bool(_) => rty::Sort::Bool,
         fhir::Lit::Real(_) => rty::Sort::Real,
         fhir::Lit::Str(_) => rty::Sort::Str,
+        fhir::Lit::Char(_) => rty::Sort::Char,
     }
 }
 

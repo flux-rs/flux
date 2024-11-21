@@ -44,7 +44,7 @@ Similarly, `rustc` will wag a finger if you try to access a `Pixel` at an invali
 
 ## ... Run-time Panic!
 
-However, `rustc`'s checks only work upto a point. For example, consider the
+However, the plain type system works only upto a point. For example, consider the
 following function to compute the average `color` value of a collection of `&[Pixel]`
 
 ```rust
@@ -138,7 +138,7 @@ fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
 
 Now, unfortunately, `rustc` will not prevent us from calling `dot_k` with `k` set to a value that is too large!
 
-```
+```rust
 thread 'main' panicked at ... index out of bounds: the len is 2 but the index is 2
 ```
 

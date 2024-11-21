@@ -1,11 +1,11 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, Ensures, EnumDef, Expr, ExprKind,
-    ExprPath, ExprPathSegment, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
-    GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathSegment, Qualifier,
-    RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
-    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArgs, Ensures, EnumDef,
+    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
+    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
+    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
+    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -151,6 +151,13 @@ pub trait Visitor: Sized {
 
     fn visit_expr(&mut self, expr: &Expr) {
         walk_expr(self, expr);
+    }
+
+    fn visit_constructor_args(&mut self, expr: &ConstructorArgs) {
+        match expr {
+            ConstructorArgs::FieldExpr(field_expr) => walk_field_expr(self, field_expr),
+            ConstructorArgs::Spread(spread) => self.visit_expr(&spread.expr),
+        }
     }
 
     fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
@@ -464,6 +471,11 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
     vis.visit_ident(alias.name);
 }
 
+pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
+    vis.visit_ident(expr.ident);
+    vis.visit_expr(&expr.expr);
+}
+
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Path(qpath) => vis.visit_path_expr(qpath),
@@ -490,6 +502,12 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         }
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::Constructor(path, exprs) => {
+            if let Some(path) = path {
+                vis.visit_path_expr(path);
+            }
+            walk_list!(vis, visit_constructor_args, exprs);
         }
     }
 }

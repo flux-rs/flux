@@ -296,6 +296,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.on_func(*func, expr.node_id);
             }
             surface::ExprKind::Dot(path, _) => self.on_path(path),
+            surface::ExprKind::Constructor(Some(path), _) => {
+                self.on_path(path);
+            }
             _ => {}
         }
         surface::visit::walk_expr(self, expr);
@@ -556,13 +559,19 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<ExprRes<NodeId>> {
-        let res = self
-            .resolver
-            .resolve_path_with_ribs(segments, ValueNS)?
-            .full_res()?;
+        let res = match self.resolver.resolve_path_with_ribs(segments, ValueNS) {
+            Some(r) => r.full_res()?,
+            _ => {
+                self.resolver
+                    .resolve_path_with_ribs(segments, TypeNS)?
+                    .full_res()?
+            }
+        };
         match res {
             fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
+            fhir::Res::Def(DefKind::Struct, def_id) => Some(ExprRes::Struct(def_id)),
+            fhir::Res::Def(DefKind::Enum, def_id) => Some(ExprRes::Enum(def_id)),
             _ => None,
         }
     }

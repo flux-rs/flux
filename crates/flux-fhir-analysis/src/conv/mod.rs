@@ -65,6 +65,9 @@ pub struct ConvCtxt<'genv, 'tcx, P> {
 pub trait ConvPhase {
     /// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     const EXPAND_TYPE_ALIASES: bool;
+    /// Whether we have elaborated information or not (in the first phase we will not, but in the
+    /// second we will)
+    const HAS_ELABORATED_INFORMATION: bool;
 
     type Results: WfckResultsProvider;
 
@@ -99,6 +102,7 @@ pub trait WfckResultsProvider: Sized {
 
 impl<'a> ConvPhase for &'a WfckResults {
     const EXPAND_TYPE_ALIASES: bool = true;
+    const HAS_ELABORATED_INFORMATION: bool = true;
 
     type Results = WfckResults;
 
@@ -1550,6 +1554,8 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     ExprRes::GlobalFunc(..) => {
                         span_bug!(var.span, "unexpected func in var position")
                     }
+                    ExprRes::Struct(..) => span_bug!(var.span, "unexpected struct in var position"),
+                    ExprRes::Enum(..) => span_bug!(var.span, "unexpected enum in var position"),
                 }
             }
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
@@ -1604,8 +1610,48 @@ impl<'genv, 'tcx, P: ConvPhase> ConvCtxt<'genv, 'tcx, P> {
                     .try_collect()?;
                 rty::Expr::adt(def_id, flds)
             }
+            fhir::ExprKind::Constructor(path, exprs, spread) => {
+                let def_id = if let Some(path) = path {
+                    match path.res {
+                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                        _ => span_bug!(path.span, "unexpected path in constructor"),
+                    }
+                } else {
+                    self.results().record_ctor(expr.fhir_id)
+                };
+                let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
+                rty::Expr::adt(def_id, assns)
+            }
         };
         Ok(self.add_coercions(expr, fhir_id))
+    }
+
+    fn conv_constructor_exprs(
+        &mut self,
+        struct_def_id: DefId,
+        env: &mut Env,
+        exprs: &[fhir::FieldExpr],
+        spread: &Option<&fhir::Spread>,
+    ) -> QueryResult<List<rty::Expr>> {
+        if !P::HAS_ELABORATED_INFORMATION {
+            return Ok(List::default());
+        };
+        let struct_adt = self.genv.adt_sort_def_of(struct_def_id)?;
+        let spread = spread
+            .map(|spread| self.conv_expr(env, &spread.expr))
+            .transpose()?;
+        let field_exprs_by_name: FxIndexMap<Symbol, &fhir::FieldExpr> =
+            exprs.iter().map(|e| (e.ident.name, e)).collect();
+        let mut assns = Vec::new();
+        for (idx, field_name) in struct_adt.field_names().iter().enumerate() {
+            if let Some(field_expr) = field_exprs_by_name.get(field_name) {
+                assns.push(self.conv_expr(env, &field_expr.expr)?);
+            } else if let Some(spread) = &spread {
+                let proj = rty::FieldProj::Adt { def_id: struct_def_id, field: idx as u32 };
+                assns.push(rty::Expr::field_proj(spread, proj));
+            }
+        }
+        Ok(List::from_vec(assns))
     }
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
@@ -2084,6 +2130,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Real(r) => rty::Constant::Real(rty::Real(r)),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
         fhir::Lit::Str(s) => rty::Constant::from(s),
+        fhir::Lit::Char(c) => rty::Constant::from(c),
     }
 }
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
