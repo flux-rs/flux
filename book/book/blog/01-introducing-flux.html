@@ -89,9 +89,11 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html" class="active"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html" class="active"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><a href="../blog/04-arrays.html"><strong aria-hidden="true">8.</strong> Arrays and Const Generics</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -204,7 +206,7 @@ code. For example we can write the following specification which says that
 the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; i32[10])]
+</span>#[flux_rs::sig(fn() -&gt; i32[10])]
 pub fn mk_ten() -&gt; i32 {
     5 + 4
 }
@@ -226,9 +228,9 @@ by replacing the body with <code>5 + 5</code> or just <code>10</code>.</p>
 the space of <em>inputs</em> that a function expects.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (b:bool[true]))]
+</span>#[flux_rs::sig(fn (b:bool[true]))]
 pub fn assert(b:bool) {
-  if !b { panic!(&quot;assertion failed&quot;) }
+  if !b { panic!("assertion failed") }
 }
 <span class="boring">}</span></code></pre></pre>
 <p>Here, the refined specification for <code>assert</code> says that you can <em>only</em> call
@@ -258,7 +260,7 @@ like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> 
 types by refinement <em>parameters</em>. For example, you can write</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
+</span>#[flux_rs::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
 pub fn is_pos(n: i32) -&gt; bool {
     if 0 &lt; n {
         true
@@ -298,7 +300,7 @@ with <em>assertions</em> <sup class="footnote-reference"><a href="#1">1</a></sup
 the value returned by <code>mk_ten</code> is positive.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; i32{v: 0 &lt; v})]
+</span>#[flux_rs::sig(fn() -&gt; i32{v: 0 &lt; v})]
 pub fn mk_ten() -&gt; i32 {
     5 + 5
 }
@@ -308,7 +310,7 @@ value of an <code>i32</code> with a type which says the result is non-negative <
 exceeds the input <code>n</code>.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
 pub fn abs(n: i32) -&gt; i32 {
     if 0 &lt;= n {
         n
@@ -320,7 +322,7 @@ pub fn abs(n: i32) -&gt; i32 {
 <p>As a last example, you might write a function to compute the factorial of <code>n</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
+</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;
     let mut res = 1;
@@ -390,6 +392,22 @@ from logics that can be efficiently decided by <a href="https://github.com/flux-
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 
