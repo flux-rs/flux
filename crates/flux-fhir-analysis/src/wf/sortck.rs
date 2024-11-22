@@ -4,7 +4,7 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
-    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId, PathExpr},
+    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -129,33 +129,26 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     fn check_constructor(
         &mut self,
         expr: &fhir::Expr,
-        path: &Option<PathExpr>,
         field_exprs: &[fhir::FieldExpr],
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            let expected_def_id = sort_def.did();
-            if let Some(path) = path {
-                let path_def_id = match path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
-                    _ => span_bug!(expr.span, "unexpected path in constructor"),
-                };
-                if path_def_id != expected_def_id {
-                    return Err(self.emit_err(errors::SortMismatchFoundOmitted::new(
-                        path.span,
-                        expected.clone(),
-                    )));
-                }
-            } else {
-                self.wfckresults
-                    .record_ctors_mut()
-                    .insert(expr.fhir_id, sort_def.did());
-            }
-            self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)?;
+        let expected = self.resolve_vars_if_possible(&expected);
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = &expected {
+            self.wfckresults
+                .record_ctors_mut()
+                .insert(expr.fhir_id, sort_def.did());
+            self.check_field_exprs(
+                expr.span,
+                &sort_def,
+                &sort_args,
+                field_exprs,
+                spread,
+                &expected,
+            )?;
             Ok(())
         } else {
-            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
+            Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, &expected)))
         }
     }
 
@@ -199,27 +192,27 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
             }
+            fhir::ExprKind::Abs(refine_params, body) => {
+                self.check_abs(expr, refine_params, body, expected)?;
+            }
+            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Constructor(None, exprs, spread) => {
+                self.check_constructor(expr, exprs, spread, expected)?
+            }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::BinaryOp(..)
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
             | fhir::ExprKind::Alias(..)
             | fhir::ExprKind::Var(..)
-            | fhir::ExprKind::Literal(..) => {
+            | fhir::ExprKind::Literal(..)
+            | fhir::ExprKind::Constructor(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
                 if !self.is_coercible(&found, &expected, expr.fhir_id) {
                     return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
-            }
-            fhir::ExprKind::Abs(refine_params, body) => {
-                self.check_abs(expr, refine_params, body, expected)?;
-            }
-            fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
-            fhir::ExprKind::Constructor(path, exprs, spread) => {
-                let expected = self.resolve_vars_if_possible(expected);
-                self.check_constructor(expr, path, exprs, spread, &expected)?;
             }
         }
         Ok(())
@@ -270,8 +263,58 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     _ => Err(self.emit_field_not_found(&sort, *fld)),
                 }
             }
-            // (VR): Pretty sure we don't synthesize these?
-            _ => span_bug!(expr.span, "unexpected expr `{expr:?}` in synth expr"),
+            fhir::ExprKind::Constructor(Some(path), field_exprs, spread) => {
+                // if we have S then we can synthesize otherwise we fail
+                // first get the sort based on the path - for example S { ... } => S
+                // and we should expect sort to be a struct or enum app
+                let path_def_id = match path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                    _ => span_bug!(expr.span, "unexpected path in constructor"),
+                };
+                let sort_def = match self.genv.adt_sort_def_of(path_def_id) {
+                    Ok(sd) => sd,
+                    Err(_) => span_bug!(path.span, "Unexpected path in constructor"),
+                };
+                // generate fresh inferred sorts for each param
+                let fresh_args = (0..sort_def.param_count())
+                    .map(|_| self.next_sort_var())
+                    .collect_vec();
+                let sort_by_name = sort_def.sort_by_field_name(&fresh_args);
+                let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.into());
+                let mut used_fields = FxHashSet::default();
+                for expr in field_exprs.iter() {
+                    // check each expression against the sort
+                    // which will unify inferred variables
+                    if let Some(sort) = sort_by_name.get(&expr.ident.name) {
+                        self.check_expr(&expr.expr, sort)?;
+                    } else {
+                        return Err(self.emit_field_not_found(&sort, expr.ident));
+                    }
+                    if let Some(old_field) = used_fields.replace(expr.ident) {
+                        return Err(
+                            self.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field))
+                        );
+                    }
+                }
+                // check the spread against the sort
+                if let Some(spread) = spread {
+                    self.check_expr(&spread.expr, &sort)?;
+                } else if sort_by_name.len() != used_fields.len() {
+                    // emit an error because all fields are not used
+                    let used_field_names: Vec<rustc_span::Symbol> =
+                        used_fields.into_iter().map(|k| k.name).collect();
+                    let fields_remaining = sort_by_name
+                        .into_keys()
+                        .filter(|x| !used_field_names.contains(x))
+                        .collect();
+                    return Err(self.emit_err(errors::ConstructorMissingFields::new(
+                        expr.span,
+                        fields_remaining,
+                    )));
+                }
+                Ok(sort)
+            }
+            _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }
     }
 
