@@ -45,6 +45,11 @@ pub fn opaque(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn check_overflow(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::check_overflow(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn trusted(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::trusted(attr, tokens)
 }
@@ -123,6 +128,7 @@ mod attr_sysroot {
         constant,
         invariant,
         opaque,
+        check_overflow,
         trusted,
         trusted_impl,
         generics,
@@ -166,6 +172,7 @@ mod attr_dummy {
         invariant,
         constant,
         opaque,
+        check_overflow,
         trusted,
         trusted_impl,
         generics,
