@@ -238,6 +238,21 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         t
     }
 
+    // [NOTE:INFCX-SCOPE] (see https://github.com/flux-rs/flux/pull/900#discussion_r1853052650)
+    // The InferCtxt is a cursor into a tree. Some functions like define_var, assume_pred and
+    // by extension unpack advance the cursor. For example, defining a variable pushes a node
+    // as a child of the current node and then moves the cursor into that new node.
+    // Other functions, like subtyping or check_pred (typically the ones defined in InferCtxtAt)
+    // do not advance the cursor (from the caller's perspective). For example, if you call
+    // subtyping a subtree is pushed under the current node, and the cursor is returned
+    // to where it was. That's the purpose of infcx.branch: to "clone" the cursor such
+    // that the original one doesn't get modified.
+    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when
+    // the `infcx`` is on the same node where the push_scope was called, because
+    // `replace_evars`` only replaces evars below that node.
+    // If `pop_scope` is called at a node further down (e.g. after calling unpack),
+    // the evars above that cursor will not be replaced.
+
     pub fn push_scope(&mut self) {
         let scope = self.scope();
         self.inner.borrow_mut().evars.enter_context(scope);
@@ -278,6 +293,7 @@ impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
     }
 }
 
+#[derive(Debug)]
 pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     pub span: Span,
@@ -524,7 +540,6 @@ impl Sub {
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         let a = infcx.unpack(a);
-
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
                 bug!("existentials should be removed by the unpacking");

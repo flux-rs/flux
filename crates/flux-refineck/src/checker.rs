@@ -297,7 +297,7 @@ fn check_fn_subtyping(
         infcx.check_pred(requires, reason);
     }
 
-    // 4. Plug in the EVAR solution / replace evars
+    // 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
     let output = sub_sig
@@ -315,13 +315,15 @@ fn check_fn_subtyping(
     infcx
         .subtyping(&output.ret, &super_output.ret, reason)
         .with_span(span)?;
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
 
     // 6. Update state with Output "ensures" and check super ensures
+    infcx.push_scope();
     env.update_ensures(&mut infcx, &output, overflow_checking);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
     env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
         .with_span(span)?;
-
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
 
