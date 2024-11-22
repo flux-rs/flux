@@ -16,9 +16,9 @@ use flux_middle::{
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Expr, ExprKind, FnSig, GenericArg, HoleKind, Lambda, List,
-        Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, VariantIdx,
-        INNERMOST,
+        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnOutput, FnSig, GenericArg,
+        HoleKind, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
+        TyKind, VariantIdx, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -28,6 +28,7 @@ use flux_rustc_bridge::{
     ty,
 };
 use itertools::{izip, Itertools};
+use rustc_index::IndexSlice;
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 use rustc_type_ir::BoundVar;
 
@@ -84,6 +85,10 @@ impl<'a> TypeEnv<'a> {
 
         env.alloc(RETURN_PLACE);
         env
+    }
+
+    pub fn empty() -> TypeEnv<'a> {
+        TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -329,6 +334,25 @@ impl<'a> TypeEnv<'a> {
         Ok(loc)
     }
 
+    /// ```
+    /// -----------------------------------
+    /// Γ ; &strg <ℓ: t> => Γ,ℓ: t ; ptr(ℓ)
+    /// ```
+    pub(crate) fn unfold_strg_ref(
+        &mut self,
+        infcx: &mut InferCtxt,
+        path: &Path,
+        ty: &Ty,
+    ) -> InferResult<Loc> {
+        if let Some(loc) = path.to_loc() {
+            let ty = infcx.unpack(ty);
+            self.bindings.insert(loc, LocKind::Universal, ty);
+            Ok(loc)
+        } else {
+            bug!("unfold_strg_ref: unexpected path {path:?}")
+        }
+    }
+
     pub(crate) fn unfold(
         &mut self,
         infcx: &mut InferCtxt,
@@ -357,6 +381,44 @@ impl<'a> TypeEnv<'a> {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
     }
+
+    pub(crate) fn update_ensures(
+        &mut self,
+        infcx: &mut InferCtxt,
+        output: &FnOutput,
+        overflow_checking: bool,
+    ) {
+        for ensure in &output.ensures {
+            match ensure {
+                Ensures::Type(path, updated_ty) => {
+                    let updated_ty = infcx.unpack(updated_ty);
+                    infcx.assume_invariants(&updated_ty, overflow_checking);
+                    self.update_path(path, updated_ty);
+                }
+                Ensures::Pred(e) => infcx.assume_pred(e),
+            }
+        }
+    }
+
+    pub(crate) fn check_ensures(
+        &mut self,
+        at: &mut InferCtxtAt,
+        output: &FnOutput,
+        reason: ConstrReason,
+    ) -> InferResult {
+        for constraint in &output.ensures {
+            match constraint {
+                Ensures::Type(path, ty) => {
+                    let actual_ty = self.get(path);
+                    at.subtyping(&actual_ty, ty, reason)?;
+                }
+                Ensures::Pred(e) => {
+                    at.check_pred(e, ConstrReason::Ret);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub(crate) enum PtrToRefBound {
@@ -379,6 +441,10 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn get(&self, path: &Path) -> Ty {
         self.get(path)
+    }
+
+    fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc> {
+        self.unfold_strg_ref(infcx, path, ty)
     }
 }
 

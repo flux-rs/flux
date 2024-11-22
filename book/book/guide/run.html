@@ -89,9 +89,11 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html" class="active"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html" class="active"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="../blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><a href="../blog/04-arrays.html"><strong aria-hidden="true">8.</strong> Arrays and Const Generics</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -183,6 +185,16 @@ For example, the following command checks the file <code>test.rs</code>.</p>
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
+<h3 id="refinement-annotations-on-a-file"><a class="header" href="#refinement-annotations-on-a-file">Refinement Annotations on a File</a></h3>
+<p>When running flux on a file with <code>rustc-flux path/to/test.rs</code>, refinement annotations should be prefixed with <code>flux::</code>.</p>
+<p>For example, the refinement below will only work when running <code>rustc-flux</code> which is intended for use on a single file.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
 <pre><code class="language-bash">cargo flux
@@ -192,6 +204,21 @@ To do so add the following to <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[package.metadata.flux]
 enabled = true
 </code></pre>
+<h3 id="refinement-annotations-on-a-cargo-projects"><a class="header" href="#refinement-annotations-on-a-cargo-projects">Refinement Annotations on a Cargo Projects</a></h3>
+<p>Adding refinement annotations to cargo projects is simple. You can add <code>flux-rs</code> as a dependency in <code>Cargo.toml</code></p>
+<pre><code class="language-toml">[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+</code></pre>
+<p>Then, import attributes from <code>flux_rs</code> and add the appropriate refinement annoations.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*
+
+#[sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.
@@ -223,7 +250,7 @@ thing).</p>
 <h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
 <p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
 driver</a>
-(similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
+(similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
 hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
@@ -232,11 +259,11 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
-  &quot;rust-analyzer.check.overrideCommand&quot;: [
-    &quot;cargo&quot;,
-    &quot;flux&quot;,
-    &quot;--workspace&quot;,
-    &quot;--message-format=json-diagnostic-rendered-ansi&quot;
+  "rust-analyzer.check.overrideCommand": [
+    "cargo",
+    "flux",
+    "--workspace",
+    "--message-format=json-diagnostic-rendered-ansi"
   ]
 }
 </code></pre>
@@ -262,7 +289,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
-<li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
+<li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
 operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
@@ -274,7 +301,7 @@ of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. 
 variables take priority over the config file.</p>
 <p>The config file should be in the project root.</p>
 <p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = &quot;./test&quot;
+<pre><code class="language-toml">log_dir = "./test"
 dump_timings = true
 dump_mir = true
 cache = true
@@ -286,12 +313,12 @@ cache = true
 containing profiling information. It will <em>not</em> dump the MIR because that setting
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
-<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
+<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
 non-nightly compiler you have to put it under a <code>cfg_attr</code>.
 For example, to enable overflow checking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+</span>#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
 <span class="boring">fn main() {
 </span><span class="boring">}</span></code></pre></pre>
 <p>The only flag supported now is overflow checking.</p>
@@ -330,6 +357,22 @@ entire crate.</p>
 
         </div>
 
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
 
 
 

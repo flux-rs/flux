@@ -37,7 +37,7 @@ use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixpointCtxt, KVarGen},
-    infer::{ConstrReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::RefineTree,
 };
 use flux_macros::fluent_messages;
@@ -169,7 +169,8 @@ pub fn check_fn(
 
         // PHASE 4: subtyping check for trait-method implementations
         if let Some((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, span).map_err(|err| err.emit_err(&genv, def_id))?
+            trait_impl_subtyping(genv, local_id, config.check_overflow, span)
+                .map_err(|err| err.emit_err(&genv, def_id))?
         {
             tracing::info!("check_fn::refine-subtyping");
             let errors =
@@ -206,9 +207,15 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
     for err in errors {
         let span = err.src_span;
         e = Some(match err.reason {
-            ConstrReason::Call => call_error(genv, span, err.dst_span),
+            ConstrReason::Call
+            | ConstrReason::Subtype(SubtypeReason::Input)
+            | ConstrReason::Subtype(SubtypeReason::Requires) => {
+                call_error(genv, span, err.dst_span)
+            }
             ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
-            ConstrReason::Ret => ret_error(genv, span, err.dst_span),
+            ConstrReason::Ret
+            | ConstrReason::Subtype(SubtypeReason::Output)
+            | ConstrReason::Subtype(SubtypeReason::Ensures) => ret_error(genv, span, err.dst_span),
             ConstrReason::Div => genv.sess().emit_err(errors::DivError { span }),
             ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),

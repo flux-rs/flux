@@ -11,10 +11,8 @@ impl Pretty for ClauseKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(_cx, f);
         match self {
-            ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
             ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
             ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
-            ClauseKind::CoroutineOblig(pred) => w!("Projection ({pred:?})"),
             ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
             ClauseKind::ConstArgHasType(c, ty) => w!("ConstArgHasType ({:?}, {:?})", c, ty),
         }
@@ -98,6 +96,7 @@ impl Pretty for Sort {
             Sort::Int => w!("int"),
             Sort::Real => w!("real"),
             Sort::Str => w!("str"),
+            Sort::Char => w!("char"),
             Sort::BitVec(size) => w!("bitvec({:?})", size),
             Sort::Loc => w!("loc"),
             Sort::Var(n) => w!("@{}", ^n.index()),

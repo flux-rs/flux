@@ -49,6 +49,7 @@ private_intra_doc_links = "allow"
 
 [workspace.lints.clippy]
 cloned-instead-of-copied = "warn"
+disallowed-methods = "deny"
 explicit-into-iter-loop = "warn"
 explicit-iter-loop = "warn"
 implicit-clone = "warn"

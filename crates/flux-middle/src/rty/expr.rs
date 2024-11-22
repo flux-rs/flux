@@ -479,6 +479,10 @@ impl Expr {
             }
             BaseTy::Uint(_) => ExprKind::Constant(Constant::from(bits)).intern(),
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
+            BaseTy::Char => {
+                let c = char::from_u32(bits.try_into().unwrap()).unwrap();
+                ExprKind::Constant(Constant::Char(c)).intern()
+            }
             _ => bug!(),
         }
     }
@@ -905,6 +909,7 @@ pub enum Constant {
     Real(Real),
     Bool(bool),
     Str(Symbol),
+    Char(char),
 }
 
 impl Constant {
@@ -983,7 +988,11 @@ impl Constant {
                 let b = scalar_to_bits(tcx, scalar, ty)?;
                 Some(Constant::Bool(b != 0))
             }
-            _ => None,
+            TyKind::Char => {
+                let b = scalar_to_bits(tcx, scalar, ty)?;
+                Some(Constant::Char(char::from_u32(b as u32)?))
+            }
+            _ => bug!(),
         }
     }
 
@@ -1036,6 +1045,12 @@ impl From<bool> for Constant {
 impl From<Symbol> for Constant {
     fn from(s: Symbol) -> Self {
         Constant::Str(s)
+    }
+}
+
+impl From<char> for Constant {
+    fn from(c: char) -> Self {
+        Constant::Char(c)
     }
 }
 
@@ -1195,7 +1210,8 @@ mod pretty {
                 Constant::Int(i) => w!("{i}"),
                 Constant::Real(r) => w!("{}.0", ^r.0),
                 Constant::Bool(b) => w!("{b}"),
-                Constant::Str(sym) => w!("{sym}"),
+                Constant::Str(sym) => w!("\"{sym}\""),
+                Constant::Char(c) => write!(f, "\'{c}\'"),
             }
         }
     }

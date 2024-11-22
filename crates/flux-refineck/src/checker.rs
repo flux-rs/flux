@@ -1,10 +1,10 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot},
+    infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
     refine_tree::{AssumeInvariants, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -13,10 +13,9 @@ use flux_middle::{
     query_bug,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnTraitPredicate,
-        GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnTraitPredicate, GenericArg,
+        GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, Ref,
+        RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -207,22 +206,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
-fn find_trait_item(
-    genv: &GlobalEnv<'_, '_>,
-    def_id: LocalDefId,
-) -> QueryResult<Option<(crate::rty::TraitRef, DefId)>> {
-    let tcx = genv.tcx();
-    let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_method(def_id)
-        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
-    {
-        let impl_trait_ref = impl_trait_ref.instantiate_identity();
-        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
-        return Ok(Some((impl_trait_ref, trait_item_id)));
-    }
-    Ok(None)
-}
-
 /// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
 /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
@@ -235,7 +218,7 @@ fn find_trait_item(
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
-/// TODO: copy rules from SLACK.
+#[expect(clippy::too_many_arguments)]
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
@@ -243,6 +226,7 @@ fn check_fn_subtyping(
     sub_args: &[GenericArg],
     super_sig: EarlyBinder<rty::PolyFnSig>,
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
+    overflow_checking: bool,
     span: Span,
 ) -> Result {
     let mut infcx = infcx.branch();
@@ -268,6 +252,8 @@ fn check_fn_subtyping(
         .map(|ty| infcx.unpack(ty))
         .collect_vec();
 
+    let mut env = TypeEnv::empty();
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, span, &sub_sig, &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
@@ -280,30 +266,22 @@ fn check_fn_subtyping(
         .with_span(span)?;
 
     // 3. INPUT subtyping (g-input <: f-input)
-    // TODO: Check requires predicates (?)
-    // for requires in fn_def_sig.requires() {
-    //     at.check_pred(requires, ConstrReason::Call);
-    // }
-    if !sub_sig.requires().is_empty() {
-        span_bug!(span, "Not yet handled: requires predicates {def_id:?}");
+    for requires in super_sig.requires() {
+        infcx.assume_pred(requires);
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-        let (formal, pred) = formal.unconstr();
-        infcx.check_pred(&pred, ConstrReason::Call);
-        // see: TODO(pack-closure)
-        match (actual.kind(), formal.kind()) {
-            (TyKind::Ptr(rty::PtrKind::Mut(_), _), _) => {
-                bug!("Not yet handled: FnDef subtyping with Ptr");
-            }
-            _ => {
-                infcx
-                    .subtyping(&actual, &formal, ConstrReason::Call)
-                    .with_span(span)?;
-            }
-        }
+        let reason = ConstrReason::Subtype(SubtypeReason::Input);
+        infcx
+            .fun_arg_subtyping(&mut env, &actual, formal, reason)
+            .with_span(span)?;
+    }
+    // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
+    for requires in sub_sig.requires() {
+        let reason = ConstrReason::Subtype(SubtypeReason::Requires);
+        infcx.check_pred(requires, reason);
     }
 
-    // 4. Plug in the EVAR solution / replace evars
+    // 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
     let output = sub_sig
@@ -314,26 +292,34 @@ fn check_fn_subtyping(
     // 5. OUTPUT subtyping (f_out <: g_out)
     // RJ: new `at` to avoid borrowing errors...!
     infcx.push_scope();
-    let oblig_output = super_sig
+    let super_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+    let reason = ConstrReason::Subtype(SubtypeReason::Output);
     infcx
-        .subtyping(&output.ret, &oblig_output.ret, ConstrReason::Ret)
+        .subtyping(&output.ret, &super_output.ret, reason)
         .with_span(span)?;
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
 
-    if !output.ensures.is_empty() || !oblig_output.ensures.is_empty() {
-        span_bug!(span, "Not yet handled: subtyping with ensures predicates {def_id:?}");
-    }
+    // 6. Update state with Output "ensures" and check super ensures
+    infcx.push_scope();
+    env.update_ensures(&mut infcx, &output, overflow_checking);
+    fold_local_ptrs(&mut infcx, &mut env, span)?;
+    env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
+        .with_span(span)?;
+    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.replace_evars(&evars_sol);
 
     Ok(())
 }
+
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-pub fn trait_impl_subtyping(
+pub(crate) fn trait_impl_subtyping(
     genv: GlobalEnv,
     def_id: LocalDefId,
+    overflow_checking: bool,
     span: Span,
 ) -> Result<Option<(RefineTree, KVarGen)>> {
     // Skip the check if this is not an impl method
@@ -367,11 +353,28 @@ pub fn trait_impl_subtyping(
             &impl_args,
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
+            overflow_checking,
             span,
         )?;
         Ok(())
     })?;
     Ok(Some(root_ctxt.split()))
+}
+
+fn find_trait_item(
+    genv: &GlobalEnv<'_, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
+    let tcx = genv.tcx();
+    let def_id = def_id.to_def_id();
+    if let Some(impl_id) = tcx.impl_of_method(def_id)
+        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
+    {
+        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
+        return Ok(Some((impl_trait_ref, trait_item_id)));
+    }
+    Ok(None)
 }
 
 /// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &mut to an &strg
@@ -391,8 +394,7 @@ fn unfold_local_ptrs(
     actuals: &[Ty],
 ) -> Result<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
-    // let mut at = infcx.at(span);
-    let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    let fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
     let mut tys = vec![];
     for (actual, input) in izip!(actuals, fn_sig.inputs()) {
         let actual = if let (
@@ -400,7 +402,7 @@ fn unfold_local_ptrs(
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound).with_span(span)?;
+            let loc = env.unfold_local_ptr(infcx, &bound).with_span(span)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
@@ -632,7 +634,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(infcx, env, terminator_span, discr)?;
-                if discr_ty.is_integral() || discr_ty.is_bool() {
+                if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
                     Ok(Self::check_match(&discr_ty, targets))
@@ -733,23 +735,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
             .with_span(span)?;
 
-        for constraint in &output.ensures {
-            match constraint {
-                Ensures::Type(path, ty) => {
-                    let actual_ty = env.get(path);
-                    at.subtyping(&actual_ty, ty, ConstrReason::Ret)
-                        .with_span(span)?;
-                }
-                Ensures::Pred(e) => {
-                    at.check_pred(e, ConstrReason::Ret);
-                }
-            }
-        }
+        env.check_ensures(&mut at, &output, ConstrReason::Ret)
+            .with_span(span)?;
 
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(infcx, &obligations, span)
+        self.check_coroutine_obligations(infcx, obligations)
     }
 
     #[expect(clippy::too_many_arguments)]
@@ -795,11 +787,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
+        let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
-        self.check_closure_clauses(infcx, &clauses, span)?;
+        self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -831,43 +824,40 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        for ensures in &output.ensures {
-            match ensures {
-                Ensures::Type(path, updated_ty) => {
-                    let updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(&updated_ty, self.check_overflow());
-                    env.update_path(path, updated_ty);
-                }
-                Ensures::Pred(e) => infcx.assume_pred(e),
-            }
-        }
+        env.update_ensures(infcx, &output, self.check_overflow());
 
         fold_local_ptrs(infcx, env, span)?;
 
         Ok(output.ret)
     }
 
-    fn check_oblig_generator_pred(
+    fn check_coroutine_obligations(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        gen_pred: CoroutineObligPredicate,
+        obligs: Vec<Binder<CoroutineObligPredicate>>,
     ) -> Result {
-        #[expect(clippy::disallowed_methods, reason = "generators cannot be extern speced")]
-        let def_id = gen_pred.def_id.expect_local();
-        let span = self.genv.tcx().def_span(def_id);
-        let body = self.genv.mir(def_id).with_span(span)?;
-        Checker::run(
-            infcx.change_item(def_id, &body.infcx),
-            def_id,
-            self.inherited.reborrow(),
-            gen_pred.to_poly_fn_sig(),
-        )
+        for oblig in obligs {
+            // FIXME(nilehmann) we shouldn't be skipping this binder
+            let oblig = oblig.skip_binder();
+
+            #[expect(clippy::disallowed_methods, reason = "coroutines cannot be extern speced")]
+            let def_id = oblig.def_id.expect_local();
+            let span = self.genv.tcx().def_span(def_id);
+            let body = self.genv.mir(def_id).with_span(span)?;
+            Checker::run(
+                infcx.change_item(def_id, &body.infcx),
+                def_id,
+                self.inherited.reborrow(),
+                oblig.to_poly_fn_sig(),
+            )?;
+        }
+        Ok(())
     }
 
-    fn check_oblig_fn_trait_pred(
+    fn check_fn_trait_clause(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        fn_trait_pred: FnTraitPredicate,
+        fn_trait_pred: &FnTraitPredicate,
         span: Span,
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
@@ -890,7 +880,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)?;
+                check_fn_subtyping(
+                    infcx,
+                    def_id,
+                    sub_sig,
+                    args,
+                    oblig_sig,
+                    None,
+                    self.check_overflow(),
+                    span,
+                )?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -904,22 +903,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_closure_clauses(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        clauses: &[Clause],
+        clauses: &[Binder<FnTraitPredicate>],
         span: Span,
     ) -> Result {
         for clause in clauses {
-            match clause.kind_skipping_binder() {
-                rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    self.check_oblig_fn_trait_pred(infcx, fn_trait_pred, span)?;
-                }
-                rty::ClauseKind::CoroutineOblig(gen_pred) => {
-                    self.check_oblig_generator_pred(infcx, gen_pred)?;
-                }
-                rty::ClauseKind::Projection(_)
-                | rty::ClauseKind::Trait(_)
-                | rty::ClauseKind::TypeOutlives(_)
-                | rty::ClauseKind::ConstArgHasType(_, _) => {}
-            }
+            // FIXME(nilehmann) we shouldn't be skipping this binder
+            let clause = clause.skip_binder_ref();
+
+            self.check_fn_trait_clause(infcx, clause, span)?;
         }
         Ok(())
     }
@@ -953,6 +944,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(Guard::Pred(pred))
     }
 
+    /// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
     fn check_if(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
@@ -963,7 +956,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         idx.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Char), idx) => {
                     Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
@@ -1369,6 +1362,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         args,
                         super_sig,
                         None,
+                        self.check_overflow(),
                         stmt_span,
                     )?;
                     to
@@ -1495,7 +1489,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let idx = Expr::constant(rty::Constant::from(*s));
                 Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
             }
-            Constant::Char => Ok(Ty::char()),
+            Constant::Char(c) => {
+                let idx = Expr::constant(rty::Constant::from(*c));
+                Ok(Ty::indexed(BaseTy::Char, idx))
+            }
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
                 let ctor = self
@@ -1716,28 +1713,20 @@ fn infer_under_mut_ref_hack(
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {
-    iter::zip(
-        actuals,
-        fn_sig
-            .as_ref()
-            .skip_binder()
-            .as_ref()
-            .skip_binder()
-            .inputs(),
-    )
-    .map(|(actual, formal)| {
-        if let rty::Ref!(.., Mutability::Mut) = actual.kind()
-            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
-            && let TyKind::Indexed(..) = ty.kind()
-        {
-            rcx.hoister(AssumeInvariants::No)
-                .hoist_inside_mut_refs(true)
-                .hoist(actual)
-        } else {
-            actual.clone()
-        }
-    })
-    .collect()
+    iter::zip(actuals, fn_sig.skip_binder_ref().skip_binder_ref().inputs())
+        .map(|(actual, formal)| {
+            if let rty::Ref!(.., Mutability::Mut) = actual.kind()
+                && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
+                && let TyKind::Indexed(..) = ty.kind()
+            {
+                rcx.hoister(AssumeInvariants::No)
+                    .hoist_inside_mut_refs(true)
+                    .hoist(actual)
+            } else {
+                actual.clone()
+            }
+        })
+        .collect()
 }
 
 impl Mode for ShapeMode {

@@ -337,7 +337,7 @@ pub enum TyKind {
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
-    Array(Box<Ty>, ArrayLen),
+    Array(Box<Ty>, ConstArg),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
     Hole,
@@ -385,10 +385,16 @@ pub enum BaseTyKind {
     Slice(Box<Ty>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ArrayLen {
-    pub val: usize,
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+pub struct ConstArg {
+    pub kind: ConstArgKind,
     pub span: Span,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+pub enum ConstArgKind {
+    Lit(usize),
+    Infer,
 }
 
 #[derive(Debug)]
@@ -447,6 +453,27 @@ pub enum GenericArgKind {
 }
 
 #[derive(Debug)]
+pub struct FieldExpr {
+    pub ident: Ident,
+    pub expr: Expr,
+    pub span: Span,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub struct Spread {
+    pub expr: Expr,
+    pub span: Span,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub enum ConstructorArgs {
+    FieldExpr(FieldExpr),
+    Spread(Spread),
+}
+
+#[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     pub node_id: NodeId,
@@ -463,6 +490,7 @@ pub enum ExprKind {
     App(Ident, Vec<Expr>),
     Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
+    Constructor(Option<ExprPath>, Vec<ConstructorArgs>),
 }
 
 /// A [`Path`] but for refinement expressions

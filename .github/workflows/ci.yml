@@ -18,7 +18,7 @@ jobs:
           echo "local_binaries_path=$(pwd)/local-binaries" >> $GITHUB_ENV
 
       - name: Cache fixpoint
-        uses: actions/cache@v3.3.1
+        uses: actions/cache@v4
         id: cache-fixpoint
         with:
           path: local-binaries
@@ -26,7 +26,7 @@ jobs:
 
       - name: Install Haskell
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
-        uses: haskell/actions/setup@v2.3.7
+        uses: haskell-actions/setup@v2.7.0
         with:
           enable-stack: true
           stack-version: "latest"
@@ -36,9 +36,9 @@ jobs:
         run: |
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
-      
+
       - name: Upload Fixpoint
-        uses: actions/upload-artifact@v4.3.6
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: fixpoint
           path: ${{ env.local_binaries_path }}/fixpoint
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: fixpoint
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download Fixpoint
         uses: actions/download-artifact@v4.1.8
         with:
@@ -60,15 +60,15 @@ jobs:
       - run: which fixpoint
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.0.9
+        uses: cda-tum/setup-z3@v1.6.1
         with:
           version: 4.12.1
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.2.1
+        uses: Swatinem/rust-cache@v2.7.5
 
       - name: Build
         run: |
@@ -82,8 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: fixpoint
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
       - name: Download Fixpoint
         uses: actions/download-artifact@v4.1.8
         with:
@@ -94,15 +94,15 @@ jobs:
         run: chmod 755 ~/.local/bin/fixpoint && echo ~/.local/bin >> $GITHUB_PATH
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.0.9
+        uses: cda-tum/setup-z3@v1.6.1
         with:
           version: 4.12.1
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.2.1
+        uses: Swatinem/rust-cache@v2.7.5
 
       - name: Install Flux
         run: |
@@ -117,7 +117,7 @@ jobs:
       - name: Patch flux-rs dependency if in pull request
         if: github.event_name == 'pull_request'
         run: |
-          echo '[patch.crates-io]' >> tock/Cargo.toml
+          echo '[patch."https://github.com/flux-rs/flux.git"]' >> tock/Cargo.toml
           echo 'flux-rs = { path = "../lib/flux-rs" }' >> tock/Cargo.toml
 
       - name: Check tock/kernel
@@ -128,10 +128,10 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.2.1
+        uses: Swatinem/rust-cache@v2.7.5
 
       - name: Rust rustfmt
         run: cargo fmt --check
@@ -139,13 +139,16 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Add clippy
         run: rustup component add clippy
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.2.1
+        uses: Swatinem/rust-cache@v2.7.5
+
+      - name: Run check
+        run: RUSTFLAGS="-Dwarnings" cargo check
 
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7

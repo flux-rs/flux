@@ -83,8 +83,6 @@ fn check_assoc_reft(
         )));
     };
 
-    // what should be the id
-    let a = 0;
     let impl_sort = impl_sort
         .instantiate_identity()
         .normalize_projections(genv, &infcx, impl_id.resolved_id())
@@ -97,8 +95,6 @@ fn check_assoc_reft(
             def_id_to_string(trait_id),
         )));
     };
-    // what should be the id
-    let a = 0;
     let trait_sort = trait_sort
         .instantiate(genv.tcx(), &impl_trait_ref.args, &[])
         .normalize_projections(genv, &infcx, impl_id.resolved_id())

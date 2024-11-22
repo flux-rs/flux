@@ -46,6 +46,10 @@ impl<T> EarlyBinder<T> {
         self.0
     }
 
+    pub fn skip_binder_ref(&self) -> &T {
+        &self.0
+    }
+
     pub fn instantiate_identity(self) -> T {
         self.0
     }
@@ -101,8 +105,8 @@ impl<T> Binder<T> {
         self.as_ref().skip_binder()
     }
 
-    pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars, value }
+    pub fn rebind<U>(&self, value: U) -> Binder<U> {
+        Binder { vars: self.vars.clone(), value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {

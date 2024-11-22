@@ -1,3 +1,28 @@
+/// This file defines the refinement rules for primitive operations.
+/// Flux needs to define how to reason about primitive operations on different
+/// [`BaseTy`]s. This is done by defining a set of rules for each operation.
+///
+/// For example, equality checks depend on whether the `BaseTy` is treated as
+/// refineable or opaque.
+///
+/// ```
+/// // Make the rules for `a == b`.
+/// fn mk_eq_rules() -> RuleMatcher<2> {
+///     primop_rules! {
+///         // if the `BaseTy` is refineable, then we can reason about equality.
+///         // The specified types in the `if` are refineable and Flux will use
+///         // the refined postcondition (`bool[E::eq(a, b)]`) to reason about
+///         // the invariants of `==`.
+///         fn(a: T, b: T) -> bool[E::eq(a, b)]
+///         if T.is_integral() || T.is_bool() || T.is_char() || T.is_str()
+///         
+///         // Otherwise, if the `BaseTy` is opaque, then we can't reason
+///         // about equality. Flux only knows that the return type is a boolean,
+///         // but the return value is unrefined.
+///         fn(a: T, b: T) -> bool
+///     }
+/// }
+/// ```
 use std::{hash::Hash, sync::LazyLock};
 
 use flux_common::tracked_span_bug;
@@ -280,7 +305,7 @@ fn mk_bit_xor_rules() -> RuleMatcher<2> {
 fn mk_eq_rules() -> RuleMatcher<2> {
     primop_rules! {
         fn(a: T, b: T) -> bool[E::eq(a, b)]
-        if T.is_integral() || T.is_bool()
+        if T.is_integral() || T.is_bool() || T.is_char() || T.is_str()
 
         fn(a: T, b: T) -> bool
     }

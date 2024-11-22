@@ -904,6 +904,21 @@ pub struct AliasReft<'fhir> {
     pub name: Symbol,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct FieldExpr<'fhir> {
+    pub ident: Ident,
+    pub expr: Expr<'fhir>,
+    pub fhir_id: FhirId,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Spread<'fhir> {
+    pub expr: Expr<'fhir>,
+    pub span: Span,
+    pub fhir_id: FhirId,
+}
+
 #[derive(Clone, Copy)]
 pub struct Expr<'fhir> {
     pub kind: ExprKind<'fhir>,
@@ -923,6 +938,7 @@ pub enum ExprKind<'fhir> {
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
+    Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
 }
 
 impl<'fhir> Expr<'fhir> {
@@ -943,13 +959,16 @@ pub enum Lit {
     Int(i128),
     Real(i128),
     Bool(bool),
-    Str(Symbol),
+    Str(Symbol), // `rustc_span::Symbol` interns a value with the type
+    Char(char),  // all Rust chars are u32s
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
+    Struct(DefId),
+    Enum(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
@@ -963,6 +982,8 @@ impl<Id> ExprRes<Id> {
             ExprRes::NumConst(val) => ExprRes::NumConst(val),
             ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
+            ExprRes::Struct(def_id) => ExprRes::Struct(def_id),
+            ExprRes::Enum(def_id) => ExprRes::Enum(def_id),
         }
     }
 
@@ -1416,6 +1437,19 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::Record(flds) => {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
+            ExprKind::Constructor(path, exprs, spread) => {
+                if let Some(path) = path
+                    && let Some(s) = spread
+                {
+                    write!(f, "{:?} {{ {:?}, ..{:?} }}", path, exprs.iter().format(", "), s)
+                } else if let Some(path) = path {
+                    write!(f, "{:?} {{ {:?} }}", path, exprs.iter().format(", "))
+                } else if let Some(s) = spread {
+                    write!(f, "{{ {:?} ..{:?} }}", exprs.iter().format(", "), s)
+                } else {
+                    write!(f, "{{ {:?} }}", exprs.iter().format(", "))
+                }
+            }
         }
     }
 }
@@ -1433,6 +1467,7 @@ impl fmt::Debug for Lit {
             Lit::Real(r) => write!(f, "{r}real"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
+            Lit::Char(c) => write!(f, "\'{c}\'"),
         }
     }
 }

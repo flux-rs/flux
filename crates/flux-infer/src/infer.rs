@@ -11,7 +11,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind, Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
+        Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -47,6 +48,14 @@ impl Tag {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+pub enum SubtypeReason {
+    Input,
+    Output,
+    Requires,
+    Ensures,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum ConstrReason {
     Call,
     Assign,
@@ -57,6 +66,7 @@ pub enum ConstrReason {
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Subtype(SubtypeReason),
     Other,
 }
 
@@ -228,6 +238,21 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         t
     }
 
+    // [NOTE:INFCX-SCOPE] (see https://github.com/flux-rs/flux/pull/900#discussion_r1853052650)
+    // The InferCtxt is a cursor into a tree. Some functions like define_var, assume_pred and
+    // by extension unpack advance the cursor. For example, defining a variable pushes a node
+    // as a child of the current node and then moves the cursor into that new node.
+    // Other functions, like subtyping or check_pred (typically the ones defined in InferCtxtAt)
+    // do not advance the cursor (from the caller's perspective). For example, if you call
+    // subtyping a subtree is pushed under the current node, and the cursor is returned
+    // to where it was. That's the purpose of infcx.branch: to "clone" the cursor such
+    // that the original one doesn't get modified.
+    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when
+    // the `infcx`` is on the same node where the push_scope was called, because
+    // `replace_evars`` only replaces evars below that node.
+    // If `pop_scope` is called at a node further down (e.g. after calling unpack),
+    // the evars above that cursor will not be replaced.
+
     pub fn push_scope(&mut self) {
         let scope = self.scope();
         self.inner.borrow_mut().evars.enter_context(scope);
@@ -268,6 +293,7 @@ impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
     }
 }
 
+#[derive(Debug)]
 pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     pub span: Span,
@@ -330,7 +356,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult<Vec<rty::Clause>> {
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut sub = Sub::new(reason, self.span);
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
@@ -431,6 +457,7 @@ pub trait LocEnv {
         bound: Ty,
     ) -> InferResult<Ty>;
 
+    fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
     fn get(&self, path: &Path) -> Ty;
 }
 
@@ -441,8 +468,22 @@ struct Sub {
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
     /// relating an opaque type. Other obligations related to relating opaque types are resolved
     /// directly here. The implementation is really messy and we may be missing some obligations.
-    obligations: Vec<rty::Clause>,
+    obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
 }
+
+/// [NOTE:unfold_strg_ref] We use this function to unfold a strong reference prior to a subtyping check.
+/// Normally, when checking a function body, a `StrgRef` is automatically unfolded
+/// i.e. `x:&strg T` is turned into turned into a `x:Ptr(l); l: T` where `l` is some
+/// fresh location. However, we need the below to do a similar unfolding in `check_fn_subtyping`
+/// where we just have the super-type signature that needs to be unfolded.
+/// We also add the binding to the environment so that we can:
+/// (1) UPDATE the location after the call, and
+/// (2) CHECK the relevant `ensures` clauses of the super-sig.
+/// Nico: More importantly, we are assuming functions always give back the "ownership"
+/// of the location so even though we should technically "consume" the ownership and
+/// remove the location from the environment, the type is always going to be overwritten.
+/// (there's a check for this btw, if you write an &strg we require an ensures for that
+/// location for the signature to be well-formed)
 
 impl Sub {
     fn new(reason: ConstrReason, span: Span) -> Self {
@@ -475,6 +516,12 @@ impl Sub {
                 infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
                 self.tys(infcx, &ty1, ty2)
             }
+            (TyKind::StrgRef(_, path1, ty1), TyKind::StrgRef(_, path2, ty2)) => {
+                env.unfold_strg_ref(infcx, path1, ty1)?; // see [NOTE:unfold_strg_ref]
+                let ty1 = env.get(path1);
+                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                self.tys(infcx, &ty1, ty2)
+            }
             (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
                 let mut at = infcx.at(self.span);
                 env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
@@ -493,7 +540,6 @@ impl Sub {
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         let a = infcx.unpack(a);
-
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
                 bug!("existentials should be removed by the unpacking");
@@ -760,21 +806,16 @@ impl Sub {
             );
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-                    let ty1 = Self::project_ty(infcx, bty, pred.projection_ty.def_id)?;
+                    let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
+                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+                        .to_ty()
+                        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
             }
         }
         Ok(())
-    }
-
-    fn project_ty(infcx: &InferCtxt, self_ty: &BaseTy, assoc_item_id: DefId) -> InferResult<Ty> {
-        let args = List::singleton(GenericArg::Base(self_ty.to_subset_ty_ctor()));
-        let alias_ty = rty::AliasTy::new(assoc_item_id, args, List::empty());
-        Ok(BaseTy::Alias(AliasKind::Projection, alias_ty)
-            .to_ty()
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?)
     }
 }
 
@@ -784,19 +825,19 @@ fn mk_coroutine_obligations(
     resume_ty: &Ty,
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
-) -> InferResult<Vec<rty::Clause>> {
+) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
-        if let rty::ClauseKind::Projection(proj) = bound.kind_skipping_binder() {
-            let output = proj.term;
-            let pred = CoroutineObligPredicate {
-                def_id: *generator_did,
-                resume_ty: resume_ty.clone(),
-                upvar_tys: upvar_tys.clone(),
-                output: output.to_ty(),
-            };
-            let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
-            return Ok(vec![clause]);
+        if let Some(proj_clause) = bound.as_projection_clause() {
+            return Ok(vec![proj_clause.map(|proj_clause| {
+                let output = proj_clause.term;
+                CoroutineObligPredicate {
+                    def_id: *generator_did,
+                    resume_ty: resume_ty.clone(),
+                    upvar_tys: upvar_tys.clone(),
+                    output: output.to_ty(),
+                }
+            })]);
         }
     }
     bug!("no projection predicate")

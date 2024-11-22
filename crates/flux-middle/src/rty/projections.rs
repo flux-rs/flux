@@ -228,10 +228,6 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
-                // eprintln!();
-                // eprintln!("{:#?}", generics);
-                // eprintln!("{:?}", impl_trait_ref.args);
-                // eprintln!("{:?}", obligation.args);
 
                 let mut subst = TVarSubst::new(generics);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {

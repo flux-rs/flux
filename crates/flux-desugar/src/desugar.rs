@@ -9,7 +9,7 @@ use flux_middle::{
     try_alloc_slice, MaybeExternId, ResolverOutput,
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, NodeId},
+    surface::{self, visit::Visitor as _, ConstructorArgs, FieldExpr, NodeId, Spread},
     walk_list,
 };
 use hir::{def::DefKind, ItemKind};
@@ -999,6 +999,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         Ok((self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&constraints)))
     }
 
+    /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
+    /// These are both similar representations. The most important difference is that
+    /// [`fhir::Ty`] has explicit refinement parameters and [`surface::Ty`] does not.
+    /// Refinements are implicitly scoped in surface.
     fn desugar_ty(&mut self, ty: &surface::Ty) -> Result<fhir::Ty<'genv>> {
         let node_id = ty.node_id;
         let span = ty.span;
@@ -1072,9 +1076,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(ty)?;
-                let const_arg =
-                    fhir::ConstArg { kind: fhir::ConstArgKind::Lit(len.val), span: len.span };
-                fhir::TyKind::Array(self.genv().alloc(ty), const_arg)
+                let len = Self::desugar_const_arg(len)?;
+                fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?
@@ -1082,6 +1085,14 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::TyKind::Hole => fhir::TyKind::Infer,
         };
         Ok(fhir::Ty { kind, span })
+    }
+
+    fn desugar_const_arg(const_arg: &surface::ConstArg) -> Result<fhir::ConstArg> {
+        let kind = match const_arg.kind {
+            surface::ConstArgKind::Lit(val) => fhir::ConstArgKind::Lit(val),
+            surface::ConstArgKind::Infer => fhir::ConstArgKind::Infer,
+        };
+        Ok(fhir::ConstArg { kind, span: const_arg.span })
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy) -> Result<fhir::BaseTy<'genv>> {
@@ -1322,9 +1333,75 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     self.genv().alloc(e2?),
                 )
             }
+            surface::ExprKind::Constructor(path, constructor_args) => {
+                let path = match path {
+                    Some(path) => Some(self.desugar_constructor_path(path)?),
+                    None => None,
+                };
+                let field_exprs = constructor_args
+                    .iter()
+                    .filter_map(|arg| {
+                        match arg {
+                            ConstructorArgs::FieldExpr(e) => Some(e),
+                            ConstructorArgs::Spread(_) => None,
+                        }
+                    })
+                    .collect::<Vec<&FieldExpr>>();
+
+                let field_exprs = try_alloc_slice!(self.genv(), field_exprs, |field_expr| {
+                    let e = self.desugar_expr(&field_expr.expr)?;
+                    Ok(fhir::FieldExpr {
+                        ident: field_expr.ident,
+                        expr: e,
+                        fhir_id: self.next_fhir_id(),
+                        span: e.span,
+                    })
+                })?;
+
+                let spreads = constructor_args
+                    .iter()
+                    .filter_map(|arg| {
+                        match arg {
+                            ConstructorArgs::FieldExpr(_) => None,
+                            ConstructorArgs::Spread(s) => Some(s),
+                        }
+                    })
+                    .collect::<Vec<&Spread>>();
+
+                let spread = match &spreads[..] {
+                    [] => None,
+                    [s] => {
+                        let spread = fhir::Spread {
+                            expr: self.desugar_expr(&s.expr)?,
+                            span: s.span,
+                            fhir_id: self.next_fhir_id(),
+                        };
+                        Some(self.genv().alloc(spread))
+                    }
+                    [s1, s2, ..] => {
+                        // Multiple spreads found - emit an error
+                        return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
+                            s1.span, s2.span,
+                        )));
+                    }
+                };
+                fhir::ExprKind::Constructor(path, field_exprs, spread)
+            }
         };
 
         Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })
+    }
+
+    fn desugar_constructor_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {
+        let res = self.resolver_output().expr_path_res_map[&path.node_id];
+        if let ExprRes::Struct(..) | ExprRes::Enum(..) = res {
+            let segments = self
+                .genv()
+                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
+            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: path.span })
+        } else {
+            Err(self.emit_err(errors::InvalidConstructorPath { span: path.span }))
+        }
     }
 
     fn desugar_exprs(&mut self, exprs: &[surface::Expr]) -> Result<&'genv [fhir::Expr<'genv>]> {
@@ -1351,6 +1428,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
     }
 
+    /// Desugar surface literal
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit> {
         match lit.kind {
             surface::LitKind::Integer => {
@@ -1366,6 +1444,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
             surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
+            surface::LitKind::Char => {
+                Ok(fhir::Lit::Char(lit.symbol.as_str().parse::<char>().unwrap()))
+            }
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

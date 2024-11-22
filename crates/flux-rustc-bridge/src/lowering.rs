@@ -646,6 +646,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }
 
+    /// A `ScalarInt` is just a set of bits that can represent any scalar value.
+    /// This can represent all the primitive types with a fixed size.
     fn scalar_int_to_constant(
         &self,
         scalar: rustc_ty::ScalarInt,
@@ -663,7 +665,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             TyKind::Float(float_ty) => {
                 Some(Constant::Float(scalar_to_bits(self.tcx, scalar, ty).unwrap(), *float_ty))
             }
-            TyKind::Char => Some(Constant::Char),
+            TyKind::Char => Some(Constant::Char(scalar.try_into().unwrap())),
             TyKind::Bool => Some(Constant::Bool(scalar.try_to_bool().unwrap())),
             TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
             _ => {
