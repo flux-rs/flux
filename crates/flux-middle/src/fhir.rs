@@ -831,9 +831,7 @@ pub enum SortRes {
     /// A primitive sort.
     PrimSort(PrimSort),
     /// A user declared sort.
-    User {
-        name: Symbol,
-    },
+    User { name: Symbol },
     /// A sort parameter inside a polymorphic function or data sort.
     SortParam(usize),
     /// The sort associated to a (generic) type parameter
@@ -848,10 +846,15 @@ pub enum SortRes {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
-    SelfParamAssoc {
-        trait_id: DefId,
-        ident: Ident,
-    },
+    /// The sort of an associated type in a trait declaration, e.g:
+    ///
+    /// ```ignore
+    /// #[assoc(fn assoc_reft(x: Self::Assoc) -> bool)]
+    /// trait MyTrait {
+    ///     type Assoc;
+    /// }
+    /// ```
+    SelfParamAssoc { trait_id: DefId, ident: Ident },
     /// The sort of an adt (enum/struct).
     Adt(DefId),
 }

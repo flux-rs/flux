@@ -36,11 +36,14 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
+        // We skip 0 because that's used for sort dummy self types during conv.
+        let mut sort_unification_table = InPlaceUnificationTable::new();
+        sort_unification_table.new_key(None);
         Self {
             genv,
             params: Default::default(),
             wfckresults: WfckResults::new(owner),
-            sort_unification_table: InPlaceUnificationTable::new(),
+            sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),

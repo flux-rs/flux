@@ -50,6 +50,8 @@ use rustc_type_ir::DebruijnIndex;
 
 use crate::compare_impl_item::errors::InvalidAssocReft;
 
+/// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
+/// inherent methods instead of defining them as default implementation in the trait definition.
 #[repr(transparent)]
 pub struct ConvCtxt<P>(P);
 
@@ -68,8 +70,9 @@ pub(crate) struct AfterSortck<'a, 'genv, 'tcx> {
 pub trait ConvPhase<'genv, 'tcx>: Sized {
     /// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     const EXPAND_TYPE_ALIASES: bool;
+
     /// Whether we have elaborated information or not (in the first phase we will not, but in the
-    /// second we will)
+    /// second we will).
     const HAS_ELABORATED_INFORMATION: bool;
 
     type Results: WfckResultsProvider;
@@ -101,6 +104,7 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
     }
 
     fn as_conv_ctxt(&mut self) -> &mut ConvCtxt<Self> {
+        // SAFETY: `ConvCtxt` is `repr(transparent)` and it doesn't have any safety invariants.
         unsafe { std::mem::transmute(self) }
     }
 }
