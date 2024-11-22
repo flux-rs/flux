@@ -1532,6 +1532,18 @@
 <a href="#1532" id="1532">1532</a>
 <a href="#1533" id="1533">1533</a>
 <a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2380,6 +2392,15 @@
         <span class="doccomment">/// The item introducing the `Self` type alias, e.g., an impl block.
         </span>alias_to: DefId,
     },
+    <span class="doccomment">/// The sort of an associated type in a trait declaration, e.g:
+    ///
+    /// ```ignore
+    /// #[assoc(fn assoc_reft(x: Self::Assoc) -&gt; bool)]
+    /// trait MyTrait {
+    ///     type Assoc;
+    /// }
+    /// ```
+    </span>SelfParamAssoc { trait_id: DefId, ident: Ident },
     <span class="doccomment">/// The sort of an adt (enum/struct).
     </span>Adt(DefId),
 }
@@ -3037,6 +3058,9 @@
             }
             SortRes::SelfAlias { alias_to } =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
+            }
+            SortRes::SelfParamAssoc { ident: assoc, .. } =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"Self::{assoc}"</span>)
             }
             SortRes::User { name } =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
             SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),

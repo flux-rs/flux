@@ -1992,15 +1992,6 @@
 <a href="#1992" id="1992">1992</a>
 <a href="#1993" id="1993">1993</a>
 <a href="#1994" id="1994">1994</a>
-<a href="#1995" id="1995">1995</a>
-<a href="#1996" id="1996">1996</a>
-<a href="#1997" id="1997">1997</a>
-<a href="#1998" id="1998">1998</a>
-<a href="#1999" id="1999">1999</a>
-<a href="#2000" id="2000">2000</a>
-<a href="#2001" id="2001">2001</a>
-<a href="#2002" id="2002">2002</a>
-<a href="#2003" id="2003">2003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2209,22 +2200,6 @@
     }
 }
 
-<span class="kw">fn </span>find_trait_item(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt;,
-    def_id: LocalDefId,
-) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;(<span class="kw">crate</span>::rty::TraitRef, DefId)&gt;&gt; {
-    <span class="kw">let </span>tcx = genv.tcx();
-    <span class="kw">let </span>def_id = def_id.to_def_id();
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_id) = tcx.impl_of_method(def_id)
-        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(impl_trait_ref) = genv.impl_trait_ref(impl_id)<span class="question-mark">?
-    </span>{
-        <span class="kw">let </span>impl_trait_ref = impl_trait_ref.instantiate_identity();
-        <span class="kw">let </span>trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); <span class="comment">// this is always some because we've checked `impl_trait_ref` is `Some`
-        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((impl_trait_ref, trait_item_id)));
-    }
-    <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-}
-
 <span class="doccomment">/// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
 /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
@@ -2335,7 +2310,7 @@
 
 <span class="doccomment">/// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-</span><span class="kw">pub fn </span>trait_impl_subtyping(
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>trait_impl_subtyping(
     genv: GlobalEnv,
     def_id: LocalDefId,
     overflow_checking: bool,
@@ -2380,6 +2355,22 @@
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(root_ctxt.split()))
 }
 
+<span class="kw">fn </span>find_trait_item(
+    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt;,
+    def_id: LocalDefId,
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;(rty::TraitRef, DefId)&gt;&gt; {
+    <span class="kw">let </span>tcx = genv.tcx();
+    <span class="kw">let </span>def_id = def_id.to_def_id();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_id) = tcx.impl_of_method(def_id)
+        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(impl_trait_ref) = genv.impl_trait_ref(impl_id)<span class="question-mark">?
+    </span>{
+        <span class="kw">let </span>impl_trait_ref = impl_trait_ref.instantiate_identity();
+        <span class="kw">let </span>trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); <span class="comment">// this is always some because we've checked `impl_trait_ref` is `Some`
+        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((impl_trait_ref, trait_item_id)));
+    }
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+}
+
 <span class="doccomment">/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &amp;mut to an &amp;strg
 /// to allow for the call to be checked. This is done by unfolding the &amp;mut into a local pointer
 /// at the call-site and then folding the pointer back into the &amp;mut upon return.
@@ -2397,8 +2388,7 @@
     actuals: <span class="kw-2">&amp;</span>[Ty],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;&gt; {
     <span class="comment">// We *only* need to know whether each input is a &amp;strg or not
-    // let mut at = infcx.at(span);
-    </span><span class="kw">let </span>fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    </span><span class="kw">let </span>fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
     <span class="kw">let </span><span class="kw-2">mut </span>tys = <span class="macro">vec!</span>[];
     <span class="kw">for </span>(actual, input) <span class="kw">in </span><span class="macro">izip!</span>(actuals, fn_sig.inputs()) {
         <span class="kw">let </span>actual = <span class="kw">if let </span>(
@@ -3717,28 +3707,20 @@
     actuals: <span class="kw-2">&amp;</span>[Ty],
     fn_sig: EarlyBinder&lt;<span class="kw-2">&amp;</span>PolyFnSig&gt;,
 ) -&gt; Vec&lt;Ty&gt; {
-    iter::zip(
-        actuals,
-        fn_sig
-            .as_ref()
-            .skip_binder()
-            .as_ref()
-            .skip_binder()
-            .inputs(),
-    )
-    .map(|(actual, formal)| {
-        <span class="kw">if let </span><span class="macro">rty::Ref!</span>(.., Mutability::Mut) = actual.kind()
-            &amp;&amp; <span class="kw">let </span><span class="macro">rty::Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
-            &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
-        {
-            rcx.hoister(AssumeInvariants::No)
-                .hoist_inside_mut_refs(<span class="bool-val">true</span>)
-                .hoist(actual)
-        } <span class="kw">else </span>{
-            actual.clone()
-        }
-    })
-    .collect()
+    iter::zip(actuals, fn_sig.skip_binder_ref().skip_binder_ref().inputs())
+        .map(|(actual, formal)| {
+            <span class="kw">if let </span><span class="macro">rty::Ref!</span>(.., Mutability::Mut) = actual.kind()
+                &amp;&amp; <span class="kw">let </span><span class="macro">rty::Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut) = formal.kind()
+                &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
+            {
+                rcx.hoister(AssumeInvariants::No)
+                    .hoist_inside_mut_refs(<span class="bool-val">true</span>)
+                    .hoist(actual)
+            } <span class="kw">else </span>{
+                actual.clone()
+            }
+        })
+        .collect()
 }
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>ShapeMode {

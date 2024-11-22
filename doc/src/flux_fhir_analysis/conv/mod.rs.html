@@ -2398,6 +2398,53 @@
 <a href="#2398" id="2398">2398</a>
 <a href="#2399" id="2399">2399</a>
 <a href="#2400" id="2400">2400</a>
+<a href="#2401" id="2401">2401</a>
+<a href="#2402" id="2402">2402</a>
+<a href="#2403" id="2403">2403</a>
+<a href="#2404" id="2404">2404</a>
+<a href="#2405" id="2405">2405</a>
+<a href="#2406" id="2406">2406</a>
+<a href="#2407" id="2407">2407</a>
+<a href="#2408" id="2408">2408</a>
+<a href="#2409" id="2409">2409</a>
+<a href="#2410" id="2410">2410</a>
+<a href="#2411" id="2411">2411</a>
+<a href="#2412" id="2412">2412</a>
+<a href="#2413" id="2413">2413</a>
+<a href="#2414" id="2414">2414</a>
+<a href="#2415" id="2415">2415</a>
+<a href="#2416" id="2416">2416</a>
+<a href="#2417" id="2417">2417</a>
+<a href="#2418" id="2418">2418</a>
+<a href="#2419" id="2419">2419</a>
+<a href="#2420" id="2420">2420</a>
+<a href="#2421" id="2421">2421</a>
+<a href="#2422" id="2422">2422</a>
+<a href="#2423" id="2423">2423</a>
+<a href="#2424" id="2424">2424</a>
+<a href="#2425" id="2425">2425</a>
+<a href="#2426" id="2426">2426</a>
+<a href="#2427" id="2427">2427</a>
+<a href="#2428" id="2428">2428</a>
+<a href="#2429" id="2429">2429</a>
+<a href="#2430" id="2430">2430</a>
+<a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2434,11 +2481,11 @@
     <span class="self">self </span><span class="kw">as </span>hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    PrimTy, Safety,
+    OwnerId, PrimTy, Safety,
 };
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar},
+    ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
 };
 <span class="kw">use </span>rustc_span::{
     symbol::{kw, Ident},
@@ -2450,9 +2497,14 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::compare_impl_item::errors::InvalidAssocReft;
 
-<span class="kw">pub struct </span>ConvCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P&gt; {
+<span class="doccomment">/// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
+/// inherent methods instead of defining them as default implementation in the trait definition.
+</span><span class="attr">#[repr(transparent)]
+</span><span class="kw">pub struct </span>ConvCtxt&lt;P&gt;(P);
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>AfterSortck&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    phase: P,
+    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults,
     next_sort_index: u32,
     next_type_index: u32,
     next_region_index: u32,
@@ -2462,14 +2514,27 @@
 <span class="doccomment">/// We do conversion twice: once before sort checking when we don't have elaborated information
 /// and then again after sort checking after all information has been elaborated. This is the
 /// interface to configure conversion for both *phases*.
-</span><span class="kw">pub trait </span>ConvPhase {
+</span><span class="kw">pub trait </span>ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;: Sized {
     <span class="doccomment">/// Whether to expand type aliases or to generate a *weak* [`rty::AliasTy`].
     </span><span class="kw">const </span>EXPAND_TYPE_ALIASES: bool;
+
     <span class="doccomment">/// Whether we have elaborated information or not (in the first phase we will not, but in the
-    /// second we will)
+    /// second we will).
     </span><span class="kw">const </span>HAS_ELABORATED_INFORMATION: bool;
 
     <span class="kw">type </span>Results: WfckResultsProvider;
+
+    <span class="kw">fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId;
+
+    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid;
+
+    <span class="kw">fn </span>next_type_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::TyVid;
+
+    <span class="kw">fn </span>next_region_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::RegionVid;
+
+    <span class="kw">fn </span>next_const_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::ConstVid;
 
     <span class="kw">fn </span>results(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Results;
 
@@ -2480,13 +2545,20 @@
     <span class="doccomment">/// Called after converting an [`fhir::ExprKind::Alias`] with the sort of the resulting
     /// [`rty::AliasReft`]. Used during the first phase to collect the sorts of refinement aliases.
     </span><span class="kw">fn </span>insert_alias_reft_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, fsort: rty::FuncSort);
+
+    <span class="kw">fn </span>into_conv_ctxt(<span class="self">self</span>) -&gt; ConvCtxt&lt;<span class="self">Self</span>&gt; {
+        ConvCtxt(<span class="self">self</span>)
+    }
+
+    <span class="kw">fn </span>as_conv_ctxt(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>ConvCtxt&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// SAFETY: `ConvCtxt` is `repr(transparent)` and it doesn't have any safety invariants.
+        </span><span class="kw">unsafe </span>{ std::mem::transmute(<span class="self">self</span>) }
+    }
 }
 
 <span class="doccomment">/// An interface to the information elaborated during sort checking. We mock these results in
-/// the first conversion phase before sort checking.
+/// the first conversion phase during sort checking.
 </span><span class="kw">pub trait </span>WfckResultsProvider: Sized {
-    <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId;
-
     <span class="kw">fn </span>bin_rel_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
 
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion];
@@ -2500,15 +2572,43 @@
     <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; rty::Sort;
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ConvPhase <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AfterSortck&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">const </span>EXPAND_TYPE_ALIASES: bool = <span class="bool-val">true</span>;
     <span class="kw">const </span>HAS_ELABORATED_INFORMATION: bool = <span class="bool-val">true</span>;
 
     <span class="kw">type </span>Results = WfckResults;
 
+    <span class="kw">fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.genv
+    }
+
+    <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId {
+        <span class="self">self</span>.wfckresults.owner
+    }
+
+    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
+        <span class="self">self</span>.next_sort_index = <span class="self">self</span>.next_sort_index.checked_add(<span class="number">1</span>).unwrap();
+        rty::SortVid::from_u32(<span class="self">self</span>.next_sort_index - <span class="number">1</span>)
+    }
+
+    <span class="kw">fn </span>next_type_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::TyVid {
+        <span class="self">self</span>.next_type_index = <span class="self">self</span>.next_type_index.checked_add(<span class="number">1</span>).unwrap();
+        rty::TyVid::from_u32(<span class="self">self</span>.next_type_index - <span class="number">1</span>)
+    }
+
+    <span class="kw">fn </span>next_region_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::RegionVid {
+        <span class="self">self</span>.next_region_index = <span class="self">self</span>.next_region_index.checked_add(<span class="number">1</span>).unwrap();
+        rty::RegionVid::from_u32(<span class="self">self</span>.next_region_index - <span class="number">1</span>)
+    }
+
+    <span class="kw">fn </span>next_const_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::ConstVid {
+        <span class="self">self</span>.next_const_index = <span class="self">self</span>.next_const_index.checked_add(<span class="number">1</span>).unwrap();
+        rty::ConstVid::from_u32(<span class="self">self</span>.next_const_index - <span class="number">1</span>)
+    }
+
     <span class="kw">fn </span>results(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Results {
-        <span class="self">self
-    </span>}
+        <span class="self">self</span>.wfckresults
+    }
 
     <span class="kw">fn </span>insert_bty_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: FhirId, <span class="kw">_</span>: rty::Sort) {}
 
@@ -2516,10 +2616,6 @@
 }
 
 <span class="kw">impl </span>WfckResultsProvider <span class="kw">for </span>WfckResults {
-    <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId {
-        <span class="self">self</span>.owner
-    }
-
     <span class="kw">fn </span>bin_rel_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
         <span class="self">self</span>.bin_rel_sorts()
             .get(fhir_id)
@@ -2535,7 +2631,7 @@
         <span class="kw-2">*</span><span class="self">self
             </span>.field_projs()
             .get(fhir_id)
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"field projectoin without elaboration `{fhir_id:?}`"</span>))
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"field projection without elaboration `{fhir_id:?}`"</span>))
     }
 
     <span class="kw">fn </span>lambda_output(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
@@ -2622,6 +2718,8 @@
     def_id: MaybeExternId,
     refined_by: <span class="kw-2">&amp;</span>fhir::RefinedBy,
 ) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
+    <span class="kw">let </span>wfckresults = <span class="kw-2">&amp;</span>WfckResults::new(OwnerId { def_id: def_id.local_id() });
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     <span class="kw">let </span>params = refined_by
         .sort_params
         .iter()
@@ -2630,9 +2728,7 @@
     <span class="kw">let </span>fields = refined_by
         .fields
         .iter()
-        .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
-            <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>))
-        })
+        .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; { <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, cx.conv_sort(sort)<span class="question-mark">?</span>)) })
         .try_collect_vec()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
 }
@@ -2728,7 +2824,7 @@
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
     env.push_layer(Layer::coalesce(wfckresults, def_id.resolved_id(), params));
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
@@ -2740,7 +2836,7 @@
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::SpecFunc&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(wfckresults, <span class="number">0</span>, func.args));
         <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
@@ -2756,7 +2852,7 @@
     qualifier: <span class="kw-2">&amp;</span>fhir::Qualifier,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
 ) -&gt; QueryResult&lt;rty::Qualifier&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
     env.push_layer(Layer::list(wfckresults, <span class="number">0</span>, qualifier.args));
     <span class="kw">let </span>body = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
@@ -2774,17 +2870,16 @@
     <span class="kw">let </span>idx = genv.def_id_to_param_index(def_id.resolved_id());
     <span class="kw">let </span>owner = ty_param_owner(genv, def_id.resolved_id());
     <span class="kw">let </span>param = genv.generics_of(owner)<span class="question-mark">?</span>.param_at(idx <span class="kw">as </span>usize, genv)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, wfckresults);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     <span class="kw">let </span>rty_ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>;
     cx.try_to_ty_or_base(param.kind, ty.span, <span class="kw-2">&amp;</span>rty_ty)
 }
 
-<span class="doccomment">/// Conversion of definitions
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P: ConvPhase&gt; ConvCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, mode: P) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; AfterSortck&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
-            phase: mode,
+            wfckresults,
             <span class="comment">// We start sorts and types from 1 to skip the trait object dummy self type.
             // See [`rty::Ty::trait_object_dummy_self`]
             </span>next_sort_index: <span class="number">1</span>,
@@ -2793,15 +2888,45 @@
             next_const_index: <span class="number">0</span>,
         }
     }
+}
+
+<span class="doccomment">/// Delegate methods to P
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
+    <span class="kw">fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.genv()
+    }
+
+    <span class="kw">fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.genv().tcx()
+    }
 
     <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId {
-        <span class="self">self</span>.phase.results().owner()
+        <span class="self">self</span>.<span class="number">0</span>.owner()
     }
 
     <span class="kw">fn </span>results(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>P::Results {
-        <span class="self">self</span>.phase.results()
+        <span class="self">self</span>.<span class="number">0</span>.results()
     }
 
+    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
+        <span class="self">self</span>.<span class="number">0</span>.next_sort_vid()
+    }
+
+    <span class="kw">fn </span>next_type_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::TyVid {
+        <span class="self">self</span>.<span class="number">0</span>.next_type_vid()
+    }
+
+    <span class="kw">fn </span>next_region_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::RegionVid {
+        <span class="self">self</span>.<span class="number">0</span>.next_region_vid()
+    }
+
+    <span class="kw">fn </span>next_const_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::ConstVid {
+        <span class="self">self</span>.<span class="number">0</span>.next_const_vid()
+    }
+}
+
+<span class="doccomment">/// Conversion of definitions
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_variants(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         enum_id: MaybeExternId,
@@ -2828,16 +2953,16 @@
             .map(|field| <span class="self">self</span>.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field.ty))
             .try_collect()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(enum_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_def(enum_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>idxs = <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx)<span class="question-mark">?</span>;
         <span class="kw">let </span>variant = rty::VariantSig::new(
             adt_def,
-            rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, enum_id.resolved_id())<span class="question-mark">?</span>,
+            rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), enum_id.resolved_id())<span class="question-mark">?</span>,
             fields,
             idxs,
         );
 
-        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>))
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_variant(
@@ -2849,14 +2974,14 @@
         env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, struct_def.params));
 
         <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind {
-            <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(struct_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_def(struct_id)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>fields = fields
                 .iter()
                 .map(|field_def| <span class="self">self</span>.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field_def.ty))
                 .try_collect()<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
             <span class="kw">let </span>idx = rty::Expr::adt(
                 struct_id.resolved_id(),
                 (<span class="number">0</span>..vars.len())
@@ -2871,7 +2996,7 @@
             );
             <span class="kw">let </span>variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, struct_id.resolved_id())<span class="question-mark">?</span>,
+                rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), struct_id.resolved_id())<span class="question-mark">?</span>,
                 fields,
                 idx,
             );
@@ -2888,7 +3013,7 @@
         ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
     ) -&gt; QueryResult&lt;rty::TyCtor&gt; {
         <span class="kw">let </span>generics = <span class="self">self
-            </span>.genv
+            </span>.genv()
             .map()
             .get_generics(ty_alias_id.local_id())<span class="question-mark">?
             </span>.unwrap();
@@ -2899,7 +3024,7 @@
             env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, std::slice::from_ref(index)));
             <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>ty_alias.ty)<span class="question-mark">?</span>;
 
-            <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>))
+            <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>))
         } <span class="kw">else </span>{
             <span class="kw">let </span>ctor = <span class="self">self
                 </span>.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>ty_alias.ty)<span class="question-mark">?
@@ -2920,9 +3045,9 @@
         <span class="kw">let </span>header = fn_sig.header;
 
         <span class="kw">let </span>late_bound_regions =
-            refining::refine_bound_variables(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.lower_late_bound_vars(fn_id.local_id())<span class="question-mark">?</span>);
+            refining::refine_bound_variables(<span class="kw-2">&amp;</span><span class="self">self</span>.genv().lower_late_bound_vars(fn_id.local_id())<span class="question-mark">?</span>);
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.map().get_generics(fn_id.local_id())<span class="question-mark">?</span>.unwrap();
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().map().get_generics(fn_id.local_id())<span class="question-mark">?</span>.unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(<span class="self">self</span>.results(), late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[]));
 
@@ -2930,7 +3055,7 @@
 
         <span class="kw">let </span>vars = late_bound_regions
             .iter()
-            .chain(env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>.iter())
+            .chain(env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>.iter())
             .cloned()
             .collect();
 
@@ -2952,7 +3077,7 @@
                 clauses.push(clause);
             }
         }
-        <span class="kw">let </span>parent = <span class="self">self</span>.genv.tcx().predicates_of(def_id).parent;
+        <span class="kw">let </span>parent = <span class="self">self</span>.tcx().predicates_of(def_id).parent;
         <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
     }
 
@@ -2961,9 +3086,9 @@
         def_id: LocalDefId,
         opaque_ty: <span class="kw-2">&amp;</span>fhir::OpaqueTy,
     ) -&gt; QueryResult&lt;rty::Clauses&gt; {
-        <span class="kw">let </span>parent = <span class="self">self</span>.genv.tcx().local_parent(def_id);
+        <span class="kw">let </span>parent = <span class="self">self</span>.tcx().local_parent(def_id);
         <span class="kw">let </span>refparams = <span class="kw-2">&amp;</span><span class="self">self
-            </span>.genv
+            </span>.genv()
             .map()
             .get_generics(parent)<span class="question-mark">?
             </span>.unwrap()
@@ -2971,7 +3096,7 @@
 
         <span class="kw">let </span>env = <span class="kw-2">&amp;mut </span>Env::new(refparams);
 
-        <span class="kw">let </span>args = rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>args = rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id.into(), args, env.to_early_param_args());
         <span class="kw">let </span>self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
         <span class="comment">// FIXME(nilehmann) use a good span here
@@ -2990,14 +3115,151 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params));
         <span class="kw">let </span>expr = <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
-        <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-        <span class="kw">let </span>output = conv_sort(<span class="self">self</span>.genv, output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
+        <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
+        <span class="kw">let </span>output = <span class="self">self</span>.conv_sort(output)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::Lambda::bind_with_vars(expr, inputs, output))
     }
 }
 
+<span class="doccomment">/// Conversion of sorts
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; QueryResult&lt;rty::Sort&gt; {
+        <span class="kw">let </span>sort = <span class="kw">match </span>sort {
+            fhir::Sort::Path(path) =&gt; <span class="self">self</span>.conv_sort_path(path)<span class="question-mark">?</span>,
+            fhir::Sort::BitVec(size) =&gt; rty::Sort::BitVec(rty::BvSize::Fixed(<span class="kw-2">*</span>size)),
+            fhir::Sort::Loc =&gt; rty::Sort::Loc,
+            fhir::Sort::Func(fsort) =&gt; rty::Sort::Func(<span class="self">self</span>.conv_poly_func_sort(fsort)<span class="question-mark">?</span>),
+            fhir::Sort::Infer =&gt; rty::Sort::Infer(rty::SortVar(<span class="self">self</span>.next_sort_vid())),
+        };
+        <span class="prelude-val">Ok</span>(sort)
+    }
+
+    <span class="kw">fn </span>conv_poly_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::PolyFuncSort) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+        <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
+            .take(sort.params)
+            .collect();
+        <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(params, <span class="self">self</span>.conv_func_sort(<span class="kw-2">&amp;</span>sort.fsort)<span class="question-mark">?</span>))
+    }
+
+    <span class="kw">fn </span>conv_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: <span class="kw-2">&amp;</span>fhir::FuncSort) -&gt; QueryResult&lt;rty::FuncSort&gt; {
+        <span class="kw">let </span>inputs = fsort
+            .inputs()
+            .iter()
+            .map(|sort| <span class="self">self</span>.conv_sort(sort))
+            .try_collect()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(rty::FuncSort::new(inputs, <span class="self">self</span>.conv_sort(fsort.output())<span class="question-mark">?</span>))
+    }
+
+    <span class="kw">fn </span>conv_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::SortPath) -&gt; QueryResult&lt;rty::Sort&gt; {
+        <span class="kw">let </span>ctor = <span class="kw">match </span>path.res {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"int"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Int);
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"bool"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Bool);
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"real"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real);
+            }
+            fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
+            fhir::SortRes::TyParam(def_id) =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="kw">let </span>err = errors::GenericsOnTyParam::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(<span class="self">self</span>.genv(), def_id)));
+            }
+            fhir::SortRes::SelfParam { .. } =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="kw">let </span>err = errors::GenericsOnSelf::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY));
+            }
+            fhir::SortRes::SelfAlias { alias_to } =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="kw">let </span>err = errors::GenericsOnSelf::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+                }
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.genv()
+                    .sort_of_self_ty_alias(alias_to)<span class="question-mark">?
+                    </span>.unwrap_or(rty::Sort::Err));
+            }
+            fhir::SortRes::SelfParamAssoc { trait_id, ident } =&gt; {
+                <span class="kw">let </span>res = fhir::Res::SelfTyParam { trait_: trait_id };
+                <span class="kw">let </span>assoc_segment =
+                    fhir::PathSegment { args: <span class="kw-2">&amp;</span>[], constraints: <span class="kw-2">&amp;</span>[], ident, res: fhir::Res::Err };
+                <span class="kw">let </span><span class="kw-2">mut </span>env = Env::empty();
+                <span class="kw">let </span>alias_ty =
+                    <span class="self">self</span>.conv_type_relative_path(<span class="kw-2">&amp;mut </span>env, ident.span, res, <span class="kw-2">&amp;</span>assoc_segment)<span class="question-mark">?</span>;
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Set) =&gt; {
+                <span class="kw">if </span>path.args.len() != <span class="number">1 </span>{
+                    <span class="comment">// Has to have one argument
+                    </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"Set"</span>, <span class="number">1</span>))<span class="question-mark">?</span>;
+                }
+                rty::SortCtor::Set
+            }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Map) =&gt; {
+                <span class="kw">if </span>path.args.len() != <span class="number">2 </span>{
+                    <span class="comment">// Has to have two arguments
+                    </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"Map"</span>, <span class="number">2</span>))<span class="question-mark">?</span>;
+                }
+                rty::SortCtor::Map
+            }
+            fhir::SortRes::User { name } =&gt; {
+                <span class="kw">if </span>!path.args.is_empty() {
+                    <span class="kw">let </span>err = errors::GenericsOnUserDefinedOpaqueSort::new(
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                    );
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+                }
+                rty::SortCtor::User { name }
+            }
+            fhir::SortRes::Adt(def_id) =&gt; {
+                <span class="kw">let </span>sort_def = <span class="self">self</span>.genv().adt_sort_def_of(def_id)<span class="question-mark">?</span>;
+                <span class="kw">if </span>path.args.len() &gt; sort_def.param_count() {
+                    <span class="kw">let </span>err = errors::TooManyGenericsOnSort::new(
+                        <span class="self">self</span>.genv(),
+                        def_id,
+                        path.segments.last().unwrap().span,
+                        path.args.len(),
+                        sort_def.param_count(),
+                    );
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+                }
+                rty::SortCtor::Adt(sort_def)
+            }
+        };
+        <span class="kw">let </span>args = path.args.iter().map(|t| <span class="self">self</span>.conv_sort(t)).try_collect()<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(rty::Sort::app(ctor, args))
+    }
+}
+
 <span class="doccomment">/// Conversion of types
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P: ConvPhase&gt; ConvCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P&gt; {
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
     <span class="kw">fn </span>conv_fn_decl(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
@@ -3030,7 +3292,7 @@
         } <span class="kw">else </span>{
             env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, requires.params));
             <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>requires.pred)<span class="question-mark">?</span>;
-            <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(rty::Expr::forall(rty::Binder::bind_with_vars(pred, sorts)))
         }
     }
@@ -3063,7 +3325,7 @@
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>output = rty::FnOutput::new(ret, ensures);
 
-        <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+        <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(output, vars))
     }
 
@@ -3119,10 +3381,10 @@
         env.push_layer(layer);
 
         <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().generics_of(trait_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
 
-        <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+        <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[<span class="self">self
             </span>.try_to_ty_or_base(self_param.kind, span, bounded_ty)<span class="question-mark">?
             </span>.into()];
@@ -3161,7 +3423,7 @@
         constraint: <span class="kw-2">&amp;</span>fhir::AssocItemConstraint,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
 
         <span class="kw">let </span>candidate = <span class="self">self</span>.probe_single_bound_for_assoc_item(
             || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
@@ -3202,11 +3464,10 @@
         trait_def_id: DefId,
         assoc_kind: AssocKind,
         assoc_name: Ident,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AssocItem&gt; {
-        <span class="self">self</span>.genv
-            .tcx()
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>AssocItem&gt; {
+        <span class="self">self</span>.tcx()
             .associated_items(trait_def_id)
-            .find_by_name_and_kind(<span class="self">self</span>.genv.tcx(), assoc_name, assoc_kind, trait_def_id)
+            .find_by_name_and_kind(<span class="self">self</span>.tcx(), assoc_name, assoc_kind, trait_def_id)
     }
 
     <span class="kw">fn </span>conv_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
@@ -3218,14 +3479,14 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::RefinedUnrefinableType::new(bty.span)))<span class="question-mark">?</span>;
                 };
                 <span class="kw">let </span>idx = <span class="self">self</span>.conv_expr(env, idx)<span class="question-mark">?</span>;
-                <span class="self">self</span>.phase.insert_bty_sort(fhir_id, ty_ctor.sort());
+                <span class="self">self</span>.<span class="number">0</span>.insert_bty_sort(fhir_id, ty_ctor.sort());
                 <span class="prelude-val">Ok</span>(ty_ctor.replace_bound_reft(<span class="kw-2">&amp;</span>idx))
             }
             fhir::TyKind::Exists(params, ty) =&gt; {
                 <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params);
                 env.push_layer(layer);
                 <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
-                <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
                 <span class="kw">if </span>sorts.is_empty() {
                     <span class="prelude-val">Ok</span>(ty.shift_out_escaping(<span class="number">1</span>))
                 } <span class="kw">else </span>{
@@ -3300,14 +3561,14 @@
         reft_args: <span class="kw-2">&amp;</span>[fhir::Expr],
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
         <span class="kw">let </span>def_id = item_id.owner_id.to_def_id();
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>args = rty::GenericArg::for_item(<span class="self">self</span>.genv, def_id, |param, <span class="kw">_</span>| {
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>args = rty::GenericArg::for_item(<span class="self">self</span>.genv(), def_id, |param, <span class="kw">_</span>| {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(i) = (param.index <span class="kw">as </span>usize).checked_sub(generics.count() - lifetimes.len())
             {
                 <span class="comment">// Resolve our own lifetime parameters.
                 </span><span class="kw">let </span>rty::GenericParamDefKind::Lifetime { .. } = param.kind <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(
-                        <span class="self">self</span>.genv.tcx().def_span(param.def_id),
+                        <span class="self">self</span>.tcx().def_span(param.def_id),
                         <span class="string">"only expected lifetime for opaque's own generics, got {:?}"</span>,
                         param.kind
                     );
@@ -3372,7 +3633,7 @@
         <span class="comment">// Separate between regular from auto traits
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>auto_traits, regular_traits): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = trait_bounds
             .into_iter()
-            .partition(|trait_ref| <span class="self">self</span>.genv.tcx().trait_is_auto(trait_ref.def_id()));
+            .partition(|trait_ref| <span class="self">self</span>.tcx().trait_is_auto(trait_ref.def_id()));
 
         <span class="comment">// De-duplicate auto traits preserving order
         </span>{
@@ -3415,7 +3676,7 @@
             v.sort_by(|a, b| {
                 a.as_ref()
                     .skip_binder()
-                    .stable_cmp(<span class="self">self</span>.genv.tcx(), b.as_ref().skip_binder())
+                    .stable_cmp(<span class="self">self</span>.tcx(), b.as_ref().skip_binder())
             });
             List::from_vec(v)
         };
@@ -3434,9 +3695,12 @@
                 <span class="self">self</span>.conv_qpath(env, <span class="kw-2">*</span>qself, path)
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) =&gt; {
-                <span class="kw">let </span>bty = <span class="self">self
-                    </span>.conv_type_relative_path(env, qself, segment)<span class="question-mark">?
+                <span class="kw">let </span>qself_res =
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = qself.as_path() { path.res } <span class="kw">else </span>{ fhir::Res::Err };
+                <span class="kw">let </span>alias_ty = <span class="self">self
+                    </span>.conv_type_relative_path(env, qself.span, qself_res, segment)<span class="question-mark">?
                     </span>.shift_in_escaping(<span class="number">1</span>);
+                <span class="kw">let </span>bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
                 <span class="kw">let </span>sort = bty.sort();
                 <span class="kw">let </span>ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 <span class="prelude-val">Ok</span>(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -3453,18 +3717,18 @@
     <span class="kw">fn </span>conv_type_relative_path(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
-        qself: <span class="kw-2">&amp;</span>fhir::Ty,
+        qself_span: Span,
+        qself_res: fhir::Res,
         assoc_segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
-    ) -&gt; QueryResult&lt;rty::BaseTy&gt; {
-        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+    ) -&gt; QueryResult&lt;rty::AliasTy&gt; {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
         <span class="kw">let </span>assoc_ident = assoc_segment.ident;
-        <span class="kw">let </span>qself_res = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = qself.as_path() { path.res } <span class="kw">else </span>{ fhir::Res::Err };
 
         <span class="kw">let </span>bound = <span class="kw">match </span>qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: <span class="bool-val">true </span>} =&gt; {
                 <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = tcx.impl_trait_ref(impl_def_id) <span class="kw">else </span>{
                     <span class="comment">// A cycle error occurred most likely (comment copied from rustc)
-                    </span><span class="macro">span_bug!</span>(qself.span, <span class="string">"expected cycle error"</span>);
+                    </span><span class="macro">span_bug!</span>(qself_span, <span class="string">"expected cycle error"</span>);
                 };
 
                 <span class="self">self</span>.probe_single_bound_for_assoc_item(
@@ -3530,15 +3794,15 @@
         <span class="kw">let </span>args = List::from_vec(args);
         <span class="kw">let </span>refine_args = List::empty();
         <span class="kw">let </span>alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-        <span class="prelude-val">Ok</span>(rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty))
+        <span class="prelude-val">Ok</span>(alias_ty)
     }
 
     <span class="doccomment">/// Return the generics of the containing owner item
     </span><span class="kw">fn </span>refiner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; QueryResult&lt;Refiner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
         <span class="kw">match </span><span class="self">self</span>.owner() {
             FluxOwnerId::Rust(owner_id) =&gt; {
-                <span class="kw">let </span>def_id = <span class="self">self</span>.genv.maybe_extern_id(owner_id.def_id);
-                Refiner::default(<span class="self">self</span>.genv, def_id.resolved_id())
+                <span class="kw">let </span>def_id = <span class="self">self</span>.genv().maybe_extern_id(owner_id.def_id);
+                Refiner::default(<span class="self">self</span>.genv(), def_id.resolved_id())
             }
             FluxOwnerId::Flux(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"cannot refine types insicde flux item"</span>)),
         }
@@ -3555,15 +3819,14 @@
         // `T::Assoc` syntax and the user has to manually annotate it as `&lt;T as Trait&gt;::Assoc`
         // (or add it as a bound to the extern spec so it's returned by the query).
         </span><span class="kw">let </span>param_id = <span class="self">self
-            </span>.genv
+            </span>.genv()
             .resolve_id(param_id)
             .as_maybe_extern()
             .unwrap()
             .local_id();
         <span class="kw">match </span><span class="self">self</span>.owner() {
             FluxOwnerId::Rust(owner_id) =&gt; {
-                <span class="self">self</span>.genv
-                    .tcx()
+                <span class="self">self</span>.tcx()
                     .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
             FluxOwnerId::Flux(<span class="kw">_</span>) =&gt; ty::GenericPredicates::default(),
@@ -3599,12 +3862,12 @@
             fhir::Lifetime::Hole(<span class="kw">_</span>) =&gt; <span class="kw">return </span>rty::Region::ReVar(<span class="self">self</span>.next_region_vid()),
             fhir::Lifetime::Resolved(res) =&gt; res,
         };
-        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
         <span class="kw">let </span>lifetime_name = |def_id| tcx.item_name(def_id);
         <span class="kw">match </span>res {
             ResolvedArg::StaticLifetime =&gt; rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) =&gt; {
-                <span class="kw">let </span>index = <span class="self">self</span>.genv.def_id_to_param_index(def_id);
+                <span class="kw">let </span>index = <span class="self">self</span>.genv().def_id_to_param_index(def_id);
                 <span class="kw">let </span>name = lifetime_name(def_id);
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
@@ -3627,9 +3890,11 @@
 
     <span class="kw">fn </span>conv_const_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cst: fhir::ConstArg) -&gt; rty::Const {
         <span class="kw">match </span>cst.kind {
-            fhir::ConstArgKind::Lit(lit) =&gt; rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), lit),
+            fhir::ConstArgKind::Lit(lit) =&gt; rty::Const::from_usize(<span class="self">self</span>.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) =&gt; {
-                rty::Const { kind: rty::ConstKind::Param(def_id_to_param_const(<span class="self">self</span>.genv, def_id)) }
+                rty::Const {
+                    kind: rty::ConstKind::Param(def_id_to_param_const(<span class="self">self</span>.genv(), def_id)),
+                }
             }
             fhir::ConstArgKind::Infer =&gt; {
                 rty::Const {
@@ -3659,17 +3924,17 @@
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) =&gt; {
-                <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(did)<span class="question-mark">?</span>;
+                <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_def(did)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = <span class="self">self</span>.conv_generic_args(env, did, path.last_segment())<span class="question-mark">?</span>;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
-                <span class="kw">let </span>owner_id = ty_param_owner(<span class="self">self</span>.genv, def_id);
-                <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv, def_id);
+                <span class="kw">let </span>owner_id = ty_param_owner(<span class="self">self</span>.genv(), def_id);
+                <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv(), def_id);
                 <span class="kw">let </span>param = <span class="self">self
-                    </span>.genv
+                    </span>.genv()
                     .generics_of(owner_id)<span class="question-mark">?
-                    </span>.param_at(param_ty.index <span class="kw">as </span>usize, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                    </span>.param_at(param_ty.index <span class="kw">as </span>usize, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
                 <span class="kw">match </span>param.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)))
@@ -3679,7 +3944,7 @@
                 }
             }
             fhir::Res::SelfTyParam { trait_ } =&gt; {
-                <span class="kw">let </span>param = <span class="kw-2">&amp;</span><span class="self">self</span>.genv.generics_of(trait_)<span class="question-mark">?</span>.own_params[<span class="number">0</span>];
+                <span class="kw">let </span>param = <span class="kw-2">&amp;</span><span class="self">self</span>.genv().generics_of(trait_)<span class="question-mark">?</span>.own_params[<span class="number">0</span>];
                 <span class="kw">match </span>param.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)))
@@ -3690,7 +3955,7 @@
             }
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; {
                 <span class="kw">if </span>P::EXPAND_TYPE_ALIASES {
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.type_of(alias_to)<span class="question-mark">?</span>.instantiate_identity());
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv().type_of(alias_to)<span class="question-mark">?</span>.instantiate_identity());
                 } <span class="kw">else </span>{
                     rty::BaseTy::Alias(
                         rty::AliasKind::Weak,
@@ -3703,12 +3968,12 @@
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
-                <span class="kw">let </span>trait_id = <span class="self">self</span>.genv.tcx().trait_of_item(assoc_id).unwrap();
+                <span class="kw">let </span>trait_id = <span class="self">self</span>.tcx().trait_of_item(assoc_id).unwrap();
                 <span class="kw">let </span>[.., trait_segment, assoc_segment] = path.segments <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(path.span, <span class="string">"expected at least two segments"</span>);
                 };
 
-                <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv().generics_of(trait_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>qself = <span class="self">self</span>.conv_ty_to_generic_arg(
                     env,
                     <span class="kw-2">&amp;</span>trait_generics.own_params[<span class="number">0</span>],
@@ -3731,9 +3996,9 @@
                     .map(|expr| <span class="self">self</span>.conv_expr(env, expr))
                     .try_collect_vec()<span class="question-mark">?</span>;
                 <span class="kw">if </span>P::EXPAND_TYPE_ALIASES {
-                    <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+                    <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self
-                        </span>.genv
+                        </span>.genv()
                         .type_of(def_id)<span class="question-mark">?
                         </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>refine_args));
                 } <span class="kw">else </span>{
@@ -3762,7 +4027,7 @@
         param: <span class="kw-2">&amp;</span>fhir::GenericParam,
     ) -&gt; QueryResult&lt;rty::BoundVariableKind&gt; {
         <span class="kw">let </span>def_id = param.def_id.resolved_id();
-        <span class="kw">let </span>name = <span class="self">self</span>.genv.tcx().item_name(def_id);
+        <span class="kw">let </span>name = <span class="self">self</span>.tcx().item_name(def_id);
         <span class="kw">match </span>param.kind {
             fhir::GenericParamKind::Lifetime =&gt; {
                 <span class="prelude-val">Ok</span>(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
@@ -3791,13 +4056,13 @@
         segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
         into: <span class="kw-2">&amp;mut </span>Vec&lt;rty::GenericArg&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().generics_of(def_id)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.check_generic_arg_count(<span class="kw-2">&amp;</span>generics, def_id, segment)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>len = into.len();
         <span class="kw">for </span>(idx, arg) <span class="kw">in </span>segment.args.iter().enumerate() {
-            <span class="kw">let </span>param = generics.param_at(idx + len, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>param = generics.param_at(idx + len, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
             <span class="kw">match </span>arg {
                 fhir::GenericArg::Lifetime(lft) =&gt; {
                     into.push(rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft)));
@@ -3823,20 +4088,25 @@
         <span class="kw">let </span><span class="kw-2">mut </span>param_count = generics.own_params.len();
 
         <span class="comment">// The self parameter is not provided explicitly in the path so we skip it
-        </span><span class="kw">if let </span>DefKind::Trait = <span class="self">self</span>.genv.def_kind(def_id) {
+        </span><span class="kw">if let </span>DefKind::Trait = <span class="self">self</span>.genv().def_kind(def_id) {
             param_count -= <span class="number">1</span>;
         }
 
         <span class="kw">let </span>min = param_count - generics.own_default_count();
         <span class="kw">let </span>max = param_count;
         <span class="kw">if </span>min == max &amp;&amp; found != min {
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::GenericArgCountMismatch::new(<span class="self">self</span>.genv, def_id, segment, min)))<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::GenericArgCountMismatch::new(
+                <span class="self">self</span>.genv(),
+                def_id,
+                segment,
+                min,
+            )))<span class="question-mark">?</span>;
         }
         <span class="kw">if </span>found &lt; min {
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::TooFewGenericArgs::new(<span class="self">self</span>.genv, def_id, segment, min)))<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::TooFewGenericArgs::new(<span class="self">self</span>.genv(), def_id, segment, min)))<span class="question-mark">?</span>;
         }
         <span class="kw">if </span>found &gt; max {
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::TooManyGenericArgs::new(<span class="self">self</span>.genv, def_id, segment, min)))<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::TooManyGenericArgs::new(<span class="self">self</span>.genv(), def_id, segment, min)))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -3846,20 +4116,20 @@
         def_id: DefId,
         into: <span class="kw-2">&amp;mut </span>Vec&lt;rty::GenericArg&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().generics_of(def_id)<span class="question-mark">?</span>;
         <span class="kw">for </span>param <span class="kw">in </span>generics.own_params.iter().skip(into.len()) {
             <span class="macro">debug_assert!</span>(<span class="macro">matches!</span>(
                 param.kind,
                 rty::GenericParamDefKind::Type { has_default: <span class="bool-val">true </span>}
                     | rty::GenericParamDefKind::Base { has_default: <span class="bool-val">true </span>}
             ));
-            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(param.def_id);
+            <span class="kw">let </span>span = <span class="self">self</span>.tcx().def_span(param.def_id);
             <span class="comment">// FIXME(nilehmann) we already know whether this is a type or a constructor so we could
             // directly check if the constructor returns a subset type.
             </span><span class="kw">let </span>ty = <span class="self">self
-                </span>.genv
+                </span>.genv()
                 .type_of(param.def_id)<span class="question-mark">?
-                </span>.instantiate(<span class="self">self</span>.genv.tcx(), into, <span class="kw-2">&amp;</span>[])
+                </span>.instantiate(<span class="self">self</span>.tcx(), into, <span class="kw-2">&amp;</span>[])
                 .to_ty();
             into.push(<span class="self">self</span>.try_to_ty_or_base(param.kind, span, <span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>.into());
         }
@@ -3909,34 +4179,14 @@
         <span class="prelude-val">Ok</span>(ctor)
     }
 
-    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
-        <span class="self">self</span>.next_sort_index = <span class="self">self</span>.next_sort_index.checked_add(<span class="number">1</span>).unwrap();
-        rty::SortVid::from_u32(<span class="self">self</span>.next_sort_index - <span class="number">1</span>)
-    }
-
-    <span class="kw">fn </span>next_type_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::TyVid {
-        <span class="self">self</span>.next_type_index = <span class="self">self</span>.next_type_index.checked_add(<span class="number">1</span>).unwrap();
-        rty::TyVid::from_u32(<span class="self">self</span>.next_type_index - <span class="number">1</span>)
-    }
-
-    <span class="kw">fn </span>next_region_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::RegionVid {
-        <span class="self">self</span>.next_region_index = <span class="self">self</span>.next_region_index.checked_add(<span class="number">1</span>).unwrap();
-        rty::RegionVid::from_u32(<span class="self">self</span>.next_region_index - <span class="number">1</span>)
-    }
-
-    <span class="kw">fn </span>next_const_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::ConstVid {
-        <span class="self">self</span>.next_const_index = <span class="self">self</span>.next_const_index.checked_add(<span class="number">1</span>).unwrap();
-        rty::ConstVid::from_u32(<span class="self">self</span>.next_const_index - <span class="number">1</span>)
-    }
-
     <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>emit&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'b</span>&gt;) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.genv.sess().emit_err(err)
+    </span><span class="kw">fn </span>emit(<span class="kw-2">&amp;</span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'genv</span>&gt;) -&gt; ErrorGuaranteed {
+        <span class="self">self</span>.genv().sess().emit_err(err)
     }
 }
 
 <span class="doccomment">/// Conversion of expressions
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P: ConvPhase&gt; ConvCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, P&gt; {
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
         <span class="kw">let </span>espan = ESpan::new(expr.span);
@@ -3946,7 +4196,8 @@
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id).at(espan),
                     ExprRes::ConstGeneric(def_id) =&gt; {
-                        rty::Expr::const_generic(def_id_to_param_const(<span class="self">self</span>.genv, def_id)).at(espan)
+                        rty::Expr::const_generic(def_id_to_param_const(<span class="self">self</span>.genv(), def_id))
+                            .at(espan)
                     }
                     ExprRes::NumConst(num) =&gt; {
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
@@ -3997,7 +4248,7 @@
                 <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params);
                 env.push_layer(layer);
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
-                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
                 <span class="kw">let </span>output = <span class="self">self</span>.results().lambda_output(expr.fhir_id);
                 <span class="kw">let </span>lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 rty::Expr::abs(lam)
@@ -4036,7 +4287,7 @@
         <span class="kw">if </span>!P::HAS_ELABORATED_INFORMATION {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(List::default());
         };
-        <span class="kw">let </span>struct_adt = <span class="self">self</span>.genv.adt_sort_def_of(struct_def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>struct_adt = <span class="self">self</span>.genv().adt_sort_def_of(struct_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>spread = spread
             .map(|spread| <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>spread.expr))
             .transpose()<span class="question-mark">?</span>;
@@ -4115,23 +4366,23 @@
         };
         <span class="kw">let </span>trait_segment = alias.path.last_segment();
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv().generics_of(trait_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>self_ty =
-            <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>, alias.qself)<span class="question-mark">?</span>;
+            <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv())<span class="question-mark">?</span>, alias.qself)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = alias_reft.fsort(<span class="self">self</span>.genv)<span class="question-mark">? </span><span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = alias_reft.fsort(<span class="self">self</span>.genv())<span class="question-mark">? </span><span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(InvalidAssocReft::new(
                 alias.path.span,
                 alias_reft.name,
                 <span class="macro">format!</span>(<span class="string">"{:?}"</span>, alias.path),
             )))<span class="question-mark">?</span>;
         };
-        <span class="self">self</span>.phase.insert_alias_reft_sort(fhir_id, fsort);
+        <span class="self">self</span>.<span class="number">0</span>.insert_alias_reft_sort(fhir_id, fsort);
         <span class="prelude-val">Ok</span>(alias_reft)
     }
 
@@ -4153,7 +4404,7 @@
     ) -&gt; QueryResult&lt;rty::Invariant&gt; {
         <span class="prelude-val">Ok</span>(rty::Invariant::new(rty::Binder::bind_with_vars(
             <span class="self">self</span>.conv_expr(env, invariant)<span class="question-mark">?</span>,
-            env.top_layer().to_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>,
+            env.top_layer().to_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>,
         )))
     }
 }
@@ -4335,12 +4586,14 @@
 }
 
 <span class="kw">pub fn </span>conv_func_decl(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
+    <span class="kw">let </span>wfckresults = WfckResults::new(FluxOwnerId::Flux(func.name));
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
     <span class="kw">let </span>inputs_and_output = func
         .args
         .iter()
         .map(|p| <span class="kw-2">&amp;</span>p.sort)
         .chain(iter::once(<span class="kw-2">&amp;</span>func.sort))
-        .map(|sort| conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort))
+        .map(|sort| cx.conv_sort(sort))
         .try_collect()<span class="question-mark">?</span>;
     <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
         .take(func.params)
@@ -4348,139 +4601,6 @@
     <span class="kw">let </span>sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
     <span class="kw">let </span>kind = <span class="kw">if </span>func.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
     <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
-}
-
-<span class="kw">fn </span>conv_sorts(
-    genv: GlobalEnv,
-    sorts: <span class="kw-2">&amp;</span>[fhir::Sort],
-    next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; QueryResult&lt;Vec&lt;rty::Sort&gt;&gt; {
-    sorts
-        .iter()
-        .map(|sort| conv_sort(genv, sort, next_infer_sort))
-        .try_collect()
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_sort(
-    genv: GlobalEnv,
-    sort: <span class="kw-2">&amp;</span>fhir::Sort,
-    next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; QueryResult&lt;rty::Sort&gt; {
-    <span class="kw">let </span>sort = <span class="kw">match </span>sort {
-        fhir::Sort::Path(path) =&gt; conv_sort_path(genv, path, next_infer_sort)<span class="question-mark">?</span>,
-        fhir::Sort::BitVec(size) =&gt; rty::Sort::BitVec(rty::BvSize::Fixed(<span class="kw-2">*</span>size)),
-        fhir::Sort::Loc =&gt; rty::Sort::Loc,
-        fhir::Sort::Func(fsort) =&gt; {
-            rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)<span class="question-mark">?</span>)
-        }
-        fhir::Sort::Infer =&gt; next_infer_sort(),
-    };
-    <span class="prelude-val">Ok</span>(sort)
-}
-
-<span class="kw">fn </span>conv_sort_path(
-    genv: GlobalEnv,
-    path: <span class="kw-2">&amp;</span>fhir::SortPath,
-    next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; QueryResult&lt;rty::Sort&gt; {
-    <span class="kw">let </span>ctor = <span class="kw">match </span>path.res {
-        fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"int"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Int);
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"bool"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Bool);
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"real"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real);
-        }
-        fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
-        fhir::SortRes::TyParam(def_id) =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">let </span>err = errors::GenericsOnTyParam::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(def_id_to_param_ty(genv, def_id)));
-        }
-        fhir::SortRes::SelfParam { .. } =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">let </span>err = errors::GenericsOnSelf::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY));
-        }
-        fhir::SortRes::SelfAlias { alias_to } =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">let </span>err = errors::GenericsOnSelf::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
-            }
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(genv
-                .sort_of_self_ty_alias(alias_to)<span class="question-mark">?
-                </span>.unwrap_or(rty::Sort::Err));
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Set) =&gt; {
-            <span class="kw">if </span>path.args.len() != <span class="number">1 </span>{
-                <span class="comment">// Has to have one argument
-                </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Set"</span>, <span class="number">1</span>))<span class="question-mark">?</span>;
-            }
-            rty::SortCtor::Set
-        }
-        fhir::SortRes::PrimSort(fhir::PrimSort::Map) =&gt; {
-            <span class="kw">if </span>path.args.len() != <span class="number">2 </span>{
-                <span class="comment">// Has to have two arguments
-                </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(genv, path, <span class="string">"Map"</span>, <span class="number">2</span>))<span class="question-mark">?</span>;
-            }
-            rty::SortCtor::Map
-        }
-        fhir::SortRes::User { name } =&gt; {
-            <span class="kw">if </span>!path.args.is_empty() {
-                <span class="kw">let </span>err = errors::GenericsOnUserDefinedOpaqueSort::new(
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                );
-                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
-            }
-            rty::SortCtor::User { name }
-        }
-        fhir::SortRes::Adt(def_id) =&gt; {
-            <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>;
-            <span class="kw">if </span>path.args.len() &gt; sort_def.param_count() {
-                <span class="kw">let </span>err = errors::TooManyGenericsOnSort::new(
-                    genv,
-                    def_id,
-                    path.segments.last().unwrap().span,
-                    path.args.len(),
-                    sort_def.param_count(),
-                );
-                <span class="prelude-val">Err</span>(genv.sess().emit_err(err))<span class="question-mark">?</span>;
-            }
-            rty::SortCtor::Adt(sort_def)
-        }
-    };
-    <span class="kw">let </span>args = path
-        .args
-        .iter()
-        .map(|t| conv_sort(genv, t, next_infer_sort))
-        .try_collect()<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(rty::Sort::app(ctor, args))
 }
 
 <span class="kw">fn </span>emit_prim_sort_generics_error(
@@ -4496,32 +4616,6 @@
         expected,
     );
     genv.sess().emit_err(err)
-}
-
-<span class="kw">fn </span>conv_poly_func_sort(
-    genv: GlobalEnv,
-    sort: <span class="kw-2">&amp;</span>fhir::PolyFuncSort,
-    next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
-    <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
-        .take(sort.params)
-        .collect();
-    <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(params, conv_func_sort(genv, <span class="kw-2">&amp;</span>sort.fsort, next_infer_sort)<span class="question-mark">?</span>))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_func_sort(
-    genv: GlobalEnv,
-    fsort: <span class="kw-2">&amp;</span>fhir::FuncSort,
-    next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; QueryResult&lt;rty::FuncSort&gt; {
-    <span class="prelude-val">Ok</span>(rty::FuncSort::new(
-        conv_sorts(genv, fsort.inputs(), next_infer_sort)<span class="question-mark">?</span>,
-        conv_sort(genv, fsort.output(), next_infer_sort)<span class="question-mark">?</span>,
-    ))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>bug_on_infer_sort() -&gt; rty::Sort {
-    <span class="macro">bug!</span>(<span class="string">"unexpected infer sort"</span>)
 }
 
 <span class="kw">fn </span>conv_lit(lit: fhir::Lit) -&gt; rty::Constant {

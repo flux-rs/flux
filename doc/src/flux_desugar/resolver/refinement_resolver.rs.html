@@ -992,6 +992,11 @@
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1608,19 +1613,24 @@
     }
 
     <span class="kw">fn </span>try_resolve_sort_with_ribs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::SortRes&gt; {
-        <span class="kw">let </span>res = <span class="self">self
+        <span class="kw">let </span>partial_res = <span class="self">self
             </span>.resolver
-            .resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS)<span class="question-mark">?
-            </span>.full_res()<span class="question-mark">?</span>;
-        <span class="kw">match </span>res {
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) =&gt; {
+            .resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS)<span class="question-mark">?</span>;
+        <span class="kw">match </span>(partial_res.base_res(), partial_res.unresolved_segments()) {
+            (fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id), <span class="number">0</span>) =&gt; {
                 <span class="prelude-val">Some</span>(fhir::SortRes::Adt(def_id))
             }
-            fhir::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
-            fhir::Res::SelfTyParam { trait_ } =&gt; {
+            (fhir::Res::Def(DefKind::TyParam, def_id), <span class="number">0</span>) =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::TyParam(def_id)),
+            (fhir::Res::SelfTyParam { trait_ }, <span class="number">0</span>) =&gt; {
                 <span class="prelude-val">Some</span>(fhir::SortRes::SelfParam { trait_id: trait_ })
             }
-            fhir::Res::SelfTyAlias { alias_to, .. } =&gt; <span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to }),
+            (fhir::Res::SelfTyParam { trait_ }, <span class="number">1</span>) =&gt; {
+                <span class="kw">let </span>ident = <span class="kw-2">*</span>path.segments.last().unwrap();
+                <span class="prelude-val">Some</span>(fhir::SortRes::SelfParamAssoc { trait_id: trait_, ident })
+            }
+            (fhir::Res::SelfTyAlias { alias_to, .. }, <span class="number">0</span>) =&gt; {
+                <span class="prelude-val">Some</span>(fhir::SortRes::SelfAlias { alias_to })
+            }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

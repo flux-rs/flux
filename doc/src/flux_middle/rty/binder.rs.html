@@ -256,6 +256,10 @@
 <a href="#256" id="256">256</a>
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
 
 <span class="kw">pub use </span>flux_arc_interner::{impl_slice_internable, List};
@@ -302,6 +306,10 @@
 
     <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
         <span class="self">self</span>.<span class="number">0
+    </span>}
+
+    <span class="kw">pub fn </span>skip_binder_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>T {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 
     <span class="kw">pub fn </span>instantiate_identity(<span class="self">self</span>) -&gt; T {

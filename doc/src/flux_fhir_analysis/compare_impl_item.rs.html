@@ -156,9 +156,23 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
-<span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
+<span class="kw">use </span>flux_middle::{
+    def_id_to_string, global_env::GlobalEnv, rty::fold::TypeFoldable, MaybeExternId,
+};
 <span class="kw">use </span>rustc_hash::FxHashSet;
+<span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_span::{def_id::DefId, ErrorGuaranteed, Symbol};
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
@@ -213,6 +227,8 @@
     trait_id: DefId,
     name: Symbol,
 ) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">let </span>infcx = genv.tcx().infer_ctxt().build();
+
     <span class="kw">let </span>impl_span = genv
         .map()
         .expect_item(impl_id.local_id())
@@ -236,7 +252,10 @@
         )));
     };
 
-    <span class="kw">let </span>impl_sort = impl_sort.instantiate_identity();
+    <span class="kw">let </span>impl_sort = impl_sort
+        .instantiate_identity()
+        .normalize_projections(genv, <span class="kw-2">&amp;</span>infcx, impl_id.resolved_id())
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(trait_sort) = genv.sort_of_assoc_reft(trait_id, name).emit(genv.sess())<span class="question-mark">? </span><span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(errors::InvalidAssocReft::new(
@@ -245,7 +264,10 @@
             def_id_to_string(trait_id),
         )));
     };
-    <span class="kw">let </span>trait_sort = trait_sort.instantiate(genv.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[]);
+    <span class="kw">let </span>trait_sort = trait_sort
+        .instantiate(genv.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[])
+        .normalize_projections(genv, <span class="kw-2">&amp;</span>infcx, impl_id.resolved_id())
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>impl_sort != trait_sort {
         <span class="kw">return </span><span class="prelude-val">Err</span>(genv

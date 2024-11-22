@@ -856,15 +856,6 @@
 <a href="#856" id="856">856</a>
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -887,7 +878,6 @@
 <span class="kw">use </span>rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
-<span class="kw">use </span><span class="kw">crate</span>::conv;
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
@@ -904,11 +894,14 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
+        <span class="comment">// We skip 0 because that's used for sort dummy self types during conv.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>sort_unification_table = InPlaceUnificationTable::new();
+        sort_unification_table.new_key(<span class="prelude-val">None</span>);
         <span class="self">Self </span>{
             genv,
             params: Default::default(),
             wfckresults: WfckResults::new(owner),
-            sort_unification_table: InPlaceUnificationTable::new(),
+            sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
@@ -923,32 +916,31 @@
         body: <span class="kw-2">&amp;</span>fhir::Expr,
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_from_func(expected, arg.fhir_id) {
-            <span class="kw">let </span>fsort = fsort.expect_mono();
-            <span class="self">self</span>.insert_params(params)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_from_func(expected, arg.fhir_id) <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedFun::new(arg.span, expected)));
+        };
 
-            <span class="kw">if </span>params.len() != fsort.inputs().len() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ParamCountMismatch::new(
-                    arg.span,
-                    fsort.inputs().len(),
-                    params.len(),
-                )));
-            }
-            iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                <span class="kw">let </span>found = <span class="self">self</span>.param_sort(param.id);
-                <span class="kw">if </span><span class="self">self</span>.try_equate(<span class="kw-2">&amp;</span>found, expected).is_none() {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(param.span, expected, <span class="kw-2">&amp;</span>found));
-                }
-                <span class="prelude-val">Ok</span>(())
-            })<span class="question-mark">?</span>;
-            <span class="self">self</span>.check_expr(body, fsort.output())<span class="question-mark">?</span>;
-            <span class="self">self</span>.wfckresults
-                .node_sorts_mut()
-                .insert(arg.fhir_id, fsort.output().clone());
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
+        <span class="kw">let </span>fsort = fsort.expect_mono();
+
+        <span class="kw">if </span>params.len() != fsort.inputs().len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ParamCountMismatch::new(
+                arg.span,
+                fsort.inputs().len(),
+                params.len(),
+            )));
         }
+        iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
+            <span class="kw">let </span>found = <span class="self">self</span>.param_sort(param.id);
+            <span class="kw">if </span><span class="self">self</span>.try_equate(<span class="kw-2">&amp;</span>found, expected).is_none() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(param.span, expected, <span class="kw-2">&amp;</span>found));
+            }
+            <span class="prelude-val">Ok</span>(())
+        })<span class="question-mark">?</span>;
+        <span class="self">self</span>.check_expr(body, fsort.output())<span class="question-mark">?</span>;
+        <span class="self">self</span>.wfckresults
+            .node_sorts_mut()
+            .insert(arg.fhir_id, fsort.output().clone());
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>check_field_exprs(
@@ -1333,16 +1325,6 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">for </span>param <span class="kw">in </span>params {
-            <span class="kw">let </span>sort = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| <span class="self">self</span>.next_sort_var())
-                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
-            <span class="self">self</span>.insert_param(param.id, sort, param.kind);
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_param(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         id: fhir::ParamId,
@@ -1500,7 +1482,7 @@
         rty::Sort::Infer(rty::NumVar(<span class="self">self</span>.next_num_vid()))
     }
 
-    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
         <span class="self">self</span>.sort_unification_table.new_key(<span class="prelude-val">None</span>)
     }
 

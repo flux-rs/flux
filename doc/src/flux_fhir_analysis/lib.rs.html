@@ -582,6 +582,19 @@
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -589,6 +602,7 @@
 <span class="kw">extern crate </span>rustc_errors;
 <span class="kw">extern crate </span>rustc_hash;
 <span class="kw">extern crate </span>rustc_hir;
+<span class="kw">extern crate </span>rustc_infer;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
 <span class="kw">extern crate </span>rustc_target;
@@ -601,7 +615,7 @@
 
 <span class="kw">use </span>std::rc::Rc;
 
-<span class="kw">use </span>conv::{bug_on_infer_sort, struct_compat, ConvCtxt};
+<span class="kw">use </span>conv::{struct_compat, AfterSortck, ConvPhase};
 <span class="kw">use </span>flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::Errors;
@@ -740,7 +754,9 @@
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(def_id.local_id())<span class="question-mark">? </span>{
         <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-        ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults).conv_generic_predicates(def_id, generics)
+        AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+            .into_conv_ctxt()
+            .conv_generic_predicates(def_id, generics)
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx().predicates_of(def_id).parent,
@@ -799,7 +815,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
         <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
         <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults);
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
         <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
     } <span class="kw">else </span>{
@@ -820,7 +836,7 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
         <span class="kw">let </span>wfckresults = genv.check_wf(impl_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults);
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
         <span class="kw">let </span>body =
             cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
@@ -859,22 +875,26 @@
     <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
             <span class="kw">let </span><span class="prelude-val">Some</span>(assoc_reft) = trait_.find_assoc_reft(name) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::conv_sort(genv, <span class="kw-2">&amp;</span>p.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort))
+                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
                 .try_collect_vec()<span class="question-mark">?</span>;
-            <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
+            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
             <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(name).unwrap();
+            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
                 .iter()
-                .map(|p| conv::conv_sort(genv, <span class="kw-2">&amp;</span>p.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort))
+                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
                 .try_collect_vec()<span class="question-mark">?</span>;
-            <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
+            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected trait or impl"</span>)),
@@ -887,7 +907,11 @@
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
     <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>opaque_ty = genv.map().expect_item(local_id)<span class="question-mark">?</span>.expect_opaque_ty();
-    <span class="prelude-val">Ok</span>(rty::EarlyBinder(ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults).conv_opaque_ty(local_id, opaque_ty)<span class="question-mark">?</span>))
+    <span class="prelude-val">Ok</span>(rty::EarlyBinder(
+        AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+            .into_conv_ctxt()
+            .conv_opaque_ty(local_id, opaque_ty)<span class="question-mark">?</span>,
+    ))
 }
 
 <span class="kw">fn </span>generics_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::Generics&gt; {
@@ -972,7 +996,7 @@
                 .expect_item(def_id.local_id())<span class="question-mark">?
                 </span>.expect_type_alias();
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults);
+            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)<span class="question-mark">?</span>;
             struct_compat::type_alias(genv, fhir_ty_alias, <span class="kw-2">&amp;</span>ty_alias, def_id)<span class="question-mark">?</span>;
             rty::TyOrCtor::Ctor(ty_alias)
@@ -1039,7 +1063,7 @@
     <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults);
+            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>variants = cx.conv_enum_variants(def_id, enum_def)<span class="question-mark">?</span>;
             <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>variants, def_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>variants = variants
@@ -1050,7 +1074,7 @@
         }
         fhir::ItemKind::Struct(struct_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>cx = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults);
+            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             cx.conv_struct_variant(def_id, struct_def)<span class="question-mark">?
                 </span>.map(|variant| {
                     <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>[variant], def_id)<span class="question-mark">?</span>;
@@ -1074,7 +1098,9 @@
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
     <span class="kw">let </span>fhir_fn_sig = genv.desugar(def_id.local_id())<span class="question-mark">?</span>.fn_sig().unwrap();
     <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-    <span class="kw">let </span>fn_sig = ConvCtxt::new(genv, <span class="kw-2">&amp;*</span>wfckresults).conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
+    <span class="kw">let </span>fn_sig = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+        .into_conv_ctxt()
+        .conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, <span class="kw-2">&amp;</span>fn_sig, def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = normalize(genv, fn_sig)<span class="question-mark">?</span>;
 
