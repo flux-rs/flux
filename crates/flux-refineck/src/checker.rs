@@ -402,7 +402,7 @@ fn unfold_local_ptrs(
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, &bound).with_span(span)?;
+            let loc = env.unfold_local_ptr(infcx, bound).with_span(span)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
