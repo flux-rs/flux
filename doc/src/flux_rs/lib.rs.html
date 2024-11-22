@@ -174,6 +174,13 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
 </span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
 <span class="attr">#[cfg(flux_sysroot)]
@@ -218,6 +225,11 @@
 <span class="attr">#[proc_macro_attribute]
 </span><span class="kw">pub fn </span>opaque(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
     attr_impl::opaque(attr, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>check_overflow(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::check_overflow(attr, tokens)
 }
 
 <span class="attr">#[proc_macro_attribute]
@@ -299,6 +311,7 @@
         constant,
         invariant,
         opaque,
+        check_overflow,
         trusted,
         trusted_impl,
         generics,
@@ -342,6 +355,7 @@
         invariant,
         constant,
         opaque,
+        check_overflow,
         trusted,
         trusted_impl,
         generics,
