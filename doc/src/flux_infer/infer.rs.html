@@ -862,6 +862,21 @@
 <a href="#862" id="862">862</a>
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -1102,7 +1117,22 @@
         t
     }
 
-    <span class="kw">pub fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    <span class="comment">// [NOTE:INFCX-SCOPE] (see https://github.com/flux-rs/flux/pull/900#discussion_r1853052650)
+    // The InferCtxt is a cursor into a tree. Some functions like define_var, assume_pred and
+    // by extension unpack advance the cursor. For example, defining a variable pushes a node
+    // as a child of the current node and then moves the cursor into that new node.
+    // Other functions, like subtyping or check_pred (typically the ones defined in InferCtxtAt)
+    // do not advance the cursor (from the caller's perspective). For example, if you call
+    // subtyping a subtree is pushed under the current node, and the cursor is returned
+    // to where it was. That's the purpose of infcx.branch: to "clone" the cursor such
+    // that the original one doesn't get modified.
+    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when
+    // the `infcx`` is on the same node where the push_scope was called, because
+    // `replace_evars`` only replaces evars below that node.
+    // If `pop_scope` is called at a node further down (e.g. after calling unpack),
+    // the evars above that cursor will not be replaced.
+
+    </span><span class="kw">pub fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>scope = <span class="self">self</span>.scope();
         <span class="self">self</span>.inner.borrow_mut().evars.enter_context(scope);
     }
@@ -1142,7 +1172,8 @@
     }
 }
 
-<span class="kw">pub struct </span>InferCtxtAt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>InferCtxtAt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>span: Span,
 }
@@ -1388,7 +1419,6 @@
         // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         </span><span class="kw">let </span>a = infcx.unpack(a);
-
         <span class="kw">match </span>(a.kind(), b.kind()) {
             (TyKind::Exists(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"existentials should be removed by the unpacking"</span>);

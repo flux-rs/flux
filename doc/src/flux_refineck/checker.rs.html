@@ -1999,6 +1999,8 @@
 <a href="#1999" id="1999">1999</a>
 <a href="#2000" id="2000">2000</a>
 <a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2298,7 +2300,7 @@
         infcx.check_pred(requires, reason);
     }
 
-    <span class="comment">// 4. Plug in the EVAR solution / replace evars
+    <span class="comment">// 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
     </span><span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
     infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
     <span class="kw">let </span>output = sub_sig
@@ -2316,13 +2318,15 @@
     infcx
         .subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>super_output.ret, reason)
         .with_span(span)<span class="question-mark">?</span>;
+    <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
+    infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
     <span class="comment">// 6. Update state with Output "ensures" and check super ensures
-    </span>env.update_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>output, overflow_checking);
+    </span>infcx.push_scope();
+    env.update_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>output, overflow_checking);
     fold_local_ptrs(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, span)<span class="question-mark">?</span>;
     env.check_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
         .with_span(span)<span class="question-mark">?</span>;
-
     <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
     infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
