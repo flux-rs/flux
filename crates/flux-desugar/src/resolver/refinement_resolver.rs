@@ -614,19 +614,24 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn try_resolve_sort_with_ribs(&mut self, path: &surface::SortPath) -> Option<fhir::SortRes> {
-        let res = self
+        let partial_res = self
             .resolver
-            .resolve_path_with_ribs(&path.segments, TypeNS)?
-            .full_res()?;
-        match res {
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => {
+            .resolve_path_with_ribs(&path.segments, TypeNS)?;
+        match (partial_res.base_res(), partial_res.unresolved_segments()) {
+            (fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id), 0) => {
                 Some(fhir::SortRes::Adt(def_id))
             }
-            fhir::Res::Def(DefKind::TyParam, def_id) => Some(fhir::SortRes::TyParam(def_id)),
-            fhir::Res::SelfTyParam { trait_ } => {
+            (fhir::Res::Def(DefKind::TyParam, def_id), 0) => Some(fhir::SortRes::TyParam(def_id)),
+            (fhir::Res::SelfTyParam { trait_ }, 0) => {
                 Some(fhir::SortRes::SelfParam { trait_id: trait_ })
             }
-            fhir::Res::SelfTyAlias { alias_to, .. } => Some(fhir::SortRes::SelfAlias { alias_to }),
+            (fhir::Res::SelfTyParam { trait_ }, 1) => {
+                let ident = *path.segments.last().unwrap();
+                Some(fhir::SortRes::SelfParamAssoc { trait_id: trait_, ident })
+            }
+            (fhir::Res::SelfTyAlias { alias_to, .. }, 0) => {
+                Some(fhir::SortRes::SelfAlias { alias_to })
+            }
             _ => None,
         }
     }

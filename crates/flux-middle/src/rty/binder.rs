@@ -46,6 +46,10 @@ impl<T> EarlyBinder<T> {
         self.0
     }
 
+    pub fn skip_binder_ref(&self) -> &T {
+        &self.0
+    }
+
     pub fn instantiate_identity(self) -> T {
         self.0
     }

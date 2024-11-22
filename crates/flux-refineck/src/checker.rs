@@ -206,22 +206,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
-fn find_trait_item(
-    genv: &GlobalEnv<'_, '_>,
-    def_id: LocalDefId,
-) -> QueryResult<Option<(crate::rty::TraitRef, DefId)>> {
-    let tcx = genv.tcx();
-    let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_method(def_id)
-        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
-    {
-        let impl_trait_ref = impl_trait_ref.instantiate_identity();
-        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
-        return Ok(Some((impl_trait_ref, trait_item_id)));
-    }
-    Ok(None)
-}
-
 /// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
 /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
@@ -332,7 +316,7 @@ fn check_fn_subtyping(
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-pub fn trait_impl_subtyping(
+pub(crate) fn trait_impl_subtyping(
     genv: GlobalEnv,
     def_id: LocalDefId,
     overflow_checking: bool,
@@ -377,6 +361,22 @@ pub fn trait_impl_subtyping(
     Ok(Some(root_ctxt.split()))
 }
 
+fn find_trait_item(
+    genv: &GlobalEnv<'_, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
+    let tcx = genv.tcx();
+    let def_id = def_id.to_def_id();
+    if let Some(impl_id) = tcx.impl_of_method(def_id)
+        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
+    {
+        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
+        return Ok(Some((impl_trait_ref, trait_item_id)));
+    }
+    Ok(None)
+}
+
 /// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &mut to an &strg
 /// to allow for the call to be checked. This is done by unfolding the &mut into a local pointer
 /// at the call-site and then folding the pointer back into the &mut upon return.
@@ -394,8 +394,7 @@ fn unfold_local_ptrs(
     actuals: &[Ty],
 ) -> Result<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
-    // let mut at = infcx.at(span);
-    let fn_sig = fn_sig.clone().instantiate_identity().skip_binder();
+    let fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
     let mut tys = vec![];
     for (actual, input) in izip!(actuals, fn_sig.inputs()) {
         let actual = if let (
@@ -1714,28 +1713,20 @@ fn infer_under_mut_ref_hack(
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {
-    iter::zip(
-        actuals,
-        fn_sig
-            .as_ref()
-            .skip_binder()
-            .as_ref()
-            .skip_binder()
-            .inputs(),
-    )
-    .map(|(actual, formal)| {
-        if let rty::Ref!(.., Mutability::Mut) = actual.kind()
-            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
-            && let TyKind::Indexed(..) = ty.kind()
-        {
-            rcx.hoister(AssumeInvariants::No)
-                .hoist_inside_mut_refs(true)
-                .hoist(actual)
-        } else {
-            actual.clone()
-        }
-    })
-    .collect()
+    iter::zip(actuals, fn_sig.skip_binder_ref().skip_binder_ref().inputs())
+        .map(|(actual, formal)| {
+            if let rty::Ref!(.., Mutability::Mut) = actual.kind()
+                && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
+                && let TyKind::Indexed(..) = ty.kind()
+            {
+                rcx.hoister(AssumeInvariants::No)
+                    .hoist_inside_mut_refs(true)
+                    .hoist(actual)
+            } else {
+                actual.clone()
+            }
+        })
+        .collect()
 }
 
 impl Mode for ShapeMode {

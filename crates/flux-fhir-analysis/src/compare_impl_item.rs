@@ -1,6 +1,9 @@
 use flux_common::result::ResultExt;
-use flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
+use flux_middle::{
+    def_id_to_string, global_env::GlobalEnv, rty::fold::TypeFoldable, MaybeExternId,
+};
 use rustc_hash::FxHashSet;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_span::{def_id::DefId, ErrorGuaranteed, Symbol};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -55,6 +58,8 @@ fn check_assoc_reft(
     trait_id: DefId,
     name: Symbol,
 ) -> Result {
+    let infcx = genv.tcx().infer_ctxt().build();
+
     let impl_span = genv
         .map()
         .expect_item(impl_id.local_id())
@@ -78,7 +83,10 @@ fn check_assoc_reft(
         )));
     };
 
-    let impl_sort = impl_sort.instantiate_identity();
+    let impl_sort = impl_sort
+        .instantiate_identity()
+        .normalize_projections(genv, &infcx, impl_id.resolved_id())
+        .emit(&genv)?;
 
     let Some(trait_sort) = genv.sort_of_assoc_reft(trait_id, name).emit(genv.sess())? else {
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
@@ -87,7 +95,10 @@ fn check_assoc_reft(
             def_id_to_string(trait_id),
         )));
     };
-    let trait_sort = trait_sort.instantiate(genv.tcx(), &impl_trait_ref.args, &[]);
+    let trait_sort = trait_sort
+        .instantiate(genv.tcx(), &impl_trait_ref.args, &[])
+        .normalize_projections(genv, &infcx, impl_id.resolved_id())
+        .emit(&genv)?;
 
     if impl_sort != trait_sort {
         return Err(genv

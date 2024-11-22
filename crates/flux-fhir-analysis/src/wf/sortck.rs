@@ -20,7 +20,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
-use crate::conv;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -37,11 +36,14 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
+        // We skip 0 because that's used for sort dummy self types during conv.
+        let mut sort_unification_table = InPlaceUnificationTable::new();
+        sort_unification_table.new_key(None);
         Self {
             genv,
             params: Default::default(),
             wfckresults: WfckResults::new(owner),
-            sort_unification_table: InPlaceUnificationTable::new(),
+            sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
@@ -56,32 +58,31 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         body: &fhir::Expr,
         expected: &rty::Sort,
     ) -> Result {
-        if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
-            let fsort = fsort.expect_mono();
-            self.insert_params(params)?;
+        let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) else {
+            return Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)));
+        };
 
-            if params.len() != fsort.inputs().len() {
-                return Err(self.emit_err(errors::ParamCountMismatch::new(
-                    arg.span,
-                    fsort.inputs().len(),
-                    params.len(),
-                )));
-            }
-            iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                let found = self.param_sort(param.id);
-                if self.try_equate(&found, expected).is_none() {
-                    return Err(self.emit_sort_mismatch(param.span, expected, &found));
-                }
-                Ok(())
-            })?;
-            self.check_expr(body, fsort.output())?;
-            self.wfckresults
-                .node_sorts_mut()
-                .insert(arg.fhir_id, fsort.output().clone());
-            Ok(())
-        } else {
-            Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
+        let fsort = fsort.expect_mono();
+
+        if params.len() != fsort.inputs().len() {
+            return Err(self.emit_err(errors::ParamCountMismatch::new(
+                arg.span,
+                fsort.inputs().len(),
+                params.len(),
+            )));
         }
+        iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
+            let found = self.param_sort(param.id);
+            if self.try_equate(&found, expected).is_none() {
+                return Err(self.emit_sort_mismatch(param.span, expected, &found));
+            }
+            Ok(())
+        })?;
+        self.check_expr(body, fsort.output())?;
+        self.wfckresults
+            .node_sorts_mut()
+            .insert(arg.fhir_id, fsort.output().clone());
+        Ok(())
     }
 
     fn check_field_exprs(
@@ -466,16 +467,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 }
 
 impl<'genv> InferCtxt<'genv, '_> {
-    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) -> Result {
-        for param in params {
-            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var())
-                .emit(&self.genv)?;
-            self.insert_param(param.id, sort, param.kind);
-        }
-        Ok(())
-    }
-
     pub(super) fn insert_param(
         &mut self,
         id: fhir::ParamId,
@@ -633,7 +624,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         rty::Sort::Infer(rty::NumVar(self.next_num_vid()))
     }
 
-    fn next_sort_vid(&mut self) -> rty::SortVid {
+    pub(crate) fn next_sort_vid(&mut self) -> rty::SortVid {
         self.sort_unification_table.new_key(None)
     }
 
