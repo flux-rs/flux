@@ -133,19 +133,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        let expected = self.resolve_vars_if_possible(&expected);
+        let expected = self.resolve_vars_if_possible(expected);
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = &expected {
             self.wfckresults
                 .record_ctors_mut()
                 .insert(expr.fhir_id, sort_def.did());
-            self.check_field_exprs(
-                expr.span,
-                &sort_def,
-                &sort_args,
-                field_exprs,
-                spread,
-                &expected,
-            )?;
+            self.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, &expected)?;
             Ok(())
         } else {
             Err(self.emit_err(errors::UnexpectedConstructor::new(expr.span, &expected)))
@@ -197,7 +190,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
-                self.check_constructor(expr, exprs, spread, expected)?
+                self.check_constructor(expr, exprs, spread, expected)?;
             }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::BinaryOp(..)
@@ -282,7 +275,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort_by_name = sort_def.sort_by_field_name(&fresh_args);
                 let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.into());
                 let mut used_fields = FxHashSet::default();
-                for expr in field_exprs.iter() {
+                for expr in *field_exprs {
                     // check each expression against the sort
                     // which will unify inferred variables
                     if let Some(sort) = sort_by_name.get(&expr.ident.name) {
