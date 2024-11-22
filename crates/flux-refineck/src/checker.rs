@@ -297,7 +297,7 @@ fn check_fn_subtyping(
         infcx.check_pred(requires, reason);
     }
 
-    // 4. Plug in the EVAR solution / replace evars
+    // 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
     let output = sub_sig
