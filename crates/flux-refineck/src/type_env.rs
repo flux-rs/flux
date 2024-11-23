@@ -228,7 +228,8 @@ impl<'a> TypeEnv<'a> {
 
     pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
         for (loc, bound, ty) in self.bindings.local_ptrs() {
-            infcx.subtyping(&ty, &bound, ConstrReason::Fold)?;
+            println!("TRACE: fold_local_ptrs AT {loc:?} : {ty:?} <: {bound:?}");
+            infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
             self.bindings.remove_local(&loc);
         }
         Ok(())
@@ -271,7 +272,8 @@ impl<'a> TypeEnv<'a> {
             // https://github.com/flux-rs/flux/issues/725#issuecomment-2295065634
             Ok(result.ty)
         } else {
-            tracked_span_bug!("cannot move out of {place:?}");
+            // tracked_span_bug!("cannot move out of {place:?}");
+            panic!("cannot move out of {place:?}");
         }
     }
 

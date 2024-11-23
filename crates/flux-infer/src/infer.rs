@@ -61,6 +61,7 @@ pub enum ConstrReason {
     Assign,
     Ret,
     Fold,
+    FoldLocal,
     Assert(&'static str),
     Div,
     Rem,
@@ -548,6 +549,7 @@ impl Sub {
                 bug!("constraint types should removed by the unpacking");
             }
             (_, TyKind::Exists(ctor_b)) => {
+                println!("TRACE: tys(1) enter_exists {a:?} <: {b:?}");
                 infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))
             }
             (_, TyKind::Constr(pred_b, ty_b)) => {
@@ -555,6 +557,7 @@ impl Sub {
                 self.tys(infcx, &a, ty_b)
             }
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
+                println!("TRACE: tys(1) enter_exists {a:?} <: {b:?}");
                 self.btys(infcx, bty_a, bty_b)?;
                 self.idxs_eq(infcx, idx_a, idx_b);
                 Ok(())
@@ -725,6 +728,7 @@ impl Sub {
     }
 
     fn idxs_eq(&mut self, infcx: &mut InferCtxt, a: &Expr, b: &Expr) {
+        println!("TRACE: idxs_eq {a:?} - {b:?}");
         if a == b {
             return;
         }
