@@ -271,8 +271,7 @@ impl<'a> TypeEnv<'a> {
             // https://github.com/flux-rs/flux/issues/725#issuecomment-2295065634
             Ok(result.ty)
         } else {
-            // tracked_span_bug!("cannot move out of {place:?}");
-            panic!("cannot move out of {place:?}");
+            tracked_span_bug!("cannot move out of {place:?}");
         }
     }
 
