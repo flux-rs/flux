@@ -18,17 +18,6 @@ fn normal(x: &RVec<f32>, w: usize) -> RVec<f32> {
     res
 }
 
-#[flux::sig(fn (n: usize, centers: &mut RVec<RVec<f32>[n]>[@k], new_centers: RVec<(usize{v: v < k}, (RVec<f32>[n], usize))>))]
-pub fn update_centers(
-    _n: usize,
-    centers: &mut RVec<RVec<f32>>,
-    new_centers: RVec<(usize, (RVec<f32>, usize))>,
-) {
-    for (i, (x, size)) in new_centers {
-        centers[i] = normal(&x, size)
-    }
-}
-
 #[flux::sig(fn (n: usize, centers: &mut RVec<RVec<f32>[n]>[@k], new_centers: RVec<(usize{v: v < k}, (RVec<f32>, usize))>))]
 pub fn update_centers_bad(
     _n: usize,

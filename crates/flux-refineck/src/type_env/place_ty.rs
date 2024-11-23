@@ -73,7 +73,7 @@ impl LookupKey for Path {
 pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
-    pub is_constant_index: bool, // doesn't feel right...
+    pub _is_constant_index: bool, // doesn't feel right...
     cursor: Cursor,
     bindings: &'a mut PlacesTree,
 }
@@ -236,7 +236,13 @@ impl PlacesTree {
             }
         }
         cursor.reset();
-        Ok(LookupResult { ty, is_strg, is_constant_index, cursor, bindings: self })
+        Ok(LookupResult {
+            ty,
+            is_strg,
+            _is_constant_index: is_constant_index,
+            cursor,
+            bindings: self,
+        })
     }
 
     pub(crate) fn lookup_unfolding(
