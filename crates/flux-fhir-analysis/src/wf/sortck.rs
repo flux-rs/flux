@@ -272,39 +272,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fresh_args = (0..sort_def.param_count())
                     .map(|_| self.next_sort_var())
                     .collect_vec();
-                let sort_by_name = sort_def.sort_by_field_name(&fresh_args);
-                let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.into());
-                let mut used_fields = FxHashSet::default();
-                for expr in *field_exprs {
-                    // check each expression against the sort
-                    // which will unify inferred variables
-                    if let Some(sort) = sort_by_name.get(&expr.ident.name) {
-                        self.check_expr(&expr.expr, sort)?;
-                    } else {
-                        return Err(self.emit_field_not_found(&sort, expr.ident));
-                    }
-                    if let Some(old_field) = used_fields.replace(expr.ident) {
-                        return Err(
-                            self.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field))
-                        );
-                    }
-                }
-                // check the spread against the sort
-                if let Some(spread) = spread {
-                    self.check_expr(&spread.expr, &sort)?;
-                } else if sort_by_name.len() != used_fields.len() {
-                    // emit an error because all fields are not used
-                    let used_field_names: Vec<rustc_span::Symbol> =
-                        used_fields.into_iter().map(|k| k.name).collect();
-                    let fields_remaining = sort_by_name
-                        .into_keys()
-                        .filter(|x| !used_field_names.contains(x))
-                        .collect();
-                    return Err(self.emit_err(errors::ConstructorMissingFields::new(
-                        expr.span,
-                        fields_remaining,
-                    )));
-                }
+                let sort =
+                    rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone().into());
+                // check fields & spread against fresh args
+                self.check_field_exprs(
+                    expr.span,
+                    &sort_def,
+                    &fresh_args,
+                    field_exprs,
+                    spread,
+                    &sort,
+                )?;
                 Ok(sort)
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
