@@ -818,7 +818,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .with_span(span)?;
         }
         // Replace evars
-        let evars_sol = infcx.pop_scope().unwrap(); // with_span(span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
         env.replace_evars(&evars_sol);
         infcx.replace_evars(&evars_sol);
 
@@ -1743,8 +1743,6 @@ fn infer_under_mut_ref_hack(
         .map(|(actual, formal)| {
             if let rty::Ref!(.., Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
-            // && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
-            // && let TyKind::Indexed(..) = ty.kind()
             {
                 rcx.hoister(AssumeInvariants::No)
                     .hoist_inside_mut_refs(true)
