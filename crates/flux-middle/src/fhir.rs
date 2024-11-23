@@ -846,6 +846,15 @@ pub enum SortRes {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
+    /// The sort of an associated type in a trait declaration, e.g:
+    ///
+    /// ```ignore
+    /// #[assoc(fn assoc_reft(x: Self::Assoc) -> bool)]
+    /// trait MyTrait {
+    ///     type Assoc;
+    /// }
+    /// ```
+    SelfParamAssoc { trait_id: DefId, ident: Ident },
     /// The sort of an adt (enum/struct).
     Adt(DefId),
 }
@@ -1503,6 +1512,9 @@ impl fmt::Debug for SortRes {
             }
             SortRes::SelfAlias { alias_to } => {
                 write!(f, "{}::Self::sort", def_id_to_string(*alias_to))
+            }
+            SortRes::SelfParamAssoc { ident: assoc, .. } => {
+                write!(f, "Self::{assoc}")
             }
             SortRes::User { name } => write!(f, "{name}"),
             SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
