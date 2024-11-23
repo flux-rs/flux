@@ -812,9 +812,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             at.check_pred(requires, ConstrReason::Call);
         }
 
-        println!("TRACE: check_call (0) {env:?}");
-        println!("TRACE: check_call (1) {actuals:?} <: {:?}", fn_sig.inputs());
-
         // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
             at.fun_arg_subtyping(env, &actual, formal, ConstrReason::Call)
