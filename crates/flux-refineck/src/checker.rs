@@ -12,10 +12,14 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
-        CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnTraitPredicate, GenericArg,
-        GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, Ref,
-        RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self,
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        refining::Refiner,
+        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
+        FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability,
+        Path, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
 };
 use flux_rustc_bridge::{
@@ -814,9 +818,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             at.fun_arg_subtyping(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
         }
-
         // Replace evars
-        let evars_sol = infcx.pop_scope().unwrap();
+        let evars_sol = infcx.pop_scope().unwrap(); // with_span(span)?;
         env.replace_evars(&evars_sol);
         infcx.replace_evars(&evars_sol);
 
@@ -1705,6 +1708,29 @@ fn all_predicates_of(
     .flatten()
 }
 
+struct SkipConstr;
+
+impl TypeFolder for SkipConstr {
+    fn fold_ty(&mut self, ty: &rty::Ty) -> rty::Ty {
+        if let rty::TyKind::Constr(_, inner_ty) = ty.kind() {
+            inner_ty.fold_with(self)
+        } else {
+            ty.super_fold_with(self)
+        }
+    }
+}
+
+fn is_indexed_mut_skipping_constr(ty: &Ty) -> bool {
+    let ty = SkipConstr.fold_ty(ty);
+    if let rty::Ref!(_, inner_ty, Mutability::Mut) = ty.kind()
+        && let TyKind::Indexed(..) = inner_ty.kind()
+    {
+        true
+    } else {
+        false
+    }
+}
+
 /// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
 /// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -1725,8 +1751,7 @@ fn infer_under_mut_ref_hack(
     )
     .map(|(actual, formal)| {
         if let rty::Ref!(.., Mutability::Mut) = actual.kind()
-            && let rty::Ref!(_, ty, Mutability::Mut) = formal.kind()
-            && let TyKind::Indexed(..) = ty.kind()
+            && is_indexed_mut_skipping_constr(formal)
         {
             rcx.hoister(AssumeInvariants::No)
                 .hoist_inside_mut_refs(true)

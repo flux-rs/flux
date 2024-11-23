@@ -1096,6 +1096,9 @@ impl Ty {
         &self.0
     }
 
+    pub fn is_indexed(&self) -> bool {
+        matches!(self.kind(), TyKind::Indexed(..))
+    }
     /// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
     /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
     /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
