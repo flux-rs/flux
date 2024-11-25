@@ -827,9 +827,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_evars(&evars_sol)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
+        infcx.push_scope();
         env.update_ensures(infcx, &output, self.check_overflow());
-
         fold_local_ptrs(infcx, env, span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
+        infcx.replace_evars(&evars_sol);
 
         Ok(output.ret)
     }

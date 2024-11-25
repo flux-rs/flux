@@ -61,6 +61,7 @@ pub enum ConstrReason {
     Assign,
     Ret,
     Fold,
+    FoldLocal,
     Assert(&'static str),
     Div,
     Rem,
