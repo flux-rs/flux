@@ -2017,6 +2017,8 @@
 <a href="#2017" id="2017">2017</a>
 <a href="#2018" id="2018">2018</a>
 <a href="#2019" id="2019">2019</a>
+<a href="#2020" id="2020">2020</a>
+<a href="#2021" id="2021">2021</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2846,9 +2848,11 @@
             .replace_evars(<span class="kw-2">&amp;</span>evars_sol)
             .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
 
+        infcx.push_scope();
         env.update_ensures(infcx, <span class="kw-2">&amp;</span>output, <span class="self">self</span>.check_overflow());
-
         fold_local_ptrs(infcx, env, span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
+        infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
         <span class="prelude-val">Ok</span>(output.ret)
     }

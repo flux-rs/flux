@@ -877,6 +877,7 @@
 <a href="#877" id="877">877</a>
 <a href="#878" id="878">878</a>
 <a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
@@ -940,6 +941,7 @@
     Assign,
     Ret,
     Fold,
+    FoldLocal,
     Assert(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str),
     Div,
     Rem,
