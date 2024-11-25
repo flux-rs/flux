@@ -264,10 +264,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
                     _ => span_bug!(expr.span, "unexpected path in constructor"),
                 };
-                let sort_def = match self.genv.adt_sort_def_of(path_def_id) {
-                    Ok(sd) => sd,
-                    Err(_) => span_bug!(path.span, "Unexpected path in constructor"),
-                };
+                let sort_def = self
+                    .genv
+                    .adt_sort_def_of(path_def_id)
+                    .map_err(|e| self.emit_err(e))?;
                 // generate fresh inferred sorts for each param
                 let fresh_args = (0..sort_def.param_count())
                     .map(|_| self.next_sort_var())
