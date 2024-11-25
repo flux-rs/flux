@@ -509,9 +509,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             bug::track_span(span, || {
-                dbg::statement!("start", stmt, infcx, env);
+                dbg::statement_span!("start", stmt, infcx, env, span);
                 self.check_statement(&mut infcx, &mut env, stmt)?;
-                dbg::statement!("end", stmt, infcx, env);
+                dbg::statement_span!("end", stmt, infcx, env, span);
                 Ok(())
             })?;
             if !stmt.is_nop() {

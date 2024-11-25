@@ -77,6 +77,14 @@ macro_rules! _statement{
 pub use crate::_statement as statement;
 
 #[macro_export]
+macro_rules! _statement_span{
+    ($pos:literal, $stmt:expr, $rcx:expr, $env:expr, $span:expr) => {{
+        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?$rcx, env = ?$env)
+    }};
+}
+pub use crate::_statement_span as statement_span;
+
+#[macro_export]
 macro_rules! _terminator{
     ($pos:literal, $terminator:expr, $rcx:expr, $env:expr) => {{
         tracing::debug!(event = concat!("terminator_", $pos), terminator = ?$terminator, rcx = ?$rcx, env = ?$env)
