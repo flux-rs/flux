@@ -843,7 +843,6 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "itertools 0.13.0",
- "pad-adapter",
  "serde",
  "serde_json",
 ]
