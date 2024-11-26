@@ -2530,9 +2530,9 @@
                 span,
             )<span class="question-mark">?</span>;
             bug::track_span(span, || {
-                <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env);
+                <span class="macro">dbg::statement_span!</span>(<span class="string">"start"</span>, stmt, infcx, env, span);
                 <span class="self">self</span>.check_statement(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, stmt)<span class="question-mark">?</span>;
-                <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env);
+                <span class="macro">dbg::statement_span!</span>(<span class="string">"end"</span>, stmt, infcx, env, span);
                 <span class="prelude-val">Ok</span>(())
             })<span class="question-mark">?</span>;
             <span class="kw">if </span>!stmt.is_nop() {
