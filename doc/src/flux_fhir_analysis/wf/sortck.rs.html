@@ -856,13 +856,27 @@
 <a href="#856" id="856">856</a>
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ExprRes, FhirId, FluxOwnerId, PathExpr},
+    fhir::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -988,33 +1002,19 @@
     <span class="kw">fn </span>check_constructor(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>fhir::Expr,
-        path: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;PathExpr&gt;,
         field_exprs: <span class="kw-2">&amp;</span>[fhir::FieldExpr],
         spread: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::Spread&gt;,
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            <span class="kw">let </span>expected_def_id = sort_def.did();
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
-                <span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
-                    <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected path in constructor"</span>),
-                };
-                <span class="kw">if </span>path_def_id != expected_def_id {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortMismatchFoundOmitted::new(
-                        path.span,
-                        expected.clone(),
-                    )));
-                }
-            } <span class="kw">else </span>{
-                <span class="self">self</span>.wfckresults
-                    .record_ctors_mut()
-                    .insert(expr.fhir_id, sort_def.did());
-            }
-            <span class="self">self</span>.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, expected)<span class="question-mark">?</span>;
+        <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
+        <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = <span class="kw-2">&amp;</span>expected {
+            <span class="self">self</span>.wfckresults
+                .record_ctors_mut()
+                .insert(expr.fhir_id, sort_def.did());
+            <span class="self">self</span>.check_field_exprs(expr.span, sort_def, sort_args, field_exprs, spread, <span class="kw-2">&amp;</span>expected)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedConstructor::new(expr.span, expected)))
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedConstructor::new(expr.span, <span class="kw-2">&amp;</span>expected)))
         }
     }
 
@@ -1058,27 +1058,27 @@
                 <span class="self">self</span>.check_expr(e1, expected)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, expected)<span class="question-mark">?</span>;
             }
+            fhir::ExprKind::Abs(refine_params, body) =&gt; {
+                <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?</span>;
+            }
+            fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
+            fhir::ExprKind::Constructor(<span class="prelude-val">None</span>, exprs, spread) =&gt; {
+                <span class="self">self</span>.check_constructor(expr, exprs, spread, expected)<span class="question-mark">?</span>;
+            }
             fhir::ExprKind::UnaryOp(..)
             | fhir::ExprKind::BinaryOp(..)
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
             | fhir::ExprKind::Alias(..)
             | fhir::ExprKind::Var(..)
-            | fhir::ExprKind::Literal(..) =&gt; {
+            | fhir::ExprKind::Literal(..)
+            | fhir::ExprKind::Constructor(..) =&gt; {
                 <span class="kw">let </span>found = <span class="self">self</span>.synth_expr(expr)<span class="question-mark">?</span>;
                 <span class="kw">let </span>found = <span class="self">self</span>.resolve_vars_if_possible(<span class="kw-2">&amp;</span>found);
                 <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
                 <span class="kw">if </span>!<span class="self">self</span>.is_coercible(<span class="kw-2">&amp;</span>found, <span class="kw-2">&amp;</span>expected, expr.fhir_id) {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, <span class="kw-2">&amp;</span>expected, <span class="kw-2">&amp;</span>found));
                 }
-            }
-            fhir::ExprKind::Abs(refine_params, body) =&gt; {
-                <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?</span>;
-            }
-            fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
-            fhir::ExprKind::Constructor(path, exprs, spread) =&gt; {
-                <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
-                <span class="self">self</span>.check_constructor(expr, path, exprs, spread, <span class="kw-2">&amp;</span>expected)<span class="question-mark">?</span>;
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1129,8 +1129,36 @@
                     <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld)),
                 }
             }
-            <span class="comment">// (VR): Pretty sure we don't synthesize these?
-            </span><span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected expr `{expr:?}` in synth expr"</span>),
+            fhir::ExprKind::Constructor(<span class="prelude-val">Some</span>(path), field_exprs, spread) =&gt; {
+                <span class="comment">// if we have S then we can synthesize otherwise we fail
+                // first get the sort based on the path - for example S { ... } =&gt; S
+                // and we should expect sort to be a struct or enum app
+                </span><span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
+                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
+                    <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected path in constructor"</span>),
+                };
+                <span class="kw">let </span>sort_def = <span class="self">self
+                    </span>.genv
+                    .adt_sort_def_of(path_def_id)
+                    .map_err(|e| <span class="self">self</span>.emit_err(e))<span class="question-mark">?</span>;
+                <span class="comment">// generate fresh inferred sorts for each param
+                </span><span class="kw">let </span>fresh_args = (<span class="number">0</span>..sort_def.param_count())
+                    .map(|<span class="kw">_</span>| <span class="self">self</span>.next_sort_var())
+                    .collect_vec();
+                <span class="kw">let </span>sort =
+                    rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone().into());
+                <span class="comment">// check fields &amp; spread against fresh args
+                </span><span class="self">self</span>.check_field_exprs(
+                    expr.span,
+                    <span class="kw-2">&amp;</span>sort_def,
+                    <span class="kw-2">&amp;</span>fresh_args,
+                    field_exprs,
+                    spread,
+                    <span class="kw-2">&amp;</span>sort,
+                )<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(sort)
+            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::CannotInferSort::new(expr.span))),
         }
     }
 
