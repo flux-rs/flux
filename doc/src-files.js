@@ -17,7 +17,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["flux_rs",["",[],["lib.rs"]]],\
 ["flux_rustc_bridge",["",[["ty",[],["mod.rs","subst.rs"]]],["const_eval.rs","lib.rs","lowering.rs","mir.rs"]]],\
 ["flux_syntax",["",[["surface",[],["visit.rs"]]],["lexer.rs","lib.rs","surface.rs"]]],\
-["liquid_fixpoint",["",[],["constraint.rs","lib.rs"]]],\
+["liquid_fixpoint",["",[],["constraint.rs","format.rs","lib.rs"]]],\
 ["rustc_flux",["",[],["rustc-flux.rs"]]],\
 ["tests",["",[],["lib.rs"]]],\
 ["xtask",["",[],["main.rs"]]]\
