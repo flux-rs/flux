@@ -1383,8 +1383,6 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
-<a href="#1386" id="1386">1386</a>
-<a href="#1387" id="1387">1387</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1584,20 +1582,27 @@
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
-                <span class="self">self</span>.declare_tuple(sort_def.fields());
-                <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sort_def.fields()));
-                <span class="kw">let </span>args = sort_def
-                    .field_sorts(args)
-                    .iter()
-                    .map(|s| <span class="self">self</span>.sort_to_fixpoint(s))
-                    .collect_vec();
-                fixpoint::Sort::App(ctor, args)
+                <span class="kw">let </span>sorts = sort_def.field_sorts(args);
+                <span class="comment">// do not generate 1-tuples
+                </span><span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
+                    <span class="self">self</span>.sort_to_fixpoint(sort)
+                } <span class="kw">else </span>{
+                    <span class="self">self</span>.declare_tuple(sorts.len());
+                    <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                    <span class="kw">let </span>args = sorts.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect_vec();
+                    fixpoint::Sort::App(ctor, args)
+                }
             }
             rty::Sort::Tuple(sorts) =&gt; {
-                <span class="self">self</span>.declare_tuple(sorts.len());
-                <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                <span class="kw">let </span>args = sorts.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect();
-                fixpoint::Sort::App(ctor, args)
+                <span class="comment">// do not generate 1-tuples
+                </span><span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
+                    <span class="self">self</span>.sort_to_fixpoint(sort)
+                } <span class="kw">else </span>{
+                    <span class="self">self</span>.declare_tuple(sorts.len());
+                    <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                    <span class="kw">let </span>args = sorts.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect();
+                    fixpoint::Sort::App(ctor, args)
+                }
             }
             rty::Sort::Func(sort) =&gt; <span class="self">self</span>.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index()),
@@ -2320,25 +2325,27 @@
             rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(const_to_fixpoint(<span class="kw-2">*</span>c)),
             rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, scx)<span class="question-mark">?</span>,
             rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, scx)<span class="question-mark">?</span>,
-            rty::ExprKind::FieldProj(e, proj) =&gt; {
-                <span class="kw">let </span>proj = fixpoint::Expr::Var(<span class="self">self</span>.proj_to_fixpoint(<span class="kw-2">*</span>proj, scx)<span class="question-mark">?</span>);
-                fixpoint::Expr::App(Box::new(proj), <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e, scx)<span class="question-mark">?</span>])
-            }
+            rty::ExprKind::FieldProj(e, proj) =&gt; <span class="self">self</span>.proj_to_fixpoint(e, <span class="kw-2">*</span>proj, scx)<span class="question-mark">?</span>,
             rty::ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; {
-                scx.declare_tuple(flds.len());
-                <span class="kw">let </span>ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
-                <span class="kw">let </span>args = flds
-                    .iter()
-                    .map(|e| <span class="self">self</span>.expr_to_fixpoint(e, scx))
-                    .try_collect()<span class="question-mark">?</span>;
-                fixpoint::Expr::App(Box::new(ctor), args)
+                <span class="comment">// do not generate 1-tuples
+                </span><span class="kw">if let </span>[fld] = <span class="kw-2">&amp;</span>flds[..] {
+                    <span class="self">self</span>.expr_to_fixpoint(fld, scx)<span class="question-mark">?
+                </span>} <span class="kw">else </span>{
+                    scx.declare_tuple(flds.len());
+                    <span class="kw">let </span>ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
+                    <span class="kw">let </span>args = flds
+                        .iter()
+                        .map(|fld| <span class="self">self</span>.expr_to_fixpoint(fld, scx))
+                        .try_collect()<span class="question-mark">?</span>;
+                    fixpoint::Expr::App(Box::new(ctor), args)
+                }
             }
             rty::ExprKind::ConstDefId(did) =&gt; {
                 <span class="kw">let </span>var = <span class="self">self</span>.register_rust_const(<span class="kw-2">*</span>did);
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) =&gt; {
-                <span class="kw">let </span>func = <span class="self">self</span>.func_to_fixpoint(func, scx)<span class="question-mark">?</span>;
+                <span class="kw">let </span>func = <span class="self">self</span>.expr_to_fixpoint(func, scx)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = <span class="self">self</span>.exprs_to_fixpoint(args, scx)<span class="question-mark">?</span>;
                 fixpoint::Expr::App(Box::new(func), args)
             }
@@ -2369,10 +2376,18 @@
                 <span class="kw">let </span>var = <span class="self">self</span>.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
             }
+            rty::ExprKind::GlobalFunc(<span class="kw">_</span>, SpecFuncKind::Thy(sym)) =&gt; {
+                fixpoint::Expr::Var(fixpoint::Var::Itf(<span class="kw-2">*</span>sym))
+            }
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) =&gt; {
+                fixpoint::Expr::Var(<span class="self">self</span>.register_uif(<span class="kw-2">*</span>sym, scx).into())
+            }
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) =&gt; {
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected global function `{sym}`. Function must be normalized away at this point"</span>)
+            }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(<span class="kw">_</span>)
             | rty::ExprKind::Local(<span class="kw">_</span>)
-            | rty::ExprKind::GlobalFunc(..)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(<span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected expr: `{expr:?}`"</span>)
@@ -2394,14 +2409,21 @@
 
     <span class="kw">fn </span>proj_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        e: <span class="kw-2">&amp;</span>rty::Expr,
         proj: rty::FieldProj,
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-    ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
+    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>arity = proj.arity(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-        <span class="kw">let </span>field = proj.field_idx();
-
-        scx.declare_tuple(arity);
-        <span class="prelude-val">Ok</span>(fixpoint::Var::TupleProj { arity, field })
+        <span class="comment">// we encode 1-tuples as the single element inside so no projection necessary here
+        </span><span class="kw">if </span>arity == <span class="number">1 </span>{
+            <span class="self">self</span>.expr_to_fixpoint(e, scx)
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>field = proj.field_idx();
+            scx.declare_tuple(arity);
+            <span class="kw">let </span>proj = fixpoint::Var::TupleProj { arity, field };
+            <span class="kw">let </span>proj = fixpoint::Expr::Var(proj);
+            <span class="prelude-val">Ok</span>(fixpoint::Expr::App(Box::new(proj), <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e, scx)<span class="question-mark">?</span>]))
+        }
     }
 
     <span class="kw">fn </span>un_op_to_fixpoint(
@@ -2561,32 +2583,6 @@
                 })
                 .try_collect()<span class="question-mark">?</span>,
         ))
-    }
-
-    <span class="kw">fn </span>func_to_fixpoint(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        func: <span class="kw-2">&amp;</span>rty::Expr,
-        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
-        <span class="kw">match </span>func.kind() {
-            rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(fixpoint::Expr::Var(<span class="self">self</span>.var_to_fixpoint(var))),
-            rty::ExprKind::GlobalFunc(<span class="kw">_</span>, SpecFuncKind::Thy(sym)) =&gt; {
-                <span class="prelude-val">Ok</span>(fixpoint::Expr::Var(fixpoint::Var::Itf(<span class="kw-2">*</span>sym)))
-            }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) =&gt; {
-                <span class="prelude-val">Ok</span>(fixpoint::Expr::Var(<span class="self">self</span>.register_uif(<span class="kw-2">*</span>sym, scx).into()))
-            }
-            rty::ExprKind::FieldProj(e, proj) =&gt; {
-                <span class="kw">let </span>proj = fixpoint::Expr::Var(<span class="self">self</span>.proj_to_fixpoint(<span class="kw-2">*</span>proj, scx)<span class="question-mark">?</span>);
-                <span class="prelude-val">Ok</span>(fixpoint::Expr::App(Box::new(proj), <span class="macro">vec!</span>[<span class="self">self</span>.func_to_fixpoint(e, scx)<span class="question-mark">?</span>]))
-            }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) =&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected global function `{sym}`. Function must be normalized away at this point"</span>)
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected expr `{func:?}` in function position"</span>)
-            }
-        }
     }
 
     <span class="kw">fn </span>imm(
