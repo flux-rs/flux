@@ -596,9 +596,19 @@ impl Expr {
             || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
     }
 
-    /// Whether the expression is *literally* the constant true.
+    /// Simple syntactic check to see if the expression is a trivially false predicate.
+    pub fn is_trivially_false(&self) -> bool {
+        self.is_false()
+    }
+
+    /// Whether the expression is *literally* the constant `true`.
     fn is_true(&self) -> bool {
         matches!(self.kind(), ExprKind::Constant(Constant::Bool(true)))
+    }
+
+    /// Whether the expression is *literally* the constant `false`.
+    fn is_false(&self) -> bool {
+        matches!(self.kind(), ExprKind::Constant(Constant::Bool(false)))
     }
 
     pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
@@ -680,6 +690,16 @@ impl Expr {
                                 Expr::binary_op(BinOp::Ne, e1, e2).at_opt(span)
                             }
                             _ => Expr::unary_op(UnOp::Not, e).at_opt(span),
+                        }
+                    }
+                    ExprKind::IfThenElse(p, e1, e2) => {
+                        let p = p.fold_with(self);
+                        if p.is_trivially_true() {
+                            e1.fold_with(self).at_opt(span)
+                        } else if p.is_trivially_false() {
+                            e2.fold_with(self).at_opt(span)
+                        } else {
+                            Expr::ite(p, e1.fold_with(self), e2.fold_with(self)).at_opt(span)
                         }
                     }
                     _ => expr.super_fold_with(self),
