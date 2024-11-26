@@ -4,10 +4,6 @@ fhir_analysis_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
 
-fhir_analysis_sort_mismatch_found_omitted =
-    mismatched sorts
-    .label = expected `{$expected}`
-
 fhir_analysis_arg_count_mismatch =
     this {$thing} takes {$expected ->
         [one] {$expected} refinement argument
