@@ -71,7 +71,9 @@ pub use crate::_basic_block_start as basic_block_start;
 #[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $rcx:expr, $env:expr, $span:expr) => {{
-        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?$rcx, env = ?$env)
+        let rcx_json = RefineCtxtTrace::new($rcx);
+        let env_json = TypeEnvTrace::new($env);
+        tracing::debug!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?$rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json)
     }};
 }
 pub use crate::_statement as statement;

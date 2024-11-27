@@ -4,8 +4,8 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use display_json::DebugAsJson;
 use flux_common::{index::IndexVec, iter::IterExt};
+use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -779,17 +779,17 @@ mod pretty {
     );
 }
 
-/// A very explicit representation of `RefineCtxt` for debugging/tracing/serialization ONLY.
+/// A very explicit representation of [`RefineCtxt`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
 pub struct RefineCtxtTrace {
     bindings: Vec<RcxBind>,
     exprs: Vec<String>,
 }
 
-#[derive(Serialize, DebugAsJson)]
-pub struct RcxBind {
-    pub name: String,
-    pub sort: String,
+#[derive(Serialize)]
+struct RcxBind {
+    name: String,
+    sort: String,
 }
 impl RefineCtxtTrace {
     pub fn new(rcx: &RefineCtxt) -> Self {

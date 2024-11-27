@@ -4,6 +4,7 @@ mod diagnostics;
 mod fold;
 mod primops;
 
+use quote::quote;
 use synstructure::decl_derive;
 
 decl_derive!(
@@ -62,4 +63,19 @@ pub fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 #[proc_macro]
 pub fn primop_rules(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     primops::primop_rules(input)
+}
+
+decl_derive!(
+    [DebugAsJson] => debug_as_json
+);
+
+fn debug_as_json(s: synstructure::Structure<'_>) -> proc_macro2::TokenStream {
+    s.gen_impl(quote! {
+        gen impl std::fmt::Debug for @Self {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let s = serde_json::to_string(&self).map_err(|_| std::fmt::Error::default())?;
+                write!(f, "{}", s)
+            }
+        }
+    })
 }

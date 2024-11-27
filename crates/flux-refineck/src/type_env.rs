@@ -2,13 +2,13 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use display_json::DebugAsJson;
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
+use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -876,15 +876,15 @@ mod pretty {
     }
 }
 
-/// A very explicit representation of `RefineCtxt` for debugging/tracing/serialization ONLY.
+/// A very explicit representation of [`TypeEnv`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
 pub struct TypeEnvTrace(Vec<TypeEnvBind>);
 
-#[derive(Serialize, DebugAsJson)]
-pub struct TypeEnvBind {
-    pub loc: String,
-    pub kind: String,
-    pub ty: String,
+#[derive(Serialize)]
+struct TypeEnvBind {
+    loc: String,
+    kind: String,
+    ty: String,
 }
 
 impl TypeEnvTrace {
