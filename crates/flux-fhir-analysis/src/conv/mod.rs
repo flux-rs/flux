@@ -1295,14 +1295,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let predicates = self
-                    .probe_type_param_bounds(param_id, assoc_ident)
-                    .predicates;
+                let predicates = self.probe_type_param_bounds(param_id, assoc_ident);
                 self.probe_single_bound_for_assoc_item(
                     || {
                         traits::transitive_bounds_that_define_assoc_item(
                             tcx,
-                            predicates.iter().filter_map(|(p, _)| {
+                            predicates.iter_identity_copied().filter_map(|(p, _)| {
                                 Some(p.as_trait_clause()?.map_bound(|t| t.trait_ref))
                             }),
                             assoc_ident,
@@ -1364,7 +1362,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &self,
         param_id: DefId,
         assoc_ident: Ident,
-    ) -> ty::GenericPredicates<'tcx> {
+    ) -> ty::EarlyBinder<'tcx, &'tcx [(ty::Clause<'tcx>, Span)]> {
         // We would like to do this computation on the resolved id for it to work with extern specs
         // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
         // fine because the worst that can happen is that we fail to infer a trait when using the
@@ -1381,7 +1379,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.tcx()
                     .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
-            FluxOwnerId::Flux(_) => ty::GenericPredicates::default(),
+            FluxOwnerId::Flux(_) => ty::EarlyBinder::bind(&[]),
         }
     }
 
@@ -1419,22 +1417,22 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
-                let index = self.genv().def_id_to_param_index(def_id);
-                let name = lifetime_name(def_id);
+                let index = self.genv().def_id_to_param_index(def_id.to_def_id());
+                let name = lifetime_name(def_id.to_def_id());
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
-                let name = lifetime_name(def_id);
-                let kind = rty::BoundRegionKind::BrNamed(def_id, name);
+                let name = lifetime_name(def_id.to_def_id());
+                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
-                let name = lifetime_name(id);
-                let bound_region = rty::BoundRegionKind::BrNamed(id, name);
-                rty::ReLateParam(rty::LateParamRegion { scope, bound_region })
+                let name = lifetime_name(id.to_def_id());
+                let bound_region = rty::BoundRegionKind::BrNamed(id.to_def_id(), name);
+                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), bound_region })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }

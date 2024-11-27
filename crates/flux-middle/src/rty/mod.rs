@@ -145,7 +145,7 @@ impl AdtSortDef {
 
     /// Given a list of generic args, returns an iterator of the generic arguments that should be
     /// mapped to sorts for instantiation.
-    pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &A> + 'a {
+    pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &'a A> + 'a {
         self.0.params.iter().map(|p| &args[p.index as usize])
     }
 

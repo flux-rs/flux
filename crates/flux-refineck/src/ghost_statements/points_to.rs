@@ -280,9 +280,9 @@ impl<'a> CollectPointerToBorrows<'a> {
 }
 
 impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
-    type FlowState = State;
+    type Domain = State;
 
-    fn visit_block_start(&mut self, state: &Self::FlowState) {
+    fn visit_block_start(&mut self, state: &Self::Domain) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
             let value = state.get_idx(*place_idx, self.map);
@@ -293,7 +293,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     fn visit_statement_after_primary_effect(
         &mut self,
         _results: &mut Results<'a, 'tcx>,
-        state: &Self::FlowState,
+        state: &Self::Domain,
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
@@ -315,7 +315,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     fn visit_terminator_after_primary_effect(
         &mut self,
         results: &mut Results<'a, 'tcx>,
-        _state: &Self::FlowState,
+        _state: &Self::Domain,
         terminator: &'mir mir::Terminator<'tcx>,
         location: mir::Location,
     ) {

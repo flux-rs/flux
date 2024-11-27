@@ -231,7 +231,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-) -> query::queries::mir_borrowck::ProvidedValue {
+) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
     let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
         tcx,
         def_id,
@@ -244,6 +244,7 @@ fn mir_borrowck<'tcx>(
             &body_with_facts.body,
             &mut |_, _| Ok(()),
             &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
+            rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
         )
         .unwrap();
     }

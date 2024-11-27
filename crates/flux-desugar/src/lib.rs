@@ -213,7 +213,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         &'a self,
         owner_id: OwnerId,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
-    ) -> RustItemCtxt<'_, 'genv, 'tcx> {
+    ) -> RustItemCtxt<'a, 'genv, 'tcx> {
         let owner_id = self
             .genv
             .maybe_extern_id(owner_id.def_id)
