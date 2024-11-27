@@ -826,6 +826,29 @@ pub enum PrimSort {
     Map,
 }
 
+impl PrimSort {
+    pub fn name_str(self) -> &'static str {
+        match self {
+            PrimSort::Int => "int",
+            PrimSort::Bool => "bool",
+            PrimSort::Real => "real",
+            PrimSort::Set => "Set",
+            PrimSort::Map => "Map",
+        }
+    }
+
+    /// Number of generics expected by this primitive sort
+    pub fn generics(self) -> usize {
+        match self {
+            PrimSort::Int => 0,
+            PrimSort::Bool => 0,
+            PrimSort::Real => 0,
+            PrimSort::Set => 1,
+            PrimSort::Map => 2,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum SortRes {
     /// A primitive sort.
@@ -855,7 +878,7 @@ pub enum SortRes {
     /// }
     /// ```
     SelfParamAssoc { trait_id: DefId, ident: Ident },
-    /// The sort of an adt (enum/struct).
+    /// The sort automatically generated for an adt (enum/struct) with a `flux::refined_by` annotation
     Adt(DefId),
 }
 
@@ -962,16 +985,18 @@ pub enum Lit {
     Int(i128),
     Real(i128),
     Bool(bool),
-    Str(Symbol), // `rustc_span::Symbol` interns a value with the type
-    Char(char),  // all Rust chars are u32s
+    Str(Symbol),
+    Char(char),
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
-    Struct(DefId),
-    Enum(DefId),
+    /// The constructor of an [adt sort]
+    ///
+    /// [adt sort]: SortRes::Adt
+    Ctor(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
@@ -985,8 +1010,7 @@ impl<Id> ExprRes<Id> {
             ExprRes::NumConst(val) => ExprRes::NumConst(val),
             ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
-            ExprRes::Struct(def_id) => ExprRes::Struct(def_id),
-            ExprRes::Enum(def_id) => ExprRes::Enum(def_id),
+            ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
         }
     }
 

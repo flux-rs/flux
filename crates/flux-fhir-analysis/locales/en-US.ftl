@@ -57,7 +57,7 @@ fhir_analysis_unexpected_fun =
     mismatched sorts
     .label = expected `{$sort}`, found function
 
-fhir_analysis_unexpected_constructor = 
+fhir_analysis_unexpected_constructor =
     mismatched sorts
     .label = expected `{$sort}`, found constructor
 
@@ -74,10 +74,10 @@ fhir_analysis_param_count_mismatch =
 fhir_analysis_field_not_found =
     no field `{$fld}` on sort `{$sort}`
 
-fhir_analysis_constructor_missing_fields = 
+fhir_analysis_constructor_missing_fields =
     missing fields in constructor: {$missing_fields}
 
-fhir_analysis_duplicate_field_used = 
+fhir_analysis_duplicate_field_used =
     field `{$fld}` was previously used in constructor
     .help = field `{$fld}` previously used here, consider removing it
 
@@ -212,38 +212,38 @@ fhir_analysis_too_many_generic_args =
         *[other] arguments
     }
 
-fhir_analysis_generics_on_primitive_sort = 
-    primitive sort {$name} expects {$expected -> 
+fhir_analysis_generics_on_primitive_sort =
+    primitive sort {$name} expects {$expected ->
         [0] no generics
         [one] exactly one generic argument
         *[other] exactly {$expected} generic arguments
     } but found {$found}
     .label = incorrect generics on primitive sort
 
-fhir_analysis_too_many_generics_on_sort =
-    sorts associated with this {$def_descr} should have {$max ->  
+fhir_analysis_incorrect_generics_on_sort =
+    sorts associated with this {$def_descr} should have {$expected ->
         [0] no generic arguments
-        [one] at most one generic argument
-        *[other] at most {$max} generic arguments
+        [one] one generic argument
+        *[other] {$expected} generic arguments
     } but {$found} generic {$found ->
-        [one] argument
-        *[other] arguments
+        [one] argument was
+        *[other] arguments were
     } supplied
-    .label = expected {$max ->
+    .label = expected {$expected ->
         [0] no generic arguments
-        [one] at most one generic argument
-        *[other] at most {$max} generic arguments
+        [one] one generic argument
+        *[other] {$expected} generic arguments
     } on sort
 
-fhir_analysis_generics_on_type_parameter = 
+fhir_analysis_generics_on_type_parameter =
     type parameter expects no generics but found {$found}
     .label = found generics on sort type parameter
 
-fhir_analysis_generics_on_self_alias = 
+fhir_analysis_generics_on_self_alias =
     type alias Self expects no generics but found {$found}
     .label = found generics on type `Self`
 
-fhir_analysis_generics_on_opaque_sort = 
+fhir_analysis_generics_on_opaque_sort =
     user defined opaque sorts have no generics but found {$found}
     .label = found generics on user defined opaque sort
 

@@ -288,20 +288,14 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_expr(&mut self, expr: &surface::Expr) {
-        match &expr.kind {
-            surface::ExprKind::Path(path) => {
-                self.on_path(path);
-            }
-            surface::ExprKind::App(func, _) => {
-                self.on_func(*func, expr.node_id);
-            }
-            surface::ExprKind::Dot(path, _) => self.on_path(path),
-            surface::ExprKind::Constructor(Some(path), _) => {
-                self.on_path(path);
-            }
-            _ => {}
+        if let surface::ExprKind::App(func, _) = &expr.kind {
+            self.on_func(*func, expr.node_id);
         }
         surface::visit::walk_expr(self, expr);
+    }
+
+    fn visit_path_expr(&mut self, path: &surface::ExprPath) {
+        self.on_path(path);
     }
 
     fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
@@ -570,8 +564,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         match res {
             fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
-            fhir::Res::Def(DefKind::Struct, def_id) => Some(ExprRes::Struct(def_id)),
-            fhir::Res::Def(DefKind::Enum, def_id) => Some(ExprRes::Enum(def_id)),
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Ctor(def_id)),
             _ => None,
         }
     }
