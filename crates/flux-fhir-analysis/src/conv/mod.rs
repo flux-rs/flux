@@ -706,21 +706,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_sort_path(&mut self, path: &fhir::SortPath) -> QueryResult<rty::Sort> {
         let ctor = match path.res {
             fhir::SortRes::PrimSort(fhir::PrimSort::Int) => {
-                if !path.args.is_empty() {
-                    Err(emit_prim_sort_generics_error(self.genv(), path, "int", 0))?;
-                }
+                self.check_prim_sort_generics(path, fhir::PrimSort::Int)?;
                 return Ok(rty::Sort::Int);
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => {
-                if !path.args.is_empty() {
-                    Err(emit_prim_sort_generics_error(self.genv(), path, "bool", 0))?;
-                }
+                self.check_prim_sort_generics(path, fhir::PrimSort::Bool)?;
                 return Ok(rty::Sort::Bool);
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Real) => {
-                if !path.args.is_empty() {
-                    Err(emit_prim_sort_generics_error(self.genv(), path, "real", 0))?;
-                }
+                self.check_prim_sort_generics(path, fhir::PrimSort::Real)?;
                 return Ok(rty::Sort::Real);
             }
             fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
@@ -767,17 +761,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
-                if path.args.len() != 1 {
-                    // Has to have one argument
-                    Err(emit_prim_sort_generics_error(self.genv(), path, "Set", 1))?;
-                }
+                self.check_prim_sort_generics(path, fhir::PrimSort::Set)?;
                 rty::SortCtor::Set
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Map) => {
-                if path.args.len() != 2 {
-                    // Has to have two arguments
-                    Err(emit_prim_sort_generics_error(self.genv(), path, "Map", 2))?;
-                }
+                self.check_prim_sort_generics(path, fhir::PrimSort::Map)?;
                 rty::SortCtor::Map
             }
             fhir::SortRes::User { name } => {
@@ -793,7 +781,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::SortRes::Adt(def_id) => {
                 let sort_def = self.genv().adt_sort_def_of(def_id)?;
                 if path.args.len() > sort_def.param_count() {
-                    let err = errors::TooManyGenericsOnSort::new(
+                    let err = errors::IncorrectGenericsOnSort::new(
                         self.genv(),
                         def_id,
                         path.segments.last().unwrap().span,
@@ -808,6 +796,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let args = path.args.iter().map(|t| self.conv_sort(t)).try_collect()?;
 
         Ok(rty::Sort::app(ctor, args))
+    }
+
+    fn check_prim_sort_generics(
+        &mut self,
+        path: &fhir::SortPath<'_>,
+        prim_sort: fhir::PrimSort,
+    ) -> QueryResult {
+        if path.args.len() != prim_sort.generics() {
+            Err(emit_prim_sort_generics_error(self.genv(), path, prim_sort))?;
+        }
+        Ok(())
     }
 }
 
@@ -1758,8 +1757,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     ExprRes::GlobalFunc(..) => {
                         span_bug!(var.span, "unexpected func in var position")
                     }
-                    ExprRes::Struct(..) => span_bug!(var.span, "unexpected struct in var position"),
-                    ExprRes::Enum(..) => span_bug!(var.span, "unexpected enum in var position"),
+                    ExprRes::Ctor(..) => {
+                        span_bug!(var.span, "unexpected constructor in var position")
+                    }
                 }
             }
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
@@ -1817,7 +1817,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
                     match path.res {
-                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                        ExprRes::Ctor(def_id) => def_id,
                         _ => span_bug!(path.span, "unexpected path in constructor"),
                     }
                 } else {
@@ -2159,14 +2159,13 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
 fn emit_prim_sort_generics_error(
     genv: GlobalEnv,
     path: &fhir::SortPath,
-    name: &'static str,
-    expected: usize,
+    prim_sort: fhir::PrimSort,
 ) -> ErrorGuaranteed {
     let err = errors::GenericsOnPrimitiveSort::new(
         path.segments.last().unwrap().span,
-        name,
+        prim_sort.name_str(),
         path.args.len(),
-        expected,
+        prim_sort.generics(),
     );
     genv.sess().emit_err(err)
 }
@@ -2378,25 +2377,25 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_many_generics_on_sort, code = E0999)]
-    pub(super) struct TooManyGenericsOnSort {
+    #[diag(fhir_analysis_incorrect_generics_on_sort, code = E0999)]
+    pub(super) struct IncorrectGenericsOnSort {
         #[primary_span]
         #[label]
         span: Span,
         found: usize,
-        max: usize,
+        expected: usize,
         def_descr: &'static str,
     }
 
-    impl TooManyGenericsOnSort {
+    impl IncorrectGenericsOnSort {
         pub(super) fn new(
             genv: GlobalEnv,
             def_id: DefId,
             span: Span,
             found: usize,
-            max: usize,
+            expected: usize,
         ) -> Self {
-            Self { span, found, max, def_descr: genv.tcx().def_descr(def_id) }
+            Self { span, found, expected, def_descr: genv.tcx().def_descr(def_id) }
         }
     }
 

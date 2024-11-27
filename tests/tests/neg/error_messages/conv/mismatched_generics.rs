@@ -7,7 +7,7 @@ struct S {
 }
 
 defs! {
-    fn foo(s: S<int>) -> int { //~ Error sorts associated with this struct should have no generic arguments but 1 generic argument supplied
+    fn foo(s: S<int>) -> int { //~ Error sorts associated with this struct should have no generic arguments but 1 generic argument was supplied
         s.n
     }
 
@@ -17,7 +17,7 @@ defs! {
 
     fn foo3(x: Map<int>) -> int { //~ Error primitive sort Map expects exactly 2 generic arguments but found 1
         1
-    } 
+    }
 
     fn foo4(x: Map) -> int { //~ Error primitive sort Map expects exactly 2 generic arguments but found 0
         1
@@ -37,9 +37,9 @@ defs! {
 }
 
 #[flux::refined_by(f: T<int>)] //~ Error type parameter expects no generics but found 1
-struct X<T> { 
+struct X<T> {
     #[flux::field(T[f])]
-    f: T 
+    f: T,
 }
 
 #[flux::assoc(fn foo(x: Self<int>) -> int)] //~ Error type alias Self expects no generics but found 1

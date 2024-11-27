@@ -1394,7 +1394,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     fn desugar_constructor_path(&self, path: &surface::ExprPath) -> Result<fhir::PathExpr<'genv>> {
         let res = self.resolver_output().expr_path_res_map[&path.node_id];
-        if let ExprRes::Struct(..) | ExprRes::Enum(..) = res {
+        if let ExprRes::Ctor(..) = res {
             let segments = self
                 .genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));

@@ -16,7 +16,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
@@ -95,33 +95,27 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         expected: &rty::Sort,
     ) -> Result {
         let sort_by_field_name = sort_def.sort_by_field_name(sort_args);
-        let mut used_fields = FxHashSet::default();
+        let mut used_fields = FxHashMap::default();
         for expr in field_exprs {
             // make sure that the field is actually a field
-            if let Some(sort) = sort_by_field_name.get(&expr.ident.name) {
-                self.check_expr(&expr.expr, sort)?;
-            } else {
+            let Some(sort) = sort_by_field_name.get(&expr.ident.name) else {
                 return Err(self.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
-            }
-            if let Some(old_field) = used_fields.replace(expr.ident) {
+            };
+            if let Some(old_field) = used_fields.insert(expr.ident.name, expr.ident) {
                 return Err(self.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field)));
             }
+            self.check_expr(&expr.expr, sort)?;
         }
         if let Some(spread) = spread {
             // must check that the spread is of the same sort as the constructor
-            self.check_expr(&spread.expr, expected)?;
-            Ok(())
+            self.check_expr(&spread.expr, expected)
         } else if sort_by_field_name.len() != used_fields.len() {
             // emit an error because all fields are not used
-            let used_field_names: Vec<rustc_span::Symbol> =
-                used_fields.into_iter().map(|k| k.name).collect();
-            let fields_remaining = sort_by_field_name
+            let missing_fields = sort_by_field_name
                 .into_keys()
-                .filter(|x| !used_field_names.contains(x))
+                .filter(|x| !used_fields.contains_key(x))
                 .collect();
-            return Err(
-                self.emit_err(errors::ConstructorMissingFields::new(expr_span, fields_remaining))
-            );
+            Err(self.emit_err(errors::ConstructorMissingFields::new(expr_span, missing_fields)))
         } else {
             Ok(())
         }
@@ -262,7 +256,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 // first get the sort based on the path - for example S { ... } => S
                 // and we should expect sort to be a struct or enum app
                 let path_def_id = match path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) => def_id,
+                    ExprRes::Ctor(def_id) => def_id,
                     _ => span_bug!(expr.span, "unexpected path in constructor"),
                 };
                 let sort_def = self
@@ -270,11 +264,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     .adt_sort_def_of(path_def_id)
                     .map_err(|e| self.emit_err(e))?;
                 // generate fresh inferred sorts for each param
-                let fresh_args = (0..sort_def.param_count())
+                let fresh_args: rty::List<_> = (0..sort_def.param_count())
                     .map(|_| self.next_sort_var())
-                    .collect_vec();
-                let sort =
-                    rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone().into());
+                    .collect();
+                let sort = rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone());
                 // check fields & spread against fresh args
                 self.check_field_exprs(
                     expr.span,
@@ -304,11 +297,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::GlobalFunc(_, _) => {
                 span_bug!(path.span, "unexpected func in var position")
             }
-            ExprRes::Struct(_) => {
-                span_bug!(path.span, "unexpected struct in var position")
-            }
-            ExprRes::Enum(_) => {
-                span_bug!(path.span, "unexpected enum in var position")
+            ExprRes::Ctor(_) => {
+                span_bug!(path.span, "unexpected constructor in var position")
             }
         }
     }
