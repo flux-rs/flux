@@ -990,13 +990,6 @@
 <a href="#990" id="990">990</a>
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1287,20 +1280,14 @@
     }
 
     <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>surface::Expr) {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            surface::ExprKind::Path(path) =&gt; {
-                <span class="self">self</span>.on_path(path);
-            }
-            surface::ExprKind::App(func, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.on_func(<span class="kw-2">*</span>func, expr.node_id);
-            }
-            surface::ExprKind::Dot(path, <span class="kw">_</span>) =&gt; <span class="self">self</span>.on_path(path),
-            surface::ExprKind::Constructor(<span class="prelude-val">Some</span>(path), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.on_path(path);
-            }
-            <span class="kw">_ </span>=&gt; {}
+        <span class="kw">if let </span>surface::ExprKind::App(func, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>expr.kind {
+            <span class="self">self</span>.on_func(<span class="kw-2">*</span>func, expr.node_id);
         }
         surface::visit::walk_expr(<span class="self">self</span>, expr);
+    }
+
+    <span class="kw">fn </span>visit_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
+        <span class="self">self</span>.on_path(path);
     }
 
     <span class="kw">fn </span>visit_base_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bsort: <span class="kw-2">&amp;</span>surface::BaseSort) {
@@ -1569,8 +1556,7 @@
         <span class="kw">match </span>res {
             fhir::Res::Def(DefKind::ConstParam, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Const(def_id)),
-            fhir::Res::Def(DefKind::Struct, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Struct(def_id)),
-            fhir::Res::Def(DefKind::Enum, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Enum(def_id)),
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Ctor(def_id)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

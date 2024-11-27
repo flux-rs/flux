@@ -860,16 +860,6 @@
 <a href="#860" id="860">860</a>
 <a href="#861" id="861">861</a>
 <a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -888,7 +878,7 @@
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
+<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
@@ -967,33 +957,27 @@
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>sort_by_field_name = sort_def.sort_by_field_name(sort_args);
-        <span class="kw">let </span><span class="kw-2">mut </span>used_fields = FxHashSet::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>used_fields = FxHashMap::default();
         <span class="kw">for </span>expr <span class="kw">in </span>field_exprs {
             <span class="comment">// make sure that the field is actually a field
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = sort_by_field_name.get(<span class="kw-2">&amp;</span>expr.ident.name) {
-                <span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>expr.expr, sort)<span class="question-mark">?</span>;
-            } <span class="kw">else </span>{
+            </span><span class="kw">let </span><span class="prelude-val">Some</span>(sort) = sort_by_field_name.get(<span class="kw-2">&amp;</span>expr.ident.name) <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FieldNotFound::new(expected.clone(), expr.ident)));
-            }
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(old_field) = used_fields.replace(expr.ident) {
+            };
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(old_field) = used_fields.insert(expr.ident.name, expr.ident) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::DuplicateFieldUsed::new(expr.ident, old_field)));
             }
+            <span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>expr.expr, sort)<span class="question-mark">?</span>;
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(spread) = spread {
             <span class="comment">// must check that the spread is of the same sort as the constructor
-            </span><span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>spread.expr, expected)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(())
+            </span><span class="self">self</span>.check_expr(<span class="kw-2">&amp;</span>spread.expr, expected)
         } <span class="kw">else if </span>sort_by_field_name.len() != used_fields.len() {
             <span class="comment">// emit an error because all fields are not used
-            </span><span class="kw">let </span>used_field_names: Vec&lt;rustc_span::Symbol&gt; =
-                used_fields.into_iter().map(|k| k.name).collect();
-            <span class="kw">let </span>fields_remaining = sort_by_field_name
+            </span><span class="kw">let </span>missing_fields = sort_by_field_name
                 .into_keys()
-                .filter(|x| !used_field_names.contains(x))
+                .filter(|x| !used_fields.contains_key(x))
                 .collect();
-            <span class="kw">return </span><span class="prelude-val">Err</span>(
-                <span class="self">self</span>.emit_err(errors::ConstructorMissingFields::new(expr_span, fields_remaining))
-            );
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ConstructorMissingFields::new(expr_span, missing_fields)))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(())
         }
@@ -1134,7 +1118,7 @@
                 // first get the sort based on the path - for example S { ... } =&gt; S
                 // and we should expect sort to be a struct or enum app
                 </span><span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
-                    ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
+                    ExprRes::Ctor(def_id) =&gt; def_id,
                     <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected path in constructor"</span>),
                 };
                 <span class="kw">let </span>sort_def = <span class="self">self
@@ -1142,11 +1126,10 @@
                     .adt_sort_def_of(path_def_id)
                     .map_err(|e| <span class="self">self</span>.emit_err(e))<span class="question-mark">?</span>;
                 <span class="comment">// generate fresh inferred sorts for each param
-                </span><span class="kw">let </span>fresh_args = (<span class="number">0</span>..sort_def.param_count())
+                </span><span class="kw">let </span>fresh_args: rty::List&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..sort_def.param_count())
                     .map(|<span class="kw">_</span>| <span class="self">self</span>.next_sort_var())
-                    .collect_vec();
-                <span class="kw">let </span>sort =
-                    rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone().into());
+                    .collect();
+                <span class="kw">let </span>sort = rty::Sort::App(rty::SortCtor::Adt(sort_def.clone()), fresh_args.clone());
                 <span class="comment">// check fields &amp; spread against fresh args
                 </span><span class="self">self</span>.check_field_exprs(
                     expr.span,
@@ -1176,11 +1159,8 @@
             ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)
             }
-            ExprRes::Struct(<span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected struct in var position"</span>)
-            }
-            ExprRes::Enum(<span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected enum in var position"</span>)
+            ExprRes::Ctor(<span class="kw">_</span>) =&gt; {
+                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected constructor in var position"</span>)
             }
         }
     }

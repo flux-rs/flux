@@ -2967,7 +2967,7 @@
 
     <span class="kw">fn </span>desugar_constructor_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PathExpr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-        <span class="kw">if let </span>ExprRes::Struct(..) | ExprRes::Enum(..) = res {
+        <span class="kw">if let </span>ExprRes::Ctor(..) = res {
             <span class="kw">let </span>segments = <span class="self">self
                 </span>.genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));

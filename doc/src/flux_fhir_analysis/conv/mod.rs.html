@@ -2444,7 +2444,6 @@
 <a href="#2444" id="2444">2444</a>
 <a href="#2445" id="2445">2445</a>
 <a href="#2446" id="2446">2446</a>
-<a href="#2447" id="2447">2447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3153,21 +3152,15 @@
     <span class="kw">fn </span>conv_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::SortPath) -&gt; QueryResult&lt;rty::Sort&gt; {
         <span class="kw">let </span>ctor = <span class="kw">match </span>path.res {
             fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; {
-                <span class="kw">if </span>!path.args.is_empty() {
-                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"int"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-                }
+                <span class="self">self</span>.check_prim_sort_generics(path, fhir::PrimSort::Int)<span class="question-mark">?</span>;
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Int);
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; {
-                <span class="kw">if </span>!path.args.is_empty() {
-                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"bool"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-                }
+                <span class="self">self</span>.check_prim_sort_generics(path, fhir::PrimSort::Bool)<span class="question-mark">?</span>;
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Bool);
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; {
-                <span class="kw">if </span>!path.args.is_empty() {
-                    <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"real"</span>, <span class="number">0</span>))<span class="question-mark">?</span>;
-                }
+                <span class="self">self</span>.check_prim_sort_generics(path, fhir::PrimSort::Real)<span class="question-mark">?</span>;
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real);
             }
             fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
@@ -3214,17 +3207,11 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) =&gt; {
-                <span class="kw">if </span>path.args.len() != <span class="number">1 </span>{
-                    <span class="comment">// Has to have one argument
-                    </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"Set"</span>, <span class="number">1</span>))<span class="question-mark">?</span>;
-                }
+                <span class="self">self</span>.check_prim_sort_generics(path, fhir::PrimSort::Set)<span class="question-mark">?</span>;
                 rty::SortCtor::Set
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Map) =&gt; {
-                <span class="kw">if </span>path.args.len() != <span class="number">2 </span>{
-                    <span class="comment">// Has to have two arguments
-                    </span><span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, <span class="string">"Map"</span>, <span class="number">2</span>))<span class="question-mark">?</span>;
-                }
+                <span class="self">self</span>.check_prim_sort_generics(path, fhir::PrimSort::Map)<span class="question-mark">?</span>;
                 rty::SortCtor::Map
             }
             fhir::SortRes::User { name } =&gt; {
@@ -3240,7 +3227,7 @@
             fhir::SortRes::Adt(def_id) =&gt; {
                 <span class="kw">let </span>sort_def = <span class="self">self</span>.genv().adt_sort_def_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">if </span>path.args.len() &gt; sort_def.param_count() {
-                    <span class="kw">let </span>err = errors::TooManyGenericsOnSort::new(
+                    <span class="kw">let </span>err = errors::IncorrectGenericsOnSort::new(
                         <span class="self">self</span>.genv(),
                         def_id,
                         path.segments.last().unwrap().span,
@@ -3255,6 +3242,17 @@
         <span class="kw">let </span>args = path.args.iter().map(|t| <span class="self">self</span>.conv_sort(t)).try_collect()<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(rty::Sort::app(ctor, args))
+    }
+
+    <span class="kw">fn </span>check_prim_sort_generics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        path: <span class="kw-2">&amp;</span>fhir::SortPath&lt;<span class="lifetime">'_</span>&gt;,
+        prim_sort: fhir::PrimSort,
+    ) -&gt; QueryResult {
+        <span class="kw">if </span>path.args.len() != prim_sort.generics() {
+            <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, prim_sort))<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -4205,8 +4203,9 @@
                     ExprRes::GlobalFunc(..) =&gt; {
                         <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected func in var position"</span>)
                     }
-                    ExprRes::Struct(..) =&gt; <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected struct in var position"</span>),
-                    ExprRes::Enum(..) =&gt; <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected enum in var position"</span>),
+                    ExprRes::Ctor(..) =&gt; {
+                        <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected constructor in var position"</span>)
+                    }
                 }
             }
             fhir::ExprKind::Literal(lit) =&gt; rty::Expr::constant(conv_lit(<span class="kw-2">*</span>lit)).at(espan),
@@ -4264,7 +4263,7 @@
             fhir::ExprKind::Constructor(path, exprs, spread) =&gt; {
                 <span class="kw">let </span>def_id = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
                     <span class="kw">match </span>path.res {
-                        ExprRes::Struct(def_id) | ExprRes::Enum(def_id) =&gt; def_id,
+                        ExprRes::Ctor(def_id) =&gt; def_id,
                         <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected path in constructor"</span>),
                     }
                 } <span class="kw">else </span>{
@@ -4606,14 +4605,13 @@
 <span class="kw">fn </span>emit_prim_sort_generics_error(
     genv: GlobalEnv,
     path: <span class="kw-2">&amp;</span>fhir::SortPath,
-    name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    expected: usize,
+    prim_sort: fhir::PrimSort,
 ) -&gt; ErrorGuaranteed {
     <span class="kw">let </span>err = errors::GenericsOnPrimitiveSort::new(
         path.segments.last().unwrap().span,
-        name,
+        prim_sort.name_str(),
         path.args.len(),
-        expected,
+        prim_sort.generics(),
     );
     genv.sess().emit_err(err)
 }
@@ -4825,25 +4823,25 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_too_many_generics_on_sort, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>TooManyGenericsOnSort {
+    #[diag(fhir_analysis_incorrect_generics_on_sort, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncorrectGenericsOnSort {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
         found: usize,
-        max: usize,
+        expected: usize,
         def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
-    <span class="kw">impl </span>TooManyGenericsOnSort {
+    <span class="kw">impl </span>IncorrectGenericsOnSort {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
             genv: GlobalEnv,
             def_id: DefId,
             span: Span,
             found: usize,
-            max: usize,
+            expected: usize,
         ) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, found, max, def_descr: genv.tcx().def_descr(def_id) }
+            <span class="self">Self </span>{ span, found, expected, def_descr: genv.tcx().def_descr(def_id) }
         }
     }
 
