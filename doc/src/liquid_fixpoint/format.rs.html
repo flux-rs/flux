@@ -391,9 +391,9 @@
     <span class="macro">write!</span>(f, <span class="string">"(constraint"</span>)<span class="question-mark">?</span>;
     cx.incr();
     cx.newline(f)<span class="question-mark">?</span>;
-    cx.fmt_constraint_rec(f, cstr)<span class="question-mark">?</span>;
+    cx.fmt_constraint(f, cstr)<span class="question-mark">?</span>;
     cx.decr();
-    <span class="macro">writeln!</span>(f, <span class="string">")\n"</span>)
+    <span class="macro">writeln!</span>(f, <span class="string">")"</span>)
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Task&lt;T&gt; {
@@ -465,25 +465,25 @@
 }
 
 <span class="kw">impl </span>ConstraintFormatter {
-    <span class="kw">fn </span>fmt_constraint_rec&lt;T: Types&gt;(
+    <span class="kw">fn </span>fmt_constraint&lt;T: Types&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
         cstr: <span class="kw-2">&amp;</span>Constraint&lt;T&gt;,
     ) -&gt; fmt::Result {
         <span class="kw">match </span>cstr {
-            Constraint::Pred(pred, tag) =&gt; <span class="self">self</span>.fmt_pred(pred, tag.as_ref(), f),
+            Constraint::Pred(pred, tag) =&gt; <span class="self">self</span>.fmt_pred_in_head_position(pred, tag.as_ref(), f),
             Constraint::Conj(cstrs) =&gt; {
                 <span class="kw">match </span><span class="kw-2">&amp;</span>cstrs[..] {
                     [] =&gt; <span class="macro">write!</span>(f, <span class="string">"((true))"</span>),
-                    [cstr] =&gt; <span class="self">self</span>.fmt_constraint_rec(f, cstr),
+                    [cstr] =&gt; <span class="self">self</span>.fmt_constraint(f, cstr),
                     cstrs =&gt; {
                         <span class="macro">write!</span>(f, <span class="string">"(and"</span>)<span class="question-mark">?</span>;
-                        <span class="self">self</span>.incr();
                         <span class="kw">for </span>cstr <span class="kw">in </span>cstrs {
+                            <span class="self">self</span>.incr();
                             <span class="self">self</span>.newline(f)<span class="question-mark">?</span>;
-                            <span class="self">self</span>.fmt_constraint_rec(f, cstr)<span class="question-mark">?</span>;
+                            <span class="self">self</span>.fmt_constraint(f, cstr)<span class="question-mark">?</span>;
+                            <span class="self">self</span>.decr();
                         }
-                        <span class="self">self</span>.decr();
                         f.write_char(<span class="string">')'</span>)
                     }
                 }
@@ -493,7 +493,7 @@
 
                 <span class="self">self</span>.incr();
                 <span class="self">self</span>.newline(f)<span class="question-mark">?</span>;
-                <span class="self">self</span>.fmt_constraint_rec(f, head)<span class="question-mark">?</span>;
+                <span class="self">self</span>.fmt_constraint(f, head)<span class="question-mark">?</span>;
                 <span class="self">self</span>.decr();
 
                 f.write_str(<span class="string">")"</span>)
@@ -501,7 +501,7 @@
         }
     }
 
-    <span class="kw">fn </span>fmt_pred&lt;T: Types&gt;(
+    <span class="kw">fn </span>fmt_pred_in_head_position&lt;T: Types&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         pred: <span class="kw-2">&amp;</span>Pred&lt;T&gt;,
         tag: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T::Tag&gt;,
@@ -511,16 +511,16 @@
             Pred::And(preds) =&gt; {
                 <span class="kw">match </span><span class="kw-2">&amp;</span>preds[..] {
                     [] =&gt; <span class="macro">write!</span>(f, <span class="string">"((true))"</span>),
-                    [pred] =&gt; <span class="self">self</span>.fmt_pred(pred, tag, f),
+                    [pred] =&gt; <span class="self">self</span>.fmt_pred_in_head_position(pred, tag, f),
                     <span class="kw">_ </span>=&gt; {
                         <span class="macro">write!</span>(f, <span class="string">"(and"</span>)<span class="question-mark">?</span>;
-                        <span class="self">self</span>.incr();
                         <span class="kw">for </span>pred <span class="kw">in </span>preds {
+                            <span class="self">self</span>.incr();
                             <span class="self">self</span>.newline(f)<span class="question-mark">?</span>;
-                            <span class="self">self</span>.fmt_pred(pred, tag, f)<span class="question-mark">?</span>;
+                            <span class="self">self</span>.fmt_pred_in_head_position(pred, tag, f)<span class="question-mark">?</span>;
+                            <span class="self">self</span>.decr();
                         }
-                        <span class="self">self</span>.decr();
-                        <span class="macro">write!</span>(f, <span class="string">"\n)"</span>)
+                        <span class="macro">write!</span>(f, <span class="string">")"</span>)
                     }
                 }
             }
@@ -549,7 +549,7 @@
 
     <span class="kw">fn </span>padding(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="self">self</span>.level {
-            f.write_str(<span class="string">"  "</span>)<span class="question-mark">?</span>;
+            f.write_str(<span class="string">" "</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
