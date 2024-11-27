@@ -268,12 +268,10 @@ impl<'a> TypeEnv<'a> {
         if result.is_strg {
             let uninit = Ty::uninit();
             Ok(result.update(uninit))
-        } else if result.is_constant_index {
+        } else {
             // ignore the 'move' and trust rustc managed the move correctly
             // https://github.com/flux-rs/flux/issues/725#issuecomment-2295065634
             Ok(result.ty)
-        } else {
-            tracked_span_bug!("cannot move out of {place:?}");
         }
     }
 
