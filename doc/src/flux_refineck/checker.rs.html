@@ -2026,7 +2026,7 @@
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{<span class="self">self</span>, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
-    refine_tree::{AssumeInvariants, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxtTrace, RefineTree, Snapshot},
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
@@ -2072,7 +2072,7 @@
     ghost_statements::{GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv, TypeEnvTrace},
 };
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerError&gt;;
@@ -2530,9 +2530,9 @@
                 span,
             )<span class="question-mark">?</span>;
             bug::track_span(span, || {
-                <span class="macro">dbg::statement_span!</span>(<span class="string">"start"</span>, stmt, infcx, env, span);
+                <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span);
                 <span class="self">self</span>.check_statement(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, stmt)<span class="question-mark">?</span>;
-                <span class="macro">dbg::statement_span!</span>(<span class="string">"end"</span>, stmt, infcx, env, span);
+                <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span);
                 <span class="prelude-val">Ok</span>(())
             })<span class="question-mark">?</span>;
             <span class="kw">if </span>!stmt.is_nop() {
@@ -3555,7 +3555,7 @@
         stmt: <span class="kw-2">&amp;</span>GhostStatement,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env);
+        <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env, span);
         <span class="kw">match </span>stmt {
             GhostStatement::Fold(place) =&gt; {
                 env.fold(<span class="kw-2">&amp;mut </span>infcx.at(span), place).with_span(span)<span class="question-mark">?</span>;
@@ -3570,7 +3570,7 @@
                     .with_span(span)<span class="question-mark">?</span>;
             }
         }
-        <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env);
+        <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env, span);
         <span class="prelude-val">Ok</span>(())
     }
 

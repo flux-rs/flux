@@ -776,6 +776,42 @@
 <a href="#776" id="776">776</a>
 <a href="#777" id="777">777</a>
 <a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -783,6 +819,7 @@
 };
 
 <span class="kw">use </span>flux_common::{index::IndexVec, iter::IterExt};
+<span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -796,6 +833,7 @@
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use crate</span>::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
@@ -1553,5 +1591,39 @@
         RefineCtxt&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"refine_ctxt"</span>,
         Scope,
     );
+}
+
+<span class="doccomment">/// A very explicit representation of [`RefineCtxt`] for debugging/tracing/serialization ONLY.
+</span><span class="attr">#[derive(Serialize, DebugAsJson)]
+</span><span class="kw">pub struct </span>RefineCtxtTrace {
+    bindings: Vec&lt;RcxBind&gt;,
+    exprs: Vec&lt;String&gt;,
+}
+
+<span class="attr">#[derive(Serialize)]
+</span><span class="kw">struct </span>RcxBind {
+    name: String,
+    sort: String,
+}
+<span class="kw">impl </span>RefineCtxtTrace {
+    <span class="kw">pub fn </span>new(rcx: <span class="kw-2">&amp;</span>RefineCtxt) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span>rcx.ptr)).collect_vec();
+        <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
+        parents.into_iter().rev().for_each(|ptr| {
+            <span class="kw">let </span>node = ptr.borrow();
+            <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
+                NodeKind::ForAll(name, sort) =&gt; {
+                    <span class="kw">let </span>bind = RcxBind { name: <span class="macro">format!</span>(<span class="string">"{name:?}"</span>), sort: <span class="macro">format!</span>(<span class="string">"{sort:?}"</span>) };
+                    bindings.push(bind);
+                }
+                NodeKind::Assumption(e) <span class="kw">if </span>!e.simplify().is_trivially_true() =&gt; {
+                    exprs.push(<span class="macro">format!</span>(<span class="string">"{e:?}"</span>))
+                }
+                <span class="kw">_ </span>=&gt; (),
+            }
+        });
+        <span class="self">Self </span>{ bindings, exprs }
+    }
 }
 </code></pre></div></section></main></body></html>

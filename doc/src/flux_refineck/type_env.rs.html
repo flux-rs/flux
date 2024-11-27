@@ -873,6 +873,37 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -883,6 +914,7 @@
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt, Scope},
 };
+<span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -906,6 +938,7 @@
 <span class="kw">use </span>rustc_index::IndexSlice;
 <span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 <span class="kw">use </span>rustc_type_ir::BoundVar;
+<span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
 <span class="kw">use </span><span class="kw">super</span>::rty::Sort;
@@ -1747,5 +1780,34 @@
         BasicBlockEnvShape =&gt; <span class="string">"basic_block_env_shape"</span>,
         BasicBlockEnv =&gt; <span class="string">"basic_block_env"
     </span>}
+}
+
+<span class="doccomment">/// A very explicit representation of [`TypeEnv`] for debugging/tracing/serialization ONLY.
+</span><span class="attr">#[derive(Serialize, DebugAsJson)]
+</span><span class="kw">pub struct </span>TypeEnvTrace(Vec&lt;TypeEnvBind&gt;);
+
+<span class="attr">#[derive(Serialize)]
+</span><span class="kw">struct </span>TypeEnvBind {
+    loc: String,
+    kind: String,
+    ty: String,
+}
+
+<span class="kw">impl </span>TypeEnvTrace {
+    <span class="kw">pub fn </span>new&lt;<span class="lifetime">'a</span>&gt;(env: <span class="kw-2">&amp;</span>TypeEnv&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
+        env.bindings
+            .iter()
+            .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())
+            .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
+            .for_each(|(loc, binding)| {
+                <span class="kw">let </span>loc = <span class="macro">format!</span>(<span class="string">"{loc:?}"</span>);
+                <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
+                <span class="kw">let </span>ty = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.ty);
+                bindings.push(TypeEnvBind { loc, kind, ty });
+            });
+
+        TypeEnvTrace(bindings)
+    }
 }
 </code></pre></div></section></main></body></html>
