@@ -16,9 +16,9 @@ pub(crate) fn fmt_constraint<T: Types>(
     write!(f, "(constraint")?;
     cx.incr();
     cx.newline(f)?;
-    cx.fmt_constraint_rec(f, cstr)?;
+    cx.fmt_constraint(f, cstr)?;
     cx.decr();
-    writeln!(f, ")\n")
+    writeln!(f, ")")
 }
 
 impl<T: Types> fmt::Display for Task<T> {
@@ -90,25 +90,25 @@ struct ConstraintFormatter {
 }
 
 impl ConstraintFormatter {
-    fn fmt_constraint_rec<T: Types>(
+    fn fmt_constraint<T: Types>(
         &mut self,
         f: &mut fmt::Formatter<'_>,
         cstr: &Constraint<T>,
     ) -> fmt::Result {
         match cstr {
-            Constraint::Pred(pred, tag) => self.fmt_pred(pred, tag.as_ref(), f),
+            Constraint::Pred(pred, tag) => self.fmt_pred_in_head_position(pred, tag.as_ref(), f),
             Constraint::Conj(cstrs) => {
                 match &cstrs[..] {
                     [] => write!(f, "((true))"),
-                    [cstr] => self.fmt_constraint_rec(f, cstr),
+                    [cstr] => self.fmt_constraint(f, cstr),
                     cstrs => {
                         write!(f, "(and")?;
-                        self.incr();
                         for cstr in cstrs {
+                            self.incr();
                             self.newline(f)?;
-                            self.fmt_constraint_rec(f, cstr)?;
+                            self.fmt_constraint(f, cstr)?;
+                            self.decr();
                         }
-                        self.decr();
                         f.write_char(')')
                     }
                 }
@@ -118,7 +118,7 @@ impl ConstraintFormatter {
 
                 self.incr();
                 self.newline(f)?;
-                self.fmt_constraint_rec(f, head)?;
+                self.fmt_constraint(f, head)?;
                 self.decr();
 
                 f.write_str(")")
@@ -126,7 +126,7 @@ impl ConstraintFormatter {
         }
     }
 
-    fn fmt_pred<T: Types>(
+    fn fmt_pred_in_head_position<T: Types>(
         &mut self,
         pred: &Pred<T>,
         tag: Option<&T::Tag>,
@@ -136,16 +136,16 @@ impl ConstraintFormatter {
             Pred::And(preds) => {
                 match &preds[..] {
                     [] => write!(f, "((true))"),
-                    [pred] => self.fmt_pred(pred, tag, f),
+                    [pred] => self.fmt_pred_in_head_position(pred, tag, f),
                     _ => {
                         write!(f, "(and")?;
-                        self.incr();
                         for pred in preds {
+                            self.incr();
                             self.newline(f)?;
-                            self.fmt_pred(pred, tag, f)?;
+                            self.fmt_pred_in_head_position(pred, tag, f)?;
+                            self.decr();
                         }
-                        self.decr();
-                        write!(f, "\n)")
+                        write!(f, ")")
                     }
                 }
             }
@@ -174,7 +174,7 @@ impl ConstraintFormatter {
 
     fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for _ in 0..self.level {
-            f.write_str("  ")?;
+            f.write_str(" ")?;
         }
         Ok(())
     }
