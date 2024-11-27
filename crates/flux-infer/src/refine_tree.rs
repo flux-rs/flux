@@ -4,6 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use display_json::DebugAsJson;
 use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
     global_env::GlobalEnv,
@@ -18,6 +19,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
+use serde::Serialize;
 
 use crate::{
     fixpoint_encoding::{fixpoint, FixpointCtxt},
@@ -775,4 +777,38 @@ mod pretty {
         RefineCtxt<'_> => "refine_ctxt",
         Scope,
     );
+}
+
+/// A very explicit representation of `RefineCtxt` for debugging/tracing/serialization ONLY.
+#[derive(Serialize, DebugAsJson)]
+pub struct RefineCtxtTrace {
+    bindings: Vec<RcxBind>,
+    exprs: Vec<String>,
+}
+
+#[derive(Serialize, DebugAsJson)]
+pub struct RcxBind {
+    pub name: String,
+    pub sort: String,
+}
+impl RefineCtxtTrace {
+    pub fn new(rcx: &RefineCtxt) -> Self {
+        let parents = ParentsIter::new(NodePtr::clone(&rcx.ptr)).collect_vec();
+        let mut bindings = vec![];
+        let mut exprs = vec![];
+        parents.into_iter().rev().for_each(|ptr| {
+            let node = ptr.borrow();
+            match &node.kind {
+                NodeKind::ForAll(name, sort) => {
+                    let bind = RcxBind { name: format!("{name:?}"), sort: format!("{sort:?}") };
+                    bindings.push(bind);
+                }
+                NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
+                    exprs.push(format!("{e:?}"))
+                }
+                _ => (),
+            }
+        });
+        Self { bindings, exprs }
+    }
 }

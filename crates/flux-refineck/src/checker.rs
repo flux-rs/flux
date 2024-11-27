@@ -5,7 +5,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
-    refine_tree::{AssumeInvariants, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxtTrace, RefineTree, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -51,7 +51,7 @@ use crate::{
     ghost_statements::{GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv, TypeEnvTrace},
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
@@ -511,7 +511,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             bug::track_span(span, || {
                 dbg::statement!("start", stmt, infcx, env, span);
                 self.check_statement(&mut infcx, &mut env, stmt)?;
-                dbg::statement!("end", stmt, infcx, env, span);
+                dbg::statement!(
+                    "end",
+                    stmt,
+                    RefineCtxtTrace::new(&infcx),
+                    TypeEnvTrace::new(&env),
+                    span
+                );
                 Ok(())
             })?;
             if !stmt.is_nop() {

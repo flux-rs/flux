@@ -10,9 +10,11 @@ flux-errors.workspace = true
 flux-middle.workspace = true
 
 liquid-fixpoint.workspace = true
-
 itertools.workspace = true
 pad-adapter.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+display_json.workspace = true
 
 [lints]
 workspace = true

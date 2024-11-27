@@ -2,6 +2,7 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
+use display_json::DebugAsJson;
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
@@ -31,6 +32,7 @@ use itertools::{izip, Itertools};
 use rustc_index::IndexSlice;
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 use rustc_type_ir::BoundVar;
+use serde::Serialize;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
@@ -871,5 +873,34 @@ mod pretty {
         TypeEnv<'_> => "type_env",
         BasicBlockEnvShape => "basic_block_env_shape",
         BasicBlockEnv => "basic_block_env"
+    }
+}
+
+/// A very explicit representation of `RefineCtxt` for debugging/tracing/serialization ONLY.
+#[derive(Serialize, DebugAsJson)]
+pub struct TypeEnvTrace(Vec<TypeEnvBind>);
+
+#[derive(Serialize, DebugAsJson)]
+pub struct TypeEnvBind {
+    pub loc: String,
+    pub kind: String,
+    pub ty: String,
+}
+
+impl TypeEnvTrace {
+    pub fn new<'a>(env: &TypeEnv<'a>) -> Self {
+        let mut bindings = vec![];
+        env.bindings
+            .iter()
+            .filter(|(_, binding)| !binding.ty.is_uninit())
+            .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
+            .for_each(|(loc, binding)| {
+                let loc = format!("{loc:?}");
+                let kind = format!("{:?}", binding.kind);
+                let ty = format!("{:?}", binding.ty);
+                bindings.push(TypeEnvBind { loc, kind, ty });
+            });
+
+        TypeEnvTrace(bindings)
     }
 }
