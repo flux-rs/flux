@@ -536,10 +536,13 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
+ "flux-macros",
  "flux-middle",
  "itertools 0.13.0",
  "liquid-fixpoint",
  "pad-adapter",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -602,6 +605,8 @@ dependencies = [
  "flux-rustc-bridge",
  "itertools 0.13.0",
  "liquid-fixpoint",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -843,7 +848,6 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "itertools 0.13.0",
- "pad-adapter",
  "serde",
  "serde_json",
 ]

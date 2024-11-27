@@ -3,10 +3,11 @@
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 
 mod constraint;
+mod format;
 
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt::{self, Write as FmtWrite},
+    fmt,
     hash::{Hash, Hasher},
     io::{self, BufWriter, Write as IOWrite},
     process::{Command, Stdio},
@@ -18,43 +19,7 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use itertools::Itertools;
-use pad_adapter::PadAdapter;
 use serde::{de, Deserialize};
-
-use crate::constraint::DEFAULT_QUALIFIERS;
-
-pub trait FixpointFmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-
-    /// Returns a type that implements [`Display`] using the [`FixpointFmt::fmt`] implementation.
-    ///
-    /// [`Display`]: std::fmt::Display
-    fn display(&self) -> DisplayAdapter<&Self> {
-        DisplayAdapter(self)
-    }
-}
-
-/// Helper type that implements [`Display`] forwarding the implementation to [`FixpointFmt::fmt`].
-///
-/// [`Display`]: std::fmt::Display
-pub struct DisplayAdapter<T>(T);
-
-impl<T: FixpointFmt> std::fmt::Display for DisplayAdapter<&T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        FixpointFmt::fmt(self.0, f)
-    }
-}
-
-pub trait Identifier: FixpointFmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-}
-
-impl<T: Identifier> FixpointFmt for T {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Identifier::fmt(self, f)
-    }
-}
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone;
@@ -66,6 +31,36 @@ pub trait Types {
     type String: FixpointFmt + Hash;
 
     type Tag: fmt::Display + FromStr + Hash;
+}
+
+pub trait FixpointFmt: Sized {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    /// Returns a type that implements [`fmt::Display`] using this [`FixpointFmt::fmt`] implementation.
+    fn display(&self) -> impl fmt::Display {
+        struct DisplayAdapter<T>(T);
+        impl<T: FixpointFmt> std::fmt::Display for DisplayAdapter<&T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                FixpointFmt::fmt(self.0, f)
+            }
+        }
+        DisplayAdapter(self)
+    }
+}
+
+pub trait Identifier: Sized {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    /// Returns a type that implements [`fmt::Display`] using this [`Identifier::fmt`] implementation.
+    fn display(&self) -> impl fmt::Display {
+        struct DisplayAdapter<T>(T);
+        impl<T: Identifier> fmt::Display for DisplayAdapter<&T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                Identifier::fmt(self.0, f)
+            }
+        }
+        DisplayAdapter(self)
+    }
 }
 
 struct DefaultTypes;
@@ -241,71 +236,6 @@ impl<T: Types> KVarDecl<T> {
     }
 }
 
-impl<T: Types> fmt::Display for Task<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scrape_quals {
-            writeln!(f, "(fixpoint \"--scrape=both\")")?;
-        }
-        for line in &self.comments {
-            writeln!(f, ";; {line}")?;
-        }
-        writeln!(f)?;
-
-        for data_decl in &self.data_decls {
-            writeln!(f, "{data_decl}")?;
-        }
-
-        for qualif in DEFAULT_QUALIFIERS.iter() {
-            writeln!(f, "{qualif}")?;
-        }
-
-        for qualif in &self.qualifiers {
-            writeln!(f, "{qualif}")?;
-        }
-
-        for cinfo in &self.constants {
-            writeln!(f, "{cinfo}")?;
-        }
-
-        for kvar in &self.kvars {
-            writeln!(f, "{kvar}")?;
-        }
-
-        writeln!(f)?;
-        write!(f, "(constraint")?;
-        write!(with_padding(f), "\n{}", self.constraint)?;
-        writeln!(f, "\n)")
-    }
-}
-
-impl<T: Types> fmt::Display for KVarDecl<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(var ${} ({})) ;; {}",
-            self.kvid.display(),
-            self.sorts.iter().format(" "),
-            self.comment
-        )
-    }
-}
-
-impl<T: Types> fmt::Display for ConstDecl<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {} {})", self.name.display(), self.sort)?;
-        if let Some(comment) = &self.comment {
-            write!(f, "  ;; {comment}")?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: Types> fmt::Debug for Task<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
 impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -320,8 +250,4 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(tag), &"valid tag"))?;
         Ok(Error { id, tag })
     }
-}
-
-fn with_padding<'a, 'b>(f: &'a mut fmt::Formatter<'b>) -> PadAdapter<'a, 'b, 'static> {
-    PadAdapter::with_padding(f, "  ")
 }

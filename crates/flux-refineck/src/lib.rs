@@ -220,7 +220,9 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Rem => genv.sess().emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess().emit_err(errors::GotoError { span }),
             ConstrReason::Assert(msg) => genv.sess().emit_err(errors::AssertError { span, msg }),
-            ConstrReason::Fold => genv.sess().emit_err(errors::FoldError { span }),
+            ConstrReason::Fold | ConstrReason::FoldLocal => {
+                genv.sess().emit_err(errors::FoldError { span })
+            }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
