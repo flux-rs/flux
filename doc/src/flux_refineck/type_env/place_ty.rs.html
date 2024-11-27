@@ -988,9 +988,6 @@
 <a href="#988" id="988">988</a>
 <a href="#989" id="989">989</a>
 <a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1066,8 +1063,7 @@
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>is_strg: bool,
-    <span class="kw">pub </span>is_constant_index: bool, <span class="comment">// doesn't feel right...
-    </span>cursor: Cursor,
+    cursor: Cursor,
     bindings: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>PlacesTree,
 }
 
@@ -1170,7 +1166,6 @@
         <span class="kw">let </span><span class="kw-2">mut </span>cursor = <span class="self">self</span>.cursor_for(key);
         <span class="kw">let </span><span class="kw-2">mut </span>ty = <span class="self">self</span>.get_loc(<span class="kw-2">&amp;</span>cursor.loc).ty.clone();
         <span class="kw">let </span><span class="kw-2">mut </span>is_strg = <span class="bool-val">true</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>is_constant_index = <span class="bool-val">false</span>;
         <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = cursor.next() {
             ty = mode.unpack(<span class="kw-2">&amp;</span>ty);
             <span class="kw">match </span>elem {
@@ -1214,7 +1209,6 @@
                 }
                 PlaceElem::Index(<span class="kw">_</span>) | PlaceElem::ConstantIndex { .. } =&gt; {
                     is_strg = <span class="bool-val">false</span>;
-                    is_constant_index = <span class="macro">matches!</span>(elem, PlaceElem::ConstantIndex { .. });
                     <span class="kw">match </span>ty.kind() {
                         TyKind::Indexed(BaseTy::Array(array_ty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                             ty = array_ty.clone();
@@ -1229,7 +1223,7 @@
             }
         }
         cursor.reset();
-        <span class="prelude-val">Ok</span>(LookupResult { ty, is_strg, is_constant_index, cursor, bindings: <span class="self">self </span>})
+        <span class="prelude-val">Ok</span>(LookupResult { ty, is_strg, cursor, bindings: <span class="self">self </span>})
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_unfolding(

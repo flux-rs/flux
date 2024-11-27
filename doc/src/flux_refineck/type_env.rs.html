@@ -902,8 +902,6 @@
 <a href="#902" id="902">902</a>
 <a href="#903" id="903">903</a>
 <a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1174,12 +1172,10 @@
         <span class="kw">if </span>result.is_strg {
             <span class="kw">let </span>uninit = Ty::uninit();
             <span class="prelude-val">Ok</span>(result.update(uninit))
-        } <span class="kw">else if </span>result.is_constant_index {
+        } <span class="kw">else </span>{
             <span class="comment">// ignore the 'move' and trust rustc managed the move correctly
             // https://github.com/flux-rs/flux/issues/725#issuecomment-2295065634
             </span><span class="prelude-val">Ok</span>(result.ty)
-        } <span class="kw">else </span>{
-            <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot move out of {place:?}"</span>);
         }
     }
 
