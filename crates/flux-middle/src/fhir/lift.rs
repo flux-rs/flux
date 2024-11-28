@@ -2,10 +2,8 @@
 
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
-use hir::OwnerId;
-use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hir::{self as hir, def_id::LocalDefId, FnHeader};
+use rustc_hir::{self as hir, def_id::LocalDefId, FnHeader, OwnerId};
 use rustc_span::Span;
 
 use super::{FhirId, FluxOwnerId};
@@ -19,7 +17,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub struct LiftCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
+    opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: MaybeExternId<OwnerId>,
 }
@@ -29,17 +27,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: MaybeExternId<OwnerId>,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
+        opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         Self { genv, opaque_tys, local_id_gen, owner }
-    }
-
-    fn with_new_owner<'b>(
-        &'b mut self,
-        owner: MaybeExternId<OwnerId>,
-        local_id_gen: &'b IndexGen<fhir::ItemLocalId>,
-    ) -> LiftCtxt<'b, 'genv, 'tcx> {
-        LiftCtxt::new(self.genv, owner, local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
     pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>> {
@@ -71,9 +61,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     default: default.map(|ty| self.lift_ty(ty)).transpose()?,
                 }
             }
-            hir::GenericParamKind::Const { ty, is_host_effect, .. } => {
+            hir::GenericParamKind::Const { ty, .. } => {
                 let ty = self.lift_ty(ty)?;
-                fhir::GenericParamKind::Const { ty, is_host_effect }
+                fhir::GenericParamKind::Const { ty }
             }
         };
         Ok(fhir::GenericParam {
@@ -116,17 +106,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         bound: &hir::GenericBound,
     ) -> Result<fhir::GenericBound<'genv>> {
         match bound {
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) => {
-                Ok(fhir::GenericBound::Trait(
-                    self.lift_poly_trait_ref(*poly_trait_ref)?,
-                    fhir::TraitBoundModifier::None,
-                ))
-            }
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) => {
-                Ok(fhir::GenericBound::Trait(
-                    self.lift_poly_trait_ref(*poly_trait_ref)?,
-                    fhir::TraitBoundModifier::Maybe,
-                ))
+            hir::GenericBound::Trait(poly_trait_ref) => {
+                Ok(fhir::GenericBound::Trait(self.lift_poly_trait_ref(*poly_trait_ref)?))
             }
             hir::GenericBound::Outlives(lft) => {
                 let lft = self.lift_lifetime(lft)?;
@@ -140,26 +121,40 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         &mut self,
         poly_trait_ref: hir::PolyTraitRef,
     ) -> Result<fhir::PolyTraitRef<'genv>> {
+        let modifiers = match poly_trait_ref.modifiers {
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Positive,
+            } => fhir::TraitBoundModifier::None,
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Maybe(_),
+            } => fhir::TraitBoundModifier::Maybe,
+            _ => {
+                return self.emit_unsupported(&format!(
+                    "unsupported trait modifiers: `{:?}`",
+                    poly_trait_ref.modifiers,
+                ));
+            }
+        };
         let bound_generic_params =
             try_alloc_slice!(self.genv, &poly_trait_ref.bound_generic_params, |param| {
                 self.lift_generic_param(param)
             })?;
         let trait_ref = self.lift_path(poly_trait_ref.trait_ref.path)?;
-        Ok(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
+        Ok(fhir::PolyTraitRef {
+            bound_generic_params,
+            modifiers,
+            trait_ref,
+            span: poly_trait_ref.span,
+        })
     }
 
-    fn lift_opaque_ty(&mut self) -> Result<fhir::Item<'genv>> {
-        let hir::ItemKind::OpaqueTy(opaque_ty) = self.genv.hir().expect_item(self.local_id()).kind
-        else {
-            bug!("expected opaque type")
-        };
-
-        let generics = self.lift_generics()?;
+    fn lift_opaque_ty(&mut self, opaque_ty: &hir::OpaqueTy) -> Result<fhir::OpaqueTy<'genv>> {
         let bounds =
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
-        let opaque_ty = fhir::OpaqueTy { bounds };
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: self.owner })
+        Ok(fhir::OpaqueTy { def_id: MaybeExternId::Local(opaque_ty.def_id), bounds })
     }
 
     pub fn lift_fn_header(&mut self) -> FnHeader {
@@ -306,26 +301,21 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let ty = self.lift_ty(mut_ty.ty)?;
                 fhir::TyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl)
             }
-            hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
-                let opaque_ty = self
-                    .with_new_owner(MaybeExternId::Local(item_id.owner_id), &IndexGen::new())
-                    .lift_opaque_ty()?;
-                self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
-
-                let args = self.lift_generic_args(args)?;
-                fhir::TyKind::OpaqueDef(item_id, args, &[], in_trait_def)
+            hir::TyKind::OpaqueDef(opaque_ty) => {
+                let opaque_ty = self.lift_opaque_ty(opaque_ty)?;
+                let opaque_ty = self.insert_opaque_ty(opaque_ty);
+                fhir::TyKind::OpaqueDef(opaque_ty)
             }
             hir::TyKind::TraitObject(poly_traits, lft, syntax) => {
-                let poly_traits =
-                    try_alloc_slice!(self.genv, poly_traits, |(poly_trait, modifier)| {
-                        if *modifier != hir::TraitBoundModifier::None {
-                            return self.emit_unsupported(&format!(
-                                "unsupported type: `{}`",
-                                rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
-                            ));
-                        }
-                        self.lift_poly_trait_ref(*poly_trait)
-                    })?;
+                let poly_traits = try_alloc_slice!(self.genv, poly_traits, |poly_trait| {
+                    if poly_trait.modifiers != hir::TraitBoundModifiers::NONE {
+                        return self.emit_unsupported(&format!(
+                            "unsupported type: `{}`",
+                            rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
+                        ));
+                    }
+                    self.lift_poly_trait_ref(*poly_trait)
+                })?;
 
                 let lft = self.lift_lifetime(lft)?;
                 fhir::TyKind::TraitObject(poly_traits, lft, syntax)
@@ -483,11 +473,16 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
-    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::Item<'genv>) {
+    fn insert_opaque_ty(
+        &mut self,
+        opaque_ty: fhir::OpaqueTy<'genv>,
+    ) -> &'genv fhir::OpaqueTy<'genv> {
+        let opaque_ty = self.genv.alloc(opaque_ty);
         self.opaque_tys
             .as_mut()
-            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
-            .insert(def_id, opaque_ty);
+            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item `{:?}`", self.owner))
+            .push(opaque_ty);
+        opaque_ty
     }
 
     #[track_caller]

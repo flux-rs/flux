@@ -53,7 +53,7 @@ pub(super) fn decode_crate_metadata(
 
 implement_ty_decoder!(DecodeContext<'a, 'tcx>);
 
-impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
+impl SpanDecoder for DecodeContext<'_, '_> {
     fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
         self.tcx.sess.psess.attr_id_generator.mk_attr_id()
     }
@@ -121,7 +121,7 @@ impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> TyDecoder for DecodeContext<'a, 'tcx> {
+impl<'tcx> TyDecoder for DecodeContext<'_, 'tcx> {
     type I = TyCtxt<'tcx>;
 
     const CLEAR_CROSS_CRATE: bool = true;

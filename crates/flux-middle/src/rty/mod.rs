@@ -145,7 +145,7 @@ impl AdtSortDef {
 
     /// Given a list of generic args, returns an iterator of the generic arguments that should be
     /// mapped to sorts for instantiation.
-    pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &A> + 'a {
+    pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &'a A> + 'a {
         self.0.params.iter().map(|p| &args[p.index as usize])
     }
 
@@ -452,19 +452,21 @@ impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
             ExistentialPredicate::Trait(trait_ref) => {
-                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
-                    def_id: trait_ref.def_id,
-                    args: trait_ref.args.to_rustc(tcx),
-                };
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef::new_from_args(
+                    tcx,
+                    trait_ref.def_id,
+                    trait_ref.args.to_rustc(tcx),
+                );
                 rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
             }
             ExistentialPredicate::Projection(projection) => {
                 rustc_middle::ty::ExistentialPredicate::Projection(
-                    rustc_middle::ty::ExistentialProjection {
-                        def_id: projection.def_id,
-                        args: projection.args.to_rustc(tcx),
-                        term: projection.term.skip_binder_ref().to_rustc(tcx).into(),
-                    },
+                    rustc_middle::ty::ExistentialProjection::new_from_args(
+                        tcx,
+                        projection.def_id,
+                        projection.args.to_rustc(tcx),
+                        projection.term.skip_binder_ref().to_rustc(tcx).into(),
+                    ),
                 )
             }
             ExistentialPredicate::AutoTrait(def_id) => {
@@ -1722,11 +1724,11 @@ pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]
 impl RefineArgs {
-    fn identity_for_item(genv: &GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
+    fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
         let reft_generics = genv.refinement_generics_of(def_id)?;
         let mut args = vec![];
         for i in 0..reft_generics.count() {
-            let param = reft_generics.param_at(i, *genv)?;
+            let param = reft_generics.param_at(i, genv)?;
             let expr =
                 Expr::var(Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name }));
             args.push(expr);
@@ -2572,7 +2574,7 @@ impl WfckResults {
     }
 }
 
-impl<'a, T> LocalTableInContextMut<'a, T> {
+impl<T> LocalTableInContextMut<'_, T> {
     pub fn insert(&mut self, fhir_id: FhirId, value: T) {
         tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.insert(fhir_id.local_id, value);

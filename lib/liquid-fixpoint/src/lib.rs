@@ -214,8 +214,7 @@ impl<T: Types> Task<T> {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
+            .spawn()?;
         let mut stdin = None;
         std::mem::swap(&mut stdin, &mut child.stdin);
         {

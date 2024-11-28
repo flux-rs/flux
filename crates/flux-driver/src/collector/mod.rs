@@ -17,7 +17,7 @@ use flux_middle::{
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
-    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemKind, NestedMetaItem,
+    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemInner, MetaItemKind,
 };
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -533,7 +533,7 @@ fn parse_yes_no_with_reason(attr_item: &AttrItem) -> std::result::Result<bool, (
     }
 }
 
-fn parse_opt_yes_no(items: &[NestedMetaItem], default: bool) -> (bool, &[NestedMetaItem]) {
+fn parse_opt_yes_no(items: &[MetaItemInner], default: bool) -> (bool, &[MetaItemInner]) {
     let [hd, tl @ ..] = items else { return (default, items) };
     if hd.is_word() {
         if hd.has_name(sym::yes) {
@@ -548,7 +548,7 @@ fn parse_opt_yes_no(items: &[NestedMetaItem], default: bool) -> (bool, &[NestedM
     }
 }
 
-fn parse_opt_reason(items: &[NestedMetaItem]) -> (Option<Symbol>, &[NestedMetaItem]) {
+fn parse_opt_reason(items: &[MetaItemInner]) -> (Option<Symbol>, &[MetaItemInner]) {
     let [hd, tl @ ..] = items else { return (None, items) };
     if let Some(value) = hd.value_str()
         && hd.has_name(sym::reason)
@@ -797,9 +797,9 @@ impl FluxAttrCFG {
         Ok(cfg)
     }
 
-    fn parse_cfg_item(&mut self, nested_item: &NestedMetaItem) -> CFGResult {
+    fn parse_cfg_item(&mut self, nested_item: &MetaItemInner) -> CFGResult {
         match nested_item {
-            NestedMetaItem::MetaItem(item) => {
+            MetaItemInner::MetaItem(item) => {
                 let name = item.name_or_empty().to_ident_string();
                 let span = item.span;
                 if !name.is_empty() {
@@ -821,7 +821,7 @@ impl FluxAttrCFG {
                 }
                 Err(errors::CFGError { span, message: "bad setting name".to_string() })
             }
-            NestedMetaItem::Lit(_) => {
+            MetaItemInner::Lit(_) => {
                 Err(errors::CFGError {
                     span: nested_item.span(),
                     message: "unsupported item".to_string(),

@@ -21,7 +21,7 @@ use rustc_hir::{
         Namespace::{self, *},
         PerNS,
     },
-    def_id::CRATE_DEF_ID,
+    def_id::{LocalDefId, CRATE_DEF_ID},
     ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
@@ -573,7 +573,7 @@ impl Segment for Ident {
 
 struct ItemResolver<'a, 'genv, 'tcx> {
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
+    opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     errors: Errors<'genv>,
 }
 
@@ -673,7 +673,7 @@ fn map_res(res: hir::def::Res<!>) -> hir::def::Res {
 }
 
 struct OpaqueTypeCollector<'sess> {
-    opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
+    opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     errors: Errors<'sess>,
 }
 
@@ -682,7 +682,7 @@ impl<'sess> OpaqueTypeCollector<'sess> {
         Self { opaque: None, errors: Errors::new(sess) }
     }
 
-    fn collect_item(sess: &'sess FluxSession, item: &hir::Item) -> Result<Option<ItemId>> {
+    fn collect_item(sess: &'sess FluxSession, item: &hir::Item) -> Result<Option<LocalDefId>> {
         let mut collector = Self::new(sess);
         hir::intravisit::walk_item(&mut collector, item);
         collector.into_result()
@@ -691,7 +691,7 @@ impl<'sess> OpaqueTypeCollector<'sess> {
     fn collect_impl_item(
         sess: &'sess FluxSession,
         impl_item: &hir::ImplItem,
-    ) -> Result<Option<ItemId>> {
+    ) -> Result<Option<LocalDefId>> {
         let mut collector = Self::new(sess);
         hir::intravisit::walk_impl_item(&mut collector, impl_item);
         collector.into_result()
@@ -700,13 +700,13 @@ impl<'sess> OpaqueTypeCollector<'sess> {
     fn collect_trait_item(
         sess: &'sess FluxSession,
         trait_item: &hir::TraitItem,
-    ) -> Result<Option<ItemId>> {
+    ) -> Result<Option<LocalDefId>> {
         let mut collector = Self::new(sess);
         hir::intravisit::walk_trait_item(&mut collector, trait_item);
         collector.into_result()
     }
 
-    fn into_result(self) -> Result<Option<ItemId>> {
+    fn into_result(self) -> Result<Option<LocalDefId>> {
         self.errors.into_result()?;
         Ok(self.opaque)
     }
@@ -714,14 +714,14 @@ impl<'sess> OpaqueTypeCollector<'sess> {
 
 impl<'tcx> hir::intravisit::Visitor<'tcx> for OpaqueTypeCollector<'_> {
     fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx>) {
-        if let hir::TyKind::OpaqueDef(item_id, ..) = ty.kind {
+        if let hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
             if self.opaque.is_some() {
                 self.errors.emit(errors::UnsupportedSignature::new(
                     ty.span,
                     "duplicate opaque types in signature",
                 ));
             } else {
-                self.opaque = Some(item_id);
+                self.opaque = Some(opaque_ty.def_id);
             }
         }
         hir::intravisit::walk_ty(self, ty);

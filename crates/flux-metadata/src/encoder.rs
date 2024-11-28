@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 
 use flux_middle::global_env::GlobalEnv;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_metadata::errors::FailCreateFileEncoder;
 use rustc_middle::{
@@ -57,7 +57,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     ecx.opaque.finish().unwrap();
 }
 
-impl<'a, 'tcx> SpanEncoder for EncodeContext<'a, 'tcx> {
+impl SpanEncoder for EncodeContext<'_, '_> {
     fn encode_crate_num(&mut self, crate_num: CrateNum) {
         if crate_num != LOCAL_CRATE && self.is_proc_macro {
             bug!("Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate");
@@ -129,7 +129,7 @@ impl<'a, 'tcx> SpanEncoder for EncodeContext<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> TyEncoder for EncodeContext<'a, 'tcx> {
+impl<'tcx> TyEncoder for EncodeContext<'_, 'tcx> {
     const CLEAR_CROSS_CRATE: bool = true;
 
     type I = TyCtxt<'tcx>;
@@ -167,7 +167,7 @@ macro_rules! encoder_methods {
     }
 }
 
-impl<'a, 'tcx> Encoder for EncodeContext<'a, 'tcx> {
+impl Encoder for EncodeContext<'_, '_> {
     encoder_methods! {
         emit_usize(usize);
         emit_u128(u128);

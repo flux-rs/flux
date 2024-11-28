@@ -8,14 +8,17 @@ use itertools::Itertools;
 use rustc_ast::Mutability;
 pub use rustc_borrowck::borrow_set::BorrowData;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
-use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
-use rustc_hir::def_id::DefId;
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
-    mir::{self},
-    ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
+    mir,
+    ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -68,6 +71,7 @@ pub struct Body<'tcx> {
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    pub dominator_order_rank: IndexVec<BasicBlock, u32>,
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
@@ -220,7 +224,7 @@ pub enum CastKind {
     FloatToInt,
     IntToFloat,
     PtrToPtr,
-    Pointer(PointerCast),
+    PointerCoercion(PointerCast),
     PointerExposeProvenance,
     PointerWithExposedProvenance,
 }
@@ -349,7 +353,7 @@ pub enum Constant {
     Opaque(Ty),
 }
 
-impl<'tcx> Terminator<'tcx> {
+impl Terminator<'_> {
     pub fn is_return(&self) -> bool {
         matches!(self.kind, TerminatorKind::Return)
     }
@@ -369,7 +373,24 @@ impl<'tcx> Body<'tcx> {
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
-        Self { basic_blocks, local_decls, infcx, fake_predecessors, body_with_facts }
+
+        // The dominator rank of each node is just its index in a reverse-postorder traversal.
+        let graph = &body_with_facts.body.basic_blocks;
+        let mut dominator_order_rank = IndexVec::from_elem_n(0, graph.num_nodes());
+        let reverse_post_order = graph::iterate::reverse_post_order(graph, graph.start_node());
+        assert_eq!(reverse_post_order.len(), graph.num_nodes());
+        for (rank, bb) in (0u32..).zip(reverse_post_order) {
+            dominator_order_rank[bb] = rank;
+        }
+
+        Self {
+            basic_blocks,
+            local_decls,
+            infcx,
+            fake_predecessors,
+            body_with_facts,
+            dominator_order_rank,
+        }
     }
 
     pub fn def_id(&self) -> DefId {
@@ -446,9 +467,12 @@ impl<'tcx> Body<'tcx> {
 /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
 pub(crate) fn replicate_infer_ctxt<'tcx>(
     tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
     body_with_facts: &BodyWithBorrowckFacts<'tcx>,
 ) -> rustc_infer::infer::InferCtxt<'tcx> {
-    let infcx = tcx.infer_ctxt().build();
+    let infcx = tcx
+        .infer_ctxt()
+        .build(TypingMode::analysis_in_body(tcx, def_id));
     for info in &body_with_facts.region_inference_context.var_infos {
         infcx.next_region_var(info.origin);
     }
@@ -522,7 +546,7 @@ impl fmt::Debug for Statement {
     }
 }
 
-impl<'tcx> fmt::Debug for CallKind<'tcx> {
+impl fmt::Debug for CallKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CallKind::FnDef { resolved_id, resolved_args, .. } => {
@@ -541,7 +565,7 @@ impl<'tcx> fmt::Debug for CallKind<'tcx> {
     }
 }
 
-impl<'tcx> fmt::Debug for Terminator<'tcx> {
+impl fmt::Debug for Terminator<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
@@ -724,7 +748,7 @@ impl fmt::Debug for CastKind {
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
             CastKind::PtrToPtr => write!(f, "PtrToPtr"),
-            CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
+            CastKind::PointerCoercion(c) => write!(f, "Pointer({c:?})"),
             CastKind::PointerExposeProvenance => write!(f, "PointerExposeProvenance"),
             CastKind::PointerWithExposedProvenance => write!(f, "PointerWithExposedProvenance"),
         }

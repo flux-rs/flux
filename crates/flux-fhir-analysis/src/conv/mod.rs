@@ -21,7 +21,7 @@ use flux_middle::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        ESpan, List, WfckResults, INNERMOST,
+        ESpan, List, RefineArgsExt, WfckResults, INNERMOST,
     },
     MaybeExternId,
 };
@@ -30,12 +30,7 @@ use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
-use rustc_hir::{
-    self as hir,
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-    OwnerId, PrimTy, Safety,
-};
+use rustc_hir::{def::DefKind, def_id::DefId, OwnerId, PrimTy, Safety};
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
@@ -297,7 +292,7 @@ pub(crate) fn conv_generics(
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
-    let mut params = {
+    let params = {
         opt_self
             .into_iter()
             .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
@@ -316,25 +311,6 @@ pub(crate) fn conv_generics(
             .collect_vec()
     };
 
-    // HACK(nilehmann) add host param for effect to std/core external specs
-    if let Some(extern_id) = def_id.as_extern() {
-        if let Some((pos, param)) = genv
-            .lower_generics_of(extern_id)
-            .params
-            .iter()
-            .find_position(|p| p.is_host_effect())
-        {
-            params.insert(
-                pos,
-                rty::GenericParamDef {
-                    kind: refining::refine_generic_param_def_kind(false, param.kind),
-                    def_id: param.def_id,
-                    index: param.index,
-                    name: param.name,
-                },
-            );
-        }
-    }
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     rty::Generics {
         own_params: List::from_vec(params),
@@ -364,7 +340,7 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
             rty::GenericParamDefKind::Base { has_default: default.is_some() }
         }
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
+        fhir::GenericParamKind::Const { .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
         }
     }
@@ -636,10 +612,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     pub(crate) fn conv_opaque_ty(
         &mut self,
-        def_id: LocalDefId,
         opaque_ty: &fhir::OpaqueTy,
     ) -> QueryResult<rty::Clauses> {
-        let parent = self.tcx().local_parent(def_id);
+        let def_id = opaque_ty.def_id;
+        let parent = self.tcx().local_parent(def_id.local_id());
         let refparams = &self
             .genv()
             .map()
@@ -649,8 +625,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let env = &mut Env::new(refparams);
 
-        let args = rty::GenericArg::identity_for_item(self.genv(), def_id)?;
-        let alias_ty = rty::AliasTy::new(def_id.into(), args, env.to_early_param_args());
+        let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
+        let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, env.to_early_param_args());
         let self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
         // FIXME(nilehmann) use a good span here
         Ok(self
@@ -891,14 +867,23 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut clauses = vec![];
         for bound in bounds {
             match bound {
-                fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) => {
-                    self.conv_poly_trait_ref(
-                        env,
-                        bounded_ty_span,
-                        &bounded_ty,
-                        poly_trait_ref,
-                        &mut clauses,
-                    )?;
+                fhir::GenericBound::Trait(poly_trait_ref) => {
+                    match poly_trait_ref.modifiers {
+                        fhir::TraitBoundModifier::None => {
+                            self.conv_poly_trait_ref(
+                                env,
+                                bounded_ty_span,
+                                &bounded_ty,
+                                poly_trait_ref,
+                                &mut clauses,
+                            )?;
+                        }
+                        fhir::TraitBoundModifier::Maybe => {
+                            // Maybe bounds are only supported for `?Sized`. The effect of the maybe
+                            // bound is to relax the default which is `Sized` to not have the `Sized`
+                            // bound, so we just skip it here.
+                        }
+                    }
                 }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft);
@@ -910,10 +895,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         )),
                     ));
                 }
-                // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
-                // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
-                // it here.
-                fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => {}
             }
         }
         Ok(clauses)
@@ -1090,9 +1071,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
-                self.conv_opaque_def(env, *item_id, lifetimes, reft_args)
-            }
+            fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
                     self.conv_trait_object(env, trait_bounds, *lft)
@@ -1108,40 +1087,39 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_opaque_def(
         &mut self,
         env: &mut Env,
-        item_id: hir::ItemId,
-        lifetimes: &[fhir::GenericArg],
-        reft_args: &[fhir::Expr],
+        opaque_ty: &fhir::OpaqueTy,
     ) -> QueryResult<rty::Ty> {
-        let def_id = item_id.owner_id.to_def_id();
-        let generics = self.genv().generics_of(def_id)?;
-        let args = rty::GenericArg::for_item(self.genv(), def_id, |param, _| {
-            if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())
-            {
-                // Resolve our own lifetime parameters.
-                let rty::GenericParamDefKind::Lifetime { .. } = param.kind else {
-                    span_bug!(
-                        self.tcx().def_span(param.def_id),
-                        "only expected lifetime for opaque's own generics, got {:?}",
-                        param.kind
-                    );
-                };
-                let fhir::GenericArg::Lifetime(lft) = &lifetimes[i] else {
-                    bug!(
-                        "expected lifetime argument for param {param:?}, found {:?}",
-                        &lifetimes[i]
-                    )
-                };
-                rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
-            } else {
-                rty::GenericArg::from_param_def(param)
-            }
-        })?;
-        let reft_args = reft_args
-            .iter()
-            .map(|arg| self.conv_expr(env, arg))
-            .try_collect()?;
-        let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
-        Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        let def_id = opaque_ty.def_id;
+
+        if P::HAS_ELABORATED_INFORMATION {
+            let lifetimes = self.tcx().opaque_captured_lifetimes(def_id.local_id());
+
+            let generics = self.tcx().generics_of(opaque_ty.def_id);
+
+            let offset = generics.parent_count;
+
+            let args = rty::GenericArg::for_item(self.genv(), def_id.resolved_id(), |param, _| {
+                if let Some(i) = (param.index as usize).checked_sub(offset) {
+                    let (lifetime, _) = lifetimes[i];
+                    rty::GenericArg::Lifetime(self.conv_resolved_lifetime(env, lifetime))
+                } else {
+                    rty::GenericArg::from_param_def(param)
+                }
+            })?;
+            let reft_args = rty::RefineArgs::identity_for_item(self.genv(), def_id.resolved_id())?;
+            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, reft_args);
+            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        } else {
+            // During sortck we need to run conv on the opaque type to collect sorts for base types
+            // in the opaque type's bounds. After sortck, we don't need to because opaque types are
+            // converted as part of `genv.item_bounds`.
+            self.conv_opaque_ty(opaque_ty)?;
+
+            // `RefineArgs::identity_for_item` uses `genv.refinement_generics_of` which in turn
+            // requires `genv.check_wf`, so we simply return all empty here to avoid the circularity
+            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), List::empty(), List::empty());
+            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        }
     }
 
     fn conv_trait_object(
@@ -1295,14 +1273,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let predicates = self
-                    .probe_type_param_bounds(param_id, assoc_ident)
-                    .predicates;
+                let predicates = self.probe_type_param_bounds(param_id, assoc_ident);
                 self.probe_single_bound_for_assoc_item(
                     || {
                         traits::transitive_bounds_that_define_assoc_item(
                             tcx,
-                            predicates.iter().filter_map(|(p, _)| {
+                            predicates.iter_identity_copied().filter_map(|(p, _)| {
                                 Some(p.as_trait_clause()?.map_bound(|t| t.trait_ref))
                             }),
                             assoc_ident,
@@ -1364,7 +1340,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &self,
         param_id: DefId,
         assoc_ident: Ident,
-    ) -> ty::GenericPredicates<'tcx> {
+    ) -> ty::EarlyBinder<'tcx, &'tcx [(ty::Clause<'tcx>, Span)]> {
         // We would like to do this computation on the resolved id for it to work with extern specs
         // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
         // fine because the worst that can happen is that we fail to infer a trait when using the
@@ -1381,7 +1357,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.tcx()
                     .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
             }
-            FluxOwnerId::Flux(_) => ty::GenericPredicates::default(),
+            FluxOwnerId::Flux(_) => ty::EarlyBinder::bind(&[]),
         }
     }
 
@@ -1414,27 +1390,31 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Lifetime::Hole(_) => return rty::Region::ReVar(self.next_region_vid()),
             fhir::Lifetime::Resolved(res) => res,
         };
+        self.conv_resolved_lifetime(env, res)
+    }
+
+    fn conv_resolved_lifetime(&mut self, env: &Env, res: ResolvedArg) -> rty::Region {
         let tcx = self.tcx();
         let lifetime_name = |def_id| tcx.item_name(def_id);
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
-                let index = self.genv().def_id_to_param_index(def_id);
-                let name = lifetime_name(def_id);
+                let index = self.genv().def_id_to_param_index(def_id.to_def_id());
+                let name = lifetime_name(def_id.to_def_id());
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
-                let name = lifetime_name(def_id);
-                let kind = rty::BoundRegionKind::BrNamed(def_id, name);
+                let name = lifetime_name(def_id.to_def_id());
+                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
-                let name = lifetime_name(id);
-                let bound_region = rty::BoundRegionKind::BrNamed(id, name);
-                rty::ReLateParam(rty::LateParamRegion { scope, bound_region })
+                let name = lifetime_name(id.to_def_id());
+                let bound_region = rty::BoundRegionKind::BrNamed(id.to_def_id(), name);
+                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), bound_region })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }

@@ -706,7 +706,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 }
 
-impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
+impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
         self.resolver_output()
             .path_res_map

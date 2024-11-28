@@ -53,8 +53,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
     let mut visitor = CollectPointerToBorrows::new(&map, stmts);
 
     PointsToAnalysis::new(&map, fn_sig)
-        .into_engine(genv.tcx(), body)
-        .iterate_to_fixpoint()
+        .iterate_to_fixpoint(genv.tcx(), body, None)
         .visit_reachable_with(body, &mut visitor);
 
     Ok(())
@@ -187,14 +186,12 @@ impl<'a> PointsToAnalysis<'a> {
     }
 }
 
-impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a> {
+impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     type Domain = State;
-
-    type Direction = rustc_mir_dataflow::Forward;
 
     const NAME: &'static str = "PointsToAnalysis";
 
-    fn bottom_value(&self, _body: &mir::Body<'tcx>) -> Self::Domain {
+    fn bottom_value(&self, _: &mir::Body<'tcx>) -> Self::Domain {
         State { values: IndexVec::from_elem_n(FlatSet::BOTTOM, self.map.value_count) }
     }
 
@@ -218,9 +215,7 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
             }
         }
     }
-}
 
-impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     fn apply_statement_effect(
         &mut self,
         state: &mut Self::Domain,
@@ -280,9 +275,9 @@ impl<'a> CollectPointerToBorrows<'a> {
 }
 
 impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
-    type FlowState = State;
+    type Domain = State;
 
-    fn visit_block_start(&mut self, state: &Self::FlowState) {
+    fn visit_block_start(&mut self, state: &Self::Domain) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
             let value = state.get_idx(*place_idx, self.map);
@@ -293,7 +288,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     fn visit_statement_after_primary_effect(
         &mut self,
         _results: &mut Results<'a, 'tcx>,
-        state: &Self::FlowState,
+        state: &Self::Domain,
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
@@ -315,7 +310,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     fn visit_terminator_after_primary_effect(
         &mut self,
         results: &mut Results<'a, 'tcx>,
-        _state: &Self::FlowState,
+        _state: &Self::Domain,
         terminator: &'mir mir::Terminator<'tcx>,
         location: mir::Location,
     ) {
@@ -608,7 +603,7 @@ impl<'a> Children<'a> {
     }
 }
 
-impl<'a> Iterator for Children<'a> {
+impl Iterator for Children<'_> {
     type Item = PlaceIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -797,7 +792,7 @@ impl State {
 }
 
 /// This is used to visualize the dataflow analysis.
-impl<'a> DebugWithContext<PointsToAnalysis<'a>> for State {
+impl DebugWithContext<PointsToAnalysis<'_>> for State {
     fn fmt_with(&self, ctxt: &PointsToAnalysis, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         debug_with_context(&self.values, None, ctxt.map, f)
     }

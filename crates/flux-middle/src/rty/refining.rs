@@ -18,7 +18,7 @@ use crate::{
     query_bug, rty,
 };
 
-pub(crate) fn refine_generics(
+pub fn refine_generics(
     genv: GlobalEnv,
     def_id: DefId,
     generics: &ty::Generics,

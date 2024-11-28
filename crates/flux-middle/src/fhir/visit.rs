@@ -2,7 +2,7 @@ use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
     GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
-    Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
+    Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
     RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
     TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
@@ -21,7 +21,7 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor<'v>: Sized {
-    fn visit_node(&mut self, node: &Node<'v>) {
+    fn visit_node(&mut self, node: &OwnerNode<'v>) {
         walk_node(self, node);
     }
 
@@ -227,7 +227,7 @@ pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>)
 
 pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<'v>) {
     match bound {
-        GenericBound::Trait(trait_ref, _) => vis.visit_poly_trait_ref(trait_ref),
+        GenericBound::Trait(trait_ref) => vis.visit_poly_trait_ref(trait_ref),
         GenericBound::Outlives(_) => {}
     }
 }
@@ -236,11 +236,11 @@ pub fn walk_poly_trait_ref<'v, V: Visitor<'v>>(vis: &mut V, trait_ref: &PolyTrai
     vis.visit_path(&trait_ref.trait_ref);
 }
 
-pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &Node<'v>) {
+pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
     match node {
-        Node::Item(item) => vis.visit_item(item),
-        Node::TraitItem(trait_item) => vis.visit_trait_item(trait_item),
-        Node::ImplItem(impl_item) => vis.visit_impl_item(impl_item),
+        OwnerNode::Item(item) => vis.visit_item(item),
+        OwnerNode::TraitItem(trait_item) => vis.visit_trait_item(trait_item),
+        OwnerNode::ImplItem(impl_item) => vis.visit_impl_item(impl_item),
     }
 }
 
@@ -255,7 +255,6 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
         }
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ItemKind::OpaqueTy(opaque_ty) => vis.visit_opaque_ty(opaque_ty),
     }
 }
 
@@ -378,9 +377,8 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::RawPtr(ty, _mtblt) => {
             vis.visit_ty(ty);
         }
-        TyKind::OpaqueDef(_item_id, generics, refine, _bool) => {
-            walk_list!(vis, visit_generic_arg, generics);
-            walk_list!(vis, visit_expr, refine);
+        TyKind::OpaqueDef(opaque_ty) => {
+            vis.visit_opaque_ty(opaque_ty);
         }
         TyKind::TraitObject(poly_traits, lft, _) => {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);

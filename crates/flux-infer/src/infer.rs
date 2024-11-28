@@ -300,7 +300,7 @@ pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub span: Span,
 }
 
-impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
+impl InferCtxtAt<'_, '_, '_, '_> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
@@ -485,7 +485,6 @@ struct Sub {
 /// remove the location from the environment, the type is always going to be overwritten.
 /// (there's a check for this btw, if you write an &strg we require an ensures for that
 /// location for the signature to be well-formed)
-
 impl Sub {
     fn new(reason: ConstrReason, span: Span) -> Self {
         Self { reason, span, obligations: vec![] }

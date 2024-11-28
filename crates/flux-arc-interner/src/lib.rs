@@ -4,7 +4,6 @@
 
 #![feature(rustc_private)]
 
-extern crate rustc_hash;
 extern crate rustc_serialize;
 extern crate rustc_target;
 

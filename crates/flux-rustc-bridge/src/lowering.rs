@@ -4,7 +4,7 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
@@ -12,10 +12,10 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, ValTree,
+        TyCtxt, TypingMode, ValTree,
     },
 };
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, DUMMY_SP};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -104,7 +104,7 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let param_env = tcx.param_env(def_id);
-    let infcx = tcx.infer_ctxt().build();
+    let infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
@@ -128,9 +128,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
+        def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = replicate_infer_ctxt(tcx, &body_with_facts);
+        let infcx = replicate_infer_ctxt(tcx, def_id, &body_with_facts);
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =
@@ -492,6 +493,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Some(crate::mir::PointerCast::ReifyFnPointer)
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
+            | rustc_adjustment::PointerCoercion::DynStar
             | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
         }
     }
@@ -501,8 +503,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
             rustc_mir::CastKind::PtrToPtr => Some(CastKind::PtrToPtr),
-            rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
-                Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
+            rustc_mir::CastKind::PointerCoercion(ptr_coercion, _) => {
+                Some(CastKind::PointerCoercion(self.lower_pointer_coercion(ptr_coercion)?))
             }
             rustc_mir::CastKind::PointerExposeProvenance => Some(CastKind::PointerExposeProvenance),
             rustc_mir::CastKind::PointerWithExposedProvenance => {
@@ -612,9 +614,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
 
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
-        let val = constant.const_.normalize(tcx, ParamEnv::empty());
+        let const_ = constant
+            .const_
+            .eval(tcx, ParamEnv::empty(), DUMMY_SP)
+            .map(|val| Const::Val(val, constant.const_.ty()))
+            .unwrap_or(constant.const_);
         let ty = constant.ty();
-        match (val, ty.kind()) {
+        match (const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
             }
@@ -1016,8 +1022,8 @@ impl<'tcx> Lower<'tcx> for &rustc_middle::ty::GenericParamDef {
                 GenericParamDefKind::Type { has_default }
             }
             rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
-            rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } => {
-                GenericParamDefKind::Const { has_default, is_host_effect }
+            rustc_ty::GenericParamDefKind::Const { has_default, .. } => {
+                GenericParamDefKind::Const { has_default }
             }
         };
         GenericParamDef { def_id: self.def_id, index: self.index, name: self.name, kind }

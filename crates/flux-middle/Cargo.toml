@@ -23,6 +23,7 @@ ena.workspace = true
 hashbrown.workspace = true
 itertools.workspace = true
 toposort-scc.workspace = true
+rustc-hash.workspace = true
 
 
 [package.metadata.rust-analyzer]

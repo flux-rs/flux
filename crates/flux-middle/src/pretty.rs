@@ -435,7 +435,7 @@ where
         Ok(())
     }
 }
-impl<'a, T> Pretty for Parens<'a, T>
+impl<T> Pretty for Parens<'_, T>
 where
     T: Pretty,
 {

@@ -84,7 +84,7 @@ pub(crate) fn check_invariants(
 
 pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    node: &fhir::Node<'genv>,
+    node: &fhir::OwnerNode<'genv>,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
     let mut wf = Wf::new(&mut infcx);
@@ -103,7 +103,7 @@ pub(crate) fn check_node<'genv>(
 }
 
 /// Check that all param sorts are fully resolved and save them in [`WfckResults`]
-fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
+fn resolve_params(infcx: &mut InferCtxt, node: &fhir::OwnerNode) -> Result {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
@@ -143,7 +143,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         }
     }
 
-    fn check_node(&mut self, node: &fhir::Node<'genv>) {
+    fn check_node(&mut self, node: &fhir::OwnerNode<'genv>) {
         self.visit_node(node);
     }
 
@@ -160,21 +160,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     }
 
     /// Initializes the inference context with all refinement parameters in `node`
-    fn insert_params_for_node(&mut self, node: &fhir::Node) -> Result {
+    fn insert_params_for_node(&mut self, node: &fhir::OwnerNode) -> Result {
         let genv = self.infcx.genv;
-        if let fhir::Node::Item(fhir::Item {
-            kind: fhir::ItemKind::OpaqueTy(..), owner_id, ..
-        }) = node
-        {
-            let parent = genv.tcx().local_parent(owner_id.local_id().def_id);
-            if let Some(generics) = genv.map().get_generics(parent).emit(&genv)? {
-                let wfckresults = genv.check_wf(parent).emit(&genv)?;
-                for param in generics.refinement_params {
-                    let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
-                    self.infcx.insert_param(param.id, sort, param.kind);
-                }
-            }
-        }
         visit_refine_params(node, |param| {
             let sort = self.as_conv_ctxt().conv_sort(&param.sort).emit(&genv)?;
             self.infcx.insert_param(param.id, sort, param.kind);
@@ -197,12 +184,12 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     /// collecting the sort of all base types.
     ///
     /// [inference context]: InferCtxt
-    fn init_infcx(&mut self, node: &fhir::Node<'genv>) -> QueryResult {
+    fn init_infcx(&mut self, node: &fhir::OwnerNode<'genv>) -> QueryResult {
         let def_id = node.owner_id().map(|id| id.def_id);
         self.insert_params_for_node(node)?;
         let cx = self.as_conv_ctxt();
         match node {
-            fhir::Node::Item(item) => {
+            fhir::OwnerNode::Item(item) => {
                 match &item.kind {
                     fhir::ItemKind::Enum(enum_def) => {
                         cx.conv_enum_variants(def_id, enum_def)?;
@@ -237,12 +224,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
-                    fhir::ItemKind::OpaqueTy(opaque_ty) => {
-                        cx.conv_opaque_ty(def_id.expect_local(), opaque_ty)?;
-                    }
                 }
             }
-            fhir::Node::TraitItem(trait_item) => {
+            fhir::OwnerNode::TraitItem(trait_item) => {
                 match trait_item.kind {
                     fhir::TraitItemKind::Fn(fn_sig) => {
                         cx.conv_fn_sig(def_id, &fn_sig)?;
@@ -251,7 +235,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                     fhir::TraitItemKind::Type => {}
                 }
             }
-            fhir::Node::ImplItem(impl_item) => {
+            fhir::OwnerNode::ImplItem(impl_item) => {
                 match impl_item.kind {
                     fhir::ImplItemKind::Fn(fn_sig) => {
                         cx.conv_fn_sig(def_id, &fn_sig)?;
@@ -406,7 +390,10 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 }
 
-fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> Result) -> Result {
+fn visit_refine_params(
+    node: &fhir::OwnerNode,
+    f: impl FnMut(&fhir::RefineParam) -> Result,
+) -> Result {
     struct RefineParamVisitor<F> {
         f: F,
         err: Option<ErrorGuaranteed>,

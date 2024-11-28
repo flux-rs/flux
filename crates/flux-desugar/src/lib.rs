@@ -4,7 +4,7 @@
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-extern crate rustc_hash;
+
 extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
@@ -16,7 +16,7 @@ use flux_common::{
     span_bug,
 };
 use flux_macros::fluent_messages;
-use rustc_data_structures::unord::{ExtendUnord, UnordMap};
+use rustc_data_structures::unord::UnordMap;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -64,8 +64,8 @@ pub fn desugar<'genv>(
                     let item = cx
                         .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
                         .desugar_item_fn(fn_spec)?;
-                    nodes.extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
-                        (def_id, fhir::Node::Item(genv.alloc(opaque_ty)))
+                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
+                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
                     }));
                     nodes.insert(def_id, fhir::Node::Item(genv.alloc(item)));
                 }
@@ -136,16 +136,9 @@ pub fn desugar<'genv>(
                         ),
                     );
                 }
-                hir::ItemKind::OpaqueTy(_) => {
-                    // Opaque types are desugared as part of the desugaring of their defining function
-                    span_bug!(item.span, "unexpected opaque type");
-                }
-                _ => {
-                    span_bug!(item.span, "unsupported item");
-                }
+                _ => span_bug!(item.span, "unsupported item"),
             }
         }
-
         rustc_hir::OwnerNode::TraitItem(trait_item) => {
             match trait_item.kind {
                 rustc_hir::TraitItemKind::Fn(..) => {
@@ -154,8 +147,8 @@ pub fn desugar<'genv>(
                     let item = cx
                         .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
                         .desugar_trait_fn(fn_spec)?;
-                    nodes.extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
-                        (def_id, fhir::Node::Item(genv.alloc(opaque_ty)))
+                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
+                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
                     }));
                     nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
@@ -178,8 +171,8 @@ pub fn desugar<'genv>(
                     let item = cx
                         .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
                         .desugar_impl_fn(fn_spec)?;
-                    nodes.extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
-                        (def_id, fhir::Node::Item(genv.alloc(opaque_ty)))
+                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
+                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
                     }));
                     nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
@@ -212,8 +205,8 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
     fn as_rust_item_ctxt<'a>(
         &'a self,
         owner_id: OwnerId,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
-    ) -> RustItemCtxt<'_, 'genv, 'tcx> {
+        opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
+    ) -> RustItemCtxt<'a, 'genv, 'tcx> {
         let owner_id = self
             .genv
             .maybe_extern_id(owner_id.def_id)
@@ -263,7 +256,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+impl CrateDesugar<'_, '_> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for item in specs.flux_items_by_parent.values().flatten() {
             match item {

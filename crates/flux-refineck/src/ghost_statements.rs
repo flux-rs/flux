@@ -181,6 +181,7 @@ impl GhostStatements {
                 Ok(())
             },
             w,
+            rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
         )
     }
 }

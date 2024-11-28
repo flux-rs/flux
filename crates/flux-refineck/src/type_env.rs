@@ -886,7 +886,7 @@ struct TypeEnvBind {
 }
 
 impl TypeEnvTrace {
-    pub fn new<'a>(env: &TypeEnv<'a>) -> Self {
+    pub fn new(env: &TypeEnv) -> Self {
         let mut bindings = vec![];
         env.bindings
             .iter()
