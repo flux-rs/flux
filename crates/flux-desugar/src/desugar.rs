@@ -634,16 +634,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         match asyncness {
             surface::Async::Yes { node_id, span } => {
                 let def_id = self.resolver_output.impl_trait_res_map[&node_id];
-                let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
-
                 // FIXME(nilehmann) since we can only pass local ids for opaque types it means we
                 // can't support extern specs with opaque types.
                 let opaque_ty = self.desugar_opaque_ty_for_async(def_id, returns)?;
                 let opaque_ty = self.insert_opaque_ty(opaque_ty);
 
-                let (args, _) = self.desugar_generic_args(res, &[])?;
-                let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
-                let kind = fhir::TyKind::OpaqueDef(opaque_ty, args, refine_args);
+                let kind = fhir::TyKind::OpaqueDef(opaque_ty);
                 Ok(fhir::Ty { kind, span })
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns)?),
@@ -894,27 +890,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     fhir_id: self.next_fhir_id(),
                 }
             })
-    }
-
-    fn implicit_params_to_args(&self, scope: NodeId) -> &'genv [fhir::Expr<'genv>] {
-        self.genv()
-            .alloc_slice_fill_iter(
-                self.resolve_implicit_params(scope)
-                    .map(|(ident, id, kind)| {
-                        let span = ident.span;
-                        let path = fhir::PathExpr {
-                            segments: self.genv().alloc_slice(&[ident]),
-                            res: ExprRes::Param(kind, id),
-                            fhir_id: self.next_fhir_id(),
-                            span: ident.span,
-                        };
-                        fhir::Expr {
-                            kind: fhir::ExprKind::Var(path, Some(kind)),
-                            fhir_id: self.next_fhir_id(),
-                            span,
-                        }
-                    }),
-            )
     }
 
     fn desugar_refine_params(
@@ -1511,7 +1486,7 @@ fn desugar_base_sort<'genv>(
     }
 }
 
-impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx> {
+impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'_, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId {
             owner: FluxOwnerId::Rust(self.owner.local_id()),
@@ -1533,16 +1508,13 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
         bounds: &[surface::TraitRef],
     ) -> Result<fhir::TyKind<'genv>> {
         let def_id = self.resolver_output().impl_trait_res_map[&node_id];
-        let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
         // FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
         // support extern specs with opaque types.
         let opaque_ty = self.desugar_opaque_ty_for_impl_trait(def_id, bounds)?;
         let opaque_ty = self.insert_opaque_ty(opaque_ty);
 
-        let (args, _) = self.desugar_generic_args(res, &[])?;
-        let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
-        Ok(fhir::TyKind::OpaqueDef(opaque_ty, args, refine_args))
+        Ok(fhir::TyKind::OpaqueDef(opaque_ty))
     }
 }
 

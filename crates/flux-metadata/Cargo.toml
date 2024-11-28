@@ -14,6 +14,7 @@ flux-middle.workspace = true
 
 derive-where.workspace = true
 itertools.workspace = true
+rustc-hash.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true

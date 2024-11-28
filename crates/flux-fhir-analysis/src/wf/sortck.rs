@@ -470,7 +470,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 }
 
-impl<'genv> InferCtxt<'genv, '_> {
+impl InferCtxt<'_, '_> {
     pub(super) fn insert_param(
         &mut self,
         id: fhir::ParamId,

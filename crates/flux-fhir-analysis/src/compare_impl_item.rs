@@ -4,6 +4,7 @@ use flux_middle::{
 };
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
+use rustc_middle::ty::TypingMode;
 use rustc_span::{def_id::DefId, ErrorGuaranteed, Symbol};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -58,7 +59,10 @@ fn check_assoc_reft(
     trait_id: DefId,
     name: Symbol,
 ) -> Result {
-    let infcx = genv.tcx().infer_ctxt().build();
+    let infcx = genv
+        .tcx()
+        .infer_ctxt()
+        .build(TypingMode::non_body_analysis());
 
     let impl_span = genv
         .map()

@@ -21,7 +21,7 @@ use flux_middle::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        ESpan, List, WfckResults, INNERMOST,
+        ESpan, List, RefineArgsExt, WfckResults, INNERMOST,
     },
     MaybeExternId,
 };
@@ -292,7 +292,7 @@ pub(crate) fn conv_generics(
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.resolved_id(), kind }
     });
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
-    let mut params = {
+    let params = {
         opt_self
             .into_iter()
             .chain(rust_generics.own_params.iter().flat_map(|rust_param| {
@@ -311,25 +311,6 @@ pub(crate) fn conv_generics(
             .collect_vec()
     };
 
-    // HACK(nilehmann) add host param for effect to std/core external specs
-    if let Some(extern_id) = def_id.as_extern() {
-        if let Some((pos, param)) = genv
-            .lower_generics_of(extern_id)
-            .params
-            .iter()
-            .find_position(|p| p.is_host_effect())
-        {
-            params.insert(
-                pos,
-                rty::GenericParamDef {
-                    kind: refining::refine_generic_param_def_kind(false, param.kind),
-                    def_id: param.def_id,
-                    index: param.index,
-                    name: param.name,
-                },
-            );
-        }
-    }
     let rust_generics = genv.tcx().generics_of(def_id.resolved_id());
     rty::Generics {
         own_params: List::from_vec(params),
@@ -359,7 +340,7 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
             rty::GenericParamDefKind::Base { has_default: default.is_some() }
         }
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
+        fhir::GenericParamKind::Const { .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
         }
     }
@@ -1090,9 +1071,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(opaque_ty, lifetimes, reft_args) => {
-                self.conv_opaque_def(env, opaque_ty, lifetimes, reft_args)
-            }
+            fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
                     self.conv_trait_object(env, trait_bounds, *lft)
@@ -1109,45 +1088,38 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         opaque_ty: &fhir::OpaqueTy,
-        lifetimes: &[fhir::GenericArg],
-        reft_args: &[fhir::Expr],
     ) -> QueryResult<rty::Ty> {
-        // During the first phase we need to run conv on the opaque type to collect sorts for base
-        // types in the bounds.
-        if !P::HAS_ELABORATED_INFORMATION {
-            self.conv_opaque_ty(opaque_ty)?;
-        }
+        let def_id = opaque_ty.def_id;
 
-        let def_id = opaque_ty.def_id.resolved_id();
-        let generics = self.genv().generics_of(def_id)?;
-        let args = rty::GenericArg::for_item(self.genv(), def_id, |param, _| {
-            if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())
-            {
-                // Resolve our own lifetime parameters.
-                let rty::GenericParamDefKind::Lifetime { .. } = param.kind else {
-                    span_bug!(
-                        self.tcx().def_span(param.def_id),
-                        "only expected lifetime for opaque's own generics, got {:?}",
-                        param.kind
-                    );
-                };
-                let fhir::GenericArg::Lifetime(lft) = &lifetimes[i] else {
-                    bug!(
-                        "expected lifetime argument for param {param:?}, found {:?}",
-                        &lifetimes[i]
-                    )
-                };
-                rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
-            } else {
-                rty::GenericArg::from_param_def(param)
-            }
-        })?;
-        let reft_args = reft_args
-            .iter()
-            .map(|arg| self.conv_expr(env, arg))
-            .try_collect()?;
-        let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
-        Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        if P::HAS_ELABORATED_INFORMATION {
+            let lifetimes = self.tcx().opaque_captured_lifetimes(def_id.local_id());
+
+            let generics = self.tcx().generics_of(opaque_ty.def_id);
+
+            let offset = generics.parent_count;
+
+            let args = rty::GenericArg::for_item(self.genv(), def_id.resolved_id(), |param, _| {
+                if let Some(i) = (param.index as usize).checked_sub(offset) {
+                    let (lifetime, _) = lifetimes[i];
+                    rty::GenericArg::Lifetime(self.conv_resolved_lifetime(env, lifetime))
+                } else {
+                    rty::GenericArg::from_param_def(param)
+                }
+            })?;
+            let reft_args = rty::RefineArgs::identity_for_item(self.genv(), def_id.resolved_id())?;
+            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, reft_args);
+            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        } else {
+            // During sortck we need to run conv on the opaque type to collect sorts for base types
+            // in the opaque type's bounds. After sortck, we don't need to because opaque types are
+            // converted as part of `genv.item_bounds`.
+            self.conv_opaque_ty(opaque_ty)?;
+
+            // `RefineArgs::identity_for_item` uses `genv.refinement_generics_of` which in turn
+            // requires `genv.check_wf`, so we simply return all empty here to avoid the circularity
+            let alias_ty = rty::AliasTy::new(def_id.resolved_id(), List::empty(), List::empty());
+            Ok(rty::BaseTy::opaque(alias_ty).to_ty())
+        }
     }
 
     fn conv_trait_object(
@@ -1418,6 +1390,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Lifetime::Hole(_) => return rty::Region::ReVar(self.next_region_vid()),
             fhir::Lifetime::Resolved(res) => res,
         };
+        self.conv_resolved_lifetime(env, res)
+    }
+
+    fn conv_resolved_lifetime(&mut self, env: &Env, res: ResolvedArg) -> rty::Region {
         let tcx = self.tcx();
         let lifetime_name = |def_id| tcx.item_name(def_id);
         match res {

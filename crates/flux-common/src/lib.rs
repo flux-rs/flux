@@ -2,7 +2,7 @@
 
 extern crate rustc_borrowck;
 extern crate rustc_errors;
-extern crate rustc_hash;
+
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_middle;

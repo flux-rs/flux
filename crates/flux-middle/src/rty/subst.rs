@@ -163,7 +163,7 @@ pub(crate) struct GenericArgsDelegate<'a, 'tcx>(
     pub(crate) TyCtxt<'tcx>,
 );
 
-impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
+impl GenericsSubstDelegate for GenericArgsDelegate<'_, '_> {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),

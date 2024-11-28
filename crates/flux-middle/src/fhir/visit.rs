@@ -377,10 +377,8 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         TyKind::RawPtr(ty, _mtblt) => {
             vis.visit_ty(ty);
         }
-        TyKind::OpaqueDef(opaque_ty, generics, refine) => {
+        TyKind::OpaqueDef(opaque_ty) => {
             vis.visit_opaque_ty(opaque_ty);
-            walk_list!(vis, visit_generic_arg, generics);
-            walk_list!(vis, visit_expr, refine);
         }
         TyKind::TraitObject(poly_traits, lft, _) => {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);

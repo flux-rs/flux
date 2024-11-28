@@ -53,8 +53,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
     let mut visitor = CollectPointerToBorrows::new(&map, stmts);
 
     PointsToAnalysis::new(&map, fn_sig)
-        .into_engine(genv.tcx(), body)
-        .iterate_to_fixpoint()
+        .iterate_to_fixpoint(genv.tcx(), body, None)
         .visit_reachable_with(body, &mut visitor);
 
     Ok(())
@@ -604,7 +603,7 @@ impl<'a> Children<'a> {
     }
 }
 
-impl<'a> Iterator for Children<'a> {
+impl Iterator for Children<'_> {
     type Item = PlaceIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -793,7 +792,7 @@ impl State {
 }
 
 /// This is used to visualize the dataflow analysis.
-impl<'a> DebugWithContext<PointsToAnalysis<'a>> for State {
+impl DebugWithContext<PointsToAnalysis<'_>> for State {
     fn fmt_with(&self, ctxt: &PointsToAnalysis, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         debug_with_context(&self.values, None, ctxt.map, f)
     }

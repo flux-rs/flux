@@ -254,7 +254,7 @@ enum PlaceNode {
     Ty(Ty),
 }
 
-impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
+impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
     fn run(mut self, fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>) -> QueryResult {
         let mut env = Env::new(self.body);
 
@@ -470,7 +470,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             discriminants: Default::default(),
             point: Point::FunEntry,
             visited: BitSet::new_empty(body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
+            queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             mode,
         }
     }

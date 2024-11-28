@@ -70,17 +70,11 @@ pub struct GenericParamDef {
     pub kind: GenericParamDefKind,
 }
 
-impl GenericParamDef {
-    pub fn is_host_effect(&self) -> bool {
-        matches!(self.kind, GenericParamDefKind::Const { is_host_effect: true, .. })
-    }
-}
-
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, TyEncodable, TyDecodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
-    Const { has_default: bool, is_host_effect: bool },
+    Const { has_default: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -867,19 +861,21 @@ impl<'tcx> ToRustc<'tcx> for ExistentialPredicate {
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
             ExistentialPredicate::Trait(trait_ref) => {
-                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
-                    def_id: trait_ref.def_id,
-                    args: trait_ref.args.to_rustc(tcx),
-                };
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef::new_from_args(
+                    tcx,
+                    trait_ref.def_id,
+                    trait_ref.args.to_rustc(tcx),
+                );
                 rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
             }
             ExistentialPredicate::Projection(projection) => {
                 rustc_middle::ty::ExistentialPredicate::Projection(
-                    rustc_middle::ty::ExistentialProjection {
-                        def_id: projection.def_id,
-                        args: projection.args.to_rustc(tcx),
-                        term: projection.term.to_rustc(tcx).into(),
-                    },
+                    rustc_middle::ty::ExistentialProjection::new_from_args(
+                        tcx,
+                        projection.def_id,
+                        projection.args.to_rustc(tcx),
+                        projection.term.to_rustc(tcx).into(),
+                    ),
                 )
             }
             ExistentialPredicate::AutoTrait(def_id) => {

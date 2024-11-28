@@ -61,9 +61,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     default: default.map(|ty| self.lift_ty(ty)).transpose()?,
                 }
             }
-            hir::GenericParamKind::Const { ty, is_host_effect, .. } => {
+            hir::GenericParamKind::Const { ty, .. } => {
                 let ty = self.lift_ty(ty)?;
-                fhir::GenericParamKind::Const { ty, is_host_effect }
+                fhir::GenericParamKind::Const { ty }
             }
         };
         Ok(fhir::GenericParam {
@@ -122,13 +122,17 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         poly_trait_ref: hir::PolyTraitRef,
     ) -> Result<fhir::PolyTraitRef<'genv>> {
         let modifiers = match poly_trait_ref.modifiers {
-            rustc_hir::TraitBoundModifier::None => fhir::TraitBoundModifier::None,
-            rustc_hir::TraitBoundModifier::Maybe => fhir::TraitBoundModifier::Maybe,
-            rustc_hir::TraitBoundModifier::Const
-            | rustc_hir::TraitBoundModifier::Negative
-            | rustc_hir::TraitBoundModifier::MaybeConst => {
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Positive,
+            } => fhir::TraitBoundModifier::None,
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Maybe(_),
+            } => fhir::TraitBoundModifier::Maybe,
+            _ => {
                 return self.emit_unsupported(&format!(
-                    "unsupported trait modifier: `{:?}`",
+                    "unsupported trait modifiers: `{:?}`",
                     poly_trait_ref.modifiers,
                 ));
             }
@@ -297,15 +301,14 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let ty = self.lift_ty(mut_ty.ty)?;
                 fhir::TyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl)
             }
-            hir::TyKind::OpaqueDef(opaque_ty, args) => {
+            hir::TyKind::OpaqueDef(opaque_ty) => {
                 let opaque_ty = self.lift_opaque_ty(opaque_ty)?;
                 let opaque_ty = self.insert_opaque_ty(opaque_ty);
-                let args = self.lift_generic_args(args)?;
-                fhir::TyKind::OpaqueDef(opaque_ty, args, &[])
+                fhir::TyKind::OpaqueDef(opaque_ty)
             }
             hir::TyKind::TraitObject(poly_traits, lft, syntax) => {
                 let poly_traits = try_alloc_slice!(self.genv, poly_traits, |poly_trait| {
-                    if poly_trait.modifiers != hir::TraitBoundModifier::None {
+                    if poly_trait.modifiers != hir::TraitBoundModifiers::NONE {
                         return self.emit_unsupported(&format!(
                             "unsupported type: `{}`",
                             rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)

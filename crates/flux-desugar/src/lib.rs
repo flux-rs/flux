@@ -4,7 +4,7 @@
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-extern crate rustc_hash;
+
 extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
@@ -256,7 +256,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+impl CrateDesugar<'_, '_> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for item in specs.flux_items_by_parent.values().flatten() {
             match item {

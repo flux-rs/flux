@@ -42,7 +42,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{sym, Span};
 
@@ -340,7 +340,10 @@ pub(crate) fn trait_impl_subtyping(
         InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args)).with_span(span)?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-        let rustc_infcx = genv.tcx().infer_ctxt().build();
+        let rustc_infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
         let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
         let tcx = genv.tcx();
@@ -348,7 +351,7 @@ pub(crate) fn trait_impl_subtyping(
         let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
         let trait_refine_args =
-            RefineArgs::identity_for_item(&genv, trait_method_id).with_span(span)?;
+            RefineArgs::identity_for_item(genv, trait_method_id).with_span(span)?;
         let impl_sig = genv.fn_sig(def_id).with_span(span)?;
         check_fn_subtyping(
             &mut infcx,
@@ -386,10 +389,11 @@ fn find_trait_item(
 /// at the call-site and then folding the pointer back into the &mut upon return.
 /// See [NOTE:Fold-Local-Pointers]
 ///
+/// ```text
 /// unpack(T) = T'
 /// ---------------------------------------[local-unfold]
 /// Γ ; &mut T => Γ, l:[<: T] T' ; ptr(l)
-
+/// ```
 fn unfold_local_ptrs(
     infcx: &mut InferCtxt,
     env: &mut TypeEnv,
@@ -417,12 +421,15 @@ fn unfold_local_ptrs(
     Ok(tys)
 }
 
-/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
-/// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &mut.
+/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the
+/// local pointers) that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back
+/// into &mut.
 ///
+/// ```text
 /// T1 <: T2
 /// --------------------- [local-fold]
 /// Γ, l:[<: T2] T1 => Γ
+/// ```
 fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
     let mut at = infcx.at(span);
     env.fold_local_ptrs(&mut at).with_span(span)?;
@@ -465,7 +472,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
+            queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
         };
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
@@ -1647,7 +1654,7 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
         params: FxHashSet<usize>,
     }
 
-    impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for Collector {
+    impl rustc_middle::ty::TypeVisitor<TyCtxt<'_>> for Collector {
         fn visit_ty(&mut self, t: rustc_middle::ty::Ty) {
             if let rustc_middle::ty::Param(param_ty) = t.kind() {
                 self.params.insert(param_ty.index as usize);

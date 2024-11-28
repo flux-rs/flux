@@ -138,7 +138,7 @@ pub struct GenericParam<'fhir> {
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Lifetime,
-    Const { ty: Ty<'fhir>, is_host_effect: bool },
+    Const { ty: Ty<'fhir> },
 }
 
 #[derive(Debug)]
@@ -301,7 +301,7 @@ pub enum FluxItem<'fhir> {
     Func(SpecFunc<'fhir>),
 }
 
-impl<'fhir> FluxItem<'fhir> {
+impl FluxItem<'_> {
     pub fn name(&self) -> Symbol {
         match self {
             FluxItem::Qualifier(qual) => qual.name,
@@ -408,7 +408,7 @@ pub struct FluxItems<'fhir> {
     pub items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 
-impl<'fhir> FluxItems<'fhir> {
+impl FluxItems<'_> {
     pub fn new() -> Self {
         Self { items: Default::default() }
     }
@@ -546,7 +546,7 @@ pub enum TyKind<'fhir> {
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
-    OpaqueDef(&'fhir OpaqueTy<'fhir>, &'fhir [GenericArg<'fhir>], &'fhir [Expr<'fhir>]),
+    OpaqueDef(&'fhir OpaqueTy<'fhir>),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -987,7 +987,7 @@ pub enum ExprKind<'fhir> {
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
 }
 
-impl<'fhir> Expr<'fhir> {
+impl Expr<'_> {
     pub fn is_colon_param(&self) -> Option<ParamId> {
         if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
             && let ExprRes::Param(kind, id) = path.res
@@ -1056,7 +1056,7 @@ newtype_index! {
     pub struct ParamId {}
 }
 
-impl<'fhir> PolyTraitRef<'fhir> {
+impl PolyTraitRef<'_> {
     pub fn trait_def_id(&self) -> DefId {
         let path = &self.trait_ref;
         if let Res::Def(DefKind::Trait, did) = path.res {
@@ -1133,7 +1133,7 @@ impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
     }
 }
 
-impl<'fhir> QPath<'fhir> {
+impl QPath<'_> {
     pub fn span(&self) -> Span {
         match self {
             QPath::Resolved(_, path) => path.span,
@@ -1212,7 +1212,7 @@ impl<'fhir> From<PolyFuncSort<'fhir>> for Sort<'fhir> {
     }
 }
 
-impl<'fhir> FuncSort<'fhir> {
+impl FuncSort<'_> {
     pub fn inputs(&self) -> &[Sort] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
@@ -1234,7 +1234,7 @@ impl rustc_errors::IntoDiagArg for Path<'_> {
     }
 }
 
-impl<'fhir> StructDef<'fhir> {
+impl StructDef<'_> {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
     }
@@ -1333,12 +1333,8 @@ impl fmt::Debug for Ty<'_> {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Infer => write!(f, "_"),
-            TyKind::OpaqueDef(opaque_ty, args, refine_args) => {
-                write!(
-                    f,
-                    "impl trait <def_id = {:?}, args = {args:?}, refine = {refine_args:?}>",
-                    opaque_ty.def_id.resolved_id(),
-                )
+            TyKind::OpaqueDef(opaque_ty) => {
+                write!(f, "impl trait <def_id = {:?}>", opaque_ty.def_id.resolved_id(),)
             }
             TyKind::TraitObject(poly_traits, _lft, _syntax) => {
                 write!(f, "dyn {poly_traits:?}")

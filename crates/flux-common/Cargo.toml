@@ -9,6 +9,8 @@ edition.workspace = true
 [dependencies]
 flux-config.workspace = true
 
+rustc-hash.workspace = true
+
 [package.metadata.rust-analyzer]
 rustc_private = true
 

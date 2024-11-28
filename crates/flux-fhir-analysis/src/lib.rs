@@ -3,7 +3,7 @@
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-extern crate rustc_hash;
+
 extern crate rustc_hir;
 extern crate rustc_infer;
 extern crate rustc_middle;

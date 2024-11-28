@@ -1,28 +1,32 @@
 use std::collections::BinaryHeap;
 
-use rustc_data_structures::graph::dominators::Dominators;
-use rustc_index::bit_set::BitSet;
+use rustc_index::{bit_set::BitSet, IndexVec};
 use rustc_middle::mir::BasicBlock;
 
 struct Item<'a> {
     bb: BasicBlock,
-    dominators: &'a Dominators<BasicBlock>,
+    dominator_order_rank: &'a IndexVec<BasicBlock, u32>,
 }
 
 pub(crate) struct WorkQueue<'a> {
     heap: BinaryHeap<Item<'a>>,
     set: BitSet<BasicBlock>,
-    dominators: &'a Dominators<BasicBlock>,
+    dominator_order_rank: &'a IndexVec<BasicBlock, u32>,
 }
 
 impl<'a> WorkQueue<'a> {
-    pub(crate) fn empty(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
-        Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
+    pub(crate) fn empty(len: usize, dominator_order_rank: &'a IndexVec<BasicBlock, u32>) -> Self {
+        Self {
+            heap: BinaryHeap::with_capacity(len),
+            set: BitSet::new_empty(len),
+            dominator_order_rank,
+        }
     }
 
     pub(crate) fn insert(&mut self, bb: BasicBlock) -> bool {
         if self.set.insert(bb) {
-            self.heap.push(Item { bb, dominators: self.dominators });
+            self.heap
+                .push(Item { bb, dominator_order_rank: self.dominator_order_rank });
             true
         } else {
             false
@@ -55,6 +59,6 @@ impl Eq for Item<'_> {}
 
 impl Ord for Item<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.dominators.cmp_in_dominator_order(other.bb, self.bb)
+        self.dominator_order_rank[other.bb].cmp(&self.dominator_order_rank[self.bb])
     }
 }

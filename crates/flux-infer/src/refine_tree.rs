@@ -804,7 +804,7 @@ impl RefineCtxtTrace {
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
-                    exprs.push(format!("{e:?}"))
+                    exprs.push(format!("{e:?}"));
                 }
                 _ => (),
             }

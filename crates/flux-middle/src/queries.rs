@@ -262,7 +262,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<Rc<mir::Body<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-            let mir = lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
+            let mir =
+                lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), def_id, mir)?;
             Ok(Rc::new(mir))
         })
     }

@@ -4,7 +4,7 @@ use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
@@ -12,7 +12,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, ValTree,
+        TyCtxt, TypingMode, ValTree,
     },
 };
 use rustc_span::{Span, Symbol, DUMMY_SP};
@@ -104,7 +104,7 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let param_env = tcx.param_env(def_id);
-    let infcx = tcx.infer_ctxt().build();
+    let infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
@@ -128,9 +128,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
+        def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = replicate_infer_ctxt(tcx, &body_with_facts);
+        let infcx = replicate_infer_ctxt(tcx, def_id, &body_with_facts);
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =
@@ -1021,8 +1022,8 @@ impl<'tcx> Lower<'tcx> for &rustc_middle::ty::GenericParamDef {
                 GenericParamDefKind::Type { has_default }
             }
             rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
-            rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } => {
-                GenericParamDefKind::Const { has_default, is_host_effect }
+            rustc_ty::GenericParamDefKind::Const { has_default, .. } => {
+                GenericParamDefKind::Const { has_default }
             }
         };
         GenericParamDef { def_id: self.def_id, index: self.index, name: self.name, kind }
