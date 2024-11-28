@@ -372,15 +372,15 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 return;
             };
 
-            if path.refine.len() != generics.params.len() {
+            if path.refine.len() != generics.own_params.len() {
                 self.errors.emit(errors::EarlyBoundArgCountMismatch::new(
                     path.span,
-                    generics.params.len(),
+                    generics.own_params.len(),
                     path.refine.len(),
                 ));
             }
 
-            for (expr, param) in iter::zip(path.refine, &generics.params) {
+            for (expr, param) in iter::zip(path.refine, &generics.own_params) {
                 self.infcx
                     .check_expr(expr, &param.sort)
                     .collect_err(&mut self.errors);

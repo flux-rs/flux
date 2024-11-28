@@ -462,7 +462,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
                     let parent = genv.tcx().generics_of(def_id).parent;
-                    Ok(rty::RefinementGenerics { parent, parent_count: 0, params: List::empty() })
+                    Ok(rty::RefinementGenerics {
+                        parent,
+                        parent_count: 0,
+                        own_params: List::empty(),
+                    })
                 },
             )
         })

@@ -11,7 +11,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
 use rustc_target::abi::VariantIdx;
 
-use super::fold::TypeFoldable;
+use super::{fold::TypeFoldable, RefineArgsExt};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -318,10 +318,15 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let def_id = alias_ty.def_id;
         let args = self.refine_generic_args(def_id, &alias_ty.args)?;
 
-        let refine_args = self.refine_refine_args_for_alias_ty(def_id, alias_kind)?;
+        let refine_args = if let ty::AliasKind::Opaque = alias_kind {
+            rty::RefineArgs::for_item(self.genv, def_id, |param, _| {
+                rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
+            })?
+        } else {
+            List::empty()
+        };
 
-        let res = rty::AliasTy::new(def_id, args, refine_args);
-        Ok(res)
+        Ok(rty::AliasTy::new(def_id, args, refine_args))
     }
 
     pub fn refine_ty(&self, ty: &ty::Ty) -> QueryResult<rty::Ty> {
@@ -416,22 +421,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     fn generics_of(&self, def_id: DefId) -> QueryResult<rty::Generics> {
         self.genv.generics_of(def_id)
-    }
-
-    fn refine_refine_args_for_alias_ty(
-        &self,
-        def_id: DefId,
-        alias_kind: ty::AliasKind,
-    ) -> QueryResult<rty::RefineArgs> {
-        if let ty::AliasKind::Opaque = alias_kind {
-            self.genv
-                .refinement_generics_of(def_id)?
-                .collect_all_params(self.genv, |param| {
-                    rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
-                })
-        } else {
-            Ok(List::empty())
-        }
     }
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {

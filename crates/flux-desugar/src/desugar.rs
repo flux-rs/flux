@@ -9,10 +9,11 @@ use flux_middle::{
     try_alloc_slice, MaybeExternId, ResolverOutput,
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, ConstructorArgs, FieldExpr, NodeId, Spread},
+    surface::{self, visit::Visitor as _, ConstructorArg, NodeId},
     walk_list,
 };
 use hir::{def::DefKind, ItemKind};
+use itertools::{Either, Itertools};
 use rustc_data_structures::fx::FxIndexSet;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
@@ -1307,20 +1308,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     self.genv().alloc(e2?),
                 )
             }
-            surface::ExprKind::Constructor(path, constructor_args) => {
-                let path = match path {
-                    Some(path) => Some(self.desugar_constructor_path(path)?),
-                    None => None,
-                };
-                let field_exprs = constructor_args
-                    .iter()
-                    .filter_map(|arg| {
-                        match arg {
-                            ConstructorArgs::FieldExpr(e) => Some(e),
-                            ConstructorArgs::Spread(_) => None,
-                        }
-                    })
-                    .collect::<Vec<&FieldExpr>>();
+            surface::ExprKind::Constructor(path, args) => {
+                let path = path
+                    .as_ref()
+                    .map(|p| self.desugar_constructor_path(p))
+                    .transpose()?;
+                let (field_exprs, spreads): (Vec<_>, Vec<_>) = args.iter().partition_map(|arg| {
+                    match arg {
+                        ConstructorArg::FieldExpr(e) => Either::Left(e),
+                        ConstructorArg::Spread(s) => Either::Right(s),
+                    }
+                });
 
                 let field_exprs = try_alloc_slice!(self.genv(), field_exprs, |field_expr| {
                     let e = self.desugar_expr(&field_expr.expr)?;
@@ -1331,16 +1329,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                         span: e.span,
                     })
                 })?;
-
-                let spreads = constructor_args
-                    .iter()
-                    .filter_map(|arg| {
-                        match arg {
-                            ConstructorArgs::FieldExpr(_) => None,
-                            ConstructorArgs::Spread(s) => Some(s),
-                        }
-                    })
-                    .collect::<Vec<&Spread>>();
 
                 let spread = match &spreads[..] {
                     [] => None,
@@ -1353,10 +1341,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                         Some(self.genv().alloc(spread))
                     }
                     [s1, s2, ..] => {
-                        // Multiple spreads found - emit an error
-                        return Err(self.emit_err(errors::MultipleSpreadsInConstructor::new(
-                            s1.span, s2.span,
-                        )));
+                        let err = errors::MultipleSpreadsInConstructor::new(s1.span, s2.span);
+                        return Err(self.emit_err(err));
                     }
                 };
                 fhir::ExprKind::Constructor(path, field_exprs, spread)

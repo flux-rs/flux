@@ -26,18 +26,12 @@ struct ExternImplItem {
     item_id: DefId,
 }
 
-impl<'mismatch_check, 'sess, 'tcx> ExternSpecCollector<'mismatch_check, 'sess, 'tcx> {
-    pub(super) fn collect(
-        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
-        body_id: BodyId,
-    ) -> Result {
+impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
+    pub(super) fn collect(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result {
         Self::new(inner, body_id)?.run()
     }
 
-    fn new(
-        inner: &'mismatch_check mut SpecCollector<'sess, 'tcx>,
-        body_id: BodyId,
-    ) -> Result<Self> {
+    fn new(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result<Self> {
         let body = inner.tcx.hir().body(body_id);
         if let hir::ExprKind::Block(block, _) = body.value.kind {
             Ok(Self { inner, block })

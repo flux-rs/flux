@@ -403,9 +403,9 @@ fn refinement_generics_of(
         }) => {
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
-            Ok(rty::RefinementGenerics { parent, parent_count, params })
+            Ok(rty::RefinementGenerics { parent, parent_count, own_params: params })
         }
-        _ => Ok(rty::RefinementGenerics { parent, parent_count, params: rty::List::empty() }),
+        _ => Ok(rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() }),
     }
 }
 

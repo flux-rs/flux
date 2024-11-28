@@ -11,8 +11,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
-        Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        Region, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::{izip, Itertools};
@@ -164,11 +164,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
     }
 
-    pub fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> InferResult<Vec<Expr>> {
-        Ok(self
-            .genv
-            .refinement_generics_of(callee_def_id)?
-            .collect_all_params(self.genv, |param| self.fresh_infer_var(&param.sort, param.mode))?)
+    pub fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> InferResult<List<Expr>> {
+        Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
+            self.fresh_infer_var(&param.sort, param.mode)
+        })?)
     }
 
     pub fn instantiate_generic_args(&mut self, args: &[GenericArg]) -> Vec<GenericArg> {

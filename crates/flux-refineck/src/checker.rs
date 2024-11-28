@@ -348,7 +348,7 @@ pub(crate) fn trait_impl_subtyping(
         let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
         let tcx = genv.tcx();
         let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-        let impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)?;
+        let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id()).with_span(span)?;
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
         let trait_refine_args =
             RefineArgs::identity_for_item(genv, trait_method_id).with_span(span)?;
@@ -782,9 +782,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .instantiate_refine_args(callee_def_id)
                     .with_span(span)?
             }
-            None => {
-                vec![]
-            }
+            None => rty::List::empty(),
         };
 
         let clauses = match callee_def_id {
