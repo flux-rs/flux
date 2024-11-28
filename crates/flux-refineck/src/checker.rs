@@ -285,7 +285,7 @@ fn check_fn_subtyping(
         infcx.check_pred(requires, reason);
     }
 
-    // 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
+    // 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
     let evars_sol = infcx.pop_scope().with_span(span)?;
     infcx.replace_evars(&evars_sol);
     let output = sub_sig
@@ -384,13 +384,13 @@ fn find_trait_item(
     Ok(None)
 }
 
-/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &mut to an &strg
-/// to allow for the call to be checked. This is done by unfolding the &mut into a local pointer
-/// at the call-site and then folding the pointer back into the &mut upon return.
-/// See [NOTE:Fold-Local-Pointers]
+/// Temporarily (around a function call) convert an `&mut` to an `&strg` to allow for the call to be
+/// checked. This is done by unfolding the `&mut` into a local pointer at the call-site and then
+/// folding the pointer back into the `&mut` upon return.
+/// See also [`fold_local_ptrs`].
 ///
 /// ```text
-/// unpack(T) = T'
+///             unpack(T) = T'
 /// ---------------------------------------[local-unfold]
 /// Γ ; &mut T => Γ, l:[<: T] T' ; ptr(l)
 /// ```
@@ -421,12 +421,11 @@ fn unfold_local_ptrs(
     Ok(tys)
 }
 
-/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the
-/// local pointers) that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back
-/// into &mut.
+/// Fold local pointers implements roughly a rule like the following (for all local pointers)
+/// that converts the local pointers created via [`unfold_local_ptrs`] back into `&mut`.
 ///
 /// ```text
-/// T1 <: T2
+///       T1 <: T2
 /// --------------------- [local-fold]
 /// Γ, l:[<: T2] T1 => Γ
 /// ```
@@ -956,8 +955,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(Guard::Pred(pred))
     }
 
-    /// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
-    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
+    /// Checks conditional branching as in a `match` statement. [`SwitchTargets`](https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See <https://github.com/flux-rs/flux/pull/840#discussion_r1786543174>
     fn check_if(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {

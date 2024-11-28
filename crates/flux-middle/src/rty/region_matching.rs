@@ -22,8 +22,9 @@ pub fn rty_match_regions(a: &rty::Ty, b: &rty::Ty) -> rty::Ty {
     subst.apply(&a)
 }
 
-/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-/// to have a unique identifier for each position such that we can infer a region substitution.
+/// Replace all non-bound regions with a [`rty::ReVar`] assigning each a unique [`rty::RegionVid`].
+/// This is used to have a unique identifier for each position such that we can infer a region
+/// substitution.
 fn replace_regions_with_unique_vars(ty: &rty::Ty) -> rty::Ty {
     struct Replacer {
         next_rvid: u32,
