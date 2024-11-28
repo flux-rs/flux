@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/ghost_statements/points_to.rs`."><title>points_to.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/ghost_statements/points_to.rs`."><title>points_to.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/ghost_statements/</div>points_to.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -850,13 +851,7 @@
 <a href="#850" id="850">850</a>
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
+<a href="#853" id="853">853</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
 //! have to be converted to borrows (`&amp;mut T`). For example, given the function
@@ -911,8 +906,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>visitor = CollectPointerToBorrows::new(<span class="kw-2">&amp;</span>map, stmts);
 
     PointsToAnalysis::new(<span class="kw-2">&amp;</span>map, fn_sig)
-        .into_engine(genv.tcx(), body)
-        .iterate_to_fixpoint()
+        .iterate_to_fixpoint(genv.tcx(), body, <span class="prelude-val">None</span>)
         .visit_reachable_with(body, <span class="kw-2">&amp;mut </span>visitor);
 
     <span class="prelude-val">Ok</span>(())
@@ -1045,14 +1039,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; rustc_mir_dataflow::AnalysisDomain&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; rustc_mir_dataflow::Analysis&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Domain = State;
-
-    <span class="kw">type </span>Direction = rustc_mir_dataflow::Forward;
 
     <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = <span class="string">"PointsToAnalysis"</span>;
 
-    <span class="kw">fn </span>bottom_value(<span class="kw-2">&amp;</span><span class="self">self</span>, _body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::Domain {
+    <span class="kw">fn </span>bottom_value(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::Domain {
         State { values: IndexVec::from_elem_n(FlatSet::BOTTOM, <span class="self">self</span>.map.value_count) }
     }
 
@@ -1076,9 +1068,7 @@
             }
         }
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; rustc_mir_dataflow::Analysis&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>apply_statement_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain,
@@ -1138,9 +1128,9 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>&gt; ResultsVisitor&lt;<span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>, Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>CollectPointerToBorrows&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span>FlowState = State;
+    <span class="kw">type </span>Domain = State;
 
-    <span class="kw">fn </span>visit_block_start(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState) {
+    <span class="kw">fn </span>visit_block_start(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: <span class="kw-2">&amp;</span><span class="self">Self</span>::Domain) {
         <span class="self">self</span>.before_state.clear();
         <span class="kw">for </span>place_idx <span class="kw">in </span><span class="self">self</span>.tracked_places.keys() {
             <span class="kw">let </span>value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
@@ -1151,7 +1141,7 @@
     <span class="kw">fn </span>visit_statement_after_primary_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;,
-        state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
+        state: <span class="kw-2">&amp;</span><span class="self">Self</span>::Domain,
         _statement: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;,
         location: mir::Location,
     ) {
@@ -1173,7 +1163,7 @@
     <span class="kw">fn </span>visit_terminator_after_primary_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;,
-        _state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
+        _state: <span class="kw-2">&amp;</span><span class="self">Self</span>::Domain,
         terminator: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
         location: mir::Location,
     ) {
@@ -1466,7 +1456,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>Children&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>Iterator <span class="kw">for </span>Children&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Item = PlaceIndex;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
@@ -1655,7 +1645,7 @@
 }
 
 <span class="doccomment">/// This is used to visualize the dataflow analysis.
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DebugWithContext&lt;PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt;&gt; <span class="kw">for </span>State {
+</span><span class="kw">impl </span>DebugWithContext&lt;PointsToAnalysis&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>State {
     <span class="kw">fn </span>fmt_with(<span class="kw-2">&amp;</span><span class="self">self</span>, ctxt: <span class="kw-2">&amp;</span>PointsToAnalysis, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
         debug_with_context(<span class="kw-2">&amp;</span><span class="self">self</span>.values, <span class="prelude-val">None</span>, ctxt.map, f)
     }

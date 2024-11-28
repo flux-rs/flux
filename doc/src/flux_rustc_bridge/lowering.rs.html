@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/lowering.rs`."><title>lowering.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/lowering.rs`."><title>lowering.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_rustc_bridge/</div>lowering.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1184,13 +1185,18 @@
 <a href="#1184" id="1184">1184</a>
 <a href="#1185" id="1185">1185</a>
 <a href="#1186" id="1186">1186</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<a href="#1187" id="1187">1187</a>
+<a href="#1188" id="1188">1188</a>
+<a href="#1189" id="1189">1189</a>
+<a href="#1190" id="1190">1190</a>
+<a href="#1191" id="1191">1191</a>
+<a href="#1192" id="1192">1192</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::BodyWithBorrowckFacts;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
-<span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_middle::{
@@ -1198,10 +1204,10 @@
     traits::{ImplSource, ObligationCause},
     ty::{
         <span class="self">self </span><span class="kw">as </span>rustc_ty, adjustment <span class="kw">as </span>rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, ValTree,
+        TyCtxt, TypingMode, ValTree,
     },
 };
-<span class="kw">use </span>rustc_span::{Span, Symbol};
+<span class="kw">use </span>rustc_span::{Span, Symbol, DUMMY_SP};
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
@@ -1290,7 +1296,7 @@
     trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>param_env = tcx.param_env(def_id);
-    <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
+    <span class="kw">let </span>infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, trait_ref)
 }
 
@@ -1314,9 +1320,10 @@
     <span class="kw">pub fn </span>lower_mir_body(
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+        def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Body&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>infcx = replicate_infer_ctxt(tcx, <span class="kw-2">&amp;</span>body_with_facts);
+        <span class="kw">let </span>infcx = replicate_infer_ctxt(tcx, def_id, <span class="kw-2">&amp;</span>body_with_facts);
         <span class="kw">let </span>param_env = tcx.param_env(body_with_facts.body.source.def_id());
         <span class="kw">let </span>selcx = SelectionContext::new(<span class="kw-2">&amp;</span>infcx);
         <span class="kw">let </span><span class="kw-2">mut </span>lower =
@@ -1678,6 +1685,7 @@
                 <span class="prelude-val">Some</span>(<span class="kw">crate</span>::mir::PointerCast::ReifyFnPointer)
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
+            | rustc_adjustment::PointerCoercion::DynStar
             | rustc_adjustment::PointerCoercion::ArrayToPointer =&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -1687,8 +1695,8 @@
             rustc_mir::CastKind::IntToFloat =&gt; <span class="prelude-val">Some</span>(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt =&gt; <span class="prelude-val">Some</span>(CastKind::FloatToInt),
             rustc_mir::CastKind::PtrToPtr =&gt; <span class="prelude-val">Some</span>(CastKind::PtrToPtr),
-            rustc_mir::CastKind::PointerCoercion(ptr_coercion) =&gt; {
-                <span class="prelude-val">Some</span>(CastKind::Pointer(<span class="self">self</span>.lower_pointer_coercion(ptr_coercion)<span class="question-mark">?</span>))
+            rustc_mir::CastKind::PointerCoercion(ptr_coercion, <span class="kw">_</span>) =&gt; {
+                <span class="prelude-val">Some</span>(CastKind::PointerCoercion(<span class="self">self</span>.lower_pointer_coercion(ptr_coercion)<span class="question-mark">?</span>))
             }
             rustc_mir::CastKind::PointerExposeProvenance =&gt; <span class="prelude-val">Some</span>(CastKind::PointerExposeProvenance),
             rustc_mir::CastKind::PointerWithExposedProvenance =&gt; {
@@ -1798,9 +1806,13 @@
 
         <span class="comment">// HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
-        </span><span class="kw">let </span>val = constant.const_.normalize(tcx, ParamEnv::empty());
+        </span><span class="kw">let </span>const_ = constant
+            .const_
+            .eval(tcx, ParamEnv::empty(), DUMMY_SP)
+            .map(|val| Const::Val(val, constant.const_.ty()))
+            .unwrap_or(constant.const_);
         <span class="kw">let </span>ty = constant.ty();
-        <span class="kw">match </span>(val, ty.kind()) {
+        <span class="kw">match </span>(const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.scalar_int_to_constant(scalar, ty)
             }
@@ -2202,8 +2214,8 @@
                 GenericParamDefKind::Type { has_default }
             }
             rustc_ty::GenericParamDefKind::Lifetime =&gt; GenericParamDefKind::Lifetime,
-            rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } =&gt; {
-                GenericParamDefKind::Const { has_default, is_host_effect }
+            rustc_ty::GenericParamDefKind::Const { has_default, .. } =&gt; {
+                GenericParamDefKind::Const { has_default }
             }
         };
         GenericParamDef { def_id: <span class="self">self</span>.def_id, index: <span class="self">self</span>.index, name: <span class="self">self</span>.name, kind }

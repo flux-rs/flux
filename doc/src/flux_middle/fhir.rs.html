@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_middle/</div>fhir.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1568,7 +1569,23 @@
 <a href="#1568" id="1568">1568</a>
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1600,7 +1617,7 @@
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    FnHeader, ItemId, OwnerId, ParamName, Safety,
+    FnHeader, OwnerId, ParamName, Safety,
 };
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -1708,7 +1725,7 @@
 </span><span class="kw">pub enum </span>GenericParamKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Type { default: <span class="prelude-ty">Option</span>&lt;Ty&lt;<span class="lifetime">'fhir</span>&gt;&gt; },
     Lifetime,
-    Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;, is_host_effect: bool },
+    Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt; },
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1724,31 +1741,58 @@
     Item(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Item&lt;<span class="lifetime">'fhir</span>&gt;),
     TraitItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>TraitItem&lt;<span class="lifetime">'fhir</span>&gt;),
     ImplItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt;),
+    OpaqueTy(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Node&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub fn </span>as_owner(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;OwnerNode&lt;<span class="lifetime">'fhir</span>&gt;&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            Node::Item(item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::Item(item)),
+            Node::TraitItem(trait_item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::TraitItem(trait_item)),
+            Node::ImplItem(impl_item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::ImplItem(impl_item)),
+            Node::OpaqueTy(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">pub fn </span>expect_opaque_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt; {
+        <span class="kw">if let </span>Node::OpaqueTy(opaque_ty) = <span class="kw-2">&amp;</span><span class="self">self </span>{
+            opaque_ty
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>)
+        }
+    }
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub enum </span>OwnerNode&lt;<span class="lifetime">'fhir</span>&gt; {
+    Item(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Item&lt;<span class="lifetime">'fhir</span>&gt;),
+    TraitItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>TraitItem&lt;<span class="lifetime">'fhir</span>&gt;),
+    ImplItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt;),
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; OwnerNode&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnSig&lt;<span class="lifetime">'fhir</span>&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
-            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
-            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
+            OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+            | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 
     <span class="kw">pub fn </span>generics(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Node::Item(item) =&gt; <span class="kw-2">&amp;</span>item.generics,
-            Node::TraitItem(trait_item) =&gt; <span class="kw-2">&amp;</span>trait_item.generics,
-            Node::ImplItem(impl_item) =&gt; <span class="kw-2">&amp;</span>impl_item.generics,
+            OwnerNode::Item(item) =&gt; <span class="kw-2">&amp;</span>item.generics,
+            OwnerNode::TraitItem(trait_item) =&gt; <span class="kw-2">&amp;</span>trait_item.generics,
+            OwnerNode::ImplItem(impl_item) =&gt; <span class="kw-2">&amp;</span>impl_item.generics,
         }
     }
 
     <span class="kw">pub fn </span>owner_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MaybeExternId&lt;OwnerId&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Node::Item(item) =&gt; item.owner_id,
-            Node::TraitItem(trait_item) =&gt; trait_item.owner_id,
-            Node::ImplItem(impl_item) =&gt; impl_item.owner_id,
+            OwnerNode::Item(item) =&gt; item.owner_id,
+            OwnerNode::TraitItem(trait_item) =&gt; trait_item.owner_id,
+            OwnerNode::ImplItem(impl_item) =&gt; impl_item.owner_id,
         }
     }
 }
@@ -1785,14 +1829,6 @@
         }
     }
 
-    <span class="kw">pub fn </span>expect_opaque_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>ItemKind::OpaqueTy(opaque_ty) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            opaque_ty
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>)
-        }
-    }
-
     <span class="kw">pub fn </span>expect_impl(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Impl&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="kw">if let </span>ItemKind::Impl(impl_) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             impl_
@@ -1818,7 +1854,6 @@
     Trait(Trait&lt;<span class="lifetime">'fhir</span>&gt;),
     Impl(Impl&lt;<span class="lifetime">'fhir</span>&gt;),
     Fn(FnSig&lt;<span class="lifetime">'fhir</span>&gt;),
-    OpaqueTy(OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1853,7 +1888,7 @@
     Func(SpecFunc&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; FluxItem&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>FluxItem&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Symbol {
         <span class="kw">match </span><span class="self">self </span>{
             FluxItem::Qualifier(qual) =&gt; qual.name,
@@ -1881,13 +1916,14 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub enum </span>GenericBound&lt;<span class="lifetime">'fhir</span>&gt; {
-    Trait(PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;, TraitBoundModifier),
+    Trait(PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;),
     Outlives(Lifetime),
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>bound_generic_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericParam&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>modifiers: TraitBoundModifier,
     <span class="kw">pub </span>trait_ref: Path&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>span: Span,
 }
@@ -1944,6 +1980,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>def_id: MaybeExternId,
     <span class="kw">pub </span>bounds: GenericBounds&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -1958,7 +1995,7 @@
     <span class="kw">pub </span>items: FxHashMap&lt;Symbol, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; FluxItems&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>FluxItems&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ items: Default::default() }
     }
@@ -2096,7 +2133,7 @@
     Tuple(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;]),
     Array(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, ConstArg),
     RawPtr(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, Mutability),
-    OpaqueDef(ItemId, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;], bool),
+    OpaqueDef(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt;),
     TraitObject(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -2537,7 +2574,7 @@
     Constructor(<span class="prelude-ty">Option</span>&lt;PathExpr&lt;<span class="lifetime">'fhir</span>&gt;&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Expr&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>Expr&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>is_colon_param(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ParamId&gt; {
         <span class="kw">if let </span>ExprKind::Var(path, <span class="prelude-val">Some</span>(ParamKind::Colon)) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind
             &amp;&amp; <span class="kw">let </span>ExprRes::Param(kind, id) = path.res
@@ -2606,7 +2643,7 @@
     </span><span class="kw">pub struct </span>ParamId {}
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>PolyTraitRef&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>trait_def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
         <span class="kw">let </span>path = <span class="kw-2">&amp;</span><span class="self">self</span>.trait_ref;
         <span class="kw">if let </span>Res::Def(DefKind::Trait, did) = path.res {
@@ -2683,7 +2720,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; QPath&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>QPath&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {
         <span class="kw">match </span><span class="self">self </span>{
             QPath::Resolved(<span class="kw">_</span>, path) =&gt; path.span,
@@ -2762,7 +2799,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; FuncSort&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>FuncSort&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>inputs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Sort] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inputs_and_output[..<span class="self">self</span>.inputs_and_output.len() - <span class="number">1</span>]
     }
@@ -2784,7 +2821,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; StructDef&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="kw">impl </span>StructDef&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>is_opaque(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind, StructKind::Opaque)
     }
@@ -2883,11 +2920,8 @@
             TyKind::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">write!</span>(f, <span class="string">"*const {ty:?}"</span>),
             TyKind::RawPtr(ty, Mutability::Mut) =&gt; <span class="macro">write!</span>(f, <span class="string">"*mut {ty:?}"</span>),
             TyKind::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
-            TyKind::OpaqueDef(def_id, args, refine_args, <span class="kw">_</span>) =&gt; {
-                <span class="macro">write!</span>(
-                    f,
-                    <span class="string">"impl trait &lt;def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}&gt;"
-                </span>)
+            TyKind::OpaqueDef(opaque_ty) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"impl trait &lt;def_id = {:?}&gt;"</span>, opaque_ty.def_id.resolved_id(),)
             }
             TyKind::TraitObject(poly_traits, _lft, _syntax) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"dyn {poly_traits:?}"</span>)

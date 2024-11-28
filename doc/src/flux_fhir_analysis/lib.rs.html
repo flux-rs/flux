@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -595,12 +596,34 @@
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
-</pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
-<span class="kw">extern crate </span>rustc_hash;
+
 <span class="kw">extern crate </span>rustc_hir;
 <span class="kw">extern crate </span>rustc_infer;
 <span class="kw">extern crate </span>rustc_middle;
@@ -625,7 +648,12 @@
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
-    rty::{<span class="self">self</span>, fold::TypeFoldable, refining::Refiner, WfckResults},
+    rty::{
+        <span class="self">self</span>,
+        fold::TypeFoldable,
+        refining::{<span class="self">self</span>, Refiner},
+        WfckResults,
+    },
     MaybeExternId,
 };
 <span class="kw">use </span>flux_rustc_bridge::lowering::Lower;
@@ -752,16 +780,37 @@
     def_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(def_id.local_id())<span class="question-mark">? </span>{
-        <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-        AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-            .into_conv_ctxt()
-            .conv_generic_predicates(def_id, generics)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates {
-            parent: genv.tcx().predicates_of(def_id).parent,
-            predicates: rty::List::empty(),
-        }))
+    <span class="kw">match </span>genv.def_kind(def_id) {
+        DefKind::Impl { .. }
+        | DefKind::Struct
+        | DefKind::Enum
+        | DefKind::Union
+        | DefKind::TyAlias { .. }
+        | DefKind::AssocFn
+        | DefKind::AssocTy
+        | DefKind::Trait
+        | DefKind::Fn =&gt; {
+            <span class="kw">let </span>generics = genv
+                .map()
+                .get_generics(def_id.local_id())<span class="question-mark">?
+                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+            AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+                .into_conv_ctxt()
+                .conv_generic_predicates(def_id, generics)
+        }
+        DefKind::OpaqueTy | DefKind::Closure =&gt; {
+            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates {
+                parent: genv.tcx().predicates_of(def_id).parent,
+                predicates: rty::List::empty(),
+            }))
+        }
+        kind =&gt; {
+            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                def_id.local_id(),
+                <span class="string">"predicates_of called on `{def_id:?}` with kind `{kind:?}`"
+            </span>))<span class="question-mark">?
+        </span>}
     }
 }
 
@@ -901,16 +950,15 @@
     }
 }
 
-<span class="kw">fn </span>item_bounds(
-    genv: GlobalEnv,
-    local_id: LocalDefId,
-) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
-    <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>opaque_ty = genv.map().expect_item(local_id)<span class="question-mark">?</span>.expect_opaque_ty();
+<span class="kw">fn </span>item_bounds(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
+    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id.local_id());
+    <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
+    <span class="kw">let </span>opaque_ty = genv.map().node(def_id.local_id())<span class="question-mark">?</span>.expect_opaque_ty();
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(
         AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
             .into_conv_ctxt()
-            .conv_opaque_ty(local_id, opaque_ty)<span class="question-mark">?</span>,
+            .conv_opaque_ty(opaque_ty)<span class="question-mark">?</span>,
     ))
 }
 
@@ -924,7 +972,6 @@
         | DefKind::Enum
         | DefKind::Union
         | DefKind::TyAlias { .. }
-        | DefKind::OpaqueTy
         | DefKind::AssocFn
         | DefKind::AssocTy
         | DefKind::Trait
@@ -936,15 +983,10 @@
                 </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::Closure =&gt; {
-            <span class="kw">let </span>rustc_generics = genv.tcx().generics_of(def_id.local_id());
-            rty::Generics {
-                own_params: rty::List::empty(),
-                parent: rustc_generics.parent,
-                parent_count: rustc_generics.parent_count,
-                has_self: rustc_generics.has_self,
-            }
-        }
+        DefKind::OpaqueTy | DefKind::Closure =&gt; {
+            <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id);
+            refining::refine_generics(genv, def_id.resolved_id(), <span class="kw-2">&amp;</span>rustc_generics)<span class="question-mark">?
+        </span>}
         kind =&gt; {
             <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
                 def_id.local_id(),
@@ -1096,7 +1138,11 @@
 
 <span class="kw">fn </span>fn_sig(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-    <span class="kw">let </span>fhir_fn_sig = genv.desugar(def_id.local_id())<span class="question-mark">?</span>.fn_sig().unwrap();
+    <span class="kw">let </span>fhir_fn_sig = genv
+        .map()
+        .expect_owner_node(def_id.local_id())<span class="question-mark">?
+        </span>.fn_sig()
+        .unwrap();
     <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
         .into_conv_ctxt()
@@ -1119,7 +1165,7 @@
 }
 
 <span class="kw">fn </span>check_wf(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
-    <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>node = genv.map().expect_owner_node(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }

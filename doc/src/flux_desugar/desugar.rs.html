@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/</div>desugar.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1538,40 +1539,7 @@
 <a href="#1538" id="1538">1538</a>
 <a href="#1539" id="1539">1539</a>
 <a href="#1540" id="1540">1540</a>
-<a href="#1541" id="1541">1541</a>
-<a href="#1542" id="1542">1542</a>
-<a href="#1543" id="1543">1543</a>
-<a href="#1544" id="1544">1544</a>
-<a href="#1545" id="1545">1545</a>
-<a href="#1546" id="1546">1546</a>
-<a href="#1547" id="1547">1547</a>
-<a href="#1548" id="1548">1548</a>
-<a href="#1549" id="1549">1549</a>
-<a href="#1550" id="1550">1550</a>
-<a href="#1551" id="1551">1551</a>
-<a href="#1552" id="1552">1552</a>
-<a href="#1553" id="1553">1553</a>
-<a href="#1554" id="1554">1554</a>
-<a href="#1555" id="1555">1555</a>
-<a href="#1556" id="1556">1556</a>
-<a href="#1557" id="1557">1557</a>
-<a href="#1558" id="1558">1558</a>
-<a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1541" id="1541">1541</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1586,7 +1554,7 @@
     walk_list,
 };
 <span class="kw">use </span>hir::{def::DefKind, ItemKind};
-<span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+<span class="kw">use </span>rustc_data_structures::fx::FxIndexSet;
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, OwnerId};
@@ -1677,7 +1645,7 @@
     owner: MaybeExternId&lt;OwnerId&gt;,
     fn_sig_scope: <span class="prelude-ty">Option</span>&lt;NodeId&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
 }
 
 <span class="kw">struct </span>FluxItemCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1692,7 +1660,7 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner: MaybeExternId&lt;OwnerId&gt;,
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
-        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         RustItemCtxt {
             genv,
@@ -1702,13 +1670,6 @@
             resolver_output,
             opaque_tys,
         }
-    }
-
-    <span class="kw">fn </span>with_new_owner&lt;<span class="lifetime">'b</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="kw-2">mut </span><span class="self">self</span>,
-        owner: MaybeExternId&lt;OwnerId&gt;,
-    ) -&gt; RustItemCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        RustItemCtxt::new(<span class="self">self</span>.genv, owner, <span class="self">self</span>.resolver_output, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">fn </span>as_lift_cx&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="kw-2">mut </span><span class="self">self</span>) -&gt; LiftCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1821,10 +1782,7 @@
         bounds: <span class="kw-2">&amp;</span>[surface::TraitRef],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericBounds&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, bounds, |bound| {
-            <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                <span class="self">self</span>.desugar_trait_ref(bound)<span class="question-mark">?</span>,
-                fhir::TraitBoundModifier::None,
-            ))
+            <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(<span class="self">self</span>.desugar_trait_ref(bound)<span class="question-mark">?</span>))
         })
     }
 
@@ -1836,7 +1794,12 @@
             <span class="macro">span_bug!</span>(trait_ref.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
         };
         <span class="kw">let </span>span = path.span;
-        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref: path, span })
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
+            bound_generic_params: <span class="kw-2">&amp;</span>[],
+            modifiers: fhir::TraitBoundModifier::None,
+            trait_ref: path,
+            span,
+        })
     }
 
     <span class="kw">fn </span>desugar_refined_by(
@@ -2211,21 +2174,13 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span>asyncness {
             surface::Async::Yes { node_id, span } =&gt; {
-                <span class="kw">let </span>item_id = <span class="self">self</span>.resolver_output.impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
-                <span class="kw">let </span>def_id = item_id.owner_id.def_id;
-                <span class="kw">let </span>res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
-
+                <span class="kw">let </span>def_id = <span class="self">self</span>.resolver_output.impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
                 <span class="comment">// FIXME(nilehmann) since we can only pass local ids for opaque types it means we
                 // can't support extern specs with opaque types.
-                </span><span class="kw">let </span>opaque_ty = <span class="self">self
-                    </span>.with_new_owner(MaybeExternId::Local(item_id.owner_id))
-                    .desugar_opaque_ty_for_async(returns)<span class="question-mark">?</span>;
-                <span class="self">self</span>.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
+                </span><span class="kw">let </span>opaque_ty = <span class="self">self</span>.desugar_opaque_ty_for_async(def_id, returns)<span class="question-mark">?</span>;
+                <span class="kw">let </span>opaque_ty = <span class="self">self</span>.insert_opaque_ty(opaque_ty);
 
-                <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
-                <span class="kw">let </span>item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                <span class="kw">let </span>refine_args = <span class="self">self</span>.implicit_params_to_args(<span class="self">self</span>.fn_sig_scope.unwrap());
-                <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>);
+                <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(opaque_ty);
                 <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
             surface::Async::No =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.desugar_fn_ret_ty(returns)<span class="question-mark">?</span>),
@@ -2234,11 +2189,10 @@
 
     <span class="kw">fn </span>desugar_opaque_ty_for_async(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        def_id: LocalDefId,
         returns: <span class="kw-2">&amp;</span>surface::FnRetTy,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>output = <span class="self">self</span>.desugar_fn_ret_ty(returns)<span class="question-mark">?</span>;
-        <span class="comment">// Does this opaque type have any generics?
-        </span><span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = <span class="self">self</span>.make_lang_item_path(
             hir::LangItem::Future,
             DUMMY_SP,
@@ -2248,13 +2202,17 @@
                 kind: fhir::AssocItemConstraintKind::Equality { term: output },
             }]),
         );
-        <span class="kw">let </span>bound = fhir::GenericBound::Trait(
-            fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref, span: trait_ref.span },
-            fhir::TraitBoundModifier::None,
-        );
-        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { bounds: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[bound]) };
-
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: <span class="self">self</span>.owner })
+        <span class="kw">let </span>bound = fhir::GenericBound::Trait(fhir::PolyTraitRef {
+            bound_generic_params: <span class="kw-2">&amp;</span>[],
+            modifiers: fhir::TraitBoundModifier::None,
+            trait_ref,
+            span: trait_ref.span,
+        });
+        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy {
+            def_id: MaybeExternId::Local(def_id),
+            bounds: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[bound]),
+        };
+        <span class="prelude-val">Ok</span>(opaque_ty)
     }
 
     <span class="kw">fn </span>make_lang_item_path(
@@ -2292,12 +2250,12 @@
 
     <span class="kw">fn </span>desugar_opaque_ty_for_impl_trait(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        def_id: LocalDefId,
         bounds: <span class="kw-2">&amp;</span>[surface::TraitRef],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>bounds = <span class="self">self</span>.desugar_generic_bounds(bounds)<span class="question-mark">?</span>;
-        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { bounds };
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: <span class="self">self</span>.owner })
+        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { def_id: MaybeExternId::Local(def_id), bounds };
+        <span class="prelude-val">Ok</span>(opaque_ty)
     }
 
     <span class="kw">fn </span>desugar_variant_ret(
@@ -2345,11 +2303,16 @@
         <span class="prelude-val">Some</span>(resolved_id)
     }
 
-    <span class="kw">fn </span>insert_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, opaque_ty: fhir::Item&lt;<span class="lifetime">'genv</span>&gt;) {
+    <span class="kw">fn </span>insert_opaque_ty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        opaque_ty: fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>opaque_ty = <span class="self">self</span>.genv.alloc(opaque_ty);
         <span class="self">self</span>.opaque_tys
             .as_mut()
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"`impl Trait` not supported in this item {def_id:?}"</span>))
-            .insert(def_id, opaque_ty);
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"`impl Trait` not supported in this item `{:?}`"</span>, <span class="self">self</span>.owner))
+            .push(opaque_ty);
+        opaque_ty
     }
 
     <span class="attr">#[track_caller]
@@ -2468,27 +2431,6 @@
                     fhir_id: <span class="self">self</span>.next_fhir_id(),
                 }
             })
-    }
-
-    <span class="kw">fn </span>implicit_params_to_args(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: NodeId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;] {
-        <span class="self">self</span>.genv()
-            .alloc_slice_fill_iter(
-                <span class="self">self</span>.resolve_implicit_params(scope)
-                    .map(|(ident, id, kind)| {
-                        <span class="kw">let </span>span = ident.span;
-                        <span class="kw">let </span>path = fhir::PathExpr {
-                            segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[ident]),
-                            res: ExprRes::Param(kind, id),
-                            fhir_id: <span class="self">self</span>.next_fhir_id(),
-                            span: ident.span,
-                        };
-                        fhir::Expr {
-                            kind: fhir::ExprKind::Var(path, <span class="prelude-val">Some</span>(kind)),
-                            fhir_id: <span class="self">self</span>.next_fhir_id(),
-                            span,
-                        }
-                    }),
-            )
     }
 
     <span class="kw">fn </span>desugar_refine_params(
@@ -3085,7 +3027,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; DesugarCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>RustItemCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; DesugarCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>RustItemCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>next_fhir_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FhirId {
         FhirId {
             owner: FluxOwnerId::Rust(<span class="self">self</span>.owner.local_id()),
@@ -3106,20 +3048,14 @@
         node_id: NodeId,
         bounds: <span class="kw-2">&amp;</span>[surface::TraitRef],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyKind&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>item_id = <span class="self">self</span>.resolver_output().impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
-        <span class="kw">let </span>def_id = item_id.owner_id.def_id;
-        <span class="kw">let </span>res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
+        <span class="kw">let </span>def_id = <span class="self">self</span>.resolver_output().impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
 
         <span class="comment">// FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
         // support extern specs with opaque types.
-        </span><span class="kw">let </span>opaque_ty = <span class="self">self
-            </span>.with_new_owner(MaybeExternId::Local(item_id.owner_id))
-            .desugar_opaque_ty_for_impl_trait(bounds)<span class="question-mark">?</span>;
-        <span class="self">self</span>.insert_opaque_ty(def_id, opaque_ty);
+        </span><span class="kw">let </span>opaque_ty = <span class="self">self</span>.desugar_opaque_ty_for_impl_trait(def_id, bounds)<span class="question-mark">?</span>;
+        <span class="kw">let </span>opaque_ty = <span class="self">self</span>.insert_opaque_ty(opaque_ty);
 
-        <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
-        <span class="kw">let </span>refine_args = <span class="self">self</span>.implicit_params_to_args(<span class="self">self</span>.fn_sig_scope.unwrap());
-        <span class="prelude-val">Ok</span>(fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>))
+        <span class="prelude-val">Ok</span>(fhir::TyKind::OpaqueDef(opaque_ty))
     }
 }
 

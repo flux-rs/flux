@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_middle/fhir/</div>lift.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -537,20 +538,12 @@
 <a href="#537" id="537">537</a>
 <a href="#538" id="538">538</a>
 <a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
+<a href="#540" id="540">540</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
-<span class="kw">use </span>hir::OwnerId;
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
-<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, def_id::LocalDefId, FnHeader};
+<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, def_id::LocalDefId, FnHeader, OwnerId};
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use super</span>::{FhirId, FluxOwnerId};
@@ -564,7 +557,7 @@
 
 <span class="kw">pub struct </span>LiftCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: MaybeExternId&lt;OwnerId&gt;,
 }
@@ -574,17 +567,9 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner: MaybeExternId&lt;OwnerId&gt;,
         local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
-        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, opaque_tys, local_id_gen, owner }
-    }
-
-    <span class="kw">fn </span>with_new_owner&lt;<span class="lifetime">'b</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="kw-2">mut </span><span class="self">self</span>,
-        owner: MaybeExternId&lt;OwnerId&gt;,
-        local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">'b </span>IndexGen&lt;fhir::ItemLocalId&gt;,
-    ) -&gt; LiftCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        LiftCtxt::new(<span class="self">self</span>.genv, owner, local_id_gen, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">pub fn </span>lift_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -616,9 +601,9 @@
                     default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)).transpose()<span class="question-mark">?</span>,
                 }
             }
-            hir::GenericParamKind::Const { ty, is_host_effect, .. } =&gt; {
+            hir::GenericParamKind::Const { ty, .. } =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
-                fhir::GenericParamKind::Const { ty, is_host_effect }
+                fhir::GenericParamKind::Const { ty }
             }
         };
         <span class="prelude-val">Ok</span>(fhir::GenericParam {
@@ -661,17 +646,8 @@
         bound: <span class="kw-2">&amp;</span>hir::GenericBound,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericBound&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span>bound {
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) =&gt; {
-                <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                    <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>,
-                    fhir::TraitBoundModifier::None,
-                ))
-            }
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) =&gt; {
-                <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                    <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>,
-                    fhir::TraitBoundModifier::Maybe,
-                ))
+            hir::GenericBound::Trait(poly_trait_ref) =&gt; {
+                <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(<span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>))
             }
             hir::GenericBound::Outlives(lft) =&gt; {
                 <span class="kw">let </span>lft = <span class="self">self</span>.lift_lifetime(lft)<span class="question-mark">?</span>;
@@ -685,26 +661,40 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         poly_trait_ref: hir::PolyTraitRef,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyTraitRef&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">let </span>modifiers = <span class="kw">match </span>poly_trait_ref.modifiers {
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Positive,
+            } =&gt; fhir::TraitBoundModifier::None,
+            rustc_hir::TraitBoundModifiers {
+                constness: rustc_hir::BoundConstness::Never,
+                polarity: rustc_hir::BoundPolarity::Maybe(<span class="kw">_</span>),
+            } =&gt; fhir::TraitBoundModifier::Maybe,
+            <span class="kw">_ </span>=&gt; {
+                <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                    <span class="string">"unsupported trait modifiers: `{:?}`"</span>,
+                    poly_trait_ref.modifiers,
+                ));
+            }
+        };
         <span class="kw">let </span>bound_generic_params =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>poly_trait_ref.bound_generic_params, |param| {
                 <span class="self">self</span>.lift_generic_param(param)
             })<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
+            bound_generic_params,
+            modifiers,
+            trait_ref,
+            span: poly_trait_ref.span,
+        })
     }
 
-    <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>hir::ItemKind::OpaqueTy(opaque_ty) = <span class="self">self</span>.genv.hir().expect_item(<span class="self">self</span>.local_id()).kind
-        <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>)
-        };
-
-        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics()<span class="question-mark">?</span>;
+    <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opaque_ty: <span class="kw-2">&amp;</span>hir::OpaqueTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>bounds =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>opaque_ty.bounds, |bound| <span class="self">self</span>.lift_generic_bound(bound))<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>opaque_ty = fhir::OpaqueTy { bounds };
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: <span class="self">self</span>.owner })
+        <span class="prelude-val">Ok</span>(fhir::OpaqueTy { def_id: MaybeExternId::Local(opaque_ty.def_id), bounds })
     }
 
     <span class="kw">pub fn </span>lift_fn_header(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FnHeader {
@@ -851,26 +841,21 @@
                 <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(mut_ty.ty)<span class="question-mark">?</span>;
                 fhir::TyKind::RawPtr(<span class="self">self</span>.genv.alloc(ty), mut_ty.mutbl)
             }
-            hir::TyKind::OpaqueDef(item_id, args, in_trait_def) =&gt; {
-                <span class="kw">let </span>opaque_ty = <span class="self">self
-                    </span>.with_new_owner(MaybeExternId::Local(item_id.owner_id), <span class="kw-2">&amp;</span>IndexGen::new())
-                    .lift_opaque_ty()<span class="question-mark">?</span>;
-                <span class="self">self</span>.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
-
-                <span class="kw">let </span>args = <span class="self">self</span>.lift_generic_args(args)<span class="question-mark">?</span>;
-                fhir::TyKind::OpaqueDef(item_id, args, <span class="kw-2">&amp;</span>[], in_trait_def)
+            hir::TyKind::OpaqueDef(opaque_ty) =&gt; {
+                <span class="kw">let </span>opaque_ty = <span class="self">self</span>.lift_opaque_ty(opaque_ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>opaque_ty = <span class="self">self</span>.insert_opaque_ty(opaque_ty);
+                fhir::TyKind::OpaqueDef(opaque_ty)
             }
             hir::TyKind::TraitObject(poly_traits, lft, syntax) =&gt; {
-                <span class="kw">let </span>poly_traits =
-                    <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, poly_traits, |(poly_trait, modifier)| {
-                        <span class="kw">if </span><span class="kw-2">*</span>modifier != hir::TraitBoundModifier::None {
-                            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                                <span class="string">"unsupported type: `{}`"</span>,
-                                rustc_hir_pretty::ty_to_string(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.tcx(), ty)
-                            ));
-                        }
-                        <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait)
-                    })<span class="question-mark">?</span>;
+                <span class="kw">let </span>poly_traits = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, poly_traits, |poly_trait| {
+                    <span class="kw">if </span>poly_trait.modifiers != hir::TraitBoundModifiers::NONE {
+                        <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                            <span class="string">"unsupported type: `{}`"</span>,
+                            rustc_hir_pretty::ty_to_string(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.tcx(), ty)
+                        ));
+                    }
+                    <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait)
+                })<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>lft = <span class="self">self</span>.lift_lifetime(lft)<span class="question-mark">?</span>;
                 fhir::TyKind::TraitObject(poly_traits, lft, syntax)
@@ -1028,11 +1013,16 @@
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
-    <span class="kw">fn </span>insert_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, opaque_ty: fhir::Item&lt;<span class="lifetime">'genv</span>&gt;) {
+    <span class="kw">fn </span>insert_opaque_ty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        opaque_ty: fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>opaque_ty = <span class="self">self</span>.genv.alloc(opaque_ty);
         <span class="self">self</span>.opaque_tys
             .as_mut()
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"`impl Trait` not supported in this item {def_id:?}"</span>))
-            .insert(def_id, opaque_ty);
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"`impl Trait` not supported in this item `{:?}`"</span>, <span class="self">self</span>.owner))
+            .push(opaque_ty);
+        opaque_ty
     }
 
     <span class="attr">#[track_caller]

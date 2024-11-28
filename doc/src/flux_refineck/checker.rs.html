@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b25d77b18a16a9a4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (636d7ff91 2024-08-19)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-cb0df477c2d67d00.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/</div>checker.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2019,7 +2020,13 @@
 <a href="#2019" id="2019">2019</a>
 <a href="#2020" id="2020">2020</a>
 <a href="#2021" id="2021">2021</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#2022" id="2022">2022</a>
+<a href="#2023" id="2023">2023</a>
+<a href="#2024" id="2024">2024</a>
+<a href="#2025" id="2025">2025</a>
+<a href="#2026" id="2026">2026</a>
+<a href="#2027" id="2027">2027</a>
+<a href="#2028" id="2028">2028</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2063,7 +2070,7 @@
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>},
+    ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>, TypingMode},
 };
 <span class="kw">use </span>rustc_span::{sym, Span};
 
@@ -2361,7 +2368,10 @@
         InferCtxtRoot::new(genv, trait_method_id, kvars, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>trait_ref.args)).with_span(span)<span class="question-mark">?</span>;
 
     <span class="macro">dbg::refine_mode_span!</span>(genv.tcx(), def_id, bb_envs).in_scope(|| {
-        <span class="kw">let </span>rustc_infcx = genv.tcx().infer_ctxt().build();
+        <span class="kw">let </span>rustc_infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(trait_method_id, <span class="kw-2">&amp;</span>rustc_infcx);
         <span class="kw">let </span>trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>tcx = genv.tcx();
@@ -2369,7 +2379,7 @@
         <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>trait_ref.args);
         <span class="kw">let </span>trait_refine_args =
-            RefineArgs::identity_for_item(<span class="kw-2">&amp;</span>genv, trait_method_id).with_span(span)<span class="question-mark">?</span>;
+            RefineArgs::identity_for_item(genv, trait_method_id).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>impl_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
         check_fn_subtyping(
             <span class="kw-2">&amp;mut </span>infcx,
@@ -2407,10 +2417,11 @@
 /// at the call-site and then folding the pointer back into the &amp;mut upon return.
 /// See [NOTE:Fold-Local-Pointers]
 ///
+/// ```text
 /// unpack(T) = T'
 /// ---------------------------------------[local-unfold]
 /// Γ ; &amp;mut T =&gt; Γ, l:[&lt;: T] T' ; ptr(l)
-
+/// ```
 </span><span class="kw">fn </span>unfold_local_ptrs(
     infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     env: <span class="kw-2">&amp;mut </span>TypeEnv,
@@ -2438,12 +2449,15 @@
     <span class="prelude-val">Ok</span>(tys)
 }
 
-<span class="doccomment">/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the local pointers)
-/// that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back into &amp;mut.
+<span class="doccomment">/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the
+/// local pointers) that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back
+/// into &amp;mut.
 ///
+/// ```text
 /// T1 &lt;: T2
 /// --------------------- [local-fold]
 /// Γ, l:[&lt;: T2] T1 =&gt; Γ
+/// ```
 </span><span class="kw">fn </span>fold_local_ptrs(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, env: <span class="kw-2">&amp;mut </span>TypeEnv, span: Span) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);
     env.fold_local_ptrs(<span class="kw-2">&amp;mut </span>at).with_span(span)<span class="question-mark">?</span>;
@@ -2486,7 +2500,7 @@
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             snapshots: IndexVec::from_fn_n(|<span class="kw">_</span>| <span class="prelude-val">None</span>, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
+            queue: WorkQueue::empty(body.basic_blocks.len(), <span class="kw-2">&amp;</span>body.dominator_order_rank),
         };
         ck.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, Point::FunEntry, body.span())<span class="question-mark">?</span>;
 
@@ -3361,18 +3375,18 @@
                     }
                 }
             }
-            CastKind::Pointer(mir::PointerCast::Unsize) =&gt; {
+            CastKind::PointerCoercion(mir::PointerCast::Unsize) =&gt; {
                 <span class="self">self</span>.check_unsize_cast(infcx, env, stmt_span, from, to)<span class="question-mark">?
             </span>}
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
-            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
+            | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
+            | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance =&gt; {
                 <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
             </span>}
-            CastKind::Pointer(mir::PointerCast::ReifyFnPointer) =&gt; {
+            CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) =&gt; {
                 <span class="kw">let </span>to = <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
                 <span class="kw">if let </span>TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), <span class="kw">_</span>) = from.kind()
                     &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::FnPtr(super_sig), <span class="kw">_</span>) = to.kind()
@@ -3668,7 +3682,7 @@
         params: FxHashSet&lt;usize&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; rustc_middle::ty::TypeVisitor&lt;TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>Collector {
+    <span class="kw">impl </span>rustc_middle::ty::TypeVisitor&lt;TyCtxt&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Collector {
         <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: rustc_middle::ty::Ty) {
             <span class="kw">if let </span>rustc_middle::ty::Param(param_ty) = t.kind() {
                 <span class="self">self</span>.params.insert(param_ty.index <span class="kw">as </span>usize);

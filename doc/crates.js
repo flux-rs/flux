@@ -1,1 +1,2 @@
 window.ALL_CRATES = ["cargo_flux","flux_arc_interner","flux_attrs","flux_bin","flux_common","flux_config","flux_desugar","flux_driver","flux_errors","flux_fhir_analysis","flux_infer","flux_macros","flux_metadata","flux_middle","flux_refineck","flux_rs","flux_rustc_bridge","flux_syntax","liquid_fixpoint","rustc_flux","tests","xtask"];
+//{"start":21,"fragment_lengths":[12,20,13,11,14,14,15,14,14,21,13,14,16,14,16,10,20,14,18,13,8,8]}
