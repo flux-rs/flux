@@ -2025,8 +2025,7 @@
 <a href="#2024" id="2024">2024</a>
 <a href="#2025" id="2025">2025</a>
 <a href="#2026" id="2026">2026</a>
-<a href="#2027" id="2027">2027</a>
-<a href="#2028" id="2028">2028</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#2027" id="2027">2027</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2313,7 +2312,7 @@
         infcx.check_pred(requires, reason);
     }
 
-    <span class="comment">// 4. Plug in the EVAR solution / replace evars -- see [NOTE:INFCX-SCOPE]
+    <span class="comment">// 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
     </span><span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
     infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
     <span class="kw">let </span>output = sub_sig
@@ -2412,13 +2411,13 @@
     <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
 }
 
-<span class="doccomment">/// [NOTE:Unfold-Local-Pointers] temporarily (at a call-site) convert an &amp;mut to an &amp;strg
-/// to allow for the call to be checked. This is done by unfolding the &amp;mut into a local pointer
-/// at the call-site and then folding the pointer back into the &amp;mut upon return.
-/// See [NOTE:Fold-Local-Pointers]
+<span class="doccomment">/// Temporarily (around a function call) convert an `&amp;mut` to an `&amp;strg` to allow for the call to be
+/// checked. This is done by unfolding the `&amp;mut` into a local pointer at the call-site and then
+/// folding the pointer back into the `&amp;mut` upon return.
+/// See also [`fold_local_ptrs`].
 ///
 /// ```text
-/// unpack(T) = T'
+///             unpack(T) = T'
 /// ---------------------------------------[local-unfold]
 /// Γ ; &amp;mut T =&gt; Γ, l:[&lt;: T] T' ; ptr(l)
 /// ```
@@ -2449,12 +2448,11 @@
     <span class="prelude-val">Ok</span>(tys)
 }
 
-<span class="doccomment">/// [NOTE:Fold-Local-Pointers] Fold local pointers implements roughly a rule like this (for all the
-/// local pointers) that converts the local pointers created via [NOTE:Unfold-Local-Pointers] back
-/// into &amp;mut.
+<span class="doccomment">/// Fold local pointers implements roughly a rule like the following (for all local pointers)
+/// that converts the local pointers created via [`unfold_local_ptrs`] back into `&amp;mut`.
 ///
 /// ```text
-/// T1 &lt;: T2
+///       T1 &lt;: T2
 /// --------------------- [local-fold]
 /// Γ, l:[&lt;: T2] T1 =&gt; Γ
 /// ```
@@ -2984,8 +2982,8 @@
         <span class="prelude-val">Ok</span>(Guard::Pred(pred))
     }
 
-    <span class="doccomment">/// Checks conditional branching as in a `match` statement. [`SwitchTargets`] (https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
-    /// See https://github.com/flux-rs/flux/pull/840#discussion_r1786543174
+    <span class="doccomment">/// Checks conditional branching as in a `match` statement. [`SwitchTargets`](https://doc.rust-lang.org/nightly/nightly-rustc/stable_mir/mir/struct.SwitchTargets.html) contains a list of branches - the exact bit value which is being compared and the block to jump to. Using the conditionals, each branch can be checked using the new control flow information.
+    /// See &lt;https://github.com/flux-rs/flux/pull/840#discussion_r1786543174&gt;
     </span><span class="kw">fn </span>check_if(discr_ty: <span class="kw-2">&amp;</span>Ty, targets: <span class="kw-2">&amp;</span>SwitchTargets) -&gt; Vec&lt;(BasicBlock, Guard)&gt; {
         <span class="kw">let </span>mk = |bits| {
             <span class="kw">match </span>discr_ty.kind() {

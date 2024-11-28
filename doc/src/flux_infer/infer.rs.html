@@ -1118,21 +1118,18 @@
         t
     }
 
-    <span class="comment">// [NOTE:INFCX-SCOPE] (see https://github.com/flux-rs/flux/pull/900#discussion_r1853052650)
-    // The InferCtxt is a cursor into a tree. Some functions like define_var, assume_pred and
-    // by extension unpack advance the cursor. For example, defining a variable pushes a node
-    // as a child of the current node and then moves the cursor into that new node.
-    // Other functions, like subtyping or check_pred (typically the ones defined in InferCtxtAt)
-    // do not advance the cursor (from the caller's perspective). For example, if you call
-    // subtyping a subtree is pushed under the current node, and the cursor is returned
-    // to where it was. That's the purpose of infcx.branch: to "clone" the cursor such
-    // that the original one doesn't get modified.
-    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when
-    // the `infcx`` is on the same node where the push_scope was called, because
-    // `replace_evars`` only replaces evars below that node.
-    // If `pop_scope` is called at a node further down (e.g. after calling unpack),
-    // the evars above that cursor will not be replaced.
-
+    <span class="doccomment">/// The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
+    /// by extension `unpack` advance the cursor. For example, defining a variable pushes a node
+    /// as a child of the current node and then moves the cursor into that new node. Other functions,
+    /// like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
+    /// the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
+    /// pushed under the current node, and the cursor is returned to where it was. That's the purpose
+    /// of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
+    /// `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
+    /// is on the same node where the `push_scope` was called, because `replace_evars` only replaces
+    /// evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
+    /// `unpack`), the evars above that cursor will not be replaced.
+    /// (see &lt;https://github.com/flux-rs/flux/pull/900#discussion_r1853052650&gt;)
     </span><span class="kw">pub fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>scope = <span class="self">self</span>.scope();
         <span class="self">self</span>.inner.borrow_mut().evars.enter_context(scope);
@@ -1338,6 +1335,7 @@
     ) -&gt; InferResult&lt;Ty&gt;;
 
     <span class="kw">fn </span>unfold_strg_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, path: <span class="kw-2">&amp;</span>Path, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Loc&gt;;
+
     <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty;
 }
 
@@ -1351,20 +1349,7 @@
     </span>obligations: Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;,
 }
 
-<span class="doccomment">/// [NOTE:unfold_strg_ref] We use this function to unfold a strong reference prior to a subtyping check.
-/// Normally, when checking a function body, a `StrgRef` is automatically unfolded
-/// i.e. `x:&amp;strg T` is turned into turned into a `x:Ptr(l); l: T` where `l` is some
-/// fresh location. However, we need the below to do a similar unfolding in `check_fn_subtyping`
-/// where we just have the super-type signature that needs to be unfolded.
-/// We also add the binding to the environment so that we can:
-/// (1) UPDATE the location after the call, and
-/// (2) CHECK the relevant `ensures` clauses of the super-sig.
-/// Nico: More importantly, we are assuming functions always give back the "ownership"
-/// of the location so even though we should technically "consume" the ownership and
-/// remove the location from the environment, the type is always going to be overwritten.
-/// (there's a check for this btw, if you write an &amp;strg we require an ensures for that
-/// location for the signature to be well-formed)
-</span><span class="kw">impl </span>Sub {
+<span class="kw">impl </span>Sub {
     <span class="kw">fn </span>new(reason: ConstrReason, span: Span) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ reason, span, obligations: <span class="macro">vec!</span>[] }
     }
@@ -1382,6 +1367,7 @@
     ) -&gt; InferResult {
         <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
         <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
+
         </span><span class="kw">match </span>(a.kind(), b.kind()) {
             (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.fun_args(infcx, env, a, <span class="kw-2">&amp;</span>ty_b))
@@ -1391,13 +1377,27 @@
                 <span class="self">self</span>.fun_args(infcx, env, a, ty_b)
             }
             (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
-                <span class="kw">let </span>ty1 = env.get(path1);
+                <span class="comment">// We should technically remove `path1` from `env`, but we are assuming that functions
+                // always give back ownership of the location so `path1` is going to be overwritten
+                // after the call anyways.
+                </span><span class="kw">let </span>ty1 = env.get(path1);
                 infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
             }
             (TyKind::StrgRef(<span class="kw">_</span>, path1, ty1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
-                env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>; <span class="comment">// see [NOTE:unfold_strg_ref]
-                </span><span class="kw">let </span>ty1 = env.get(path1);
+                <span class="comment">// We has to unfold strong references prior to a subtyping check. Normally, when
+                // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&amp;strg T`
+                // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
+                // need the below to do a similar unfolding in `check_fn_subtyping` where we just
+                // have the super-type signature that needs to be unfolded. We also add the binding
+                // to the environment so that we can:
+                // (1) UPDATE the location after the call, and
+                // (2) CHECK the relevant `ensures` clauses of the super-sig.
+                // Same as the `Ptr` case above we should remove the location from the environment
+                // after unfolding to consume it, but we are assuming functions always give back
+                // ownership.
+                </span>env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty1 = env.get(path1);
                 infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
             }

@@ -100,10 +100,8 @@ assigned type are consistent with those expected by the place’s original type 
     infcx: &amp;mut InferCtxt&lt;'_, '_, '_&gt;,
     path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
     ty: &amp;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
-) -&gt; InferResult&lt;<a class="enum" href="../../flux_middle/rty/expr/enum.Loc.html" title="enum flux_middle::rty::expr::Loc">Loc</a>&gt;</h4></section></summary><div class="docblock">
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code>-----------------------------------
-Γ ; <span class="kw-2">&amp;</span>strg &lt;ℓ: t&gt; =&gt; Γ,ℓ: t ; ptr(ℓ)</code></pre></div>
-</div></details><section id="method.unfold" class="method"><a class="src rightside" href="../../src/flux_refineck/type_env.rs.html#356-363">Source</a><h4 class="code-header">pub(crate) fn <a href="#method.unfold" class="fn">unfold</a>(
+) -&gt; InferResult&lt;<a class="enum" href="../../flux_middle/rty/expr/enum.Loc.html" title="enum flux_middle::rty::expr::Loc">Loc</a>&gt;</h4></section></summary><div class="docblock"><div class="example-wrap"><pre class="language-text"><code>-----------------------------------
+Γ ; &amp;strg &lt;ℓ: t&gt; =&gt; Γ,ℓ: t ; ptr(ℓ)</code></pre></div></div></details><section id="method.unfold" class="method"><a class="src rightside" href="../../src/flux_refineck/type_env.rs.html#356-363">Source</a><h4 class="code-header">pub(crate) fn <a href="#method.unfold" class="fn">unfold</a>(
     &amp;mut self,
     infcx: &amp;mut InferCtxt&lt;'_, '_, '_&gt;,
     place: &amp;<a class="struct" href="../../flux_rustc_bridge/mir/struct.Place.html" title="struct flux_rustc_bridge::mir::Place">Place</a>,

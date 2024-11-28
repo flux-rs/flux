@@ -336,7 +336,8 @@
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map, iter};
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map, iter};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_rustc_bridge::ty;
@@ -360,8 +361,9 @@
     subst.apply(<span class="kw-2">&amp;</span>a)
 }
 
-<span class="doccomment">/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-/// to have a unique identifier for each position such that we can infer a region substitution.
+<span class="doccomment">/// Replace all non-bound regions with a [`rty::ReVar`] assigning each a unique [`rty::RegionVid`].
+/// This is used to have a unique identifier for each position such that we can infer a region
+/// substitution.
 </span><span class="kw">fn </span>replace_regions_with_unique_vars(ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; rty::Ty {
     <span class="kw">struct </span>Replacer {
         next_rvid: u32,
