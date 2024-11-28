@@ -443,18 +443,7 @@
 <a href="#442" id="442">442</a>
 <a href="#443" id="443">443</a>
 <a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#445" id="445">445</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -467,7 +456,7 @@
 <span class="kw">use </span>rustc_middle::ty::ParamTy;
 <span class="kw">use </span>rustc_target::abi::VariantIdx;
 
-<span class="kw">use </span><span class="kw">super</span>::fold::TypeFoldable;
+<span class="kw">use super</span>::{fold::TypeFoldable, RefineArgsExt};
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -774,10 +763,15 @@
         <span class="kw">let </span>def_id = alias_ty.def_id;
         <span class="kw">let </span>args = <span class="self">self</span>.refine_generic_args(def_id, <span class="kw-2">&amp;</span>alias_ty.args)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>refine_args = <span class="self">self</span>.refine_refine_args_for_alias_ty(def_id, alias_kind)<span class="question-mark">?</span>;
+        <span class="kw">let </span>refine_args = <span class="kw">if let </span>ty::AliasKind::Opaque = alias_kind {
+            rty::RefineArgs::for_item(<span class="self">self</span>.genv, def_id, |param, <span class="kw">_</span>| {
+                rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
+            })<span class="question-mark">?
+        </span>} <span class="kw">else </span>{
+            List::empty()
+        };
 
-        <span class="kw">let </span>res = rty::AliasTy::new(def_id, args, refine_args);
-        <span class="prelude-val">Ok</span>(res)
+        <span class="prelude-val">Ok</span>(rty::AliasTy::new(def_id, args, refine_args))
     }
 
     <span class="kw">pub fn </span>refine_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
@@ -872,22 +866,6 @@
 
     <span class="kw">fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::Generics&gt; {
         <span class="self">self</span>.genv.generics_of(def_id)
-    }
-
-    <span class="kw">fn </span>refine_refine_args_for_alias_ty(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        alias_kind: ty::AliasKind,
-    ) -&gt; QueryResult&lt;rty::RefineArgs&gt; {
-        <span class="kw">if let </span>ty::AliasKind::Opaque = alias_kind {
-            <span class="self">self</span>.genv
-                .refinement_generics_of(def_id)<span class="question-mark">?
-                </span>.collect_all_params(<span class="self">self</span>.genv, |param| {
-                    rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
-                })
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(List::empty())
-        }
     }
 
     <span class="kw">fn </span>param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy) -&gt; QueryResult&lt;rty::GenericParamDef&gt; {

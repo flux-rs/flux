@@ -876,8 +876,7 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#878" id="878">878</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
@@ -890,8 +889,8 @@
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, Region, Sort, Ty, TyKind,
-        Var,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        Region, Sort, Ty, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
@@ -1043,11 +1042,10 @@
         InferCtxtAt { infcx: <span class="self">self</span>, span }
     }
 
-    <span class="kw">pub fn </span>instantiate_refine_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, callee_def_id: DefId) -&gt; InferResult&lt;Vec&lt;Expr&gt;&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.genv
-            .refinement_generics_of(callee_def_id)<span class="question-mark">?
-            </span>.collect_all_params(<span class="self">self</span>.genv, |param| <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode))<span class="question-mark">?</span>)
+    <span class="kw">pub fn </span>instantiate_refine_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, callee_def_id: DefId) -&gt; InferResult&lt;List&lt;Expr&gt;&gt; {
+        <span class="prelude-val">Ok</span>(RefineArgs::for_item(<span class="self">self</span>.genv, callee_def_id, |param, <span class="kw">_</span>| {
+            <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode)
+        })<span class="question-mark">?</span>)
     }
 
     <span class="kw">pub fn </span>instantiate_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; Vec&lt;GenericArg&gt; {

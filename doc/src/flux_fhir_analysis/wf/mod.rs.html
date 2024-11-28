@@ -872,15 +872,15 @@
                 <span class="kw">return</span>;
             };
 
-            <span class="kw">if </span>path.refine.len() != generics.params.len() {
+            <span class="kw">if </span>path.refine.len() != generics.own_params.len() {
                 <span class="self">self</span>.errors.emit(errors::EarlyBoundArgCountMismatch::new(
                     path.span,
-                    generics.params.len(),
+                    generics.own_params.len(),
                     path.refine.len(),
                 ));
             }
 
-            <span class="kw">for </span>(expr, param) <span class="kw">in </span>iter::zip(path.refine, <span class="kw-2">&amp;</span>generics.params) {
+            <span class="kw">for </span>(expr, param) <span class="kw">in </span>iter::zip(path.refine, <span class="kw-2">&amp;</span>generics.own_params) {
                 <span class="self">self</span>.infcx
                     .check_expr(expr, <span class="kw-2">&amp;</span>param.sort)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);

@@ -1103,7 +1103,7 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>ConstructorArgs {
+</span><span class="kw">pub enum </span>ConstructorArg {
     FieldExpr(FieldExpr),
     Spread(Spread),
 }
@@ -1125,7 +1125,7 @@
     App(Ident, Vec&lt;Expr&gt;),
     Alias(AliasReft, Vec&lt;Expr&gt;),
     IfThenElse(Box&lt;[Expr; <span class="number">3</span>]&gt;),
-    Constructor(<span class="prelude-ty">Option</span>&lt;ExprPath&gt;, Vec&lt;ConstructorArgs&gt;),
+    Constructor(<span class="prelude-ty">Option</span>&lt;ExprPath&gt;, Vec&lt;ConstructorArg&gt;),
 }
 
 <span class="doccomment">/// A [`Path`] but for refinement expressions

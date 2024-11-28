@@ -2023,9 +2023,7 @@
 <a href="#2022" id="2022">2022</a>
 <a href="#2023" id="2023">2023</a>
 <a href="#2024" id="2024">2024</a>
-<a href="#2025" id="2025">2025</a>
-<a href="#2026" id="2026">2026</a>
-<a href="#2027" id="2027">2027</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#2025" id="2025">2025</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2375,7 +2373,7 @@
         <span class="kw">let </span>trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>tcx = genv.tcx();
         <span class="kw">let </span>impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-        <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id()).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>trait_ref.args);
         <span class="kw">let </span>trait_refine_args =
             RefineArgs::identity_for_item(genv, trait_method_id).with_span(span)<span class="question-mark">?</span>;
@@ -2809,9 +2807,7 @@
                     .instantiate_refine_args(callee_def_id)
                     .with_span(span)<span class="question-mark">?
             </span>}
-            <span class="prelude-val">None </span>=&gt; {
-                <span class="macro">vec!</span>[]
-            }
+            <span class="prelude-val">None </span>=&gt; rty::List::empty(),
         };
 
         <span class="kw">let </span>clauses = <span class="kw">match </span>callee_def_id {

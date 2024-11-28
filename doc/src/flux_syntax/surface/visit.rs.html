@@ -522,7 +522,7 @@
 <a href="#521" id="521">521</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArgs, Ensures, EnumDef,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArg, Ensures, EnumDef,
     Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
     GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
     PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
@@ -674,10 +674,10 @@
         walk_expr(<span class="self">self</span>, expr);
     }
 
-    <span class="kw">fn </span>visit_constructor_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>ConstructorArgs) {
+    <span class="kw">fn </span>visit_constructor_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>ConstructorArg) {
         <span class="kw">match </span>expr {
-            ConstructorArgs::FieldExpr(field_expr) =&gt; walk_field_expr(<span class="self">self</span>, field_expr),
-            ConstructorArgs::Spread(spread) =&gt; <span class="self">self</span>.visit_expr(<span class="kw-2">&amp;</span>spread.expr),
+            ConstructorArg::FieldExpr(field_expr) =&gt; walk_field_expr(<span class="self">self</span>, field_expr),
+            ConstructorArg::Spread(spread) =&gt; <span class="self">self</span>.visit_expr(<span class="kw-2">&amp;</span>spread.expr),
         }
     }
 
