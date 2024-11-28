@@ -187,14 +187,12 @@ impl<'a> PointsToAnalysis<'a> {
     }
 }
 
-impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a> {
+impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     type Domain = State;
-
-    type Direction = rustc_mir_dataflow::Forward;
 
     const NAME: &'static str = "PointsToAnalysis";
 
-    fn bottom_value(&self, _body: &mir::Body<'tcx>) -> Self::Domain {
+    fn bottom_value(&self, _: &mir::Body<'tcx>) -> Self::Domain {
         State { values: IndexVec::from_elem_n(FlatSet::BOTTOM, self.map.value_count) }
     }
 
@@ -218,9 +216,7 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
             }
         }
     }
-}
 
-impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     fn apply_statement_effect(
         &mut self,
         state: &mut Self::Domain,

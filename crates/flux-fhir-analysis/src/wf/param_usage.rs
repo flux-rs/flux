@@ -25,7 +25,7 @@ use super::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check<'genv>(infcx: &InferCtxt<'genv, '_>, node: &fhir::Node<'genv>) -> Result {
+pub(crate) fn check<'genv>(infcx: &InferCtxt<'genv, '_>, node: &fhir::OwnerNode<'genv>) -> Result {
     ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 
@@ -138,7 +138,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
 }
 
 impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
-    fn visit_node(&mut self, node: &fhir::Node<'genv>) {
+    fn visit_node(&mut self, node: &fhir::OwnerNode<'genv>) {
         if node.fn_sig().is_some() {
             // Check early refinement parameters in fn-like nodes
             let snapshot = self.xi.snapshot();

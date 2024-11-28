@@ -167,19 +167,28 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.mir(self, def_id)
     }
 
-    pub fn lower_generics_of(self, def_id: DefId) -> ty::Generics<'tcx> {
-        self.inner.queries.lower_generics_of(self, def_id)
+    pub fn lower_generics_of(self, def_id: impl IntoQueryParam<DefId>) -> ty::Generics<'tcx> {
+        self.inner
+            .queries
+            .lower_generics_of(self, def_id.into_query_param())
     }
 
     pub fn lower_predicates_of(
         self,
-        def_id: impl Into<DefId>,
+        def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<ty::GenericPredicates> {
-        self.inner.queries.lower_predicates_of(self, def_id.into())
+        self.inner
+            .queries
+            .lower_predicates_of(self, def_id.into_query_param())
     }
 
-    pub fn lower_type_of(self, def_id: impl Into<DefId>) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
-        self.inner.queries.lower_type_of(self, def_id.into())
+    pub fn lower_type_of(
+        self,
+        def_id: impl IntoQueryParam<DefId>,
+    ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
+        self.inner
+            .queries
+            .lower_type_of(self, def_id.into_query_param())
     }
 
     pub fn lower_fn_sig(
@@ -503,7 +512,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         if matches!(self.genv.def_kind(def_id), DefKind::Closure) {
             Ok(None)
         } else {
-            Ok(Some(self.node(def_id)?.generics()))
+            Ok(Some(self.expect_owner_node(def_id)?.generics()))
         }
     }
 
@@ -552,7 +561,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
         // This is called on adts when checking invariants
-        if let Some(fn_sig) = self.node(def_id)?.fn_sig() {
+        if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
             Ok(fn_sig.qualifiers)
         } else {
             Ok(&[])
@@ -569,6 +578,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
         self.genv.desugar(def_id)
+    }
+
+    pub fn expect_owner_node(self, def_id: LocalDefId) -> QueryResult<fhir::OwnerNode<'genv>> {
+        Ok(self.node(def_id)?.as_owner().unwrap())
     }
 }
 

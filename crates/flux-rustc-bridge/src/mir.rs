@@ -14,7 +14,7 @@ use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
-    mir::{self},
+    mir,
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
@@ -220,7 +220,7 @@ pub enum CastKind {
     FloatToInt,
     IntToFloat,
     PtrToPtr,
-    Pointer(PointerCast),
+    PointerCoercion(PointerCast),
     PointerExposeProvenance,
     PointerWithExposedProvenance,
 }
@@ -724,7 +724,7 @@ impl fmt::Debug for CastKind {
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
             CastKind::PtrToPtr => write!(f, "PtrToPtr"),
-            CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
+            CastKind::PointerCoercion(c) => write!(f, "Pointer({c:?})"),
             CastKind::PointerExposeProvenance => write!(f, "PointerExposeProvenance"),
             CastKind::PointerWithExposedProvenance => write!(f, "PointerWithExposedProvenance"),
         }

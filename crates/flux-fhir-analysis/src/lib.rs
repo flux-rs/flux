@@ -28,7 +28,12 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
-    rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
+    rty::{
+        self,
+        fold::TypeFoldable,
+        refining::{self, Refiner},
+        WfckResults,
+    },
     MaybeExternId,
 };
 use flux_rustc_bridge::lowering::Lower;
@@ -155,16 +160,37 @@ fn predicates_of(
     def_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let def_id = genv.maybe_extern_id(def_id);
-    if let Some(generics) = genv.map().get_generics(def_id.local_id())? {
-        let wfckresults = genv.check_wf(def_id.local_id())?;
-        AfterSortck::new(genv, &wfckresults)
-            .into_conv_ctxt()
-            .conv_generic_predicates(def_id, generics)
-    } else {
-        Ok(rty::EarlyBinder(rty::GenericPredicates {
-            parent: genv.tcx().predicates_of(def_id).parent,
-            predicates: rty::List::empty(),
-        }))
+    match genv.def_kind(def_id) {
+        DefKind::Impl { .. }
+        | DefKind::Struct
+        | DefKind::Enum
+        | DefKind::Union
+        | DefKind::TyAlias { .. }
+        | DefKind::AssocFn
+        | DefKind::AssocTy
+        | DefKind::Trait
+        | DefKind::Fn => {
+            let generics = genv
+                .map()
+                .get_generics(def_id.local_id())?
+                .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
+            let wfckresults = genv.check_wf(def_id.local_id())?;
+            AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_generic_predicates(def_id, generics)
+        }
+        DefKind::OpaqueTy | DefKind::Closure => {
+            Ok(rty::EarlyBinder(rty::GenericPredicates {
+                parent: genv.tcx().predicates_of(def_id).parent,
+                predicates: rty::List::empty(),
+            }))
+        }
+        kind => {
+            Err(query_bug!(
+                def_id.local_id(),
+                "predicates_of called on `{def_id:?}` with kind `{kind:?}`"
+            ))?
+        }
     }
 }
 
@@ -304,16 +330,15 @@ fn sort_of_assoc_reft(
     }
 }
 
-fn item_bounds(
-    genv: GlobalEnv,
-    local_id: LocalDefId,
-) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
-    let wfckresults = genv.check_wf(local_id)?;
-    let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
+fn item_bounds(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
+    let def_id = genv.maybe_extern_id(def_id);
+    let parent = genv.tcx().local_parent(def_id.local_id());
+    let wfckresults = genv.check_wf(parent)?;
+    let opaque_ty = genv.map().node(def_id.local_id())?.expect_opaque_ty();
     Ok(rty::EarlyBinder(
         AfterSortck::new(genv, &wfckresults)
             .into_conv_ctxt()
-            .conv_opaque_ty(local_id, opaque_ty)?,
+            .conv_opaque_ty(opaque_ty)?,
     ))
 }
 
@@ -327,7 +352,6 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         | DefKind::Enum
         | DefKind::Union
         | DefKind::TyAlias { .. }
-        | DefKind::OpaqueTy
         | DefKind::AssocFn
         | DefKind::AssocTy
         | DefKind::Trait
@@ -339,14 +363,9 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::Closure => {
-            let rustc_generics = genv.tcx().generics_of(def_id.local_id());
-            rty::Generics {
-                own_params: rty::List::empty(),
-                parent: rustc_generics.parent,
-                parent_count: rustc_generics.parent_count,
-                has_self: rustc_generics.has_self,
-            }
+        DefKind::OpaqueTy | DefKind::Closure => {
+            let rustc_generics = genv.lower_generics_of(def_id);
+            refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)?
         }
         kind => {
             Err(query_bug!(
@@ -499,7 +518,11 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let fhir_fn_sig = genv.desugar(def_id.local_id())?.fn_sig().unwrap();
+    let fhir_fn_sig = genv
+        .map()
+        .expect_owner_node(def_id.local_id())?
+        .fn_sig()
+        .unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let fn_sig = AfterSortck::new(genv, &wfckresults)
         .into_conv_ctxt()
@@ -522,7 +545,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
 }
 
 fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {
-    let node = genv.desugar(def_id)?;
+    let node = genv.map().expect_owner_node(def_id)?;
     let wfckresults = wf::check_node(genv, &node)?;
     Ok(Rc::new(wfckresults))
 }

@@ -1340,18 +1340,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 }
             }
-            CastKind::Pointer(mir::PointerCast::Unsize) => {
+            CastKind::PointerCoercion(mir::PointerCast::Unsize) => {
                 self.check_unsize_cast(infcx, env, stmt_span, from, to)?
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
-            | CastKind::Pointer(mir::PointerCast::ClosureFnPointer)
+            | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
+            | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
             | CastKind::PointerWithExposedProvenance => {
                 self.refine_default(to).with_span(self.body.span())?
             }
-            CastKind::Pointer(mir::PointerCast::ReifyFnPointer) => {
+            CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
                 let to = self.refine_default(to).with_span(self.body.span())?;
                 if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()

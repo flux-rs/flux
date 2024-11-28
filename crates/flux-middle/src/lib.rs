@@ -59,7 +59,6 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_macros::extension;
 use rustc_span::{
@@ -436,7 +435,7 @@ pub enum ExternSpecMappingErr {
 #[derive(Default)]
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::PartialRes>,
-    pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
+    pub impl_trait_res_map: UnordMap<NodeId, LocalDefId>,
     /// Resolution of explicitly and implicitly scoped parameters. The [`fhir::ParamId`] is unique
     /// per item. The [`NodeId`] used as the key corresponds to the node introducing the parameter.
     /// When explicit, this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`],

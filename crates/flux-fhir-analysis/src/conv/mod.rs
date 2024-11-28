@@ -30,12 +30,7 @@ use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
-use rustc_hir::{
-    self as hir,
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-    OwnerId, PrimTy, Safety,
-};
+use rustc_hir::{def::DefKind, def_id::DefId, OwnerId, PrimTy, Safety};
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
@@ -636,10 +631,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     pub(crate) fn conv_opaque_ty(
         &mut self,
-        def_id: LocalDefId,
         opaque_ty: &fhir::OpaqueTy,
     ) -> QueryResult<rty::Clauses> {
-        let parent = self.tcx().local_parent(def_id);
+        let def_id = opaque_ty.def_id;
+        let parent = self.tcx().local_parent(def_id.local_id());
         let refparams = &self
             .genv()
             .map()
@@ -649,8 +644,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let env = &mut Env::new(refparams);
 
-        let args = rty::GenericArg::identity_for_item(self.genv(), def_id)?;
-        let alias_ty = rty::AliasTy::new(def_id.into(), args, env.to_early_param_args());
+        let args = rty::GenericArg::identity_for_item(self.genv(), def_id.resolved_id())?;
+        let alias_ty = rty::AliasTy::new(def_id.resolved_id(), args, env.to_early_param_args());
         let self_ty = rty::BaseTy::opaque(alias_ty).to_ty();
         // FIXME(nilehmann) use a good span here
         Ok(self
@@ -891,14 +886,23 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut clauses = vec![];
         for bound in bounds {
             match bound {
-                fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) => {
-                    self.conv_poly_trait_ref(
-                        env,
-                        bounded_ty_span,
-                        &bounded_ty,
-                        poly_trait_ref,
-                        &mut clauses,
-                    )?;
+                fhir::GenericBound::Trait(poly_trait_ref) => {
+                    match poly_trait_ref.modifiers {
+                        fhir::TraitBoundModifier::None => {
+                            self.conv_poly_trait_ref(
+                                env,
+                                bounded_ty_span,
+                                &bounded_ty,
+                                poly_trait_ref,
+                                &mut clauses,
+                            )?;
+                        }
+                        fhir::TraitBoundModifier::Maybe => {
+                            // Maybe bounds are only supported for `?Sized`. The effect of the maybe
+                            // bound is to relax the default which is `Sized` to not have the `Sized`
+                            // bound, so we just skip it here.
+                        }
+                    }
                 }
                 fhir::GenericBound::Outlives(lft) => {
                     let re = self.conv_lifetime(env, *lft);
@@ -910,10 +914,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         )),
                     ));
                 }
-                // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
-                // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
-                // it here.
-                fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => {}
             }
         }
         Ok(clauses)
@@ -1090,8 +1090,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
-                self.conv_opaque_def(env, *item_id, lifetimes, reft_args)
+            fhir::TyKind::OpaqueDef(opaque_ty, lifetimes, reft_args) => {
+                self.conv_opaque_def(env, opaque_ty, lifetimes, reft_args)
             }
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
@@ -1108,11 +1108,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_opaque_def(
         &mut self,
         env: &mut Env,
-        item_id: hir::ItemId,
+        opaque_ty: &fhir::OpaqueTy,
         lifetimes: &[fhir::GenericArg],
         reft_args: &[fhir::Expr],
     ) -> QueryResult<rty::Ty> {
-        let def_id = item_id.owner_id.to_def_id();
+        // During the first phase we need to run conv on the opaque type to collect sorts for base
+        // types in the bounds.
+        if !P::HAS_ELABORATED_INFORMATION {
+            self.conv_opaque_ty(opaque_ty)?;
+        }
+
+        let def_id = opaque_ty.def_id.resolved_id();
         let generics = self.genv().generics_of(def_id)?;
         let args = rty::GenericArg::for_item(self.genv(), def_id, |param, _| {
             if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())

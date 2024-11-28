@@ -13,7 +13,7 @@ use flux_syntax::{
     walk_list,
 };
 use hir::{def::DefKind, ItemKind};
-use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId};
@@ -104,7 +104,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     owner: MaybeExternId<OwnerId>,
     fn_sig_scope: Option<NodeId>,
     resolver_output: &'genv ResolverOutput,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
+    opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
 }
 
 struct FluxItemCtxt<'genv, 'tcx> {
@@ -119,7 +119,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: MaybeExternId<OwnerId>,
         resolver_output: &'genv ResolverOutput,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::Item<'genv>>>,
+        opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         RustItemCtxt {
             genv,
@@ -129,13 +129,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             resolver_output,
             opaque_tys,
         }
-    }
-
-    fn with_new_owner<'b>(
-        &'b mut self,
-        owner: MaybeExternId<OwnerId>,
-    ) -> RustItemCtxt<'b, 'genv, 'tcx> {
-        RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'genv, 'tcx> {
@@ -248,10 +241,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         bounds: &[surface::TraitRef],
     ) -> Result<fhir::GenericBounds<'genv>> {
         try_alloc_slice!(self.genv, bounds, |bound| {
-            Ok(fhir::GenericBound::Trait(
-                self.desugar_trait_ref(bound)?,
-                fhir::TraitBoundModifier::None,
-            ))
+            Ok(fhir::GenericBound::Trait(self.desugar_trait_ref(bound)?))
         })
     }
 
@@ -263,7 +253,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             span_bug!(trait_ref.path.span, "desugar_alias_reft: unexpected qpath")
         };
         let span = path.span;
-        Ok(fhir::PolyTraitRef { bound_generic_params: &[], trait_ref: path, span })
+        Ok(fhir::PolyTraitRef {
+            bound_generic_params: &[],
+            modifiers: fhir::TraitBoundModifier::None,
+            trait_ref: path,
+            span,
+        })
     }
 
     fn desugar_refined_by(
@@ -638,21 +633,17 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::Ty<'genv>> {
         match asyncness {
             surface::Async::Yes { node_id, span } => {
-                let item_id = self.resolver_output.impl_trait_res_map[&node_id];
-                let def_id = item_id.owner_id.def_id;
+                let def_id = self.resolver_output.impl_trait_res_map[&node_id];
                 let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
                 // FIXME(nilehmann) since we can only pass local ids for opaque types it means we
                 // can't support extern specs with opaque types.
-                let opaque_ty = self
-                    .with_new_owner(MaybeExternId::Local(item_id.owner_id))
-                    .desugar_opaque_ty_for_async(returns)?;
-                self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
+                let opaque_ty = self.desugar_opaque_ty_for_async(def_id, returns)?;
+                let opaque_ty = self.insert_opaque_ty(opaque_ty);
 
                 let (args, _) = self.desugar_generic_args(res, &[])?;
-                let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
                 let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
-                let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
+                let kind = fhir::TyKind::OpaqueDef(opaque_ty, args, refine_args);
                 Ok(fhir::Ty { kind, span })
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns)?),
@@ -661,11 +652,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_opaque_ty_for_async(
         &mut self,
+        def_id: LocalDefId,
         returns: &surface::FnRetTy,
-    ) -> Result<fhir::Item<'genv>> {
+    ) -> Result<fhir::OpaqueTy<'genv>> {
         let output = self.desugar_fn_ret_ty(returns)?;
-        // Does this opaque type have any generics?
-        let generics = self.as_lift_cx().lift_generics()?;
         let trait_ref = self.make_lang_item_path(
             hir::LangItem::Future,
             DUMMY_SP,
@@ -675,13 +665,17 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 kind: fhir::AssocItemConstraintKind::Equality { term: output },
             }]),
         );
-        let bound = fhir::GenericBound::Trait(
-            fhir::PolyTraitRef { bound_generic_params: &[], trait_ref, span: trait_ref.span },
-            fhir::TraitBoundModifier::None,
-        );
-        let opaque_ty = fhir::OpaqueTy { bounds: self.genv.alloc_slice(&[bound]) };
-
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: self.owner })
+        let bound = fhir::GenericBound::Trait(fhir::PolyTraitRef {
+            bound_generic_params: &[],
+            modifiers: fhir::TraitBoundModifier::None,
+            trait_ref,
+            span: trait_ref.span,
+        });
+        let opaque_ty = fhir::OpaqueTy {
+            def_id: MaybeExternId::Local(def_id),
+            bounds: self.genv.alloc_slice(&[bound]),
+        };
+        Ok(opaque_ty)
     }
 
     fn make_lang_item_path(
@@ -719,12 +713,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_opaque_ty_for_impl_trait(
         &mut self,
+        def_id: LocalDefId,
         bounds: &[surface::TraitRef],
-    ) -> Result<fhir::Item<'genv>> {
-        let generics = self.as_lift_cx().lift_generics()?;
+    ) -> Result<fhir::OpaqueTy<'genv>> {
         let bounds = self.desugar_generic_bounds(bounds)?;
-        let opaque_ty = fhir::OpaqueTy { bounds };
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id: self.owner })
+        let opaque_ty = fhir::OpaqueTy { def_id: MaybeExternId::Local(def_id), bounds };
+        Ok(opaque_ty)
     }
 
     fn desugar_variant_ret(
@@ -772,11 +766,16 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Some(resolved_id)
     }
 
-    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::Item<'genv>) {
+    fn insert_opaque_ty(
+        &mut self,
+        opaque_ty: fhir::OpaqueTy<'genv>,
+    ) -> &'genv fhir::OpaqueTy<'genv> {
+        let opaque_ty = self.genv.alloc(opaque_ty);
         self.opaque_tys
             .as_mut()
-            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
-            .insert(def_id, opaque_ty);
+            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item `{:?}`", self.owner))
+            .push(opaque_ty);
+        opaque_ty
     }
 
     #[track_caller]
@@ -1533,20 +1532,17 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
         node_id: NodeId,
         bounds: &[surface::TraitRef],
     ) -> Result<fhir::TyKind<'genv>> {
-        let item_id = self.resolver_output().impl_trait_res_map[&node_id];
-        let def_id = item_id.owner_id.def_id;
+        let def_id = self.resolver_output().impl_trait_res_map[&node_id];
         let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
         // FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
         // support extern specs with opaque types.
-        let opaque_ty = self
-            .with_new_owner(MaybeExternId::Local(item_id.owner_id))
-            .desugar_opaque_ty_for_impl_trait(bounds)?;
-        self.insert_opaque_ty(def_id, opaque_ty);
+        let opaque_ty = self.desugar_opaque_ty_for_impl_trait(def_id, bounds)?;
+        let opaque_ty = self.insert_opaque_ty(opaque_ty);
 
         let (args, _) = self.desugar_generic_args(res, &[])?;
         let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
-        Ok(fhir::TyKind::OpaqueDef(item_id, args, refine_args, false))
+        Ok(fhir::TyKind::OpaqueDef(opaque_ty, args, refine_args))
     }
 }
 

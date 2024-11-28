@@ -710,7 +710,10 @@ pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
-    pub(crate) fn infer(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node<'genv>) -> Result {
+    pub(crate) fn infer(
+        infcx: &'a mut InferCtxt<'genv, 'tcx>,
+        node: &fhir::OwnerNode<'genv>,
+    ) -> Result {
         let errors = Errors::new(infcx.genv.sess());
         let mut vis = Self { infcx, errors };
         vis.visit_node(node);

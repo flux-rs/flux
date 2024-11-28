@@ -15,7 +15,7 @@ use rustc_middle::{
         TyCtxt, ValTree,
     },
 };
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, DUMMY_SP};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -492,6 +492,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Some(crate::mir::PointerCast::ReifyFnPointer)
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
+            | rustc_adjustment::PointerCoercion::DynStar
             | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
         }
     }
@@ -501,8 +502,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
             rustc_mir::CastKind::PtrToPtr => Some(CastKind::PtrToPtr),
-            rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
-                Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
+            rustc_mir::CastKind::PointerCoercion(ptr_coercion, _) => {
+                Some(CastKind::PointerCoercion(self.lower_pointer_coercion(ptr_coercion)?))
             }
             rustc_mir::CastKind::PointerExposeProvenance => Some(CastKind::PointerExposeProvenance),
             rustc_mir::CastKind::PointerWithExposedProvenance => {
@@ -612,9 +613,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
 
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
-        let val = constant.const_.normalize(tcx, ParamEnv::empty());
+        let const_ = constant
+            .const_
+            .eval(tcx, ParamEnv::empty(), DUMMY_SP)
+            .map(|val| Const::Val(val, constant.const_.ty()))
+            .unwrap_or(constant.const_);
         let ty = constant.ty();
-        match (val, ty.kind()) {
+        match (const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
             }

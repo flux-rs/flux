@@ -30,7 +30,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    FnHeader, ItemId, OwnerId, ParamName, Safety,
+    FnHeader, OwnerId, ParamName, Safety,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -154,31 +154,58 @@ pub enum Node<'fhir> {
     Item(&'fhir Item<'fhir>),
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
+    OpaqueTy(&'fhir OpaqueTy<'fhir>),
 }
 
 impl<'fhir> Node<'fhir> {
+    pub fn as_owner(self) -> Option<OwnerNode<'fhir>> {
+        match self {
+            Node::Item(item) => Some(OwnerNode::Item(item)),
+            Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
+            Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
+            Node::OpaqueTy(_) => None,
+        }
+    }
+
+    pub fn expect_opaque_ty(&self) -> &'fhir OpaqueTy<'fhir> {
+        if let Node::OpaqueTy(opaque_ty) = &self {
+            opaque_ty
+        } else {
+            bug!("expected opaque type")
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum OwnerNode<'fhir> {
+    Item(&'fhir Item<'fhir>),
+    TraitItem(&'fhir TraitItem<'fhir>),
+    ImplItem(&'fhir ImplItem<'fhir>),
+}
+
+impl<'fhir> OwnerNode<'fhir> {
     pub fn fn_sig(&self) -> Option<&'fhir FnSig<'fhir>> {
         match self {
-            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
-            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
-            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
+            OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+            | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
             _ => None,
         }
     }
 
     pub fn generics(self) -> &'fhir Generics<'fhir> {
         match self {
-            Node::Item(item) => &item.generics,
-            Node::TraitItem(trait_item) => &trait_item.generics,
-            Node::ImplItem(impl_item) => &impl_item.generics,
+            OwnerNode::Item(item) => &item.generics,
+            OwnerNode::TraitItem(trait_item) => &trait_item.generics,
+            OwnerNode::ImplItem(impl_item) => &impl_item.generics,
         }
     }
 
     pub fn owner_id(&self) -> MaybeExternId<OwnerId> {
         match self {
-            Node::Item(item) => item.owner_id,
-            Node::TraitItem(trait_item) => trait_item.owner_id,
-            Node::ImplItem(impl_item) => impl_item.owner_id,
+            OwnerNode::Item(item) => item.owner_id,
+            OwnerNode::TraitItem(trait_item) => trait_item.owner_id,
+            OwnerNode::ImplItem(impl_item) => impl_item.owner_id,
         }
     }
 }
@@ -215,14 +242,6 @@ impl<'fhir> Item<'fhir> {
         }
     }
 
-    pub fn expect_opaque_ty(&self) -> &OpaqueTy<'fhir> {
-        if let ItemKind::OpaqueTy(opaque_ty) = &self.kind {
-            opaque_ty
-        } else {
-            bug!("expected opaque type")
-        }
-    }
-
     pub fn expect_impl(&self) -> &Impl<'fhir> {
         if let ItemKind::Impl(impl_) = &self.kind {
             impl_
@@ -248,7 +267,6 @@ pub enum ItemKind<'fhir> {
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
-    OpaqueTy(OpaqueTy<'fhir>),
 }
 
 #[derive(Debug)]
@@ -311,13 +329,14 @@ pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 
 #[derive(Debug, Clone, Copy)]
 pub enum GenericBound<'fhir> {
-    Trait(PolyTraitRef<'fhir>, TraitBoundModifier),
+    Trait(PolyTraitRef<'fhir>),
     Outlives(Lifetime),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PolyTraitRef<'fhir> {
     pub bound_generic_params: &'fhir [GenericParam<'fhir>],
+    pub modifiers: TraitBoundModifier,
     pub trait_ref: Path<'fhir>,
     pub span: Span,
 }
@@ -374,6 +393,7 @@ pub struct ImplAssocReft<'fhir> {
 
 #[derive(Debug)]
 pub struct OpaqueTy<'fhir> {
+    pub def_id: MaybeExternId,
     pub bounds: GenericBounds<'fhir>,
 }
 
@@ -526,7 +546,7 @@ pub enum TyKind<'fhir> {
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
-    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [Expr<'fhir>], bool),
+    OpaqueDef(&'fhir OpaqueTy<'fhir>, &'fhir [GenericArg<'fhir>], &'fhir [Expr<'fhir>]),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
@@ -1313,10 +1333,11 @@ impl fmt::Debug for Ty<'_> {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Infer => write!(f, "_"),
-            TyKind::OpaqueDef(def_id, args, refine_args, _) => {
+            TyKind::OpaqueDef(opaque_ty, args, refine_args) => {
                 write!(
                     f,
-                    "impl trait <def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}>"
+                    "impl trait <def_id = {:?}, args = {args:?}, refine = {refine_args:?}>",
+                    opaque_ty.def_id.resolved_id(),
                 )
             }
             TyKind::TraitObject(poly_traits, _lft, _syntax) => {

@@ -114,7 +114,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             projection_ty,
             cause,
             10,
-            &mut vec![],
+            &mut rustc_infer::traits::PredicateObligations::new(),
         )
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
