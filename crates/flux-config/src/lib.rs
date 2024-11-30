@@ -11,6 +11,10 @@ pub fn check_def() -> &'static str {
     &CONFIG.check_def
 }
 
+pub fn check_diff() -> bool {
+    CONFIG.check_diff
+}
+
 pub fn dump_timings() -> bool {
     CONFIG.dump_timings
 }
@@ -81,6 +85,7 @@ struct Config {
     catch_bugs: bool,
     pointer_width: PointerWidth,
     check_def: String,
+    check_diff: bool,
     cache: bool,
     cache_file: String,
     check_overflow: bool,
@@ -133,7 +138,8 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?
             .set_default("check_overflow", false)?
-            .set_default("scrape_quals", false)?;
+            .set_default("scrape_quals", false)?
+            .set_default("check_diff", false)?;
         // Config comes first, environment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.clone()));

@@ -17,6 +17,7 @@ use rustc_hir::{
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
+use rustc_span::FileName;
 
 use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
 
@@ -100,7 +101,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        ck.cache.save().unwrap_or(());
+        ck.query_cache.save().unwrap_or(());
 
         tracing::info!("Callbacks::check_crate");
 
@@ -134,7 +135,7 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    cache: QueryCache,
+    query_cache: QueryCache,
     checker_config: CheckerConfig,
 }
 
@@ -145,12 +146,42 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             check_overflow: crate_config.check_overflow,
             scrape_quals: crate_config.scrape_quals,
         };
-        CrateChecker { genv, cache: QueryCache::load(), checker_config }
+        CrateChecker { genv, query_cache: QueryCache::load(), checker_config }
     }
 
     fn matches_check_def(&self, def_id: DefId) -> bool {
         let def_path = self.genv.tcx().def_path_str(def_id);
         def_path.contains(config::check_def())
+    }
+
+    fn modified_time(&self, def_id: LocalDefId) -> Option<std::time::SystemTime> {
+        let tcx = self.genv.tcx();
+        let span = tcx.def_span(def_id);
+        let sm = tcx.sess.source_map();
+        if let FileName::Real(file_name) = sm.span_to_filename(span)
+            && let Some(path) = file_name.local_path()
+            && let Ok(metadata) = std::fs::metadata(path)
+            && let Ok(modified_time) = metadata.modified()
+        {
+            return Some(modified_time);
+        }
+        return None;
+    }
+
+    /// Returns `true` if the the `check_diff()` mode is off OR the file in which this [`def_id`]
+    /// is defined has been modified since the last check.
+    fn matches_check_diff(&mut self, def_id: LocalDefId) -> bool {
+        if !config::check_diff() {
+            return true;
+        }
+        if let Some(modified_time) = self.modified_time(def_id) {
+            let key = self.genv.tcx().def_path_str(def_id);
+            let key2 = key.clone();
+            let is_diff = self.query_cache.is_modified(key, modified_time);
+            println!("TRACE: matches_check_diff: {def_id:?} <{key2:?}> ==> at {modified_time:?} [{is_diff}]");
+            return is_diff;
+        }
+        return true;
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -168,10 +199,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
+        if !self.matches_check_diff(def_id.local_id()) {
+            return Ok(());
+        }
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
+                refineck::check_fn(self.genv, &mut self.query_cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
@@ -184,7 +218,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     .expect_enum();
                 refineck::invariants::check_invariants(
                     self.genv,
-                    &mut self.cache,
+                    &mut self.query_cache,
                     def_id,
                     enum_def.invariants,
                     &adt_def,
@@ -205,7 +239,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 }
                 refineck::invariants::check_invariants(
                     self.genv,
-                    &mut self.cache,
+                    &mut self.query_cache,
                     def_id,
                     struct_def.invariants,
                     &adt_def,

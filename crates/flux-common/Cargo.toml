@@ -10,6 +10,7 @@ edition.workspace = true
 flux-config.workspace = true
 
 rustc-hash.workspace = true
+serde.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true

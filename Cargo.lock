@@ -464,6 +464,7 @@ version = "0.1.0"
 dependencies = [
  "flux-config",
  "rustc-hash 2.0.0",
+ "serde",
 ]
 
 [[package]]

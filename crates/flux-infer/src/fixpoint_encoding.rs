@@ -405,7 +405,7 @@ where
         cache: &mut QueryCache,
     ) -> FixpointResult<TagIdx> {
         let hash = task.hash_with_default();
-        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
+        if config::is_cache_enabled() && cache.is_safe_query(&key, hash) {
             return FixpointResult::Safe(Default::default());
         }
 
@@ -415,7 +415,7 @@ where
 
         if config::is_cache_enabled() {
             if let FixpointResult::Safe(_) = result {
-                cache.insert(key, hash);
+                cache.insert_safe_query(key, hash);
             }
         }
         result
