@@ -17,7 +17,6 @@ use rustc_hir::{
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
-use rustc_span::FileName;
 
 use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
 
@@ -154,34 +153,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         def_path.contains(config::check_def())
     }
 
-    fn modified_time(&self, def_id: LocalDefId) -> Option<std::time::SystemTime> {
-        let tcx = self.genv.tcx();
-        let span = tcx.def_span(def_id);
-        let sm = tcx.sess.source_map();
-        if let FileName::Real(file_name) = sm.span_to_filename(span)
-            && let Some(path) = file_name.local_path()
-            && let Ok(metadata) = std::fs::metadata(path)
-            && let Ok(modified_time) = metadata.modified()
-        {
-            return Some(modified_time);
-        }
-        return None;
-    }
-
     /// Returns `true` if the the `check_diff()` mode is off OR the file in which this [`def_id`]
     /// is defined has been modified since the last check.
     fn matches_check_diff(&mut self, def_id: LocalDefId) -> bool {
-        if !config::check_diff() {
-            return true;
-        }
-        if let Some(modified_time) = self.modified_time(def_id) {
-            let key = self.genv.tcx().def_path_str(def_id);
-            let key2 = key.clone();
-            let is_diff = self.query_cache.is_modified(key, modified_time);
-            println!("TRACE: matches_check_diff: {def_id:?} <{key2:?}> ==> at {modified_time:?} [{is_diff}]");
-            return is_diff;
-        }
-        return true;
+        !config::check_diff() || self.query_cache.is_modified(&self.genv.tcx(), def_id)
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {

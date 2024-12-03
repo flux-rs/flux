@@ -28,6 +28,7 @@ use rustc_data_structures::{
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 
@@ -337,6 +338,7 @@ where
         // skip checking trivial constraints
         if !constraint.is_concrete() {
             self.ecx.errors.into_result()?;
+            cache.insert_safe_query(&self.genv.tcx(), self.def_id, None);
             return Ok(vec![]);
         }
         let def_span = self.def_span();
@@ -384,9 +386,7 @@ where
             dbg::dump_item_info(self.genv.tcx(), self.def_id, "smt2", &task).unwrap();
         }
 
-        let task_key = self.genv.tcx().def_path_str(self.def_id);
-
-        match Self::run_task_with_cache(task, task_key, cache) {
+        match Self::run_task_with_cache(task, &self.genv.tcx(), self.def_id, cache) {
             FixpointResult::Safe(_) => Ok(vec![]),
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
@@ -401,11 +401,12 @@ where
 
     fn run_task_with_cache(
         task: fixpoint::Task,
-        key: String,
+        tcx: &TyCtxt,
+        def_id: LocalDefId,
         cache: &mut QueryCache,
     ) -> FixpointResult<TagIdx> {
         let hash = task.hash_with_default();
-        if config::is_cache_enabled() && cache.is_safe_query(&key, hash) {
+        if config::is_cache_enabled() && cache.is_safe_query(tcx, def_id, hash) {
             return FixpointResult::Safe(Default::default());
         }
 
@@ -415,7 +416,7 @@ where
 
         if config::is_cache_enabled() {
             if let FixpointResult::Safe(_) = result {
-                cache.insert_safe_query(key, hash);
+                cache.insert_safe_query(tcx, def_id, Some(hash));
             }
         }
         result

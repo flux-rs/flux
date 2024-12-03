@@ -48,7 +48,7 @@ pub fn log_dir() -> &'static PathBuf {
 }
 
 pub fn is_cache_enabled() -> bool {
-    CONFIG.cache
+    CONFIG.cache || check_diff()
 }
 
 pub fn cache_path() -> PathBuf {
