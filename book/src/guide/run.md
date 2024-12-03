@@ -20,7 +20,7 @@ rustc-flux --crate-type=lib path/to/test.rs
 
 ### Refinement Annotations on a File
 
-When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`. 
+When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`.
 
 For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
 
@@ -149,6 +149,7 @@ You can set various `env` variables to customize the behavior of `flux`.
 * `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
 * `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
 * `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
+* `FLUX_CHECK_DIFF=1` only checks code in source files that were modified since the last check
 * `FLUX_DUMP_TIMINGS=1` saves the profile information
 * `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
 * `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
