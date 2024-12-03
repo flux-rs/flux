@@ -30,6 +30,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
+use serde::Serialize;
 
 pub mod fixpoint {
     use std::fmt;
@@ -159,6 +160,7 @@ pub mod fixpoint {
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
+    #[derive(Serialize)]
     pub struct TagIdx {}
 }
 
