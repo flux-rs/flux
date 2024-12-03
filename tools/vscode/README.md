@@ -22,7 +22,6 @@ Ensure you have the following in your `flux.toml` for the workspace you want to 
 
 ```toml
 dump_checker_trace = true
-check_diff = true
 cache = true
 ```
 
