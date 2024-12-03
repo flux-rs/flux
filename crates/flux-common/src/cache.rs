@@ -65,7 +65,7 @@ impl QueryCache {
     ) -> Option<(String, std::time::SystemTime)> {
         let key = path.to_string_lossy().to_string();
         match self.new_timestamps.get(&key) {
-            Some(t) => return Some((key, *t)),
+            Some(t) => Some((key, *t)),
             None => {
                 if let Ok(metadata) = std::fs::metadata(path) {
                     if let Ok(modified_time) = metadata.modified() {
@@ -73,7 +73,7 @@ impl QueryCache {
                         return Some((key, modified_time));
                     }
                 }
-                return None;
+                None
             }
         }
     }
@@ -87,10 +87,10 @@ impl QueryCache {
         let sm = tcx.sess.source_map();
         if let FileName::Real(file_name) = sm.span_to_filename(span) {
             if let Some(path) = file_name.local_path() {
-                return self.get_path_timestamp(&path);
+                return self.get_path_timestamp(path);
             }
         }
-        return None;
+        None
     }
 
     /// returns `true` if the key is absent or the timestamp is newer or the def_id's constraint was NOT marked safe
@@ -107,7 +107,7 @@ impl QueryCache {
                 }
             }
         }
-        return true;
+        true
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {
