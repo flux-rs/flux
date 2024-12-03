@@ -111,7 +111,7 @@ impl QueryCache {
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {
-        if config::is_cache_enabled() || config::check_diff() {
+        if config::is_cache_enabled() {
             let path = config::cache_path();
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
