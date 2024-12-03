@@ -183,7 +183,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return Ok(());
         }
         if !self.matches_check_file(def_id.local_id()) {
-            println!("TRACE: Skipping check for {:?}", def_id);
             return Ok(());
         }
 

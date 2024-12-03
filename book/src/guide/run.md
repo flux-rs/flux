@@ -20,7 +20,7 @@ rustc-flux --crate-type=lib path/to/test.rs
 
 ### Refinement Annotations on a File
 
-When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`. 
+When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`.
 
 For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
 
@@ -153,6 +153,7 @@ You can set various `env` variables to customize the behavior of `flux`.
 * `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
 * `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
 * `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
+* `FLUX_CHECK_FILES=path/to/file1.rs,path/to/file2.rs` only checks the specified files
 * `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
 * `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
 * `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
