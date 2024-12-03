@@ -7,6 +7,7 @@ VS Code extension with language support for flux rust intermediate representatio
 To get the extension running you need to **build** the `vsix` file and **install** it manually
 
 ```bash
+$ npm install -g typescript
 $ npm install -g vsce
 $ vsce package
 ```
