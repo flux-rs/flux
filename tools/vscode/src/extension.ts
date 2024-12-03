@@ -8,11 +8,22 @@ const checkerPath = "log/checker";
 export function activate(context: vscode.ExtensionContext) {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) { return []; }
-    const workspacePath = workspaceFolders[0].uri.fsPath;
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code wll only be executed once when your extension is activated
-	console.log('Extension "vs-flux" is now active in workspace:', workspacePath);
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+	console.log('Extension "flux" is now active in workspace:', workspacePath);
+
+    // Update rust-analyzer to run `flux` on save
+    const rustAnalyzerConfig = vscode.workspace.getConfiguration('rust-analyzer');
+    rustAnalyzerConfig.update(
+        'check.overrideCommand',
+        ["cargo", "flux", "--workspace", "--message-format=json-diagnostic-rendered-ansi"],
+        vscode.ConfigurationTarget.Workspace
+    ).then(() => {
+        vscode.window.showInformationMessage('Flux checking enabled');
+    }, (error) => {
+        vscode.window.showErrorMessage(`Failed to update configuration: ${error}`);
+    });
 
     const infoProvider = new InfoProvider(workspacePath);
 	const fluxViewProvider = new FluxViewProvider(context.extensionUri, infoProvider);
@@ -35,7 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
 			if (event.textEditor) {
 				const position = event.textEditor.selection.active;
                 const fileName = event.textEditor.document.fileName;
-				infoProvider.setPosition(fileName, position.line + 1, position.character + 1);
+                const line = event.textEditor.document.lineAt(position.line);
+				infoProvider.setPosition(fileName, position.line + 1, position.character + 1, line.text);
                 fluxViewProvider.updateView();
 			}
 		})
@@ -47,7 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((document) => {
             if (document.fileName.endsWith('.rs')) {
-                console.log('source file changed: ' + document.fileName);
+                // console.log('source file changed: ' + document.fileName);
                 infoProvider.addChangedFile(document.fileName);
             }
         }
@@ -58,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
     const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
 
     fileWatcher.onDidChange((uri) => {
-        console.log(`checker trace changed: ${uri.fsPath}`);
+        // console.log(`checker trace changed: ${uri.fsPath}`);
         fluxViewProvider.reloadView();
     });
 
@@ -71,25 +83,31 @@ export function deactivate() {}
 
 type LineMap = Map<number, LineInfo>;
 
+enum Position { Start, End };
+
 class InfoProvider {
 
     constructor(private readonly _workspacePath : string) {}
 
-    private _fileMap: Map<string, LineMap> = new Map();
+    private _StartMap: Map<string, LineMap> = new Map();
+    private _EndMap: Map<string, LineMap> = new Map();
 
     currentFile?: string;
     currentLine: number = 0;
     currentColumn: number = 0;
+    currentPosition: Position = Position.End;
+
     private _changedFiles: Set<string> = new Set();
 
     private relFile(file: string) : string {
         return path.relative(this._workspacePath, file);
     }
 
-    public setPosition(file: string, line: number, column: number) {
+    public setPosition(file: string, line: number, column: number, text: string) {
         this.currentFile = this.relFile(file);
         this.currentLine = line;
         this.currentColumn = column;
+        this.currentPosition = text.slice(0, column - 1).trim() === '' ? Position.Start : Position.End;
     }
 
     public addChangedFile(file: string) {
@@ -103,18 +121,34 @@ class InfoProvider {
         return res;
     }
 
+    // for the `Start` map we want the _first_ event for that line, while for the `End` map we want the _last_ event,
+    // so we need to _reverse_ the array for the `Start` map
+    private positionMap(info: LineInfo[], pos: Position) : LineMap {
+         if (pos === Position.Start) {
+              info = info.slice().reverse();
+         }
+        return new Map(info.filter(item => item.pos === pos).map(item => [item.line, item]));
+   }
+
     private updateInfo(fileName: string, fileInfo: LineInfo[]) {
-        const lineMap = new Map(fileInfo.map(item => [item.line, item]));
-        this._fileMap.set(fileName, lineMap);
+        const startMap = this.positionMap(fileInfo, Position.Start);
+        const endMap = this.positionMap(fileInfo, Position.End);
+        this._StartMap.set(fileName, startMap);
+        this._EndMap.set(fileName, endMap);
         this._changedFiles.delete(fileName);
     }
 
     public getLineInfo() : LineInfo | undefined {
-        const cur = this.currentFile;
-        if (cur) {
-            return this._fileMap.get(cur)?.get(this.currentLine);
+        const file = this.currentFile;
+        const pos = this.currentPosition;
+        const line = this.currentLine;
+        if (file) {
+            if (pos === Position.Start) {
+                return this._StartMap.get(file)?.get(line);
+            } else {
+                return this._EndMap.get(file)?.get(line);
+            }
         }
-        return;
     }
 
     public getLine(): number {
@@ -132,10 +166,8 @@ class InfoProvider {
       try {
           const changedFiles = this.getChangedFiles();
           const files = changedFiles.size > 0 ? changedFiles : this.openFiles();
-          // console.log('loading info for files: ', files);
           const lineInfos = await readFluxCheckerTrace(files);
           lineInfos.forEach((lineInfo, fileName) => {
-              // console.log('updating info for: ', fileName, lineInfo);
               this.updateInfo(fileName, lineInfo);
           });
       } catch (error) {
@@ -201,7 +233,6 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
           this._fontFamily = config.get<string>('fontFamily');
           this._fontSize = config.get<number>('fontSize');
           const html = this._getHtmlForWebview();
-          // if (this._view) { this._view.webview.html = html; }
           if (this._panel) { this._panel.webview.html = html; }
         }
     }
@@ -304,7 +335,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     ${rcxExprs}
                     </table>
                     <br>
-                    <table>
+                    <table style="border-collapse: collapse">
                     <tr>
                       <th style="color: blue">Types</th>
                       <td></td>
@@ -331,7 +362,6 @@ async function readFluxCheckerTrace(changedFiles: Set<string>): Promise<Map<stri
         const logData = await vscode.workspace.fs.readFile(logUri);
         const logString = Buffer.from(logData).toString('utf8');
 
-        // console.log('parsed logString size = ', logString.length, ' changed files = ', changedFiles);
         // Parse the logString
         const data = parseEventLog(changedFiles, logString);
         return data;
@@ -366,6 +396,7 @@ type StmtSpan = {
 
 type LineInfo = {
     line: number;
+    pos: Position;
     rcx: string;
     env: string;
 }
@@ -381,7 +412,7 @@ function parseStatementSpan(span: string): StmtSpan | undefined {
                 start_line: parseInt(parts[1], 10),
                 start_col: parseInt(parts[2], 10),
                 end_line: parseInt(parts[1], 10),
-                end_col: end_col, // parseInt(parts[3], 10),
+                end_col: end_col,
             };
         }
     }
@@ -389,10 +420,11 @@ function parseStatementSpan(span: string): StmtSpan | undefined {
 }
 
 function parseEvent(files: Set<string>, event: any): [string, LineInfo] | undefined {
-    if (event.fields.event === 'statement_end') {
+    const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
+    if (position !== undefined) {
         const stmt_span = parseStatementSpan(event.fields.stmt_span);
         if (stmt_span && files.has(stmt_span.file)) {
-            const info = {line: stmt_span.end_line, rcx: event.fields.rcx_json, env: event.fields.env_json};
+            const info = {line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json};
             return [stmt_span.file, info];
         }
     }
