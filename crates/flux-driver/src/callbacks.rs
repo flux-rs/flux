@@ -164,7 +164,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 return config::is_checked_file(&file);
             }
         }
-        return true;
+        true
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
