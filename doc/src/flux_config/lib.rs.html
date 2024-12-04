@@ -182,7 +182,13 @@
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, sync::LazyLock};
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, sync::LazyLock};
 
 <span class="kw">use </span>config::{Environment, File};
 <span class="kw">use </span>serde::Deserialize;
@@ -231,6 +237,10 @@
     CONFIG.cache
 }
 
+<span class="kw">pub fn </span>is_checked_file(file: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    CONFIG.check_files.is_empty() || CONFIG.check_files.contains(file)
+}
+
 <span class="kw">pub fn </span>cache_path() -&gt; PathBuf {
     log_dir().join(<span class="kw-2">&amp;</span>CONFIG.cache_file)
 }
@@ -265,6 +275,7 @@
     catch_bugs: bool,
     pointer_width: PointerWidth,
     check_def: String,
+    check_files: String,
     cache: bool,
     cache_file: String,
     check_overflow: bool,
@@ -314,6 +325,7 @@
             </span>.set_default(<span class="string">"check_asserts"</span>, <span class="string">"assume"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"pointer_width"</span>, <span class="string">"64"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_def"</span>, <span class="string">""</span>)<span class="question-mark">?
+            </span>.set_default(<span class="string">"check_files"</span>, <span class="string">""</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"cache"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"cache_file"</span>, <span class="string">"cache.json"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_overflow"</span>, <span class="bool-val">false</span>)<span class="question-mark">?

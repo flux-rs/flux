@@ -259,7 +259,24 @@
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
@@ -278,6 +295,7 @@
 <span class="kw">use </span>rustc_interface::{interface::Compiler, Queries};
 <span class="kw">use </span>rustc_middle::{query, ty::TyCtxt};
 <span class="kw">use </span>rustc_session::config::OutputType;
+<span class="kw">use </span>rustc_span::FileName;
 
 <span class="kw">use crate</span>::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
 
@@ -414,6 +432,19 @@
         def_path.contains(config::check_def())
     }
 
+    <span class="kw">fn </span>matches_check_file(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>span = tcx.def_span(def_id);
+        <span class="kw">let </span>sm = tcx.sess.source_map();
+        <span class="kw">if let </span>FileName::Real(file_name) = sm.span_to_filename(span) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = file_name.local_path() {
+                <span class="kw">let </span>file = path.to_string_lossy().to_string();
+                <span class="kw">return </span>config::is_checked_file(<span class="kw-2">&amp;</span>file);
+            }
+        }
+        <span class="kw">return </span><span class="bool-val">true</span>;
+    }
+
     <span class="kw">fn </span>check_def_catching_bugs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>this = std::panic::AssertUnwindSafe(<span class="self">self</span>);
         <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"def_id: {:?}, span: {:?}"</span>, def_id, this.genv.tcx().def_span(def_id));
@@ -427,6 +458,9 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="kw">if </span><span class="self">self</span>.genv.ignored(def_id.local_id()) || <span class="self">self</span>.genv.is_dummy(def_id.local_id()) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">if </span>!<span class="self">self</span>.matches_check_file(def_id.local_id()) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 

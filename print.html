@@ -298,6 +298,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
+<li><code>FLUX_CHECK_FILES=path/to/file1.rs,path/to/file2.rs</code> only checks the specified files</li>
 <li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
