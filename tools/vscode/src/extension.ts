@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as child_process from 'child_process';
+import * as process from 'node:process';
+import { promisify } from 'util';
+import * as fs from 'fs';
 
 const checkerPath = "log/checker";
 
@@ -13,23 +17,15 @@ export function activate(context: vscode.ExtensionContext) {
     const workspacePath = workspaceFolders[0].uri.fsPath;
 	console.log('Extension "flux" is now active in workspace:', workspacePath);
 
-    // Update rust-analyzer to run `flux` on save
-    const rustAnalyzerConfig = vscode.workspace.getConfiguration('rust-analyzer');
-    rustAnalyzerConfig.update(
-        'check.overrideCommand',
-        ["cargo", "flux", "--workspace", "--message-format=json-diagnostic-rendered-ansi"],
-        vscode.ConfigurationTarget.Workspace
-    ).then(() => {
-        vscode.window.showInformationMessage('Flux checking enabled');
-    }, (error) => {
-        vscode.window.showErrorMessage(`Failed to update configuration: ${error}`);
-    });
-
     const infoProvider = new InfoProvider(workspacePath);
 	const fluxViewProvider = new FluxViewProvider(context.extensionUri, infoProvider);
 
     let disposable = vscode.commands.registerCommand('Flux.toggle', () => {
         fluxViewProvider.toggle();
+        const editor = vscode.window.activeTextEditor;
+        if (editor) {
+            fluxViewProvider.reloadView(editor.document.fileName);
+        }
     });
     context.subscriptions.push(disposable);
 
@@ -44,38 +40,70 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.onDidChangeTextEditorSelection((event) => {
 			if (event.textEditor) {
-				const position = event.textEditor.selection.active;
-                const fileName = event.textEditor.document.fileName;
-                const line = event.textEditor.document.lineAt(position.line);
-				infoProvider.setPosition(fileName, position.line + 1, position.character + 1, line.text);
-                fluxViewProvider.updateView();
+                fluxViewProvider.render(event.textEditor);
 			}
 		})
 	);
 
-    /* Watch for changes to the trace-file ***********************************************/
-
     // Track the set of saved (updated) source files
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((document) => {
-            if (document.fileName.endsWith('.rs')) {
-                // console.log('source file changed: ' + document.fileName);
-                infoProvider.addChangedFile(document.fileName);
-            }
+            fluxViewProvider.reloadView(document.fileName);
         }
     ));
 
-    // Reload the flux trace information for changedFiles
-    const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
-    const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
+    // Track the set of opened files
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument((document) => {
+            fluxViewProvider.reloadView(document.fileName);
+        }
+    ));
+}
 
-    fileWatcher.onDidChange((uri) => {
-        // console.log(`checker trace changed: ${uri.fsPath}`);
-        fluxViewProvider.reloadView();
-    });
+// Promisify the exec function to use with await
+const execPromise = promisify(child_process.exec);
 
-    /******************************************************************************/
+async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
+    try {
+        // Await the command execution
+        const { stdout, stderr } = await execPromise(command, {
+            env: env,
+            cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath // Optional: set working directory
+        });
 
+        // Handle any output
+        if (stderr) { console.warn(`Command stderr: ${stderr}`); }
+
+        return stdout.trim();
+    } catch (error) {
+        // Handle execution errors
+        vscode.window.showErrorMessage(`Command failed: ${error}`);
+        throw error;
+    }
+}
+
+
+// Method 1: Using fs.statSync
+function getFileModificationTime(filePath: string): Date {
+    const stats = fs.statSync(filePath);
+    return stats.mtime;
+}
+
+// Run `touch` on the file to force cargo/flux to re-run
+async function runTouch(file: string) {
+    const command = `touch ${file}`;
+    runShellCommand(process.env, command)
+}
+
+// run `cargo flux` on the file
+async function runCargoFlux(file: string) {
+    const fluxEnv = {
+        ...process.env,
+        FLUX_DUMP_CHECKER_TRACE : '1',
+        FLUX_CHECK_FILES : file,
+    };
+    const command = `cargo flux`;
+    runShellCommand(fluxEnv, command);
 }
 
 // This method is called when your extension is deactivated
@@ -91,13 +119,12 @@ class InfoProvider {
 
     private _StartMap: Map<string, LineMap> = new Map();
     private _EndMap: Map<string, LineMap> = new Map();
+    private _ModifiedAt : Map<string, Date> = new Map();
 
     currentFile?: string;
     currentLine: number = 0;
     currentColumn: number = 0;
     currentPosition: Position = Position.End;
-
-    private _changedFiles: Set<string> = new Set();
 
     private relFile(file: string) : string {
         return path.relative(this._workspacePath, file);
@@ -108,17 +135,6 @@ class InfoProvider {
         this.currentLine = line;
         this.currentColumn = column;
         this.currentPosition = text.slice(0, column - 1).trim() === '' ? Position.Start : Position.End;
-    }
-
-    public addChangedFile(file: string) {
-        this._changedFiles.add(this.relFile(file));
-    }
-
-    private getChangedFiles() : Set<string> {
-        const res = new Set([...this._changedFiles]);
-        const cur = this.currentFile;
-        if (cur) { res.add(cur); };
-        return res;
     }
 
     // for the `Start` map we want the _first_ event for that line, while for the `End` map we want the _last_ event,
@@ -135,7 +151,6 @@ class InfoProvider {
         const endMap = this.positionMap(fileInfo, Position.End);
         this._StartMap.set(fileName, startMap);
         this._EndMap.set(fileName, endMap);
-        this._changedFiles.delete(fileName);
     }
 
     public getLineInfo() : LineInfo | undefined {
@@ -155,18 +170,28 @@ class InfoProvider {
         return this.currentLine;
     }
 
-    private openFiles() : Set<string> {
-        const files = vscode.workspace.textDocuments
-                        .filter(doc => doc.fileName.endsWith('.rs'))
-                        .map(doc => this.relFile(doc.fileName));
-        return new Set(files);
+    public async runFlux(file: string) {
+        const src = this.relFile(file);
+
+        const lastFluxAt = this._ModifiedAt.get(src);
+        const lastModifiedAt = getFileModificationTime(file);
+        if (lastFluxAt === lastModifiedAt) { return; }
+
+        await runTouch(src);
+        const curAt = getFileModificationTime(file);
+        this._ModifiedAt.set(src, curAt);
+
+        await runCargoFlux(src);
+        await this.loadFluxInfo(src);
     }
 
-    public async loadFluxInfo() {
+    public async loadFluxInfo(file: string) {
       try {
-          const changedFiles = this.getChangedFiles();
-          const files = changedFiles.size > 0 ? changedFiles : this.openFiles();
+          // const changedFiles = this.getChangedFiles();
+          // const files = changedFiles.size > 0 ? changedFiles : this.openFiles();
+          const files = new Set([file]);
           const lineInfos = await readFluxCheckerTrace(files);
+          console.log("LoadFluxInfo: ", files, lineInfos);
           lineInfos.forEach((lineInfo, fileName) => {
               this.updateInfo(fileName, lineInfo);
           });
@@ -198,7 +223,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         this._panel.onDidDispose(() => {
             this._panel = undefined;
         });
-        this.reloadView();
+        this.updateView();
     }
 
     public hide(){
@@ -216,14 +241,21 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    public async reloadView() {
-        this._infoProvider.loadFluxInfo().then(() => {
-            this.updateView();
-        });
+    public async reloadView(file: string) {
+        if (file.endsWith('.rs')) {
+          this._infoProvider.runFlux(file)
+              .then(() => { this.updateView(); })
+        }
     }
 
+    private setPosition(editor: vscode.TextEditor) {
+        const position = editor.selection.active;
+        const fileName = editor.document.fileName;
+        const line = editor.document.lineAt(position.line);
+        this._infoProvider.setPosition(fileName, position.line + 1, position.character + 1, line.text);
+    }
 
-    public updateView() {
+    private updateView() {
         const info = this._infoProvider.getLineInfo();
         this._currentLine = this._infoProvider.getLine();
         if (info) {
@@ -235,6 +267,11 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
           const html = this._getHtmlForWebview();
           if (this._panel) { this._panel.webview.html = html; }
         }
+    }
+
+    public render(editor: vscode.TextEditor) {
+        this.setPosition(editor);
+        this.updateView();
     }
 
     public resolveWebviewView(
@@ -357,7 +394,7 @@ async function readFluxCheckerTrace(changedFiles: Set<string>): Promise<Map<stri
 
         // Read the file using VS Code's file system API
         const workspacePath = workspaceFolders[0].uri.fsPath;
-        const logPath = path.join(workspacePath, "log/checker");
+        const logPath = path.join(workspacePath, checkerPath);
         const logUri = vscode.Uri.file(logPath);
         const logData = await vscode.workspace.fs.readFile(logUri);
         const logString = Buffer.from(logData).toString('utf8');
