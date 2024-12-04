@@ -47,6 +47,10 @@ pub fn is_cache_enabled() -> bool {
     CONFIG.cache
 }
 
+pub fn is_checked_file(file: &str) -> bool {
+    CONFIG.check_files.is_empty() || CONFIG.check_files.contains(file)
+}
+
 pub fn cache_path() -> PathBuf {
     log_dir().join(&CONFIG.cache_file)
 }
@@ -81,6 +85,7 @@ struct Config {
     catch_bugs: bool,
     pointer_width: PointerWidth,
     check_def: String,
+    check_files: String,
     cache: bool,
     cache_file: String,
     check_overflow: bool,
@@ -130,6 +135,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("check_asserts", "assume")?
             .set_default("pointer_width", "64")?
             .set_default("check_def", "")?
+            .set_default("check_files", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?
             .set_default("check_overflow", false)?

@@ -17,6 +17,7 @@ use rustc_hir::{
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
+use rustc_span::FileName;
 
 use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
 
@@ -153,6 +154,19 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         def_path.contains(config::check_def())
     }
 
+    fn matches_check_file(&self, def_id: LocalDefId) -> bool {
+        let tcx = self.genv.tcx();
+        let span = tcx.def_span(def_id);
+        let sm = tcx.sess.source_map();
+        if let FileName::Real(file_name) = sm.span_to_filename(span) {
+            if let Some(path) = file_name.local_path() {
+                let file = path.to_string_lossy().to_string();
+                return config::is_checked_file(&file);
+            }
+        }
+        return true;
+    }
+
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let mut this = std::panic::AssertUnwindSafe(self);
         let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
@@ -166,6 +180,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return Ok(());
         }
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
+            return Ok(());
+        }
+        if !self.matches_check_file(def_id.local_id()) {
             return Ok(());
         }
 
