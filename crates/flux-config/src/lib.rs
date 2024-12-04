@@ -48,7 +48,7 @@ pub fn is_cache_enabled() -> bool {
 }
 
 pub fn is_checked_file(file: &str) -> bool {
-    CONFIG.check_files.is_empty() || CONFIG.check_files.contains(file)
+    CONFIG.check_files.is_checked_file(file)
 }
 
 pub fn cache_path() -> PathBuf {
@@ -94,16 +94,14 @@ struct Config {
 
 #[derive(Default)]
 struct Paths {
-    paths: Vec<PathBuf>,
+    paths: Option<Vec<PathBuf>>,
 }
 
 impl Paths {
-    fn is_empty(&self) -> bool {
-        self.paths.is_empty()
-    }
-
-    fn contains(&self, path: &str) -> bool {
-        self.paths.iter().any(|p| p.to_str().unwrap() == path)
+    fn is_checked_file(&self, file: &str) -> bool {
+        self.paths
+            .as_ref()
+            .map_or(true, |p| p.iter().any(|p| p.to_str().unwrap() == file))
     }
 }
 
@@ -112,11 +110,15 @@ impl<'de> Deserialize<'de> for Paths {
     where
         D: serde::Deserializer<'de>,
     {
-        let paths = String::deserialize(deserializer)?
-            .split(',')
-            .into_iter()
+        let paths: Vec<PathBuf> = String::deserialize(deserializer)?
+            .split(",")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .map(PathBuf::from)
             .collect();
+
+        let paths = if paths.is_empty() { None } else { Some(paths) };
+
         Ok(Paths { paths })
     }
 }
