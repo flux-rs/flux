@@ -16,16 +16,7 @@ $ vsce package
 
 Following [these instructions](https://flux-rs.github.io/flux/guide/install.html)
 
-**Step 3.** Configure `flux` in your workspace
-
-Ensure you have the following in your `flux.toml` for the workspace you want to use the extension in:
-
-```toml
-dump_checker_trace = true
-cache = true
-```
-
-**Step 4.** Run the extension!
+**Step 3.** Run the extension!
 
 You can then **enable** the extension by runnning the `Toggle Flux View` command in the command palette.
 
