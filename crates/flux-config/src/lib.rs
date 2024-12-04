@@ -85,11 +85,40 @@ struct Config {
     catch_bugs: bool,
     pointer_width: PointerWidth,
     check_def: String,
-    check_files: String,
+    check_files: Paths,
     cache: bool,
     cache_file: String,
     check_overflow: bool,
     scrape_quals: bool,
+}
+
+#[derive(Default)]
+struct Paths {
+    paths: Vec<PathBuf>,
+}
+
+impl Paths {
+    fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+
+    fn contains(&self, path: &str) -> bool {
+        self.paths.iter().any(|p| p.to_str().unwrap() == path)
+    }
+}
+
+impl<'de> Deserialize<'de> for Paths {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let paths = String::deserialize(deserializer)?
+            .split(',')
+            .into_iter()
+            .map(PathBuf::from)
+            .collect();
+        Ok(Paths { paths })
+    }
 }
 
 #[derive(Copy, Clone, Deserialize)]
