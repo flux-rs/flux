@@ -10,6 +10,20 @@ const checkerPath = "log/checker";
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+
+    // Configure vscode so rust-analyzer generates `flux` errors on save
+    const rustAnalyzerConfig = vscode.workspace.getConfiguration('rust-analyzer');
+    rustAnalyzerConfig.update(
+        'check.overrideCommand',
+        ["cargo", "flux", "--workspace", "--message-format=json-diagnostic-rendered-ansi"],
+        vscode.ConfigurationTarget.Workspace
+    ).then(() => {
+        vscode.window.showInformationMessage('Flux checking enabled');
+    }, (error) => {
+        vscode.window.showErrorMessage(`Failed to update configuration: ${error}`);
+    });
+
+
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) { return []; }
 
