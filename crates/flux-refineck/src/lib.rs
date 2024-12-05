@@ -89,7 +89,7 @@ fn invoke_fixpoint(
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), local_id, ext, &refine_tree).unwrap();
     }
-    refine_tree.simplify();
+    refine_tree.simplify(genv).emit(&genv)?;
     let simp_ext = format!("simp.{}", ext);
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), local_id, simp_ext, &refine_tree).unwrap();

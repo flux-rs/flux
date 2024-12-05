@@ -234,8 +234,8 @@ impl RefineTree {
         Ok(RefineTree { root })
     }
 
-    pub fn simplify(&mut self) {
-        self.root.borrow_mut().simplify();
+    pub fn simplify(&mut self, genv: GlobalEnv) -> QueryResult {
+        self.root.borrow_mut().simplify(genv)
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {
@@ -415,14 +415,14 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self) {
+    fn simplify(&mut self, genv: GlobalEnv) -> QueryResult {
         for child in &self.children {
-            child.borrow_mut().simplify();
+            child.borrow_mut().simplify(genv)?;
         }
 
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.simplify();
+                let pred = pred.normalize(genv.spec_func_defns()?).simplify();
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -431,7 +431,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.simplify();
+                *pred = pred.normalize(genv.spec_func_defns()?).simplify();
                 self.children
                     .extract_if(|child| {
                         matches!(child.borrow().kind, NodeKind::True)
@@ -448,6 +448,7 @@ impl Node {
         if !self.is_leaf() && self.children.is_empty() {
             self.kind = NodeKind::True;
         }
+        Ok(())
     }
 
     fn is_leaf(&self) -> bool {

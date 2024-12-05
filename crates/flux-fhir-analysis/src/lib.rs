@@ -119,7 +119,8 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .qualifiers()
         .map(|qualifier| {
             let wfckresults = wf::check_qualifier(genv, qualifier)?;
-            normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults)?)
+            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?
+                .normalize(genv.spec_func_defns()?))
         })
         .try_collect()
 }
@@ -143,16 +144,7 @@ fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Inv
         _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
     };
     let wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)?;
-    conv::conv_invariants(
-        genv,
-        item.owner_id.map(|it| it.def_id),
-        params,
-        invariants,
-        &wfckresults,
-    )?
-    .into_iter()
-    .map(|invariant| normalize(genv, invariant))
-    .collect()
+    conv::conv_invariants(genv, item.owner_id.map(|it| it.def_id), params, invariants, &wfckresults)
 }
 
 fn predicates_of(
@@ -487,23 +479,16 @@ fn variants_of(
             let wfckresults = genv.check_wf(local_id)?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let variants = cx.conv_enum_variants(def_id, enum_def)?;
-            let variants = struct_compat::variants(genv, &variants, def_id)?;
-            let variants = variants
-                .into_iter()
-                .map(|variant| normalize(genv, variant))
-                .try_collect()?;
+            let variants = rty::List::from_vec(struct_compat::variants(genv, &variants, def_id)?);
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(local_id)?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             cx.conv_struct_variant(def_id, struct_def)?
-                .map(|variant| {
+                .map(|variant| -> QueryResult<_> {
                     let variants = struct_compat::variants(genv, &[variant], def_id)?;
-                    variants
-                        .into_iter()
-                        .map(|variant| normalize(genv, variant))
-                        .try_collect()
+                    Ok(rty::List::from_vec(variants))
                 })
                 .transpose()?
                 .map(rty::EarlyBinder)
@@ -528,7 +513,6 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         .into_conv_ctxt()
         .conv_fn_sig(def_id, fhir_fn_sig)?;
     let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-    let fn_sig = normalize(genv, fn_sig)?;
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
@@ -589,10 +573,6 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let _ = genv.spec_func_defns().emit(&errors);
 
     errors.into_result()
-}
-
-fn normalize<T: TypeFoldable>(genv: GlobalEnv, t: T) -> QueryResult<T> {
-    Ok(t.normalize(genv.spec_func_defns()?))
 }
 
 mod errors {

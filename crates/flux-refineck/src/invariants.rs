@@ -61,6 +61,7 @@ fn check_invariant(
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id.local_id(), "fluxc", &refine_tree).unwrap();
     }
+    refine_tree.simplify(genv).emit(&genv)?;
 
     let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
     let errors = fcx
