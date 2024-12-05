@@ -1,5 +1,6 @@
 use std::fmt;
 
+use expr::FieldBind;
 use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree};
@@ -277,8 +278,25 @@ impl Pretty for Ty {
             }
             TyKind::Param(param_ty) => w!("{}", ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) => {
-                w!("{:?}::{}", adt.did(), ^adt.variant(*variant_idx).name)?;
-                if !fields.is_empty() {
+                let is_struct = adt.is_struct();
+                // base-name
+                w!("{:?}", adt.did())?;
+                // variant-name: if it is not a struct
+                if !is_struct {
+                    w!("::{}", ^adt.variant(*variant_idx).name)?;
+                }
+                // fields: use curly-braces + names for structs, otherwise use parens
+                if is_struct {
+                    let field_binds = adt
+                        .variant(*variant_idx)
+                        .fields
+                        .iter()
+                        .zip(fields)
+                        .map(|(field_def, value)| FieldBind { name: field_def.name, value })
+                        .collect_vec();
+
+                    w!(" {{ {:?} }}", join!(", ", field_binds))?;
+                } else if !fields.is_empty() {
                     w!("({:?})", join!(", ", fields))?;
                 }
                 Ok(())
@@ -557,5 +575,3 @@ impl_debug_with_default_cx!(
     BvSize,
     ExistentialPredicate,
 );
-
-

@@ -86,7 +86,7 @@ macro_rules! _statement{
         if config::dump_checker_trace() {
             let genv = $genv;
             let rcx_json = RefineCtxtTrace::new(genv, $rcx);
-            let env_json = TypeEnvTrace::new($env);
+            let env_json = TypeEnvTrace::new(genv, $env);
             tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?$rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json)
         }
     }};

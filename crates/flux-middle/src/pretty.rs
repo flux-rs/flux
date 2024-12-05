@@ -260,10 +260,6 @@ macro_rules! set_opts {
 }
 
 impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
-    pub fn with_genv(self, genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv: Some(genv), ..self }
-    }
-
     pub fn default(tcx: TyCtxt<'tcx>) -> Self {
         PrettyCx {
             tcx,
@@ -386,6 +382,10 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn hide_sorts(self, b: bool) -> Self {
         Self { hide_sorts: b, ..self }
+    }
+
+    pub fn with_genv(self, genv: GlobalEnv<'genv, 'tcx>) -> Self {
+        Self { genv: Some(genv), ..self }
     }
 }
 

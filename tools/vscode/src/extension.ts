@@ -257,7 +257,7 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
         }
     }
     if (names.length > 0) { binds.push({name: names, sort: sort}) };
-    console.log("collapsed bindings", binds);
+    // console.log("collapsed bindings", binds);
     return binds;
 }
 

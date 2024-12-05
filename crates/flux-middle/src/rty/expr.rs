@@ -28,6 +28,7 @@ use crate::{
     big_int::BigInt,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
+    pretty::*,
     queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -1077,11 +1078,22 @@ impl From<char> for Constant {
 impl_internable!(ExprKind);
 impl_slice_internable!(Expr, KVar);
 
+#[derive(Debug)]
+pub struct FieldBind<T> {
+    pub name: Symbol,
+    pub value: T,
+}
+
+impl<T: Pretty> Pretty for FieldBind<T> {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        w!("{}: {:?}", ^self.name, &self.value)
+    }
+}
 mod pretty {
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
-    use crate::pretty::*;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1163,10 +1175,20 @@ mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) => {
+                    // base
                     if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^proj.field_idx())
+                        w!("{:?}", e)?;
                     } else {
-                        w!("({:?}).{:?}", e, ^proj.field_idx())
+                        w!("({:?})", e)?;
+                    };
+                    // proj
+                    if let Some(genv) = cx.genv
+                        && let FieldProj::Adt { def_id, field } = proj
+                        && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+                    {
+                        w!(".{}", ^adt_sort_def.field_names()[*field as usize])
+                    } else {
+                        w!(".{:?}", ^proj.field_idx())
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
@@ -1177,7 +1199,19 @@ mod pretty {
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
-                    w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                    if let Some(genv) = cx.genv
+                        && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+                    {
+                        let field_binds = adt_sort_def
+                            .field_names()
+                            .iter()
+                            .zip(flds)
+                            .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
+                            .collect_vec();
+                        w!("{{ {:?} }}", join!(", ", field_binds))
+                    } else {
+                        w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                    }
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_atom() {

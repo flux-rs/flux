@@ -810,6 +810,12 @@ impl RefineCtxtTrace {
                     let e = WithCx::new(&cx, e);
                     exprs.push(format!("{e:?}"));
                 }
+                NodeKind::Root(binds) => {
+                    for (name, sort) in binds {
+                        let bind = RcxBind { name: format!("{name:?}"), sort: format!("{sort:?}") };
+                        bindings.push(bind);
+                    }
+                }
                 _ => (),
             }
         });
