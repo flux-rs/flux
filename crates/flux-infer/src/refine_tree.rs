@@ -8,6 +8,7 @@ use flux_common::{index::IndexVec, iter::IterExt};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
+    pretty::{PrettyCx, WithCx},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
@@ -792,10 +793,12 @@ struct RcxBind {
     sort: String,
 }
 impl RefineCtxtTrace {
-    pub fn new(rcx: &RefineCtxt) -> Self {
+    pub fn new(genv: GlobalEnv, rcx: &RefineCtxt) -> Self {
         let parents = ParentsIter::new(NodePtr::clone(&rcx.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
+        let cx = PrettyCx::default(genv.tcx()).with_genv(genv);
+
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
@@ -804,6 +807,7 @@ impl RefineCtxtTrace {
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
+                    let e = WithCx::new(&cx, e);
                     exprs.push(format!("{e:?}"));
                 }
                 _ => (),
