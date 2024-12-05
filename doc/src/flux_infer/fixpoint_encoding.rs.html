@@ -1383,7 +1383,22 @@
 <a href="#1382" id="1382">1382</a>
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
-<a href="#1385" id="1385">1385</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1415,6 +1430,7 @@
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex};
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize};
 
 <span class="kw">pub mod </span>fixpoint {
     <span class="kw">use </span>std::fmt;
@@ -1545,6 +1561,19 @@
 <span class="macro">newtype_index!</span> {
     <span class="attr">#[debug_format = <span class="string">"TagIdx({})"</span>]
     </span><span class="kw">pub struct </span>TagIdx {}
+}
+
+<span class="kw">impl </span>Serialize <span class="kw">for </span>TagIdx {
+    <span class="kw">fn </span>serialize&lt;S: serde::Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
+        <span class="self">self</span>.as_u32().serialize(serializer)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>TagIdx {
+    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+        <span class="kw">let </span>idx = usize::deserialize(deserializer)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(TagIdx::from_u32(idx <span class="kw">as </span>u32))
+    }
 }
 
 <span class="doccomment">/// Keep track of all the data sorts that we need to define in fixpoint to encode the constraint.
@@ -1694,6 +1723,8 @@
     </span>def_id: LocalDefId,
 }
 
+<span class="kw">pub type </span>FixQueryCache = QueryCache&lt;FixpointResult&lt;TagIdx&gt;&gt;;
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt; FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt;
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
@@ -1715,7 +1746,7 @@
 
     <span class="kw">pub fn </span>check(
         <span class="kw-2">mut </span><span class="self">self</span>,
-        cache: <span class="kw-2">&amp;mut </span>QueryCache,
+        cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
@@ -1787,21 +1818,20 @@
     <span class="kw">fn </span>run_task_with_cache(
         task: fixpoint::Task,
         key: String,
-        cache: <span class="kw-2">&amp;mut </span>QueryCache,
+        cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     ) -&gt; FixpointResult&lt;TagIdx&gt; {
         <span class="kw">let </span>hash = task.hash_with_default();
-        <span class="kw">if </span>config::is_cache_enabled() &amp;&amp; cache.is_safe(<span class="kw-2">&amp;</span>key, hash) {
-            <span class="kw">return </span>FixpointResult::Safe(Default::default());
+        <span class="kw">if </span>config::is_cache_enabled()
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(result) = cache.lookup(<span class="kw-2">&amp;</span>key, hash)
+        {
+            <span class="kw">return </span>result.clone();
         }
-
         <span class="kw">let </span>result = task
             .run()
             .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint {err:?}"</span>));
 
         <span class="kw">if </span>config::is_cache_enabled() {
-            <span class="kw">if let </span>FixpointResult::Safe(<span class="kw">_</span>) = result {
-                cache.insert(key, hash);
-            }
+            cache.insert(key, hash, result.clone());
         }
         result
     }

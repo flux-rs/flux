@@ -812,7 +812,20 @@
 <a href="#811" id="811">811</a>
 <a href="#812" id="812">812</a>
 <a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -1545,12 +1558,19 @@
                         <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
                             NodeKind::ForAll(..) =&gt; <span class="bool-val">true</span>,
                             NodeKind::Assumption(e) =&gt; !e.simplify().is_trivially_true(),
+                            NodeKind::Root(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
                             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
                         }
                     })
                     .format_with(<span class="string">", "</span>, |n, f| {
                         <span class="kw">let </span>n = n.borrow();
                         <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
+                            NodeKind::Root(bindings) =&gt; {
+                                <span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings {
+                                    f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))<span class="question-mark">?</span>;
+                                }
+                                <span class="prelude-val">Ok</span>(())
+                            }
                             NodeKind::ForAll(name, sort) =&gt; {
                                 f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             }
@@ -1619,6 +1639,12 @@
                 }
                 NodeKind::Assumption(e) <span class="kw">if </span>!e.simplify().is_trivially_true() =&gt; {
                     exprs.push(<span class="macro">format!</span>(<span class="string">"{e:?}"</span>));
+                }
+                NodeKind::Root(bs) =&gt; {
+                    <span class="kw">for </span>(name, sort) <span class="kw">in </span>bs {
+                        <span class="kw">let </span>bind = RcxBind { name: <span class="macro">format!</span>(<span class="string">"{name:?}"</span>), sort: <span class="macro">format!</span>(<span class="string">"{sort:?}"</span>) };
+                        bindings.push(bind);
+                    }
                 }
                 <span class="kw">_ </span>=&gt; (),
             }

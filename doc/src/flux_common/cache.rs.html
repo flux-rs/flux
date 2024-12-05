@@ -59,32 +59,60 @@
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
 <a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fs::File, path::PathBuf};
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fs::File, path::PathBuf};
 
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 
-<span class="kw">pub struct </span>QueryCache {
-    entries: FxHashMap&lt;String, u64&gt;,
+<span class="attr">#[derive(Debug, serde::Serialize, serde::Deserialize)]
+</span><span class="kw">struct </span>QueryVal&lt;R&gt; {
+    constr_hash: u64,
+    result: R,
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>QueryCache {
+<span class="kw">pub struct </span>QueryCache&lt;R&gt; {
+    entries: FxHashMap&lt;String, QueryVal&lt;R&gt;&gt;,
+}
+
+<span class="kw">impl</span>&lt;R&gt; Default <span class="kw">for </span>QueryCache&lt;R&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::new()
     }
 }
 
-<span class="kw">impl </span>QueryCache {
+<span class="kw">impl</span>&lt;R&gt; QueryCache&lt;R&gt; {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         QueryCache { entries: FxHashMap::default() }
     }
 
-    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: String, constr_hash: u64) {
-        <span class="self">self</span>.entries.insert(key, constr_hash);
+    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: String, constr_hash: u64, result: R) {
+        <span class="kw">let </span>val = QueryVal { constr_hash, result };
+        <span class="self">self</span>.entries.insert(key, val);
     }
 
-    <span class="kw">pub fn </span>is_safe(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>String, constr_hash: u64) -&gt; bool {
-        config::is_cache_enabled() &amp;&amp; <span class="self">self</span>.entries.get(key).map_or(<span class="bool-val">false</span>, |h| <span class="kw-2">*</span>h == constr_hash)
+    <span class="kw">pub fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>String, constr_hash: u64) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>R&gt; {
+        <span class="kw">let </span>val = <span class="self">self</span>.entries.get(key)<span class="question-mark">?</span>;
+        <span class="kw">if </span>val.constr_hash == constr_hash {
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>val.result)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
     }
 
     <span class="kw">fn </span>path() -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf, std::io::Error&gt; {
@@ -101,7 +129,9 @@
     <span class="kw">fn </span>no_cache_err() -&gt; std::io::Error {
         std::io::Error::new(std::io::ErrorKind::Other, <span class="string">"cache not enabled"</span>)
     }
+}
 
+<span class="kw">impl</span>&lt;R: std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned&gt; QueryCache&lt;R&gt; {
     <span class="kw">pub fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), std::io::Error&gt; {
         <span class="kw">let </span>path = <span class="self">Self</span>::path()<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>file = File::create(path).unwrap();
@@ -110,9 +140,11 @@
     }
 
     <span class="kw">pub fn </span>load() -&gt; <span class="self">Self </span>{
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(path) = <span class="self">Self</span>::path() {
+        <span class="kw">let </span>path = <span class="self">Self</span>::path();
+        <span class="kw">if let </span><span class="prelude-val">Ok</span>(path) = path {
             <span class="kw">if let </span><span class="prelude-val">Ok</span>(file) = File::open(path) {
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(entries) = serde_json::from_reader(file) {
+                <span class="kw">let </span>entries = serde_json::from_reader(file);
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(entries) = entries {
                     <span class="kw">return </span>QueryCache { entries };
                 }
             }

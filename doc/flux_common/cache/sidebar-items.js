@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["QueryCache"]};
+window.SIDEBAR_ITEMS = {"struct":["QueryCache","QueryVal"]};

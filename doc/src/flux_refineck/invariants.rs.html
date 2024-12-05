@@ -85,11 +85,11 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#87" id="87">87</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>flux_infer::{
-    fixpoint_encoding::{FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
@@ -100,7 +100,7 @@
 
 <span class="kw">pub fn </span>check_invariants(
     genv: GlobalEnv,
-    cache: <span class="kw-2">&amp;mut </span>QueryCache,
+    cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     def_id: MaybeExternId,
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
     adt_def: <span class="kw-2">&amp;</span>rty::AdtDef,
@@ -118,7 +118,7 @@
 
 <span class="kw">fn </span>check_invariant(
     genv: GlobalEnv,
-    cache: <span class="kw-2">&amp;mut </span>QueryCache,
+    cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     def_id: MaybeExternId,
     adt_def: <span class="kw-2">&amp;</span>rty::AdtDef,
     span: Span,

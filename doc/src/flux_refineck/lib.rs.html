@@ -396,10 +396,10 @@
 
 <span class="kw">pub use </span>checker::CheckerConfig;
 <span class="kw">use </span>checker::{trait_impl_subtyping, Checker};
-<span class="kw">use </span>flux_common::{cache::QueryCache, dbg, result::ResultExt <span class="kw">as _</span>};
+<span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_infer::{
-    fixpoint_encoding::{FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::RefineTree,
 };
@@ -442,7 +442,7 @@
 
 <span class="kw">fn </span>invoke_fixpoint(
     genv: GlobalEnv,
-    cache: <span class="kw-2">&amp;mut </span>QueryCache,
+    cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     local_id: LocalDefId,
     <span class="kw-2">mut </span>refine_tree: RefineTree,
     kvars: KVarGen,
@@ -465,7 +465,7 @@
 
 <span class="kw">pub fn </span>check_fn(
     genv: GlobalEnv,
-    cache: <span class="kw-2">&amp;mut </span>QueryCache,
+    cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     def_id: MaybeExternId,
     <span class="kw-2">mut </span>config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {

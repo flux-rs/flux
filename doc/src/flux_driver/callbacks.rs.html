@@ -276,10 +276,12 @@
 <a href="#275" id="275">275</a>
 <a href="#276" id="276">276</a>
 <a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
+<span class="kw">use </span>flux_infer::fixpoint_encoding::FixQueryCache;
 <span class="kw">use </span>flux_metadata::CStore;
 <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 <span class="kw">use </span>flux_refineck <span class="kw">as </span>refineck;
@@ -413,7 +415,7 @@
 
 <span class="kw">struct </span>CrateChecker&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    cache: QueryCache,
+    cache: FixQueryCache,
     checker_config: CheckerConfig,
 }
 
