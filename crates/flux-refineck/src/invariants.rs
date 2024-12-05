@@ -1,8 +1,8 @@
-use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
-    fixpoint_encoding::{FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
@@ -13,7 +13,7 @@ use crate::CheckerConfig;
 
 pub fn check_invariants(
     genv: GlobalEnv,
-    cache: &mut QueryCache,
+    cache: &mut FixQueryCache,
     def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
@@ -31,7 +31,7 @@ pub fn check_invariants(
 
 fn check_invariant(
     genv: GlobalEnv,
-    cache: &mut QueryCache,
+    cache: &mut FixQueryCache,
     def_id: MaybeExternId,
     adt_def: &rty::AdtDef,
     span: Span,
