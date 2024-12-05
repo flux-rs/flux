@@ -239,7 +239,6 @@ impl<T: Types> KVarDecl<T> {
 }
 
 #[derive(Serialize, Deserialize)]
-// struct ErrorInner<'a>(i32, &'a str);
 struct ErrorInner(i32, String);
 
 impl<Tag: ToString> Serialize for Error<Tag> {

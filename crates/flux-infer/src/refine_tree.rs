@@ -740,7 +740,7 @@ mod pretty {
                         match &n.kind {
                             NodeKind::Root(bindings) => {
                                 for (name, sort) in bindings {
-                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))?
+                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
                                 }
                                 Ok(())
                             }
