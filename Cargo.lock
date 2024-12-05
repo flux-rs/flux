@@ -464,6 +464,8 @@ version = "0.1.0"
 dependencies = [
  "flux-config",
  "rustc-hash 2.0.0",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -498,6 +500,7 @@ dependencies = [
  "flux-desugar",
  "flux-errors",
  "flux-fhir-analysis",
+ "flux-infer",
  "flux-macros",
  "flux-metadata",
  "flux-middle",

@@ -2,6 +2,7 @@ use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt}
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_fhir_analysis::compare_impl_item;
+use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_refineck as refineck;
@@ -135,7 +136,7 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    cache: QueryCache,
+    cache: FixQueryCache,
     checker_config: CheckerConfig,
 }
 

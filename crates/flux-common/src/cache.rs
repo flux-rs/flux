@@ -3,28 +3,48 @@ use std::{fs::File, path::PathBuf};
 use flux_config as config;
 use rustc_hash::FxHashMap;
 
-pub struct QueryCache {
-    entries: FxHashMap<String, u64>,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct QueryVal<R> {
+    constr_hash: u64,
+    result: R,
 }
 
-impl Default for QueryCache {
+pub struct QueryCache<R> {
+    entries: FxHashMap<String, QueryVal<R>>,
+}
+
+impl<R> Default for QueryCache<R> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl QueryCache {
+impl<R> QueryCache<R> {
     pub fn new() -> Self {
         QueryCache { entries: FxHashMap::default() }
     }
 
-    pub fn insert(&mut self, key: String, constr_hash: u64) {
-        self.entries.insert(key, constr_hash);
+    pub fn insert(&mut self, key: String, constr_hash: u64, result: R) {
+        let val = QueryVal { constr_hash, result };
+        self.entries.insert(key, val);
     }
 
-    pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
-        config::is_cache_enabled() && self.entries.get(key).map_or(false, |h| *h == constr_hash)
+    pub fn lookup(&self, key: &String, constr_hash: u64) -> Option<&R> {
+        let val = self.entries.get(key)?;
+        if val.constr_hash == constr_hash {
+            Some(&val.result)
+        } else {
+            None
+        }
     }
+
+    // pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
+    //     config::is_cache_enabled()
+    //         && self
+    //             .entries
+    //             .get(key)
+    //             .map_or(false, |h| (*h).constr_hash == constr_hash)
+    // }
 
     fn path() -> Result<PathBuf, std::io::Error> {
         if config::is_cache_enabled() {
@@ -40,7 +60,9 @@ impl QueryCache {
     fn no_cache_err() -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::Other, "cache not enabled")
     }
+}
 
+impl<R: std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned> QueryCache<R> {
     pub fn save(&self) -> Result<(), std::io::Error> {
         let path = Self::path()?;
         let mut file = File::create(path).unwrap();
@@ -49,9 +71,11 @@ impl QueryCache {
     }
 
     pub fn load() -> Self {
-        if let Ok(path) = Self::path() {
+        let path = Self::path();
+        if let Ok(path) = path {
             if let Ok(file) = File::open(path) {
-                if let Ok(entries) = serde_json::from_reader(file) {
+                let entries = serde_json::from_reader(file);
+                if let Ok(entries) = entries {
                     return QueryCache { entries };
                 }
             }
