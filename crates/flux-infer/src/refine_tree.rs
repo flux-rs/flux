@@ -731,12 +731,19 @@ mod pretty {
                         match &node.kind {
                             NodeKind::ForAll(..) => true,
                             NodeKind::Assumption(e) => !e.simplify().is_trivially_true(),
+                            NodeKind::Root(_) => true,
                             _ => false,
                         }
                     })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
+                            NodeKind::Root(bindings) => {
+                                for (name, sort) in bindings {
+                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
+                                }
+                                Ok(())
+                            }
                             NodeKind::ForAll(name, sort) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
@@ -805,6 +812,12 @@ impl RefineCtxtTrace {
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
                     exprs.push(format!("{e:?}"));
+                }
+                NodeKind::Root(bs) => {
+                    for (name, sort) in bs {
+                        let bind = RcxBind { name: format!("{name:?}"), sort: format!("{sort:?}") };
+                        bindings.push(bind);
+                    }
                 }
                 _ => (),
             }
