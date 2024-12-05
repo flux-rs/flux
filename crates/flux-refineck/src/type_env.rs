@@ -889,7 +889,7 @@ struct TypeEnvBind {
 impl TypeEnvTrace {
     pub fn new(genv: GlobalEnv, env: &TypeEnv) -> Self {
         let mut bindings = vec![];
-        let cx = PrettyCx::default(genv.tcx()).with_genv(genv);
+        let cx = PrettyCx::default_with_genv(genv);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())

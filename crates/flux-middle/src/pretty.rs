@@ -279,6 +279,11 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         }
     }
 
+    pub fn default_with_genv(genv: GlobalEnv<'genv, 'tcx>) -> Self {
+        let def = Self::default(genv.tcx());
+        Self { genv: Some(genv), ..def }
+    }
+
     pub fn merge(&mut self, opts: &config::Value) {
         set_opts!(
             self,
@@ -382,10 +387,6 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn hide_sorts(self, b: bool) -> Self {
         Self { hide_sorts: b, ..self }
-    }
-
-    pub fn with_genv(self, genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv: Some(genv), ..self }
     }
 }
 
