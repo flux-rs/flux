@@ -38,14 +38,6 @@ impl<R> QueryCache<R> {
         }
     }
 
-    // pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
-    //     config::is_cache_enabled()
-    //         && self
-    //             .entries
-    //             .get(key)
-    //             .map_or(false, |h| (*h).constr_hash == constr_hash)
-    // }
-
     fn path() -> Result<PathBuf, std::io::Error> {
         if config::is_cache_enabled() {
             let path = config::cache_path();
