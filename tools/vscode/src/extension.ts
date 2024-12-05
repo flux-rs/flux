@@ -239,6 +239,39 @@ enum DisplayState {
     Info,       // have info to display at current cursor position
 }
 
+function collapseBindings(bindings: RcxBind[]): RcxBind[] {
+    let sort  : string = '';
+    let names : string[] = [];
+    let binds : RcxBind[] = [];
+    for (const bind of bindings) {
+        if (typeof bind.name === 'string') {
+            if (bind.sort === sort) {
+                // same sort as before
+                names.push(bind.name);
+            } else {
+                // new sort
+                if (names.length > 0) { binds.push({name: names, sort: sort}) };
+                names = [bind.name];
+                sort = bind.sort;
+            }
+        }
+    }
+    if (names.length > 0) { binds.push({name: names, sort: sort}) };
+    console.log("collapsed bindings", binds);
+    return binds;
+}
+
+function parseRcx(rcx: string): Rcx {
+    const rcxObj = JSON.parse(rcx);
+    rcxObj.bindings = collapseBindings(rcxObj.bindings);
+    rcxObj.exprs = [...new Set(rcxObj.exprs)];
+    return rcxObj;
+}
+
+function parseEnv(env: string): TypeEnv {
+    return JSON.parse(env);
+}
+
 class FluxViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _panel?: vscode.WebviewPanel;
@@ -300,8 +333,8 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._currentState = DisplayState.Loading;
         } else if (info) {
             this._currentState = DisplayState.Info;
-            this._currentRcx = JSON.parse(info.rcx);
-            this._currentEnv = JSON.parse(info.env);
+            this._currentRcx = parseRcx(info.rcx);
+            this._currentEnv = parseEnv(info.env);
         } else {
             this._currentState = DisplayState.None;
         }
@@ -331,11 +364,15 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForInfo() {
-        const rcxBindings = this._currentRcx?.bindings.map(bind => `
+        const rcxBindings = this._currentRcx?.bindings.map(bind => {
+          const name = typeof bind.name === 'string' ? bind.name : bind.name.join(' ');
+          console.log("bind", bind, name);
+          return `
             <tr>
-                <td><b style="color: #F26123">${bind.name}</b> : ${bind.sort} </td>
+                <td><b style="color: #F26123">${name}</b> : ${bind.sort} </td>
             </tr>
-          `).join('');
+          `;
+          }).join('');
 
         const rcxExprs = this._currentRcx?.exprs.map(expr => `
             <tr>
@@ -479,13 +516,14 @@ type TypeEnvBind = {
   ty: String,
 }
 type TypeEnv = TypeEnvBind[];
+
 type RcxBind = {
-    name: String,
-    sort: String,
+    name: string | string[],
+    sort: string,
 }
 type Rcx = {
     bindings: RcxBind[],
-    exprs: String[],
+    exprs: string[],
 }
 
 type StmtSpan = {
