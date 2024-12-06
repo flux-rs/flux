@@ -9,7 +9,7 @@
     }
 
     fn inc1(x: int) -> int {
-        x + 1   //~ NOTE this is the condition
+        x + 1
     }
 }]
 
@@ -21,7 +21,7 @@ fn test() {
                  //~| NOTE a precondition cannot be proved
 }
 
-#[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE inside this call
+#[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE this is the condition
 fn moo() -> i32 {
     2 //~ ERROR refinement type
       //~| NOTE a postcondition cannot be proved

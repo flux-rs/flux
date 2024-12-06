@@ -1,15 +1,14 @@
-use flux_common::{dbg, iter::IterExt, result::ResultExt};
-use flux_config as config;
+use flux_common::{iter::IterExt, result::ResultExt};
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, KVarGen},
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
 use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 use rustc_span::{Span, DUMMY_SP};
 
-use crate::CheckerConfig;
+use crate::{invoke_fixpoint, CheckerConfig};
 
 pub fn check_invariants(
     genv: GlobalEnv,
@@ -57,15 +56,17 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, def_id.local_id(), KVarGen::dummy());
-    if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id.local_id(), "fluxc", &refine_tree).unwrap();
-    }
+    let errors = invoke_fixpoint(
+        genv,
+        cache,
+        def_id,
+        refine_tree,
+        KVarGen::dummy(),
+        checker_config,
+        "fluxc",
+    )
+    .emit(&genv)?;
 
-    let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
-    let errors = fcx
-        .check(cache, cstr, checker_config.scrape_quals)
-        .emit(&genv)?;
     if errors.is_empty() {
         Ok(())
     } else {

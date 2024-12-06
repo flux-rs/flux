@@ -1221,8 +1221,8 @@ mod pretty {
                     }
                 }
                 ExprKind::App(func, args) => {
-                    w!("({:?})({})",
-                        func,
+                    w!("{:?}({})",
+                        parens!(func, !func.is_atom()),
                         ^args
                             .iter()
                             .format_with(", ", |arg, f| f(&format_args_cx!("{:?}", arg)))

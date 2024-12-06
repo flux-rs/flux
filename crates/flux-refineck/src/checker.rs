@@ -1950,7 +1950,7 @@ pub(crate) mod errors {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
 
-        pub fn emit_err(self, genv: &GlobalEnv, fn_def_id: MaybeExternId) -> ErrorGuaranteed {
+        pub fn emit(self, genv: GlobalEnv, fn_def_id: MaybeExternId) -> ErrorGuaranteed {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
                 CheckerErrKind::Inference => {
