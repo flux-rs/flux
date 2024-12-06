@@ -381,7 +381,8 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
         const envBindings = this._currentEnv?.map(bind => `
             <tr>
-                <td><b style="color: #F26123">${bind.loc}</b> : ${bind.ty} </td>
+                <td><b style="color: #F26123">${bind.loc}</b></td>
+                <td>: ${bind.ty}</td>
             </tr>
           `).join('');
 

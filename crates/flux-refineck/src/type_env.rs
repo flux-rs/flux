@@ -30,8 +30,10 @@ use flux_rustc_bridge::{
     ty,
 };
 use itertools::{izip, Itertools};
+use rustc_data_structures::unord::UnordMap;
 use rustc_index::IndexSlice;
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
+use rustc_span::Symbol;
 use rustc_type_ir::BoundVar;
 use serde::Serialize;
 
@@ -886,8 +888,16 @@ struct TypeEnvBind {
     ty: String,
 }
 
+fn loc_string(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
+    if let Loc::Local(local) = loc {
+        let name = local_names.get(local)?;
+        return Some(format!("{}", name));
+    }
+    return Some(format!("{:?}", loc));
+}
+
 impl TypeEnvTrace {
-    pub fn new(genv: GlobalEnv, env: &TypeEnv) -> Self {
+    pub fn new(genv: GlobalEnv, local_names: &UnordMap<Local, Symbol>, env: &TypeEnv) -> Self {
         let mut bindings = vec![];
         let cx = PrettyCx::default_with_genv(genv);
         env.bindings
@@ -895,11 +905,12 @@ impl TypeEnvTrace {
             .filter(|(_, binding)| !binding.ty.is_uninit())
             .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
             .for_each(|(loc, binding)| {
-                let loc = format!("{loc:?}");
-                let kind = format!("{:?}", binding.kind);
-                let ty = WithCx::new(&cx, binding.ty.clone());
-                let ty = format!("{:?}", ty);
-                bindings.push(TypeEnvBind { loc, kind, ty });
+                if let Some(loc) = loc_string(local_names, loc) {
+                    let kind = format!("{:?}", binding.kind);
+                    let ty = WithCx::new(&cx, binding.ty.clone());
+                    let ty = format!("{:?}", ty);
+                    bindings.push(TypeEnvBind { loc, kind, ty });
+                }
             });
 
         TypeEnvTrace(bindings)

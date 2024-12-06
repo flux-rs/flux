@@ -11,6 +11,7 @@ use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+    unord::UnordMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
@@ -75,6 +76,7 @@ pub struct Body<'tcx> {
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
+    pub local_names: UnordMap<Local, Symbol>,
 }
 
 #[derive(Debug)]
@@ -371,6 +373,7 @@ impl<'tcx> Body<'tcx> {
         local_decls: IndexVec<Local, LocalDecl>,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
+        local_names: UnordMap<Local, Symbol>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
@@ -390,6 +393,7 @@ impl<'tcx> Body<'tcx> {
             fake_predecessors,
             body_with_facts,
             dominator_order_rank,
+            local_names,
         }
     }
 
