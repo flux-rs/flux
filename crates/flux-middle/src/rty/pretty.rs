@@ -236,6 +236,8 @@ impl Pretty for SubsetTy {
     }
 }
 
+// This is a trick to avoid pretty printing `S [S { x: 10, y: 20}]`
+// and instead just print `S[{x: 10, y: 20}]` for struct-valued indices.
 struct TopIndexExpr(Expr);
 
 impl Pretty for TopIndexExpr {
