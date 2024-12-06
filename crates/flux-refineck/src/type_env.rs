@@ -899,7 +899,7 @@ fn loc_string(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String
 impl TypeEnvTrace {
     pub fn new(genv: GlobalEnv, local_names: &UnordMap<Local, Symbol>, env: &TypeEnv) -> Self {
         let mut bindings = vec![];
-        let cx = PrettyCx::default_with_genv(genv);
+        let cx = PrettyCx::default_with_genv(genv).hide_regions(true);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())
