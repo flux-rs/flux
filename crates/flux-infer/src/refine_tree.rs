@@ -235,7 +235,7 @@ impl RefineTree {
     }
 
     pub fn simplify(&mut self, defns: &SpecFuncDefns) {
-        self.root.borrow_mut().simplify(defns)
+        self.root.borrow_mut().simplify(defns);
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {

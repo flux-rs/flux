@@ -1,7 +1,7 @@
-use flux_common::{cache::QueryCache, iter::IterExt, result::ResultExt};
+use flux_common::{iter::IterExt, result::ResultExt};
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, KVarGen},
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
