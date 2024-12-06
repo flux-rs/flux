@@ -2600,8 +2600,8 @@
                     }
                 }
                 ExprKind::App(func, args) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">"({:?})({})"</span>,
-                        func,
+                    <span class="macro">w!</span>(<span class="string">"{:?}({})"</span>,
+                        <span class="macro">parens!</span>(func, !func.is_atom()),
                         ^args
                             .iter()
                             .format_with(<span class="string">", "</span>, |arg, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, arg)))

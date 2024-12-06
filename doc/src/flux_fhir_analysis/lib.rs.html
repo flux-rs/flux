@@ -598,27 +598,7 @@
 <a href="#597" id="597">597</a>
 <a href="#598" id="598">598</a>
 <a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
+<a href="#600" id="600">600</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -739,7 +719,8 @@
         .qualifiers()
         .map(|qualifier| {
             <span class="kw">let </span>wfckresults = wf::check_qualifier(genv, qualifier)<span class="question-mark">?</span>;
-            normalize(genv, conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>)
+            <span class="prelude-val">Ok</span>(conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+                </span>.normalize(genv.spec_func_defns()<span class="question-mark">?</span>))
         })
         .try_collect()
 }
@@ -763,16 +744,7 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(item.owner_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">let </span>wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)<span class="question-mark">?</span>;
-    conv::conv_invariants(
-        genv,
-        item.owner_id.map(|it| it.def_id),
-        params,
-        invariants,
-        <span class="kw-2">&amp;</span>wfckresults,
-    )<span class="question-mark">?
-    </span>.into_iter()
-    .map(|invariant| normalize(genv, invariant))
-    .collect()
+    conv::conv_invariants(genv, item.owner_id.map(|it| it.def_id), params, invariants, <span class="kw-2">&amp;</span>wfckresults)
 }
 
 <span class="kw">fn </span>predicates_of(
@@ -1107,23 +1079,16 @@
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>variants = cx.conv_enum_variants(def_id, enum_def)<span class="question-mark">?</span>;
-            <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>variants, def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>variants = variants
-                .into_iter()
-                .map(|variant| normalize(genv, variant))
-                .try_collect()<span class="question-mark">?</span>;
+            <span class="kw">let </span>variants = rty::List::from_vec(struct_compat::variants(genv, <span class="kw-2">&amp;</span>variants, def_id)<span class="question-mark">?</span>);
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             cx.conv_struct_variant(def_id, struct_def)<span class="question-mark">?
-                </span>.map(|variant| {
+                </span>.map(|variant| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
                     <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>[variant], def_id)<span class="question-mark">?</span>;
-                    variants
-                        .into_iter()
-                        .map(|variant| normalize(genv, variant))
-                        .try_collect()
+                    <span class="prelude-val">Ok</span>(rty::List::from_vec(variants))
                 })
                 .transpose()<span class="question-mark">?
                 </span>.map(rty::EarlyBinder)
@@ -1148,7 +1113,6 @@
         .into_conv_ctxt()
         .conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, <span class="kw-2">&amp;</span>fn_sig, def_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>fn_sig = normalize(genv, fn_sig)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>config::dump_rty() {
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
@@ -1209,10 +1173,6 @@
     <span class="kw">let _ </span>= genv.spec_func_defns().emit(<span class="kw-2">&amp;</span>errors);
 
     errors.into_result()
-}
-
-<span class="kw">fn </span>normalize&lt;T: TypeFoldable&gt;(genv: GlobalEnv, t: T) -&gt; QueryResult&lt;T&gt; {
-    <span class="prelude-val">Ok</span>(t.normalize(genv.spec_func_defns()<span class="question-mark">?</span>))
 }
 
 <span class="kw">mod </span>errors {

@@ -443,24 +443,24 @@
 <span class="kw">fn </span>invoke_fixpoint(
     genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
-    local_id: LocalDefId,
+    def_id: MaybeExternId,
     <span class="kw-2">mut </span>refine_tree: RefineTree,
     kvars: KVarGen,
     config: CheckerConfig,
     ext: <span class="kw-2">&amp;</span>str,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Tag&gt;, ErrorGuaranteed&gt; {
+) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
     <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), local_id, ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }
-    refine_tree.simplify();
+    refine_tree.simplify(genv.spec_func_defns()<span class="question-mark">?</span>);
     <span class="kw">let </span>simp_ext = <span class="macro">format!</span>(<span class="string">"simp.{}"</span>, ext);
     <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), local_id, simp_ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), simp_ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, local_id, kvars);
-    <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-    fcx.check(cache, cstr, config.scrape_quals).emit(<span class="kw-2">&amp;</span>genv)
+    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, kvars);
+    <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx)<span class="question-mark">?</span>;
+    fcx.check(cache, cstr, config.scrape_quals)
 }
 
 <span class="kw">pub fn </span>check_fn(
@@ -510,34 +510,34 @@
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| {
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
-            .map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
+            .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
         </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, config)
-            <span class="comment">// Augment the possible CheckError with the functions span so we can report
-            // helpful error messages for opaque struct field accesses
-            </span>.map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
+            .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
         </span><span class="kw">let </span>(refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, config)
-                .map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?</span>;
+                .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
-        </span><span class="kw">let </span>errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, <span class="string">"fluxc"</span>)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>errors = invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, <span class="string">"fluxc"</span>)
+            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 4: subtyping check for trait-method implementations
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>((refine_tree, kvars)) =
             trait_impl_subtyping(genv, local_id, config.check_overflow, span)
-                .map_err(|err| err.emit_err(<span class="kw-2">&amp;</span>genv, def_id))<span class="question-mark">?
+                .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
         </span>{
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
             <span class="kw">let </span>errors =
-                invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, <span class="string">"sub.fluxc"</span>)<span class="question-mark">?</span>;
+                invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, <span class="string">"sub.fluxc"</span>)
+                    .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
             report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
         }

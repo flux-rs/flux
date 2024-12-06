@@ -845,8 +845,8 @@
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, Ty, TyCtor, TyKind,
-        Var,
+        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, SpecFuncDefns, Ty,
+        TyCtor, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -1065,8 +1065,8 @@
         <span class="prelude-val">Ok</span>(RefineTree { root })
     }
 
-    <span class="kw">pub fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.root.borrow_mut().simplify();
+    <span class="kw">pub fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
+        <span class="self">self</span>.root.borrow_mut().simplify(defns);
     }
 
     <span class="kw">pub fn </span>into_fixpoint(<span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
@@ -1246,14 +1246,14 @@
 }
 
 <span class="kw">impl </span>Node {
-    <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
         <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.children {
-            child.borrow_mut().simplify();
+            child.borrow_mut().simplify(defns);
         }
 
         <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.kind {
             NodeKind::Head(pred, tag) =&gt; {
-                <span class="kw">let </span>pred = pred.simplify();
+                <span class="kw">let </span>pred = pred.normalize(defns).simplify();
                 <span class="kw">if </span>pred.is_trivially_true() {
                     <span class="self">self</span>.kind = NodeKind::True;
                 } <span class="kw">else </span>{
@@ -1262,7 +1262,7 @@
             }
             NodeKind::True =&gt; {}
             NodeKind::Assumption(pred) =&gt; {
-                <span class="kw-2">*</span>pred = pred.simplify();
+                <span class="kw-2">*</span>pred = pred.normalize(defns).simplify();
                 <span class="self">self</span>.children
                     .extract_if(|child| {
                         <span class="macro">matches!</span>(child.borrow().kind, NodeKind::True)
