@@ -902,7 +902,10 @@
 <a href="#901" id="901">901</a>
 <a href="#902" id="902">902</a>
 <a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -915,6 +918,7 @@
 <span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
+    pretty::{PrettyCx, WithCx},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, LocalHoister},
@@ -1790,8 +1794,9 @@
 }
 
 <span class="kw">impl </span>TypeEnvTrace {
-    <span class="kw">pub fn </span>new(env: <span class="kw-2">&amp;</span>TypeEnv) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv, env: <span class="kw-2">&amp;</span>TypeEnv) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv);
         env.bindings
             .iter()
             .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())
@@ -1799,7 +1804,8 @@
             .for_each(|(loc, binding)| {
                 <span class="kw">let </span>loc = <span class="macro">format!</span>(<span class="string">"{loc:?}"</span>);
                 <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
-                <span class="kw">let </span>ty = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.ty);
+                <span class="kw">let </span>ty = WithCx::new(<span class="kw-2">&amp;</span>cx, binding.ty.clone());
+                <span class="kw">let </span>ty = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, ty);
                 bindings.push(TypeEnvBind { loc, kind, ty });
             });
 

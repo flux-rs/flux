@@ -825,7 +825,11 @@
 <a href="#824" id="824">824</a>
 <a href="#825" id="825">825</a>
 <a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -835,6 +839,7 @@
 <span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
+    pretty::{PrettyCx, WithCx},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
@@ -1626,10 +1631,12 @@
     sort: String,
 }
 <span class="kw">impl </span>RefineCtxtTrace {
-    <span class="kw">pub fn </span>new(rcx: <span class="kw-2">&amp;</span>RefineCtxt) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv, rcx: <span class="kw-2">&amp;</span>RefineCtxt) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span>rcx.ptr)).collect_vec();
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv);
+
         parents.into_iter().rev().for_each(|ptr| {
             <span class="kw">let </span>node = ptr.borrow();
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
@@ -1638,10 +1645,11 @@
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) <span class="kw">if </span>!e.simplify().is_trivially_true() =&gt; {
+                    <span class="kw">let </span>e = WithCx::new(<span class="kw-2">&amp;</span>cx, e);
                     exprs.push(<span class="macro">format!</span>(<span class="string">"{e:?}"</span>));
                 }
-                NodeKind::Root(bs) =&gt; {
-                    <span class="kw">for </span>(name, sort) <span class="kw">in </span>bs {
+                NodeKind::Root(binds) =&gt; {
+                    <span class="kw">for </span>(name, sort) <span class="kw">in </span>binds {
                         <span class="kw">let </span>bind = RcxBind { name: <span class="macro">format!</span>(<span class="string">"{name:?}"</span>), sort: <span class="macro">format!</span>(<span class="string">"{sort:?}"</span>) };
                         bindings.push(bind);
                     }

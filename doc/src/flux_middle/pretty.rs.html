@@ -539,7 +539,17 @@
 <a href="#538" id="538">538</a>
 <a href="#539" id="539">539</a>
 <a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -690,7 +700,10 @@
 }
 
 <span class="kw">pub use </span><span class="kw">crate</span>::_impl_debug_with_default_cx <span class="kw">as </span>impl_debug_with_default_cx;
-<span class="kw">use </span><span class="kw">crate</span>::rty::{BoundReft, BoundReftKind, BoundVariableKind};
+<span class="kw">use crate</span>::{
+    global_env::GlobalEnv,
+    rty::{BoundReft, BoundReftKind, BoundVariableKind},
+};
 
 <span class="attr">#[derive(Copy, Clone)]
 </span><span class="kw">pub enum </span>KVarArgs {
@@ -699,8 +712,9 @@
     Hide,
 }
 
-<span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt; {
+<span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    <span class="kw">pub </span>genv: <span class="prelude-ty">Option</span>&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt;,
     <span class="kw">pub </span>kvar_args: KVarArgs,
     <span class="kw">pub </span>fully_qualified_paths: bool,
     <span class="kw">pub </span>simplify_exprs: bool,
@@ -751,9 +765,9 @@
     }
 }
 
-<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; {
+<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; {
     data: T,
-    cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt;,
+    cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
 <span class="kw">pub struct </span>Join&lt;<span class="lifetime">'a</span>, I&gt; {
@@ -796,10 +810,11 @@
     };
 }
 
-<span class="kw">impl </span>PrettyCx&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">pub fn </span>default(tcx: TyCtxt) -&gt; PrettyCx {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub fn </span>default(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
         PrettyCx {
             tcx,
+            genv: <span class="prelude-val">None</span>,
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: <span class="bool-val">false</span>,
             simplify_exprs: <span class="bool-val">true</span>,
@@ -813,6 +828,11 @@
             hide_sorts: <span class="bool-val">true</span>,
             env: Env::default(),
         }
+    }
+
+    <span class="kw">pub fn </span>default_with_genv(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>def = <span class="self">Self</span>::default(genv.tcx());
+        <span class="self">Self </span>{ genv: <span class="prelude-val">Some</span>(genv), ..def }
     }
 
     <span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opts: <span class="kw-2">&amp;</span>config::Value) {
@@ -921,8 +941,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; {
-    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; {
+    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ data, cx }
     }
 }
@@ -992,7 +1012,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: Pretty&gt; fmt::Debug <span class="kw">for </span>WithCx&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, T&gt; {
+<span class="kw">impl</span>&lt;T: Pretty&gt; fmt::Debug <span class="kw">for </span>WithCx&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.data, <span class="self">self</span>.cx, f)
     }
