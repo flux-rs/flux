@@ -787,7 +787,22 @@
 <a href="#786" id="786">786</a>
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
 
@@ -800,13 +815,14 @@
 <span class="kw">use </span>rustc_data_structures::{
     fx::FxIndexMap,
     graph::{<span class="self">self</span>, dominators::Dominators, DirectedGraph, StartNode},
+    unord::UnordMap,
 };
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::IndexSlice;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::{
-    mir,
+    mir::{<span class="self">self</span>, VarDebugInfoContents},
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
 };
 <span class="kw">pub use </span>rustc_middle::{
@@ -864,6 +880,7 @@
     <span class="doccomment">/// See [`mk_fake_predecessors`]
     </span>fake_predecessors: IndexVec&lt;BasicBlock, usize&gt;,
     body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
+    <span class="kw">pub </span>local_names: UnordMap&lt;Local, Symbol&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1171,7 +1188,19 @@
         <span class="kw">for </span>(rank, bb) <span class="kw">in </span>(<span class="number">0u32</span>..).zip(reverse_post_order) {
             dominator_order_rank[bb] = rank;
         }
-
+        <span class="kw">let </span>local_names = body_with_facts
+            .body
+            .var_debug_info
+            .iter()
+            .flat_map(|var_debug_info| {
+                <span class="kw">if let </span>VarDebugInfoContents::Place(place) = var_debug_info.value {
+                    <span class="kw">let </span>local = place.as_local()<span class="question-mark">?</span>;
+                    <span class="prelude-val">Some</span>((local, var_debug_info.name))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            })
+            .collect();
         <span class="self">Self </span>{
             basic_blocks,
             local_decls,
@@ -1179,6 +1208,7 @@
             fake_predecessors,
             body_with_facts,
             dominator_order_rank,
+            local_names,
         }
     }
 

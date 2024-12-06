@@ -2540,9 +2540,9 @@
                 span,
             )<span class="question-mark">?</span>;
             bug::track_span(span, || {
-                <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span, <span class="self">self</span>.genv);
+                <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
                 <span class="self">self</span>.check_statement(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, stmt)<span class="question-mark">?</span>;
-                <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span, <span class="self">self</span>.genv);
+                <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;</span>env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
                 <span class="prelude-val">Ok</span>(())
             })<span class="question-mark">?</span>;
             <span class="kw">if </span>!stmt.is_nop() {
@@ -3563,7 +3563,7 @@
         stmt: <span class="kw-2">&amp;</span>GhostStatement,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env, span, <span class="self">self</span>.genv);
+        <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
         <span class="kw">match </span>stmt {
             GhostStatement::Fold(place) =&gt; {
                 env.fold(<span class="kw-2">&amp;mut </span>infcx.at(span), place).with_span(span)<span class="question-mark">?</span>;
@@ -3578,7 +3578,7 @@
                     .with_span(span)<span class="question-mark">?</span>;
             }
         }
-        <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env, span, <span class="self">self</span>.genv);
+        <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
         <span class="prelude-val">Ok</span>(())
     }
 

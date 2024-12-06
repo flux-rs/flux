@@ -905,7 +905,32 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -937,8 +962,10 @@
     ty,
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_index::IndexSlice;
 <span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
+<span class="kw">use </span>rustc_span::Symbol;
 <span class="kw">use </span>rustc_type_ir::BoundVar;
 <span class="kw">use </span>serde::Serialize;
 
@@ -1788,25 +1815,48 @@
 
 <span class="attr">#[derive(Serialize)]
 </span><span class="kw">struct </span>TypeEnvBind {
-    loc: String,
+    local: LocInfo,
+    name: <span class="prelude-ty">Option</span>&lt;String&gt;,
     kind: String,
     ty: String,
 }
 
+<span class="attr">#[derive(Serialize)]
+</span><span class="kw">enum </span>LocInfo {
+    Local(String),
+    Var(String),
+}
+
+<span class="kw">fn </span>loc_info(loc: <span class="kw-2">&amp;</span>Loc) -&gt; LocInfo {
+    <span class="kw">match </span>loc {
+        Loc::Local(local) =&gt; LocInfo::Local(<span class="macro">format!</span>(<span class="string">"{local:?}"</span>)),
+        Loc::Var(var) =&gt; LocInfo::Var(<span class="macro">format!</span>(<span class="string">"{var:?}"</span>)),
+    }
+}
+
+<span class="kw">fn </span>loc_name(local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;, loc: <span class="kw-2">&amp;</span>Loc) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span>Loc::Local(local) = loc {
+        <span class="kw">let </span>name = local_names.get(local)<span class="question-mark">?</span>;
+        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, name));
+    }
+    <span class="prelude-val">None
+</span>}
+
 <span class="kw">impl </span>TypeEnvTrace {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv, env: <span class="kw-2">&amp;</span>TypeEnv) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv, local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;, env: <span class="kw-2">&amp;</span>TypeEnv) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv);
+        <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv).hide_regions(<span class="bool-val">true</span>);
         env.bindings
             .iter()
             .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())
             .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
             .for_each(|(loc, binding)| {
-                <span class="kw">let </span>loc = <span class="macro">format!</span>(<span class="string">"{loc:?}"</span>);
+                <span class="kw">let </span>name = loc_name(local_names, loc);
+                <span class="kw">let </span>local = loc_info(loc);
                 <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
                 <span class="kw">let </span>ty = WithCx::new(<span class="kw-2">&amp;</span>cx, binding.ty.clone());
                 <span class="kw">let </span>ty = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, ty);
-                bindings.push(TypeEnvBind { loc, kind, ty });
+                bindings.push(TypeEnvBind { name, local, kind, ty });
             });
 
         TypeEnvTrace(bindings)
