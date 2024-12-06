@@ -8,7 +8,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
-    mir::{self as rustc_mir, ConstValue, VarDebugInfoContents},
+    mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
@@ -151,21 +151,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        let local_names = lower
-            .rustc_mir
-            .var_debug_info
-            .iter()
-            .flat_map(|var_debug_info| {
-                if let VarDebugInfoContents::Place(place) = var_debug_info.value {
-                    let local = place.as_local()?;
-                    Some((local, var_debug_info.name))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let body = Body::new(basic_blocks, local_decls, body_with_facts, infcx, local_names);
+        let body = Body::new(basic_blocks, local_decls, body_with_facts, infcx);
         Ok(body)
     }
 

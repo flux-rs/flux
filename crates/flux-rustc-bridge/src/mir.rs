@@ -18,7 +18,7 @@ use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
-    mir,
+    mir::{self, VarDebugInfoContents},
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
 };
 pub use rustc_middle::{
@@ -373,7 +373,6 @@ impl<'tcx> Body<'tcx> {
         local_decls: IndexVec<Local, LocalDecl>,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
-        local_names: UnordMap<Local, Symbol>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
@@ -385,7 +384,19 @@ impl<'tcx> Body<'tcx> {
         for (rank, bb) in (0u32..).zip(reverse_post_order) {
             dominator_order_rank[bb] = rank;
         }
-
+        let local_names = body_with_facts
+            .body
+            .var_debug_info
+            .iter()
+            .flat_map(|var_debug_info| {
+                if let VarDebugInfoContents::Place(place) = var_debug_info.value {
+                    let local = place.as_local()?;
+                    Some((local, var_debug_info.name))
+                } else {
+                    None
+                }
+            })
+            .collect();
         Self {
             basic_blocks,
             local_decls,

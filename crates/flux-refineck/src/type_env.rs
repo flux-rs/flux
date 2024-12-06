@@ -883,17 +883,31 @@ pub struct TypeEnvTrace(Vec<TypeEnvBind>);
 
 #[derive(Serialize)]
 struct TypeEnvBind {
-    loc: String,
+    local: LocInfo,
+    name: Option<String>,
     kind: String,
     ty: String,
 }
 
-fn loc_string(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
+#[derive(Serialize)]
+enum LocInfo {
+    Local(String),
+    Var(String),
+}
+
+fn loc_info(loc: &Loc) -> LocInfo {
+    match loc {
+        Loc::Local(local) => LocInfo::Local(format!("{local:?}")),
+        Loc::Var(var) => LocInfo::Var(format!("{var:?}")),
+    }
+}
+
+fn loc_name(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
     if let Loc::Local(local) = loc {
         let name = local_names.get(local)?;
         return Some(format!("{}", name));
     }
-    Some(format!("{:?}", loc))
+    None
 }
 
 impl TypeEnvTrace {
@@ -905,13 +919,12 @@ impl TypeEnvTrace {
             .filter(|(_, binding)| !binding.ty.is_uninit())
             .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
             .for_each(|(loc, binding)| {
-                // filtering out bindings that do not correspond to source-level names
-                if let Some(loc) = loc_string(local_names, loc) {
-                    let kind = format!("{:?}", binding.kind);
-                    let ty = WithCx::new(&cx, binding.ty.clone());
-                    let ty = format!("{:?}", ty);
-                    bindings.push(TypeEnvBind { loc, kind, ty });
-                }
+                let name = loc_name(local_names, loc);
+                let local = loc_info(loc);
+                let kind = format!("{:?}", binding.kind);
+                let ty = WithCx::new(&cx, binding.ty.clone());
+                let ty = format!("{:?}", ty);
+                bindings.push(TypeEnvBind { name, local, kind, ty });
             });
 
         TypeEnvTrace(bindings)
