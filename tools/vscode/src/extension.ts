@@ -257,7 +257,6 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
         }
     }
     if (names.length > 0) { binds.push({name: names, sort: sort}) };
-    // console.log("collapsed bindings", binds);
     return binds;
 }
 
@@ -269,7 +268,7 @@ function parseRcx(rcx: string): Rcx {
 }
 
 function parseEnv(env: string): TypeEnv {
-    return JSON.parse(env);
+    return JSON.parse(env).filter((bind: TypeEnvBind) => bind.name)
 }
 
 class FluxViewProvider implements vscode.WebviewViewProvider {
@@ -381,7 +380,8 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
         const envBindings = this._currentEnv?.map(bind => `
             <tr>
-                <td><b style="color: #F26123">${bind.loc}</b> : ${bind.ty} </td>
+                <td><b style="color: #F26123">${bind.name}</b></td>
+                <td>: ${bind.ty}</td>
             </tr>
           `).join('');
 
@@ -509,10 +509,11 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
     }
 }
 
+// TODO: add local-info to TypeEnvBind
 type TypeEnvBind = {
-  loc: String,
-  kind: String,
-  ty: String,
+  name: string | null,
+  kind: string,
+  ty: string,
 }
 type TypeEnv = TypeEnvBind[];
 

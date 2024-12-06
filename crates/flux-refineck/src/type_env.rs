@@ -30,8 +30,10 @@ use flux_rustc_bridge::{
     ty,
 };
 use itertools::{izip, Itertools};
+use rustc_data_structures::unord::UnordMap;
 use rustc_index::IndexSlice;
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
+use rustc_span::Symbol;
 use rustc_type_ir::BoundVar;
 use serde::Serialize;
 
@@ -881,25 +883,48 @@ pub struct TypeEnvTrace(Vec<TypeEnvBind>);
 
 #[derive(Serialize)]
 struct TypeEnvBind {
-    loc: String,
+    local: LocInfo,
+    name: Option<String>,
     kind: String,
     ty: String,
 }
 
+#[derive(Serialize)]
+enum LocInfo {
+    Local(String),
+    Var(String),
+}
+
+fn loc_info(loc: &Loc) -> LocInfo {
+    match loc {
+        Loc::Local(local) => LocInfo::Local(format!("{local:?}")),
+        Loc::Var(var) => LocInfo::Var(format!("{var:?}")),
+    }
+}
+
+fn loc_name(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
+    if let Loc::Local(local) = loc {
+        let name = local_names.get(local)?;
+        return Some(format!("{}", name));
+    }
+    None
+}
+
 impl TypeEnvTrace {
-    pub fn new(genv: GlobalEnv, env: &TypeEnv) -> Self {
+    pub fn new(genv: GlobalEnv, local_names: &UnordMap<Local, Symbol>, env: &TypeEnv) -> Self {
         let mut bindings = vec![];
-        let cx = PrettyCx::default_with_genv(genv);
+        let cx = PrettyCx::default_with_genv(genv).hide_regions(true);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())
             .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
             .for_each(|(loc, binding)| {
-                let loc = format!("{loc:?}");
+                let name = loc_name(local_names, loc);
+                let local = loc_info(loc);
                 let kind = format!("{:?}", binding.kind);
                 let ty = WithCx::new(&cx, binding.ty.clone());
                 let ty = format!("{:?}", ty);
-                bindings.push(TypeEnvBind { loc, kind, ty });
+                bindings.push(TypeEnvBind { name, local, kind, ty });
             });
 
         TypeEnvTrace(bindings)

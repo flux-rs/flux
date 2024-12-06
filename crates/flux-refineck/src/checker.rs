@@ -515,9 +515,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 span,
             )?;
             bug::track_span(span, || {
-                dbg::statement!("start", stmt, &infcx, &env, span, self.genv);
+                dbg::statement!("start", stmt, &infcx, &env, span, &self);
                 self.check_statement(&mut infcx, &mut env, stmt)?;
-                dbg::statement!("end", stmt, &infcx, &env, span, self.genv);
+                dbg::statement!("end", stmt, &infcx, &env, span, &self);
                 Ok(())
             })?;
             if !stmt.is_nop() {
@@ -1538,7 +1538,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt: &GhostStatement,
         span: Span,
     ) -> Result {
-        dbg::statement!("start", stmt, infcx, env, span, self.genv);
+        dbg::statement!("start", stmt, infcx, env, span, &self);
         match stmt {
             GhostStatement::Fold(place) => {
                 env.fold(&mut infcx.at(span), place).with_span(span)?;
@@ -1553,7 +1553,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(span)?;
             }
         }
-        dbg::statement!("end", stmt, infcx, env, span, self.genv);
+        dbg::statement!("end", stmt, infcx, env, span, &self);
         Ok(())
     }
 

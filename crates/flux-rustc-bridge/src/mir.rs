@@ -11,13 +11,14 @@ use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+    unord::UnordMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
-    mir,
+    mir::{self, VarDebugInfoContents},
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
 };
 pub use rustc_middle::{
@@ -75,6 +76,7 @@ pub struct Body<'tcx> {
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
+    pub local_names: UnordMap<Local, Symbol>,
 }
 
 #[derive(Debug)]
@@ -382,7 +384,19 @@ impl<'tcx> Body<'tcx> {
         for (rank, bb) in (0u32..).zip(reverse_post_order) {
             dominator_order_rank[bb] = rank;
         }
-
+        let local_names = body_with_facts
+            .body
+            .var_debug_info
+            .iter()
+            .flat_map(|var_debug_info| {
+                if let VarDebugInfoContents::Place(place) = var_debug_info.value {
+                    let local = place.as_local()?;
+                    Some((local, var_debug_info.name))
+                } else {
+                    None
+                }
+            })
+            .collect();
         Self {
             basic_blocks,
             local_decls,
@@ -390,6 +404,7 @@ impl<'tcx> Body<'tcx> {
             fake_predecessors,
             body_with_facts,
             dominator_order_rank,
+            local_names,
         }
     }
 
