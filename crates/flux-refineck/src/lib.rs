@@ -33,10 +33,10 @@ mod type_env;
 
 pub use checker::CheckerConfig;
 use checker::{trait_impl_subtyping, Checker};
-use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
+use flux_common::{dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixpointCtxt, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::RefineTree,
 };
@@ -79,7 +79,7 @@ fn report_fixpoint_errors(
 
 fn invoke_fixpoint(
     genv: GlobalEnv,
-    cache: &mut QueryCache,
+    cache: &mut FixQueryCache,
     local_id: LocalDefId,
     mut refine_tree: RefineTree,
     kvars: KVarGen,
@@ -102,7 +102,7 @@ fn invoke_fixpoint(
 
 pub fn check_fn(
     genv: GlobalEnv,
-    cache: &mut QueryCache,
+    cache: &mut FixQueryCache,
     def_id: MaybeExternId,
     mut config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {

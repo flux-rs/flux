@@ -19,7 +19,7 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use serde::{de, Deserialize};
+use serde::{de, Deserialize, Serialize};
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone;
@@ -162,21 +162,25 @@ pub struct Task<T: Types> {
     pub scrape_quals: bool,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(tag = "tag", content = "contents", bound(deserialize = "Tag: FromStr"))]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(
+    tag = "tag",
+    content = "contents",
+    bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString")
+)]
 pub enum FixpointResult<Tag> {
     Safe(Stats),
     Unsafe(Stats, Vec<Error<Tag>>),
     Crash(CrashInfo),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error<Tag> {
     pub id: i32,
     pub tag: Tag,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
     pub num_cstr: i32,
@@ -185,8 +189,7 @@ pub struct Stats {
     pub num_vald: i32,
 }
 
-#[expect(dead_code, reason = "false positive: the field is read in the `Debug` impl")]
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
 #[derive_where(Hash)]
@@ -235,18 +238,27 @@ impl<T: Types> KVarDecl<T> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct ErrorInner(i32, String);
+
+impl<Tag: ToString> Serialize for Error<Tag> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        ErrorInner(self.id, self.tag.to_string()).serialize(serializer)
+    }
+}
+
 impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        struct ErrorInner<'a>(i32, &'a str);
-
         let ErrorInner(id, tag) = Deserialize::deserialize(deserializer)?;
         let tag = tag
             .parse()
-            .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(tag), &"valid tag"))?;
+            .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(&tag), &"valid tag"))?;
         Ok(Error { id, tag })
     }
 }

@@ -30,6 +30,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub mod fixpoint {
     use std::fmt;
@@ -160,6 +161,19 @@ pub mod fixpoint {
 newtype_index! {
     #[debug_format = "TagIdx({})"]
     pub struct TagIdx {}
+}
+
+impl Serialize for TagIdx {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.as_u32().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for TagIdx {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let idx = usize::deserialize(deserializer)?;
+        Ok(TagIdx::from_u32(idx as u32))
+    }
 }
 
 /// Keep track of all the data sorts that we need to define in fixpoint to encode the constraint.
@@ -309,6 +323,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     def_id: LocalDefId,
 }
 
+pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
+
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
@@ -330,7 +346,7 @@ where
 
     pub fn check(
         mut self,
-        cache: &mut QueryCache,
+        cache: &mut FixQueryCache,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
     ) -> QueryResult<Vec<Tag>> {
@@ -402,21 +418,20 @@ where
     fn run_task_with_cache(
         task: fixpoint::Task,
         key: String,
-        cache: &mut QueryCache,
+        cache: &mut FixQueryCache,
     ) -> FixpointResult<TagIdx> {
         let hash = task.hash_with_default();
-        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
-            return FixpointResult::Safe(Default::default());
+        if config::is_cache_enabled()
+            && let Some(result) = cache.lookup(&key, hash)
+        {
+            return result.clone();
         }
-
         let result = task
             .run()
             .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint {err:?}"));
 
         if config::is_cache_enabled() {
-            if let FixpointResult::Safe(_) = result {
-                cache.insert(key, hash);
-            }
+            cache.insert(key, hash, result.clone());
         }
         result
     }
