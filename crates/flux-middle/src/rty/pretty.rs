@@ -253,8 +253,7 @@ impl Pretty for TopIndexExpr {
                 .field_names()
                 .iter()
                 .zip(flds)
-                .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
-                .collect_vec();
+                .map(|(name, value)| FieldBind { name: *name, value: value.clone() });
             w!("{{ {:?} }}", join!(", ", field_binds))
         } else {
             w!("{:?}", &self.0)
@@ -318,9 +317,7 @@ impl Pretty for Ty {
                         .fields
                         .iter()
                         .zip(fields)
-                        .map(|(field_def, value)| FieldBind { name: field_def.name, value })
-                        .collect_vec();
-
+                        .map(|(field_def, value)| FieldBind { name: field_def.name, value });
                     w!(" {{ {:?} }}", join!(", ", field_binds))?;
                 } else if !fields.is_empty() {
                     w!("({:?})", join!(", ", fields))?;
