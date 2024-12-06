@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, iter};
 
 use expr::FieldBind;
 use flux_rustc_bridge::ty::region_to_string;
@@ -238,9 +238,9 @@ impl Pretty for SubsetTy {
 
 // This is a trick to avoid pretty printing `S [S { x: 10, y: 20}]`
 // and instead just print `S[{x: 10, y: 20}]` for struct-valued indices.
-struct TopIndexExpr(Expr);
+struct IdxFmt(Expr);
 
-impl Pretty for TopIndexExpr {
+impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         let e = &self.0;
@@ -249,10 +249,7 @@ impl Pretty for TopIndexExpr {
             && let Some(genv) = cx.genv
             && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
         {
-            let field_binds = adt_sort_def
-                .field_names()
-                .iter()
-                .zip(flds)
+            let field_binds = iter::zip(adt_sort_def.field_names(), flds)
                 .map(|(name, value)| FieldBind { name: *name, value: value.clone() });
             w!("{{ {:?} }}", join!(", ", field_binds))
         } else {
@@ -275,7 +272,7 @@ impl Pretty for Ty {
                         w!("[]")?;
                     }
                 } else {
-                    w!("[{:?}]", TopIndexExpr(idx.clone()))?;
+                    w!("[{:?}]", IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -312,11 +309,7 @@ impl Pretty for Ty {
                 }
                 // fields: use curly-braces + names for structs, otherwise use parens
                 if is_struct {
-                    let field_binds = adt
-                        .variant(*variant_idx)
-                        .fields
-                        .iter()
-                        .zip(fields)
+                    let field_binds = iter::zip(&adt.variant(*variant_idx).fields, fields)
                         .map(|(field_def, value)| FieldBind { name: field_def.name, value });
                     w!(" {{ {:?} }}", join!(", ", field_binds))?;
                 } else if !fields.is_empty() {
