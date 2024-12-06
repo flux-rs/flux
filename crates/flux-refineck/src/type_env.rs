@@ -893,7 +893,7 @@ fn loc_string(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String
         let name = local_names.get(local)?;
         return Some(format!("{}", name));
     }
-    return Some(format!("{:?}", loc));
+    Some(format!("{:?}", loc))
 }
 
 impl TypeEnvTrace {
