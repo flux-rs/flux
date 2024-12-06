@@ -19,6 +19,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, BoundVariableKind, ESpan, Lambda, List},
+    MaybeExternId,
 };
 use itertools::Itertools;
 use liquid_fixpoint::FixpointResult;
@@ -320,7 +321,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
     /// invariants.
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -329,7 +330,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarGen) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
         let def_span = genv.tcx().def_span(def_id);
         Self {
             comments: vec![],
@@ -361,7 +362,9 @@ where
 
         let constraint = self.ecx.assume_const_values(constraint);
 
-        let qualifiers = self.ecx.qualifiers_for(self.def_id, &mut self.scx)?;
+        let qualifiers = self
+            .ecx
+            .qualifiers_for(self.def_id.local_id(), &mut self.scx)?;
 
         let mut constants = self
             .ecx
@@ -397,7 +400,7 @@ where
             data_decls: self.scx.into_data_decls(),
         };
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), self.def_id, "smt2", &task).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
         let task_key = self.genv.tcx().def_path_str(self.def_id);

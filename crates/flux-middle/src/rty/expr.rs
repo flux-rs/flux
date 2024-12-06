@@ -119,7 +119,9 @@ impl ESpan {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -1144,6 +1146,7 @@ mod pretty {
                 }
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            // w!("{:?}@(", ^e.span())?;
             match e.kind() {
                 ExprKind::Var(var) => w!("{:?}", var),
                 ExprKind::Local(local) => w!("{:?}", ^local),
@@ -1221,8 +1224,8 @@ mod pretty {
                     }
                 }
                 ExprKind::App(func, args) => {
-                    w!("({:?})({})",
-                        func,
+                    w!("{:?}({})",
+                        parens!(func, !func.is_atom()),
                         ^args
                             .iter()
                             .format_with(", ", |arg, f| f(&format_args_cx!("{:?}", arg)))
@@ -1253,7 +1256,9 @@ mod pretty {
                         w!("{:?}", expr.as_ref().skip_binder())
                     })
                 }
-            }
+            }?;
+            // w!(")")
+            Ok(())
         }
     }
 

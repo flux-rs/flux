@@ -14,8 +14,8 @@ use flux_middle::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, Ty, TyCtor, TyKind,
-        Var,
+        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, SpecFuncDefns, Ty,
+        TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -234,8 +234,8 @@ impl RefineTree {
         Ok(RefineTree { root })
     }
 
-    pub fn simplify(&mut self, genv: GlobalEnv) -> QueryResult {
-        self.root.borrow_mut().simplify(genv)
+    pub fn simplify(&mut self, defns: &SpecFuncDefns) {
+        self.root.borrow_mut().simplify(defns)
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {
@@ -415,14 +415,14 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, genv: GlobalEnv) -> QueryResult {
+    fn simplify(&mut self, defns: &SpecFuncDefns) {
         for child in &self.children {
-            child.borrow_mut().simplify(genv)?;
+            child.borrow_mut().simplify(defns);
         }
 
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(genv.spec_func_defns()?).simplify();
+                let pred = pred.normalize(defns).simplify();
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -431,7 +431,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(genv.spec_func_defns()?).simplify();
+                *pred = pred.normalize(defns).simplify();
                 self.children
                     .extract_if(|child| {
                         matches!(child.borrow().kind, NodeKind::True)
@@ -448,7 +448,6 @@ impl Node {
         if !self.is_leaf() && self.children.is_empty() {
             self.kind = NodeKind::True;
         }
-        Ok(())
     }
 
     fn is_leaf(&self) -> bool {

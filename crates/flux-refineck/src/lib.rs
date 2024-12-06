@@ -80,24 +80,24 @@ fn report_fixpoint_errors(
 fn invoke_fixpoint(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
-    local_id: LocalDefId,
+    def_id: MaybeExternId,
     mut refine_tree: RefineTree,
     kvars: KVarGen,
     config: CheckerConfig,
     ext: &str,
-) -> Result<Vec<Tag>, ErrorGuaranteed> {
+) -> QueryResult<Vec<Tag>> {
     if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), local_id, ext, &refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
     }
-    refine_tree.simplify(genv).emit(&genv)?;
+    refine_tree.simplify(genv.spec_func_defns()?);
     let simp_ext = format!("simp.{}", ext);
     if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), local_id, simp_ext, &refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), simp_ext, &refine_tree).unwrap();
     }
 
-    let mut fcx = FixpointCtxt::new(genv, local_id, kvars);
-    let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
-    fcx.check(cache, cstr, config.scrape_quals).emit(&genv)
+    let mut fcx = FixpointCtxt::new(genv, def_id, kvars);
+    let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+    fcx.check(cache, cstr, config.scrape_quals)
 }
 
 pub fn check_fn(
@@ -147,34 +147,34 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
-            .map_err(|err| err.emit_err(&genv, def_id))?;
+            .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, config)
-            // Augment the possible CheckError with the functions span so we can report
-            // helpful error messages for opaque struct field accesses
-            .map_err(|err| err.emit_err(&genv, def_id))?;
+            .map_err(|err| err.emit(genv, def_id))?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let (refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, config)
-                .map_err(|err| err.emit_err(&genv, def_id))?;
+                .map_err(|err| err.emit(genv, def_id))?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
-        let errors = invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "fluxc")?;
+        let errors = invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "fluxc")
+            .emit(&genv)?;
         tracing::info!("check_fn::fixpoint");
         report_fixpoint_errors(genv, local_id, errors)?;
 
         // PHASE 4: subtyping check for trait-method implementations
         if let Some((refine_tree, kvars)) =
             trait_impl_subtyping(genv, local_id, config.check_overflow, span)
-                .map_err(|err| err.emit_err(&genv, def_id))?
+                .map_err(|err| err.emit(genv, def_id))?
         {
             tracing::info!("check_fn::refine-subtyping");
             let errors =
-                invoke_fixpoint(genv, cache, local_id, refine_tree, kvars, config, "sub.fluxc")?;
+                invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "sub.fluxc")
+                    .emit(&genv)?;
             tracing::info!("check_fn::fixpoint-subtyping");
             report_fixpoint_errors(genv, local_id, errors)?;
         }
