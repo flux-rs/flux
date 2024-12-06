@@ -815,21 +815,7 @@
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
 <a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
-<a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
-<a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#817" id="817">817</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -1551,39 +1537,25 @@
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)).collect_vec();
-            <span class="macro">write!</span>(
-                f,
-                <span class="string">"{{{}}}"</span>,
-                parents
-                    .into_iter()
-                    .rev()
-                    .filter(|ptr| {
-                        <span class="kw">let </span>node = ptr.borrow();
-                        <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
-                            NodeKind::ForAll(..) =&gt; <span class="bool-val">true</span>,
-                            NodeKind::Assumption(e) =&gt; !e.simplify().is_trivially_true(),
-                            NodeKind::Root(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-                            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+            <span class="kw">let </span><span class="kw-2">mut </span>elements = <span class="macro">vec!</span>[];
+            <span class="kw">for </span>node <span class="kw">in </span>ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)) {
+                <span class="kw">let </span>n = node.borrow();
+                <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
+                    NodeKind::Root(bindings) =&gt; {
+                        <span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings {
+                            elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?} {:?}"</span>, ^name, sort));
                         }
-                    })
-                    .format_with(<span class="string">", "</span>, |n, f| {
-                        <span class="kw">let </span>n = n.borrow();
-                        <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
-                            NodeKind::Root(bindings) =&gt; {
-                                <span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings {
-                                    f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))<span class="question-mark">?</span>;
-                                }
-                                <span class="prelude-val">Ok</span>(())
-                            }
-                            NodeKind::ForAll(name, sort) =&gt; {
-                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
-                            }
-                            NodeKind::Assumption(pred) =&gt; f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, pred)),
-                            <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
-                        }
-                    })
-            )
+                    }
+                    NodeKind::ForAll(name, sort) =&gt; {
+                        elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort));
+                    }
+                    NodeKind::Assumption(pred) =&gt; {
+                        elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?}"</span>, pred));
+                    }
+                    <span class="kw">_ </span>=&gt; {}
+                }
+            }
+            <span class="macro">write!</span>(f, <span class="string">"{{{}}}"</span>, elements.into_iter().rev().format(<span class="string">", "</span>))
         }
     }
 
