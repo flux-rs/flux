@@ -236,6 +236,30 @@ impl Pretty for SubsetTy {
     }
 }
 
+struct TopIndexExpr(Expr);
+
+impl Pretty for TopIndexExpr {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        let e = &self.0;
+        let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
+            && let Some(genv) = cx.genv
+            && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+        {
+            let field_binds = adt_sort_def
+                .field_names()
+                .iter()
+                .zip(flds)
+                .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
+                .collect_vec();
+            w!("{{ {:?} }}", join!(", ", field_binds))
+        } else {
+            w!("{:?}", &self.0)
+        }
+    }
+}
+
 impl Pretty for Ty {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
@@ -250,7 +274,7 @@ impl Pretty for Ty {
                         w!("[]")?;
                     }
                 } else {
-                    w!("[{:?}]", idx)?;
+                    w!("[{:?}]", TopIndexExpr(idx.clone()))?;
                 }
                 Ok(())
             }

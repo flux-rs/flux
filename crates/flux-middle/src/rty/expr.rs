@@ -1208,7 +1208,7 @@ mod pretty {
                             .zip(flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
-                        w!("{{ {:?} }}", join!(", ", field_binds))
+                        w!("{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
                     } else {
                         w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
                     }
