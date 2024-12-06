@@ -720,39 +720,25 @@ mod pretty {
     impl Pretty for RefineCtxt<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let parents = ParentsIter::new(NodePtr::clone(&self.ptr)).collect_vec();
-            write!(
-                f,
-                "{{{}}}",
-                parents
-                    .into_iter()
-                    .rev()
-                    .filter(|ptr| {
-                        let node = ptr.borrow();
-                        match &node.kind {
-                            NodeKind::ForAll(..) => true,
-                            NodeKind::Assumption(e) => !e.simplify().is_trivially_true(),
-                            NodeKind::Root(_) => true,
-                            _ => false,
+            let mut elements = vec![];
+            for node in ParentsIter::new(NodePtr::clone(&self.ptr)) {
+                let n = node.borrow();
+                match &n.kind {
+                    NodeKind::Root(bindings) => {
+                        for (name, sort) in bindings {
+                            elements.push(format_cx!("{:?} {:?}", ^name, sort));
                         }
-                    })
-                    .format_with(", ", |n, f| {
-                        let n = n.borrow();
-                        match &n.kind {
-                            NodeKind::Root(bindings) => {
-                                for (name, sort) in bindings {
-                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
-                                }
-                                Ok(())
-                            }
-                            NodeKind::ForAll(name, sort) => {
-                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
-                            }
-                            NodeKind::Assumption(pred) => f(&format_args_cx!("{:?}", pred)),
-                            _ => unreachable!(),
-                        }
-                    })
-            )
+                    }
+                    NodeKind::ForAll(name, sort) => {
+                        elements.push(format_cx!("{:?}: {:?}", ^name, sort));
+                    }
+                    NodeKind::Assumption(pred) => {
+                        elements.push(format_cx!("{:?}", pred));
+                    }
+                    _ => {}
+                }
+            }
+            write!(f, "{{{}}}", elements.into_iter().rev().format(", "))
         }
     }
 
