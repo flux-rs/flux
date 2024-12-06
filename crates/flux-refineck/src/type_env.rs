@@ -905,6 +905,7 @@ impl TypeEnvTrace {
             .filter(|(_, binding)| !binding.ty.is_uninit())
             .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
             .for_each(|(loc, binding)| {
+                // filtering out bindings that do not correspond to source-level names
                 if let Some(loc) = loc_string(local_names, loc) {
                     let kind = format!("{:?}", binding.kind);
                     let ty = WithCx::new(&cx, binding.ty.clone());
