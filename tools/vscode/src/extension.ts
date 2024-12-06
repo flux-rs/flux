@@ -257,7 +257,7 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
         }
     }
     if (names.length > 0) { binds.push({name: names, sort: sort}) };
-    console.log("collapsed bindings", binds);
+    // console.log("collapsed bindings", binds);
     return binds;
 }
 
@@ -366,7 +366,6 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     private _getHtmlForInfo() {
         const rcxBindings = this._currentRcx?.bindings.map(bind => {
           const name = typeof bind.name === 'string' ? bind.name : bind.name.join(' ');
-          console.log("bind", bind, name);
           return `
             <tr>
                 <td><b style="color: #F26123">${name}</b> : ${bind.sort} </td>

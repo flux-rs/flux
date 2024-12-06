@@ -11,6 +11,7 @@ use flux_infer::{
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
+    pretty::{PrettyCx, WithCx},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, LocalHoister},
@@ -886,8 +887,9 @@ struct TypeEnvBind {
 }
 
 impl TypeEnvTrace {
-    pub fn new(env: &TypeEnv) -> Self {
+    pub fn new(genv: GlobalEnv, env: &TypeEnv) -> Self {
         let mut bindings = vec![];
+        let cx = PrettyCx::default_with_genv(genv);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())
@@ -895,7 +897,8 @@ impl TypeEnvTrace {
             .for_each(|(loc, binding)| {
                 let loc = format!("{loc:?}");
                 let kind = format!("{:?}", binding.kind);
-                let ty = format!("{:?}", binding.ty);
+                let ty = WithCx::new(&cx, binding.ty.clone());
+                let ty = format!("{:?}", ty);
                 bindings.push(TypeEnvBind { loc, kind, ty });
             });
 

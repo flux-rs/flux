@@ -1,5 +1,6 @@
-use std::fmt;
+use std::{fmt, iter};
 
+use expr::FieldBind;
 use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree};
@@ -235,6 +236,28 @@ impl Pretty for SubsetTy {
     }
 }
 
+// This is a trick to avoid pretty printing `S [S { x: 10, y: 20}]`
+// and instead just print `S[{x: 10, y: 20}]` for struct-valued indices.
+struct IdxFmt(Expr);
+
+impl Pretty for IdxFmt {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        let e = &self.0;
+        let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
+            && let Some(genv) = cx.genv
+            && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+        {
+            let field_binds = iter::zip(adt_sort_def.field_names(), flds)
+                .map(|(name, value)| FieldBind { name: *name, value: value.clone() });
+            w!("{{ {:?} }}", join!(", ", field_binds))
+        } else {
+            w!("{:?}", &self.0)
+        }
+    }
+}
+
 impl Pretty for Ty {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
@@ -249,7 +272,7 @@ impl Pretty for Ty {
                         w!("[]")?;
                     }
                 } else {
-                    w!("[{:?}]", idx)?;
+                    w!("[{:?}]", IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -277,8 +300,19 @@ impl Pretty for Ty {
             }
             TyKind::Param(param_ty) => w!("{}", ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) => {
-                w!("{:?}::{}", adt.did(), ^adt.variant(*variant_idx).name)?;
-                if !fields.is_empty() {
+                let is_struct = adt.is_struct();
+                // base-name
+                w!("{:?}", adt.did())?;
+                // variant-name: if it is not a struct
+                if !is_struct {
+                    w!("::{}", ^adt.variant(*variant_idx).name)?;
+                }
+                // fields: use curly-braces + names for structs, otherwise use parens
+                if is_struct {
+                    let field_binds = iter::zip(&adt.variant(*variant_idx).fields, fields)
+                        .map(|(field_def, value)| FieldBind { name: field_def.name, value });
+                    w!(" {{ {:?} }}", join!(", ", field_binds))?;
+                } else if !fields.is_empty() {
                     w!("({:?})", join!(", ", fields))?;
                 }
                 Ok(())

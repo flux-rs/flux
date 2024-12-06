@@ -70,10 +70,11 @@ pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
 macro_rules! _statement{
-    ($pos:literal, $stmt:expr, $rcx:expr, $env:expr, $span:expr) => {{
+    ($pos:literal, $stmt:expr, $rcx:expr, $env:expr, $span:expr, $genv:expr) => {{
         if config::dump_checker_trace() {
-            let rcx_json = RefineCtxtTrace::new($rcx);
-            let env_json = TypeEnvTrace::new($env);
+            let genv = $genv;
+            let rcx_json = RefineCtxtTrace::new(genv, $rcx);
+            let env_json = TypeEnvTrace::new(genv, $env);
             tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?$rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json)
         }
     }};

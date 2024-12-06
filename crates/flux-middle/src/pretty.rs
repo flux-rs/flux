@@ -149,7 +149,10 @@ pub fn pprint_with_default_cx<T: Pretty>(
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
-use crate::rty::{BoundReft, BoundReftKind, BoundVariableKind};
+use crate::{
+    global_env::GlobalEnv,
+    rty::{BoundReft, BoundReftKind, BoundVariableKind},
+};
 
 #[derive(Copy, Clone)]
 pub enum KVarArgs {
@@ -158,8 +161,9 @@ pub enum KVarArgs {
     Hide,
 }
 
-pub struct PrettyCx<'tcx> {
+pub struct PrettyCx<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
+    pub genv: Option<GlobalEnv<'genv, 'tcx>>,
     pub kvar_args: KVarArgs,
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
@@ -210,9 +214,9 @@ impl Env {
     }
 }
 
-pub struct WithCx<'a, 'tcx, T> {
+pub struct WithCx<'a, 'genv, 'tcx, T> {
     data: T,
-    cx: &'a PrettyCx<'tcx>,
+    cx: &'a PrettyCx<'genv, 'tcx>,
 }
 
 pub struct Join<'a, I> {
@@ -255,10 +259,11 @@ macro_rules! set_opts {
     };
 }
 
-impl PrettyCx<'_> {
-    pub fn default(tcx: TyCtxt) -> PrettyCx {
+impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
+    pub fn default(tcx: TyCtxt<'tcx>) -> Self {
         PrettyCx {
             tcx,
+            genv: None,
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: false,
             simplify_exprs: true,
@@ -272,6 +277,11 @@ impl PrettyCx<'_> {
             hide_sorts: true,
             env: Env::default(),
         }
+    }
+
+    pub fn default_with_genv(genv: GlobalEnv<'genv, 'tcx>) -> Self {
+        let def = Self::default(genv.tcx());
+        Self { genv: Some(genv), ..def }
     }
 
     pub fn merge(&mut self, opts: &config::Value) {
@@ -380,8 +390,8 @@ impl PrettyCx<'_> {
     }
 }
 
-impl<'a, 'tcx, T> WithCx<'a, 'tcx, T> {
-    pub fn new(cx: &'a PrettyCx<'tcx>, data: T) -> Self {
+impl<'a, 'genv, 'tcx, T> WithCx<'a, 'genv, 'tcx, T> {
+    pub fn new(cx: &'a PrettyCx<'genv, 'tcx>, data: T) -> Self {
         Self { data, cx }
     }
 }
@@ -451,7 +461,7 @@ where
     }
 }
 
-impl<T: Pretty> fmt::Debug for WithCx<'_, '_, T> {
+impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as Pretty>::fmt(&self.data, self.cx, f)
     }
