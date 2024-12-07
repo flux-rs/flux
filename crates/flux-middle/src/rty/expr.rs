@@ -244,6 +244,10 @@ pub enum HoleKind {
     Pred,
     /// A hole used as a refinement argument or index. It will be inferred by generating an evar.
     /// The expression filling the hole must have the provided sort.
+    ///
+    /// NOTE(nilehmann) we used to require the `Sort` for generating the evar because we needed it
+    /// to eta-expand aggregate sorts. We've since removed this behavior but I'm keeping it here
+    /// just in case. We could remove in case it becomes too problematic.
     Expr(Sort),
 }
 

@@ -183,7 +183,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    env: Env,
+    env: BoundVarEnv,
 }
 
 newtype_index! {
@@ -193,12 +193,12 @@ newtype_index! {
 }
 
 #[derive(Default)]
-struct Env {
+struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
     layers: RefCell<Vec<FxHashMap<BoundVar, BoundVarName>>>,
 }
 
-impl Env {
+impl BoundVarEnv {
     fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
         let layers = self.layers.borrow();
         layers
@@ -283,7 +283,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
-            env: Env::default(),
+            env: BoundVarEnv::default(),
         }
     }
 

@@ -317,7 +317,7 @@ impl CanonicalTy {
                 {
                     let ctor = poly_constr_ty
                         .as_ref()
-                        .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), &constr.pred));
+                        .map(|constr| SubsetTy::new(bty.clone(), idx, &constr.pred));
                     TyOrBase::Base(ctor)
                 } else {
                     TyOrBase::Ty(self.to_ty())
