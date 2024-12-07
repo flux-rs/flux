@@ -35,3 +35,30 @@ Flux View Panel: shows the types and environments known at each program point
 ![Before Statement](static/flux_view_start.jpg)
 
 ![After Statement](static/flux_view_end.jpg)
+
+
+
+## Noodling
+
+
+```typescript
+type Node = {
+  text: string,
+  children?: Bind[],
+}
+type Bind {
+    key: string,
+    val: Node,
+}
+
+function rootBind(n:Node) : Bind {
+    return Bind { key: '', val: node }
+}
+
+function nodeHtml(n:Node) : HTML {
+    return n.text
+}
+
+function nodeHtml(n:Node) : HTML {
+}
+```
