@@ -14,8 +14,8 @@ use flux_middle::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, SpecFuncDefns, Ty,
-        TyCtor, TyKind, Var,
+        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, Ty, TyCtor, TyKind,
+        Var,
     },
 };
 use itertools::Itertools;
@@ -234,8 +234,8 @@ impl RefineTree {
         Ok(RefineTree { root })
     }
 
-    pub fn simplify(&mut self, defns: &SpecFuncDefns) {
-        self.root.borrow_mut().simplify(defns);
+    pub fn simplify(&mut self) {
+        self.root.borrow_mut().simplify();
     }
 
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {
@@ -415,14 +415,14 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, defns: &SpecFuncDefns) {
+    fn simplify(&mut self) {
         for child in &self.children {
-            child.borrow_mut().simplify(defns);
+            child.borrow_mut().simplify();
         }
 
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(defns).simplify();
+                let pred = pred.simplify();
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -431,7 +431,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(defns).simplify();
+                *pred = pred.simplify();
                 self.children
                     .extract_if(|child| {
                         matches!(child.borrow().kind, NodeKind::True)
@@ -732,19 +732,12 @@ mod pretty {
                         match &node.kind {
                             NodeKind::ForAll(..) => true,
                             NodeKind::Assumption(e) => !e.simplify().is_trivially_true(),
-                            NodeKind::Root(_) => true,
                             _ => false,
                         }
                     })
                     .format_with(", ", |n, f| {
                         let n = n.borrow();
                         match &n.kind {
-                            NodeKind::Root(bindings) => {
-                                for (name, sort) in bindings {
-                                    f(&format_args_cx!("{:?}: {:?}", ^name, sort))?;
-                                }
-                                Ok(())
-                            }
                             NodeKind::ForAll(name, sort) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }

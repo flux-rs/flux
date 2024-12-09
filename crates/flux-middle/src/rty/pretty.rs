@@ -1,8 +1,10 @@
 use std::{fmt, iter};
 
 use expr::FieldBind;
+use flux_macros::DebugAsJson;
 use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
+use serde::Serialize;
 use ty::{UnevaluatedConst, ValTree};
 
 use super::*;
@@ -591,3 +593,62 @@ impl_debug_with_default_cx!(
     BvSize,
     ExistentialPredicate,
 );
+
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Serialize, DebugAsJson)]
+pub struct NestedString {
+    text: String,
+    key: Option<String>,
+    children: Option<Vec<NestedString>>,
+}
+
+trait PrettyNested {
+    fn fmt_nested(&self, cx: &PrettyCx) -> NestedString;
+}
+
+fn float_children(children: &[Option<Vec<NestedString>>]) -> Option<Vec<NestedString>> {
+    todo!() // children.iter().flat_map(|c| c.clone()).collect()
+}
+
+impl PrettyNested for Expr {
+    fn fmt_nested(&self, cx: &PrettyCx) -> NestedString {
+        todo!()
+    }
+}
+
+impl PrettyNested for IdxFmt {
+    fn fmt_nested(&self, cx: &PrettyCx) -> NestedString {
+        todo!()
+    }
+}
+
+impl PrettyNested for BaseTy {
+    fn fmt_nested(&self, cx: &PrettyCx) -> NestedString {
+        todo!()
+    }
+}
+
+impl PrettyNested for Ty {
+    fn fmt_nested(&self, cx: &PrettyCx) -> NestedString {
+        match self.kind() {
+            TyKind::Indexed(bty, idx) => {
+                let d1 = bty.fmt_nested(cx);
+                let d2 = IdxFmt(idx.clone()).fmt_nested(cx);
+                let text = format!("{:?}[{:?}]", d1.text, d2.text);
+                let children = float_children(&[d1.children, d2.children]);
+                NestedString { text, children, key: None }
+            }
+            TyKind::Exists(binder) => todo!(),
+            TyKind::Constr(expr, ty) => todo!(),
+            TyKind::Uninit => todo!(),
+            TyKind::StrgRef(region, path, ty) => todo!(),
+            TyKind::Ptr(ptr_kind, path) => todo!(),
+            TyKind::Discr(adt_def, place) => todo!(),
+            TyKind::Param(param_ty) => todo!(),
+            TyKind::Downcast(adt_def, interned, ty, variant_idx, interned1) => todo!(),
+            TyKind::Blocked(ty) => todo!(),
+            TyKind::Infer(ty_vid) => todo!(),
+        }
+    }
+}

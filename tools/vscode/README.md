@@ -42,23 +42,56 @@ Flux View Panel: shows the types and environments known at each program point
 
 
 ```typescript
-type Node = {
-  text: string,
-  children?: Bind[],
+type NestedData = {
+    key?: string,
+    text: string,
+    children?: NestedData[],
 }
-type Bind {
-    key: string,
-    val: Node,
-}
+```
 
-function rootBind(n:Node) : Bind {
-    return Bind { key: '', val: node }
-}
+```haskell
+data Exp
+  = EVar Str
+  | ENum Int
+  | EAdd Exp Exp
+  | ERec [(Str, Exp)]
+  | EDot Exp Str
 
-function nodeHtml(n:Node) : HTML {
-    return n.text
-}
+render :: Exp -> NestedData
+render (EVar x) =
+    { text: x }
+render (ENum n) =
+    { text: show n }
+render (EAdd e1 e2) =
+    { text, children }
+  where
+    d1 = render e1
+    d2 = render e2
+    text = printf "({} + {})" d1.text d2.text
+    children = flatten [d1.children, d2.children]
+render (EDot e fld) =
+    { text, children }
+  where
+    d = render e
+    text = printf "{}.{}" d.text fld
+    children = d.children
+render (ERec fldExprs) =
+    { text, children }
+  where
+    text = "{..}"
+    children = renderKey <$> fldExprs
 
-function nodeHtml(n:Node) : HTML {
-}
+renderKey :: (Str, Exp) -> NestedData
+renderKey (fld, e) = { key: fld, text: d.text, children: d.children }
+  where
+    d = render e
+
+flatten :: [[NestedData]] -> [NestedData]
+flatten kidss = case filter (not . null) kidss of
+  []      -> []
+  [kids]  -> kids
+  kidss'' -> zipWith mkArg [0..] kidss''
+
+mkArg :: Int -> [NestedData] -> NestedData
+mkArg i kids = { key: "arg " ++ show i, text: "{..}", children: kids }
 ```
