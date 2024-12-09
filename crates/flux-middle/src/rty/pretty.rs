@@ -263,7 +263,7 @@ impl Pretty for Ty {
         define_scoped!(cx, f);
         match self.kind() {
             TyKind::Indexed(bty, idx) => {
-                w!("{:?}", bty)?;
+                w!("{:?}", parens!(bty, !bty.is_atom()))?;
                 if cx.hide_refinements {
                     return Ok(());
                 }
@@ -300,15 +300,14 @@ impl Pretty for Ty {
             }
             TyKind::Param(param_ty) => w!("{}", ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) => {
-                let is_struct = adt.is_struct();
                 // base-name
                 w!("{:?}", adt.did())?;
                 // variant-name: if it is not a struct
-                if !is_struct {
+                if !adt.is_struct() {
                     w!("::{}", ^adt.variant(*variant_idx).name)?;
                 }
                 // fields: use curly-braces + names for structs, otherwise use parens
-                if is_struct {
+                if adt.is_struct() {
                     let field_binds = iter::zip(&adt.variant(*variant_idx).fields, fields)
                         .map(|(field_def, value)| FieldBind { name: field_def.name, value });
                     w!(" {{ {:?} }}", join!(", ", field_binds))?;

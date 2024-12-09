@@ -1614,6 +1614,30 @@ impl BaseTy {
             tracked_span_bug!("expected adt `{self:?}`")
         }
     }
+
+    /// A type is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
+    pub fn is_atom(&self) -> bool {
+        // (nilehmann) I'm not sure about this list, please adjust if you get any odd behavior
+        matches!(
+            self,
+            BaseTy::Int(_)
+                | BaseTy::Uint(_)
+                | BaseTy::Slice(_)
+                | BaseTy::Bool
+                | BaseTy::Char
+                | BaseTy::Str
+                | BaseTy::Adt(..)
+                | BaseTy::Tuple(..)
+                // opaque alias are atoms the way we print them now, but they won't
+                // be if we print them as `impl Trait`
+                | BaseTy::Alias(..)
+                | BaseTy::Array(..)
+                | BaseTy::Never
+                | BaseTy::Closure(..)
+                | BaseTy::Coroutine(..)
+        )
+    }
 }
 
 impl<'tcx> ToRustc<'tcx> for BaseTy {

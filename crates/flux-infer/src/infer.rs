@@ -11,7 +11,7 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
         Region, Sort, Ty, TyKind, Var,
     },
 };
@@ -184,7 +184,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
                 let kvar = self.fresh_kvar(&[vars], KVarEncoding::Single);
                 Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
-            InferMode::EVar => self.fresh_evars(sort),
+            InferMode::EVar => self.fresh_evar(),
         }
     }
 
@@ -195,11 +195,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     ) -> Expr {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
-            HoleKind::Expr(sort) => {
+            HoleKind::Expr(_) => {
                 // We only use expression holes to infer early param arguments for opaque types
                 // at function calls. These should be well-scoped in the current scope, so we ignore
                 // the extra `binders` around the hole.
-                self.fresh_evars(&sort)
+                self.fresh_evar()
             }
         }
     }
@@ -212,9 +212,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             .fresh(binders, inner.evars.current_data().iter(), encoding)
     }
 
-    fn fresh_evars(&self, sort: &Sort) -> Expr {
+    fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
-        Expr::fold_sort(sort, |_| Expr::evar(evars.fresh_in_current()))
+        Expr::evar(evars.fresh_in_current())
     }
 
     pub fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
@@ -521,9 +521,16 @@ impl Sub {
                 infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
                 self.tys(infcx, &ty1, ty2)
             }
-            (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+            (
+                TyKind::Ptr(PtrKind::Mut(re), path),
+                TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), idx),
+            ) => {
+                // We sometimes generate evars for the index of references so we need to make sure
+                // we solve them.
+                self.idxs_eq(infcx, &Expr::unit(), idx);
+
                 let mut at = infcx.at(self.span);
-                env.ptr_to_ref(&mut at, ConstrReason::Call, *re, path, bound.clone())?;
+                env.ptr_to_ref(&mut at, self.reason, *re, path, bound.clone())?;
                 Ok(())
             }
             _ => self.tys(infcx, a, b),

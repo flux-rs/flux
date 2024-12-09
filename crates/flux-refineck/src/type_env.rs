@@ -202,10 +202,6 @@ impl<'a> TypeEnv<'a> {
         // t1 <: t2
         let t2 = match bound {
             PtrToRefBound::Ty(t2) => {
-                // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
-                // to a place which requires annoying bookkeping.
-                // let place = self.bindings.path_to_place(path);
-                // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
                 let t2 = rty_match_regions(&t2, &t1);
                 infcx.subtyping(&t1, &t2, reason)?;
                 t2
@@ -715,7 +711,8 @@ impl BasicBlockEnvShape {
             (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
                 let sty1 = ctor1.as_ref().skip_binder();
                 let sty2 = ctor2.as_ref().skip_binder();
-                debug_assert_eq3!(&sty1.idx, &sty2.idx, &Expr::nu());
+                debug_assert!(sty1.idx.is_nu());
+                debug_assert!(sty2.idx.is_nu());
 
                 let bty = self.join_bty(&sty1.bty, &sty2.bty);
                 let pred = if self.scope.has_free_vars(&sty2.pred) || sty1.pred != sty2.pred {
