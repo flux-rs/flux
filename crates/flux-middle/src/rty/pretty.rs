@@ -623,17 +623,131 @@ impl PrettyNested for IdxFmt {
     }
 }
 
-impl PrettyNested for BaseTy {
+impl PrettyNested for SubsetTy {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-        todo!()
+        let bty_d = self.bty.fmt_nested(cx)?;
+        let idx_d = IdxFmt(self.idx.clone()).fmt_nested(cx)?;
+        if self.pred.is_trivially_true() {
+            let text = format!("{}[{}]", bty_d.text, idx_d.text);
+            let children = float_children(&[bty_d.children, idx_d.children]);
+            Ok(NestedString { text, children, key: None })
+        } else {
+            let pred_d = self.pred.fmt_nested(cx)?;
+            let text = format!("{{ {}[{}] | {} }}", bty_d.text, idx_d.text, pred_d.text);
+            let children = float_children(&[bty_d.children, idx_d.children, pred_d.children]);
+            Ok(NestedString { text, children, key: None })
+        }
     }
 }
 
-fn print_bound_vars(cx: &PrettyCx, vars: &[BoundVariableKind]) -> Result<String, fmt::Error> {
+impl PrettyNested for GenericArg {
+    fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+        match self {
+            GenericArg::Ty(ty) => ty.fmt_nested(cx),
+            GenericArg::Base(ctor) => {
+                let lam_str = print_bound_vars(cx, "λ", ctor.vars())?;
+                let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
+                let text = format!("{}{:?}", lam_str, ctor_d.text);
+                Ok(NestedString { text, children: ctor_d.children, key: None })
+            }
+            GenericArg::Lifetime(..) | GenericArg::Const(..) => debug_nested(cx, self),
+        }
+    }
+}
+
+fn debug_nested<T: Pretty>(cx: &PrettyCx, t: &T) -> Result<NestedString, fmt::Error> {
+    let t = WithCx::new(&cx, t);
+    let text = format!("{:?}", t);
+    Ok(NestedString { text, children: None, key: None })
+}
+
+impl PrettyNested for BaseTy {
+    fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+        match self {
+            BaseTy::Int(..)
+            | BaseTy::Uint(..)
+            | BaseTy::Bool
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::Float(..)
+            | BaseTy::Param(..)
+            | BaseTy::Never
+            | BaseTy::FnPtr(..)
+            | BaseTy::FnDef(..)
+            | BaseTy::Alias(..)
+            | BaseTy::Closure(..)
+            | BaseTy::Coroutine(..)
+            | BaseTy::Dynamic(..)
+            | BaseTy::Infer(..) => {
+                let text = format!("{:?}", self);
+                Ok(NestedString { text, children: None, key: None })
+            }
+            BaseTy::Slice(ty) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("[{}]", ty_d.text);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::Array(ty, c) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("[{}; {:?}]", ty_d.text, c);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::RawPtr(ty, Mutability::Mut) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("*mut {}", ty_d.text);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::RawPtr(ty, Mutability::Not) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("*const {}", ty_d.text);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::Ref(_, ty, mutbl) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("&{} {}", mutbl.prefix_str(), ty_d.text);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::Tuple(tys) => {
+                let mut texts = vec![];
+                let mut kidss = vec![];
+                for ty in tys {
+                    let ty_d = ty.fmt_nested(cx)?;
+                    texts.push(ty_d.text);
+                    kidss.push(ty_d.children);
+                }
+                let text = if let [text] = &texts[..] {
+                    format!("({},)", text)
+                } else {
+                    format!("({})", texts.join(", "))
+                };
+                let children = float_children(&kidss);
+                Ok(NestedString { text, children, key: None })
+            }
+            BaseTy::Adt(adt_def, args) => {
+                let mut texts = vec![];
+                let mut kidss = vec![];
+                for arg in args {
+                    let arg_d = arg.fmt_nested(cx)?;
+                    texts.push(arg_d.text);
+                    kidss.push(arg_d.children);
+                }
+                let text = format!("{:?}<{:?}>", adt_def.did(), texts.join(", "));
+                let children = float_children(&kidss);
+                Ok(NestedString { text, children, key: None })
+            }
+        }
+    }
+}
+
+fn print_bound_vars(
+    cx: &PrettyCx,
+    left: &str,
+    vars: &[BoundVariableKind],
+) -> Result<String, fmt::Error> {
     let mut buffer = String::new();
     let mut formatter = fmt::Formatter::new(&mut buffer);
     if !vars.is_empty() {
-        cx.fmt_bound_vars(false, "∃", vars, ". ", &mut formatter)?;
+        cx.fmt_bound_vars(false, left, vars, ". ", &mut formatter)?;
     }
     Ok(buffer)
 }
@@ -649,7 +763,7 @@ impl PrettyNested for Ty {
                 Ok(NestedString { text, children, key: None })
             }
             TyKind::Exists(ty_ctor) => {
-                let exi_str = print_bound_vars(cx, ty_ctor.vars())?;
+                let exi_str = print_bound_vars(cx, "∃", ty_ctor.vars())?;
                 let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
                 let text = format!("{}{:?}", exi_str, ty_ctor_d.text);
                 Ok(NestedString { text, children: ty_ctor_d.children, key: None })
@@ -661,7 +775,6 @@ impl PrettyNested for Ty {
                 let children = float_children(&[expr_d.children, ty_d.children]);
                 Ok(NestedString { text, children, key: None })
             }
-
             TyKind::StrgRef(re, loc, ty) => {
                 let ty_d = ty.fmt_nested(cx)?;
                 let text = format!("&{:?} strg <{:?}: {:?}>", re, loc, ty_d.text);
