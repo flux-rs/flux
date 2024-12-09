@@ -674,7 +674,7 @@
                 {
                     <span class="kw">let </span>ctor = poly_constr_ty
                         .as_ref()
-                        .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), <span class="kw-2">&amp;</span>constr.pred));
+                        .map(|constr| SubsetTy::new(bty.clone(), idx, <span class="kw-2">&amp;</span>constr.pred));
                     TyOrBase::Base(ctor)
                 } <span class="kw">else </span>{
                     TyOrBase::Ty(<span class="self">self</span>.to_ty())

@@ -742,7 +742,7 @@
     <span class="kw">pub </span>hide_refinements: bool,
     <span class="kw">pub </span>hide_regions: bool,
     <span class="kw">pub </span>hide_sorts: bool,
-    env: Env,
+    env: BoundVarEnv,
 }
 
 <span class="macro">newtype_index!</span> {
@@ -752,12 +752,12 @@
 }
 
 <span class="attr">#[derive(Default)]
-</span><span class="kw">struct </span>Env {
+</span><span class="kw">struct </span>BoundVarEnv {
     name_gen: IndexGen&lt;BoundVarName&gt;,
     layers: RefCell&lt;Vec&lt;FxHashMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
 }
 
-<span class="kw">impl </span>Env {
+<span class="kw">impl </span>BoundVarEnv {
     <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
         <span class="kw">let </span>layers = <span class="self">self</span>.layers.borrow();
         layers
@@ -842,7 +842,7 @@
             hide_refinements: <span class="bool-val">false</span>,
             hide_regions: <span class="bool-val">false</span>,
             hide_sorts: <span class="bool-val">true</span>,
-            env: Env::default(),
+            env: BoundVarEnv::default(),
         }
     }
 

@@ -2609,7 +2609,31 @@
 <a href="#2608" id="2608">2608</a>
 <a href="#2609" id="2609">2609</a>
 <a href="#2610" id="2610">2610</a>
-<a href="#2611" id="2611">2611</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2611" id="2611">2611</a>
+<a href="#2612" id="2612">2612</a>
+<a href="#2613" id="2613">2613</a>
+<a href="#2614" id="2614">2614</a>
+<a href="#2615" id="2615">2615</a>
+<a href="#2616" id="2616">2616</a>
+<a href="#2617" id="2617">2617</a>
+<a href="#2618" id="2618">2618</a>
+<a href="#2619" id="2619">2619</a>
+<a href="#2620" id="2620">2620</a>
+<a href="#2621" id="2621">2621</a>
+<a href="#2622" id="2622">2622</a>
+<a href="#2623" id="2623">2623</a>
+<a href="#2624" id="2624">2624</a>
+<a href="#2625" id="2625">2625</a>
+<a href="#2626" id="2626">2626</a>
+<a href="#2627" id="2627">2627</a>
+<a href="#2628" id="2628">2628</a>
+<a href="#2629" id="2629">2629</a>
+<a href="#2630" id="2630">2630</a>
+<a href="#2631" id="2631">2631</a>
+<a href="#2632" id="2632">2632</a>
+<a href="#2633" id="2633">2633</a>
+<a href="#2634" id="2634">2634</a>
+<a href="#2635" id="2635">2635</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -4224,6 +4248,30 @@
         } <span class="kw">else </span>{
             <span class="macro">tracked_span_bug!</span>(<span class="string">"expected adt `{self:?}`"</span>)
         }
+    }
+
+    <span class="doccomment">/// A type is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecessary parenthesis when pretty printing.
+    </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="comment">// (nilehmann) I'm not sure about this list, please adjust if you get any odd behavior
+        </span><span class="macro">matches!</span>(
+            <span class="self">self</span>,
+            BaseTy::Int(<span class="kw">_</span>)
+                | BaseTy::Uint(<span class="kw">_</span>)
+                | BaseTy::Slice(<span class="kw">_</span>)
+                | BaseTy::Bool
+                | BaseTy::Char
+                | BaseTy::Str
+                | BaseTy::Adt(..)
+                | BaseTy::Tuple(..)
+                <span class="comment">// opaque alias are atoms the way we print them now, but they won't
+                // be if we print them as `impl Trait`
+                </span>| BaseTy::Alias(..)
+                | BaseTy::Array(..)
+                | BaseTy::Never
+                | BaseTy::Closure(..)
+                | BaseTy::Coroutine(..)
+        )
     }
 }
 

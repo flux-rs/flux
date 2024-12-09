@@ -1377,7 +1377,11 @@
 <a href="#1376" id="1376">1376</a>
 <a href="#1377" id="1377">1377</a>
 <a href="#1378" id="1378">1378</a>
-<a href="#1379" id="1379">1379</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
@@ -1623,6 +1627,10 @@
     </span>Pred,
     <span class="doccomment">/// A hole used as a refinement argument or index. It will be inferred by generating an evar.
     /// The expression filling the hole must have the provided sort.
+    ///
+    /// NOTE(nilehmann) we used to require the `Sort` for generating the evar because we needed it
+    /// to eta-expand aggregate sorts. We've since removed this behavior but I'm keeping it here
+    /// just in case. We could remove in case it becomes too problematic.
     </span>Expr(Sort),
 }
 

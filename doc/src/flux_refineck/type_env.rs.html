@@ -927,10 +927,7 @@
 <a href="#926" id="926">926</a>
 <a href="#927" id="927">927</a>
 <a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a>
-<a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#929" id="929">929</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -1134,11 +1131,7 @@
         <span class="comment">// t1 &lt;: t2
         </span><span class="kw">let </span>t2 = <span class="kw">match </span>bound {
             PtrToRefBound::Ty(t2) =&gt; {
-                <span class="comment">// FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
-                // to a place which requires annoying bookkeping.
-                // let place = self.bindings.path_to_place(path);
-                // let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                </span><span class="kw">let </span>t2 = rty_match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>t1);
+                <span class="kw">let </span>t2 = rty_match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>t1);
                 infcx.subtyping(<span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2, reason)<span class="question-mark">?</span>;
                 t2
             }
@@ -1647,7 +1640,8 @@
             (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) =&gt; {
                 <span class="kw">let </span>sty1 = ctor1.as_ref().skip_binder();
                 <span class="kw">let </span>sty2 = ctor2.as_ref().skip_binder();
-                <span class="macro">debug_assert_eq3!</span>(<span class="kw-2">&amp;</span>sty1.idx, <span class="kw-2">&amp;</span>sty2.idx, <span class="kw-2">&amp;</span>Expr::nu());
+                <span class="macro">debug_assert!</span>(sty1.idx.is_nu());
+                <span class="macro">debug_assert!</span>(sty2.idx.is_nu());
 
                 <span class="kw">let </span>bty = <span class="self">self</span>.join_bty(<span class="kw-2">&amp;</span>sty1.bty, <span class="kw-2">&amp;</span>sty2.bty);
                 <span class="kw">let </span>pred = <span class="kw">if </span><span class="self">self</span>.scope.has_free_vars(<span class="kw-2">&amp;</span>sty2.pred) || sty1.pred != sty2.pred {

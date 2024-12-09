@@ -590,8 +590,7 @@
 <a href="#589" id="589">589</a>
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#592" id="592">592</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::FieldBind;
 <span class="kw">use </span>flux_rustc_bridge::ty::region_to_string;
@@ -856,7 +855,7 @@
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Indexed(bty, idx) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, bty)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="macro">parens!</span>(bty, !bty.is_atom()))<span class="question-mark">?</span>;
                 <span class="kw">if </span>cx.hide_refinements {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
@@ -893,15 +892,14 @@
             }
             TyKind::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) =&gt; {
-                <span class="kw">let </span>is_struct = adt.is_struct();
                 <span class="comment">// base-name
                 </span><span class="macro">w!</span>(<span class="string">"{:?}"</span>, adt.did())<span class="question-mark">?</span>;
                 <span class="comment">// variant-name: if it is not a struct
-                </span><span class="kw">if </span>!is_struct {
+                </span><span class="kw">if </span>!adt.is_struct() {
                     <span class="macro">w!</span>(<span class="string">"::{}"</span>, ^adt.variant(<span class="kw-2">*</span>variant_idx).name)<span class="question-mark">?</span>;
                 }
                 <span class="comment">// fields: use curly-braces + names for structs, otherwise use parens
-                </span><span class="kw">if </span>is_struct {
+                </span><span class="kw">if </span>adt.is_struct() {
                     <span class="kw">let </span>field_binds = iter::zip(<span class="kw-2">&amp;</span>adt.variant(<span class="kw-2">*</span>variant_idx).fields, fields)
                         .map(|(field_def, value)| FieldBind { name: field_def.name, value });
                     <span class="macro">w!</span>(<span class="string">" {{ {:?} }}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))<span class="question-mark">?</span>;

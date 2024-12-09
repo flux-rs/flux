@@ -876,7 +876,14 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
@@ -889,7 +896,7 @@
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
         Region, Sort, Ty, TyKind, Var,
     },
 };
@@ -1062,7 +1069,7 @@
                 <span class="kw">let </span>kvar = <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[vars], KVarEncoding::Single);
                 Expr::abs(Lambda::bind_with_fsort(kvar, fsort))
             }
-            InferMode::EVar =&gt; <span class="self">self</span>.fresh_evars(sort),
+            InferMode::EVar =&gt; <span class="self">self</span>.fresh_evar(),
         }
     }
 
@@ -1073,11 +1080,11 @@
     ) -&gt; Expr {
         <span class="kw">match </span>kind {
             HoleKind::Pred =&gt; <span class="self">self</span>.fresh_kvar(binders, KVarEncoding::Conj),
-            HoleKind::Expr(sort) =&gt; {
+            HoleKind::Expr(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// We only use expression holes to infer early param arguments for opaque types
                 // at function calls. These should be well-scoped in the current scope, so we ignore
                 // the extra `binders` around the hole.
-                </span><span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>sort)
+                </span><span class="self">self</span>.fresh_evar()
             }
         }
     }
@@ -1090,9 +1097,9 @@
             .fresh(binders, inner.evars.current_data().iter(), encoding)
     }
 
-    <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
+    <span class="kw">fn </span>fresh_evar(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
         <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
-        Expr::fold_sort(sort, |<span class="kw">_</span>| Expr::evar(evars.fresh_in_current()))
+        Expr::evar(evars.fresh_in_current())
     }
 
     <span class="kw">pub fn </span>unify_exprs(<span class="kw-2">&amp;</span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
@@ -1399,9 +1406,16 @@
                 infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
             }
-            (TyKind::Ptr(PtrKind::Mut(re), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
+            (
+                TyKind::Ptr(PtrKind::Mut(re), path),
+                TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, bound, Mutability::Mut), idx),
+            ) =&gt; {
+                <span class="comment">// We sometimes generate evars for the index of references so we need to make sure
+                // we solve them.
+                </span><span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>Expr::unit(), idx);
+
                 <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(<span class="self">self</span>.span);
-                env.ptr_to_ref(<span class="kw-2">&amp;mut </span>at, ConstrReason::Call, <span class="kw-2">*</span>re, path, bound.clone())<span class="question-mark">?</span>;
+                env.ptr_to_ref(<span class="kw-2">&amp;mut </span>at, <span class="self">self</span>.reason, <span class="kw-2">*</span>re, path, bound.clone())<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.tys(infcx, a, b),
