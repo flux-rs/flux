@@ -64,6 +64,14 @@ macro_rules! _format_args_cx {
 pub use crate::_format_args_cx as format_args_cx;
 
 #[macro_export]
+macro_rules! _format_cx {
+    ($($arg:tt)*) => {
+        std::fmt::format($crate::_format_args_cx!($($arg)*))
+    }
+}
+pub use crate::_format_cx as format_cx;
+
+#[macro_export]
 macro_rules! _w {
     ($fmt:literal, $($args:tt)*) => {
         scoped_fmt!().write_fmt(format_args_cx!($fmt, $($args)*))
