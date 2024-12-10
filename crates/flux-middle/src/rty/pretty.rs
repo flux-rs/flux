@@ -728,6 +728,7 @@ pub fn print_bound_vars(
 
 impl PrettyNested for Ty {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+        define_scoped!(cx, _f);
         match self.kind() {
             TyKind::Indexed(bty, idx) => {
                 let bty_d = bty.fmt_nested(cx)?;
@@ -761,7 +762,7 @@ impl PrettyNested for Ty {
             }
             TyKind::Downcast(adt, .., variant_idx, fields) => {
                 let is_struct = adt.is_struct();
-                let mut text = format!("{:?}", adt.did());
+                let mut text = format_cx!("{:?}", adt.did());
                 if !is_struct {
                     text.push_str(&format!("::{}", adt.variant(*variant_idx).name));
                 }
