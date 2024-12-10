@@ -263,12 +263,20 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
 function parseRcx(rcx: string): Rcx {
     const rcxObj = JSON.parse(rcx);
     rcxObj.bindings = collapseBindings(rcxObj.bindings);
-    rcxObj.exprs = [...new Set(rcxObj.exprs)];
+    rcxObj.exprs = rcxObj.exprs.map((s:any) => parseNestedString(s));
     return rcxObj;
 }
 
+function parseNestedString(s: string): NestedString {
+    return JSON.parse(s);
+}
+
 function parseEnv(env: string): TypeEnv {
-    return JSON.parse(env).filter((bind: TypeEnvBind) => bind.name)
+    return JSON.parse(env)
+            .filter((bind: TypeEnvBind) => bind.name)
+            .map((b:any) => {
+                return {name: b.name, kind: b.kind, ty: parseNestedString(b.ty) }
+            });
 }
 
 class FluxViewProvider implements vscode.WebviewViewProvider {
@@ -334,6 +342,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._currentState = DisplayState.Info;
             this._currentRcx = parseRcx(info.rcx);
             this._currentEnv = parseEnv(info.env);
+            console.log("UpdateView", this._currentEnv);
         } else {
             this._currentState = DisplayState.None;
         }
@@ -374,14 +383,14 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
         const rcxExprs = this._currentRcx?.exprs.map(expr => `
             <tr>
-                <td>${expr}</td>
+                <td>${nestedStringHtml(expr)}</td>
             </tr>
           `).join('');
 
         const envBindings = this._currentEnv?.map(bind => `
             <tr>
-                <td><b style="color: #F26123">${bind.name}</b></td>
-                <td>: ${bind.ty}</td>
+                <td style="vertical-align: top;"><b style="color: #F26123">${bind.name}</b></td>
+                <td>${nestedStringHtml(bind.ty)}</td>
             </tr>
           `).join('');
 
@@ -435,6 +444,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         } else {
             body = this._getHtmlForMessage('No info available');
         }
+        const sampleNestedHtml = nestedStringHtml(sampleData);
 
         return `
             <!DOCTYPE html>
@@ -466,6 +476,70 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     th {
                       text-align: left;
                     }
+                .node {
+                    position: relative;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                .node.toggleable {
+                    padding-left: 10px;
+                }
+                .node.toggleable::before {
+                    content: '▶';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    color: #888;
+                    transition: transform 0.2s;
+                    display: inline-block;
+                    margin-right: 5px;
+                }
+
+                .node:not(.toggleable)::before {
+                    content: none;
+                }
+
+                .node.toggleable.expanded::before {
+                    transform: rotate(90deg);
+                }
+
+                .object-key {
+                    margin-left: 5px;
+                    /* Add a small margin to separate key from arrow */
+                }
+
+                .node-label {
+                    color: #000;
+                }
+
+                .node-label.has-children {
+                    color: #0000FF;
+                    /* Classic console object color */
+                }
+
+                .children {
+                    display: none;
+                    margin-left: 2px;
+                    border-left: 1px solid #ddd;
+                    padding-left: 2px;
+                }
+
+                .node.expanded>.children {
+                    display: block;
+                }
+                .children>.node {
+                    margin-top: 5px;
+                    padding-left: 10px;
+                }
+                .primitive {
+                    color: #006400;
+                    /* Dark green for primitive values */
+                }
+
+                .object-key {
+                    color: #0000FF;
+                    /* Blue for object keys */
+                }
                 </style>
             </head>
             <body>
@@ -481,6 +555,17 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     <div>${body}</div>
 
                 </div>
+	        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const toggleables = document.querySelectorAll('.toggleable');
+                toggleables.forEach((element, index) => {
+                    element.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        element.classList.toggle('expanded');
+                    });
+                });
+            });
+            </script>
             </body>
             </html>
         `;
@@ -513,7 +598,7 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
 type TypeEnvBind = {
   name: string | null,
   kind: string,
-  ty: string,
+  ty: NestedString,
 }
 type TypeEnv = TypeEnvBind[];
 
@@ -523,7 +608,7 @@ type RcxBind = {
 }
 type Rcx = {
     bindings: RcxBind[],
-    exprs: string[],
+    exprs: NestedString[],
 }
 
 type StmtSpan = {
@@ -586,3 +671,61 @@ function parseEventLog(logString: string): Map<string, LineInfo[]> {
     });
     return res;
 }
+
+/**********************************************************************************************/
+
+type NestedString = {
+    text: string,
+    key?: string,
+    children?: NestedString[],
+}
+
+// Sample data (you'd typically get this from somewhere else)
+const sampleData: NestedString =
+    {
+        key: '',
+        text: '{..}',
+        children: [
+            {
+                key: 'f1',
+                text: '10'
+            },
+            {
+                key: 'f2',
+                text: '20'
+            },
+            {
+                key: 'f3',
+                text: '{..}',
+                children: [
+                    { key: 'f4', text: '30' },
+                    { key: 'f5', text: '40' }
+                ]
+            },
+        ]
+    };
+
+function nestedStringHtml(node: NestedString) : string {
+    const hasChildren = node.children && node.children.length > 0;
+    const toggleable = hasChildren ? 'toggleable' : '';
+    const labelclass = hasChildren ? ' has-children' : ' primitive';
+    const keyText = node.key ? node.key + ': ' : '';
+    const labelText = keyText + node.text;
+
+    let childrenHtml = '';
+    if (node.children) {
+        const childrenElements = node.children.map((child) => nestedStringHtml(child)).join('');
+        childrenHtml = `<div class="children">${childrenElements}</div>`;
+    }
+
+    hasChildren ? node.children?.map((child) => nestedStringHtml(child)).join('') : '';
+    const html = `
+        <div class="node ${toggleable}">
+            <span class="node-label ${labelclass}">${labelText}</span>
+            ${childrenHtml}
+        </div>
+        `;
+    return html
+}
+
+/**********************************************************************************************/
