@@ -923,7 +923,6 @@ impl TypeEnvTrace {
                 let local = loc_info(loc);
                 let kind = format!("{:?}", binding.kind);
                 let ty = binding.ty.nested_string(&cx);
-                println!("TRACE: TypEnvTrace {}", ty);
                 bindings.push(TypeEnvBind { name, local, kind, ty });
             });
 

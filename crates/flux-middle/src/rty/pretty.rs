@@ -793,7 +793,6 @@ impl PrettyNested for Ty {
                     let field_d = field.fmt_nested(cx)?;
                     children.push(NestedString { key: Some(key), ..field_d });
                 }
-                println!("TRACE: DUMP {}", text);
                 Ok(NestedString { text, children: Some(children), key: None })
             }
             TyKind::Param(..)
