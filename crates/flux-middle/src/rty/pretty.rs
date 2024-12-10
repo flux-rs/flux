@@ -636,6 +636,7 @@ impl PrettyNested for GenericArg {
 
 impl PrettyNested for BaseTy {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+        define_scoped!(cx, _f);
         match self {
             BaseTy::Int(..)
             | BaseTy::Uint(..)
@@ -652,8 +653,7 @@ impl PrettyNested for BaseTy {
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(..)
             | BaseTy::Infer(..) => {
-                let text = format!("{:?}", self);
-                println!("TRACE: DUMP basety: {}", text);
+                let text = format_cx!("{:?}", self);
                 Ok(NestedString { text, children: None, key: None })
             }
             BaseTy::Slice(ty) => {
