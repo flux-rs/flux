@@ -575,14 +575,14 @@ pub struct NestedString {
 }
 
 pub fn debug_nested<T: Pretty>(cx: &PrettyCx, t: &T) -> Result<NestedString, fmt::Error> {
-    let t = WithCx::new(&cx, t);
+    let t = WithCx::new(cx, t);
     let text = format!("{:?}", t);
     Ok(NestedString { text, children: None, key: None })
 }
 
 pub fn float_children(children: Vec<Option<Vec<NestedString>>>) -> Option<Vec<NestedString>> {
-    let mut childrens: Vec<_> = children.into_iter().filter_map(|z| z).collect();
-    if childrens.len() == 0 {
+    let mut childrens: Vec<_> = children.into_iter().flatten().collect();
+    if childrens.is_empty() {
         None
     } else if childrens.len() == 1 {
         let c = childrens.pop().unwrap();

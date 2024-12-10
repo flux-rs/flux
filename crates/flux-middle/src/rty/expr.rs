@@ -1452,7 +1452,7 @@ pub(crate) mod pretty {
                     };
                     let op_d = debug_nested(cx, op)?;
                     let op_text = if matches!(op, BinOp::Div) {
-                        format!("{}", op_d.text)
+                        op_d.text
                     } else {
                         format!(" {} ", op_d.text)
                     };
