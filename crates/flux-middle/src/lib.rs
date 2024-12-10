@@ -1,5 +1,4 @@
 //! This crate contains common type definitions that are used by other crates.
-#![allow(internal_features)] // TODO: needed for the fmt_internals, which is needed for `nested_with_bound_vars`
 #![feature(
     associated_type_defaults,
     box_patterns,
@@ -10,8 +9,7 @@
     min_specialization,
     never_type,
     rustc_private,
-    unwrap_infallible,
-    fmt_internals
+    unwrap_infallible
 )]
 
 extern crate rustc_ast;

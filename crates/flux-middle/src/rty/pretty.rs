@@ -726,9 +726,8 @@ pub fn nested_with_bound_vars(
     f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
 ) -> Result<NestedString, fmt::Error> {
     let mut buffer = String::new();
-    let mut formatter = fmt::Formatter::new(&mut buffer);
     if !vars.is_empty() {
-        cx.fmt_bound_vars(false, left, vars, ". ", &mut formatter)?;
+        cx.fmt_bound_vars(false, left, vars, ". ", &mut buffer)?;
     }
     f(buffer)
 }

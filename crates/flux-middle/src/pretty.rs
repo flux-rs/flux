@@ -332,7 +332,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         left: &str,
         vars: &[BoundVariableKind],
         right: &str,
-        f: &mut fmt::Formatter<'_>,
+        f: &mut impl fmt::Write,
     ) -> fmt::Result {
         define_scoped!(self, f);
         w!("{left}")?;
