@@ -1090,10 +1090,12 @@ impl<T: Pretty> Pretty for FieldBind<T> {
         w!("{}: {:?}", ^self.name, &self.value)
     }
 }
-mod pretty {
+
+pub(crate) mod pretty {
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
+    use crate::rty::pretty::print_bound_vars;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1131,18 +1133,18 @@ mod pretty {
         }
     }
 
+    pub fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
+        if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
+            child_op.precedence() < op.precedence()
+                || (child_op.precedence() == op.precedence() && !op.precedence().is_associative())
+        } else {
+            false
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
-                if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    child_op.precedence() < op.precedence()
-                        || (child_op.precedence() == op.precedence()
-                            && !op.precedence().is_associative())
-                } else {
-                    false
-                }
-            }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(var) => w!("{:?}", var),
@@ -1376,4 +1378,178 @@ mod pretty {
     }
 
     impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+
+    impl PrettyNested for Lambda {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            let lam_str = print_bound_vars(cx, "λ", self.body.vars())?;
+            let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
+            let text = format!("{}{}", lam_str, expr_d.text);
+            Ok(NestedString { text, children: expr_d.children, key: None })
+        }
+    }
+
+    pub fn aggregate_nested(
+        cx: &PrettyCx,
+        def_id: DefId,
+        flds: &[Expr],
+    ) -> Result<NestedString, fmt::Error> {
+        let keys = if let Some(genv) = cx.genv
+            && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+        {
+            adt_sort_def
+                .field_names()
+                .iter()
+                .map(|name| format!("{}", name))
+                .collect_vec()
+        } else {
+            (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
+        };
+        let text = format!("{:?} {{..}}", def_id);
+        let mut children = vec![];
+        for (key, fld) in iter::zip(keys, flds) {
+            let fld_d = fld.fmt_nested(cx)?;
+            children.push(NestedString { key: Some(key), ..fld_d });
+        }
+        Ok(NestedString { text, children: Some(children), key: None })
+    }
+
+    impl PrettyNested for Expr {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            match e.kind() {
+                ExprKind::Var(..)
+                | ExprKind::Local(..)
+                | ExprKind::Constant(..)
+                | ExprKind::ConstDefId(..)
+                | ExprKind::Hole(..)
+                | ExprKind::GlobalFunc(..)
+                | ExprKind::KVar(..) => debug_nested(cx, &e),
+
+                ExprKind::IfThenElse(p, e1, e2) => {
+                    let p_d = p.fmt_nested(cx)?;
+                    let e1_d = e1.fmt_nested(cx)?;
+                    let e2_d = e2.fmt_nested(cx)?;
+                    let text = format!("(if {} then {} else {})", p_d.text, e1_d.text, e2_d.text);
+                    let children = float_children(vec![p_d.children, e1_d.children, e2_d.children]);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::BinaryOp(op, e1, e2) => {
+                    let e1_d = e1.fmt_nested(cx)?;
+                    let e2_d = e2.fmt_nested(cx)?;
+                    let e1_text = if should_parenthesize(op, e1) {
+                        format!("({})", e1_d.text)
+                    } else {
+                        e1_d.text
+                    };
+                    let e2_text = if should_parenthesize(op, e2) {
+                        format!("({})", e2_d.text)
+                    } else {
+                        e2_d.text
+                    };
+                    let op_d = debug_nested(cx, op)?;
+                    let op_text = if matches!(op, BinOp::Div) {
+                        format!("{}", op_d.text)
+                    } else {
+                        format!(" {} ", op_d.text)
+                    };
+                    let text = format!("{}{}{}", e1_text, op_text, e2_text);
+                    let children = float_children(vec![e1_d.children, e2_d.children]);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::UnaryOp(op, e) => {
+                    let e_d = e.fmt_nested(cx)?;
+                    let op_d = debug_nested(cx, op)?;
+                    let text = if e.is_atom() {
+                        format!("{}{}", op_d.text, e_d.text)
+                    } else {
+                        format!("{}({})", op_d.text, e_d.text)
+                    };
+                    Ok(NestedString { text, children: e_d.children, key: None })
+                }
+                ExprKind::FieldProj(e, proj) => {
+                    let e_d = e.fmt_nested(cx)?;
+                    let proj_text =   // proj
+                if let Some(genv) = cx.genv
+                    && let FieldProj::Adt { def_id, field } = proj
+                    && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+                {
+                    format!("{}", adt_sort_def.field_names()[*field as usize])
+                } else {
+                    format!("{}", proj.field_idx())
+                };
+                    let text = if e.is_atom() {
+                        format!("{}.{}", e_d.text, proj_text)
+                    } else {
+                        format!("({}).{}", e_d.text, proj_text)
+                    };
+                    Ok(NestedString { text, children: e_d.children, key: None })
+                }
+                ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
+                    let mut texts = vec![];
+                    let mut kidss = vec![];
+                    for e in flds {
+                        let e_d = e.fmt_nested(cx)?;
+                        texts.push(e_d.text);
+                        kidss.push(e_d.children);
+                    }
+                    let text = if let [e] = &texts[..] {
+                        format!("({},)", e)
+                    } else {
+                        format!("({})", texts.join(", "))
+                    };
+                    let children = float_children(kidss);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
+                    aggregate_nested(cx, *def_id, flds)
+                }
+
+                ExprKind::PathProj(e, field) => {
+                    let e_d = e.fmt_nested(cx)?;
+                    let text = if e.is_atom() {
+                        format!("{}.{:?}", e_d.text, field)
+                    } else {
+                        format!("({}).{:?}", e_d.text, field)
+                    };
+                    Ok(NestedString { text, children: e_d.children, key: None })
+                }
+                ExprKind::Alias(alias, args) => {
+                    let mut texts = vec![];
+                    let mut kidss = vec![];
+                    for arg in args {
+                        let arg_d = arg.fmt_nested(cx)?;
+                        texts.push(arg_d.text);
+                        kidss.push(arg_d.children);
+                    }
+                    let text = format!("{:?}({})", alias, texts.join(", "));
+                    let children = float_children(kidss);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::App(func, args) => {
+                    let func_d = func.fmt_nested(cx)?;
+                    let mut texts = vec![];
+                    let mut kidss = vec![func_d.children];
+                    for arg in args {
+                        let arg_d = arg.fmt_nested(cx)?;
+                        texts.push(arg_d.text);
+                        kidss.push(arg_d.children);
+                    }
+                    let text = if func.is_atom() {
+                        format!("{}({})", func_d.text, texts.join(", "))
+                    } else {
+                        format!("({})({})", func_d.text, texts.join(", "))
+                    };
+                    let children = float_children(kidss);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
+                ExprKind::ForAll(expr) => {
+                    let all_str = print_bound_vars(cx, "∀", expr.vars())?;
+                    let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
+                    let text = format!("{}{:?}", all_str, expr_d.text);
+                    Ok(NestedString { text, children: expr_d.children, key: None })
+                }
+            }
+        }
+    }
 }

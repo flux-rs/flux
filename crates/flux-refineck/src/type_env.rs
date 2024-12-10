@@ -11,7 +11,7 @@ use flux_infer::{
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{PrettyCx, WithCx},
+    pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, LocalHoister},
@@ -922,8 +922,8 @@ impl TypeEnvTrace {
                 let name = loc_name(local_names, loc);
                 let local = loc_info(loc);
                 let kind = format!("{:?}", binding.kind);
-                let ty = WithCx::new(&cx, binding.ty.clone());
-                let ty = format!("{:?}", ty);
+                let ty = binding.ty.nested_string(&cx);
+                println!("TRACE: TypEnvTrace {}", ty);
                 bindings.push(TypeEnvBind { name, local, kind, ty });
             });
 

@@ -260,18 +260,24 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
     return binds;
 }
 
-
 function parseRcx(rcx: string): Rcx {
     const rcxObj = JSON.parse(rcx);
     rcxObj.bindings = collapseBindings(rcxObj.bindings);
-    rcxObj.exprs = [...new Set(rcxObj.exprs)];
+    rcxObj.exprs = rcxObj.exprs.map((s:any) => parseNestedString(s));
     return rcxObj;
 }
 
-function parseEnv(env: string): TypeEnv {
-    return JSON.parse(env).filter((bind: TypeEnvBind) => bind.name)
+function parseNestedString(s: string): NestedString {
+    return JSON.parse(s);
 }
 
+function parseEnv(env: string): TypeEnv {
+    return JSON.parse(env)
+            .filter((bind: TypeEnvBind) => bind.name)
+            .map((b:any) => {
+                return {name: b.name, kind: b.kind, ty: parseNestedString(b.ty) }
+            });
+}
 
 class FluxViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
@@ -336,6 +342,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._currentState = DisplayState.Info;
             this._currentRcx = parseRcx(info.rcx);
             this._currentEnv = parseEnv(info.env);
+            console.log("UpdateView", this._currentEnv);
         } else {
             this._currentState = DisplayState.None;
         }
@@ -376,14 +383,14 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
         const rcxExprs = this._currentRcx?.exprs.map(expr => `
             <tr>
-                <td>${expr}</td>
+                <td>${nestedStringHtml(expr)}</td>
             </tr>
           `).join('');
 
         const envBindings = this._currentEnv?.map(bind => `
             <tr>
                 <td><b style="color: #F26123">${bind.name}</b></td>
-                <td>: ${bind.ty}</td>
+                <td>${nestedStringHtml(bind.ty)}</td>
             </tr>
           `).join('');
 
@@ -437,7 +444,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         } else {
             body = this._getHtmlForMessage('No info available');
         }
-        const sampleNestedHtml = nestedDataHtml(sampleData);
+        const sampleNestedHtml = nestedStringHtml(sampleData);
 
         return `
             <!DOCTYPE html>
@@ -543,13 +550,6 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
                     <div>${body}</div>
 
-                    <br>
-                    <div id="tree-container">${sampleNestedHtml}</div>
-                    <br>
-                    <div id="tree-container">${sampleNestedHtml}</div>
-                    <br>
-                    <div id="tree-container">${sampleNestedHtml}</div>
-
                 </div>
 	        <script>
             document.addEventListener('DOMContentLoaded', () => {
@@ -594,7 +594,7 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
 type TypeEnvBind = {
   name: string | null,
   kind: string,
-  ty: string,
+  ty: NestedString,
 }
 type TypeEnv = TypeEnvBind[];
 
@@ -604,7 +604,7 @@ type RcxBind = {
 }
 type Rcx = {
     bindings: RcxBind[],
-    exprs: string[],
+    exprs: NestedString[],
 }
 
 type StmtSpan = {
@@ -670,14 +670,14 @@ function parseEventLog(logString: string): Map<string, LineInfo[]> {
 
 /**********************************************************************************************/
 
-type NestedData = {
-    key?: string,
+type NestedString = {
     text: string,
-    children?: NestedData[],
+    key?: string,
+    children?: NestedString[],
 }
 
 // Sample data (you'd typically get this from somewhere else)
-const sampleData: NestedData =
+const sampleData: NestedString =
     {
         key: '',
         text: '{..}',
@@ -701,7 +701,7 @@ const sampleData: NestedData =
         ]
     };
 
-function nestedDataHtml(node: NestedData) : string {
+function nestedStringHtml(node: NestedString) : string {
     const hasChildren = node.children && node.children.length > 0;
     const toggleable = hasChildren ? 'toggleable' : '';
     const labelclass = hasChildren ? ' has-children' : ' primitive';
@@ -710,11 +710,11 @@ function nestedDataHtml(node: NestedData) : string {
 
     let childrenHtml = '';
     if (node.children) {
-        const childrenElements = node.children.map((child) => nestedDataHtml(child)).join('');
+        const childrenElements = node.children.map((child) => nestedStringHtml(child)).join('');
         childrenHtml = `<div class="children">${childrenElements}</div>`;
     }
 
-    hasChildren ? node.children?.map((child) => nestedDataHtml(child)).join('') : '';
+    hasChildren ? node.children?.map((child) => nestedStringHtml(child)).join('') : '';
     const html = `
         <div class="node ${toggleable}">
             <span class="node-label ${labelclass}">${labelText}</span>
