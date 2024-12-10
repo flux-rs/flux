@@ -246,6 +246,12 @@ pub trait Pretty {
     }
 }
 
+impl Pretty for String {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl<'a, I> Join<'a, I> {
     pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
         Self { sep, iter: RefCell::new(Some(iter.into_iter())) }

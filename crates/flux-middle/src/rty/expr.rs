@@ -1095,7 +1095,7 @@ pub(crate) mod pretty {
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
-    use crate::rty::pretty::print_bound_vars;
+    use crate::rty::pretty::nested_with_bound_vars;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1381,10 +1381,11 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let lam_str = print_bound_vars(cx, "λ", self.body.vars())?;
-            let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
-            let text = format!("{}{}", lam_str, expr_d.text);
-            Ok(NestedString { text, children: expr_d.children, key: None })
+            nested_with_bound_vars(cx, "λ", self.body.vars(), |prefix| {
+                let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
+                let text = format!("{}{}", prefix, expr_d.text);
+                Ok(NestedString { text, children: expr_d.children, key: None })
+            })
         }
     }
 
@@ -1392,7 +1393,9 @@ pub(crate) mod pretty {
         cx: &PrettyCx,
         def_id: DefId,
         flds: &[Expr],
+        is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
+        define_scoped!(cx, _f);
         let keys = if let Some(genv) = cx.genv
             && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
         {
@@ -1404,7 +1407,7 @@ pub(crate) mod pretty {
         } else {
             (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
         };
-        let text = format!("{:?} {{..}}", def_id);
+        let text = if is_named { format_cx!("{:?}{{..}}", def_id) } else { format_cx!("{{..}}") };
         let mut children = vec![];
         for (key, fld) in iter::zip(keys, flds) {
             let fld_d = fld.fmt_nested(cx)?;
@@ -1415,6 +1418,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            define_scoped!(cx, _f);
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(..)
@@ -1501,7 +1505,7 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
-                    aggregate_nested(cx, *def_id, flds)
+                    aggregate_nested(cx, *def_id, flds, true)
                 }
 
                 ExprKind::PathProj(e, field) => {
@@ -1521,7 +1525,7 @@ pub(crate) mod pretty {
                         texts.push(arg_d.text);
                         kidss.push(arg_d.children);
                     }
-                    let text = format!("{:?}({})", alias, texts.join(", "));
+                    let text = format_cx!("{:?}({:?})", alias, texts.join(", "));
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
@@ -1543,11 +1547,13 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
+
                 ExprKind::ForAll(expr) => {
-                    let all_str = print_bound_vars(cx, "∀", expr.vars())?;
-                    let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
-                    let text = format!("{}{:?}", all_str, expr_d.text);
-                    Ok(NestedString { text, children: expr_d.children, key: None })
+                    nested_with_bound_vars(cx, "∀", expr.vars(), |all_str| {
+                        let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
+                        let text = format!("{}{}", all_str, expr_d.text);
+                        Ok(NestedString { text, children: expr_d.children, key: None })
+                    })
                 }
             }
         }

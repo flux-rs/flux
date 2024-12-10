@@ -478,11 +478,12 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     }
                 .node {
                     position: relative;
-                    padding-left: 10px;
                     cursor: pointer;
                     user-select: none;
                 }
-
+                .node.toggleable {
+                    padding-left: 10px;
+                }
                 .node.toggleable::before {
                     content: '▶';
                     position: absolute;
@@ -526,7 +527,10 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                 .node.expanded>.children {
                     display: block;
                 }
-
+                .children>.node {
+                    margin-top: 5px;
+                    padding-left: 10px;
+                }
                 .primitive {
                     color: #006400;
                     /* Dark green for primitive values */
