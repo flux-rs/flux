@@ -227,7 +227,7 @@ impl<'a> TypeEnv<'a> {
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
-    pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult<()> {
+    pub(crate) fn fold_local_ptrs(&mut self, infcx: &mut InferCtxtAt) -> InferResult {
         for (loc, bound, ty) in self.bindings.local_ptrs() {
             infcx.subtyping(&ty, &bound, ConstrReason::FoldLocal)?;
             self.bindings.remove_local(&loc);
