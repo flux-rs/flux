@@ -17,11 +17,10 @@ impl BV32 {
 #[flux_rs::constant(BV32[int_to_bv32(0x4567)])]
 pub const START: BV32 = BV32::new(0x4567);
 
-// // USE: get the below to be SAFE
-// #[flux_rs::sig(fn () -> BV32[START])]
-// fn test1() -> BV32 {
-//     BV32::new(0x4567)
-// }
+#[flux_rs::sig(fn () -> BV32[START])]
+fn test1() -> BV32 {
+    BV32::new(0x4567)
+}
 
 // // USE: get the below to be SAFE
 // #[flux_rs::sig(fn () -> BV32{v: is_start(v)})]
