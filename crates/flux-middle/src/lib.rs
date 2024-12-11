@@ -1,5 +1,4 @@
 //! This crate contains common type definitions that are used by other crates.
-
 #![feature(
     associated_type_defaults,
     box_patterns,

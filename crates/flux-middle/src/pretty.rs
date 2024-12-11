@@ -10,6 +10,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
+use serde::Serialize;
 
 #[macro_export]
 macro_rules! _define_scoped {
@@ -245,6 +246,12 @@ pub trait Pretty {
     }
 }
 
+impl Pretty for String {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl<'a, I> Join<'a, I> {
     pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
         Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
@@ -325,7 +332,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         left: &str,
         vars: &[BoundVariableKind],
         right: &str,
-        f: &mut fmt::Formatter<'_>,
+        f: &mut impl fmt::Write,
     ) -> fmt::Result {
         define_scoped!(self, f);
         w!("{left}")?;
@@ -555,5 +562,49 @@ impl FromOpt for KVarArgs {
             Some("all") => Some(KVarArgs::All),
             _ => None,
         }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------------------
+
+#[derive(Serialize)]
+pub struct NestedString {
+    pub text: String,
+    pub key: Option<String>,
+    pub children: Option<Vec<NestedString>>,
+}
+
+pub fn debug_nested<T: Pretty>(cx: &PrettyCx, t: &T) -> Result<NestedString, fmt::Error> {
+    let t = WithCx::new(cx, t);
+    let text = format!("{:?}", t);
+    Ok(NestedString { text, children: None, key: None })
+}
+
+pub fn float_children(children: Vec<Option<Vec<NestedString>>>) -> Option<Vec<NestedString>> {
+    let mut childrens: Vec<_> = children.into_iter().flatten().collect();
+    if childrens.is_empty() {
+        None
+    } else if childrens.len() == 1 {
+        let c = childrens.pop().unwrap();
+        Some(c)
+    } else {
+        let mut res = vec![];
+        for (i, children) in childrens.into_iter().enumerate() {
+            res.push(NestedString {
+                text: format!("arg{}", i),
+                children: Some(children),
+                key: None,
+            });
+        }
+        Some(res)
+    }
+}
+
+pub trait PrettyNested {
+    fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error>;
+
+    fn nested_string(&self, cx: &PrettyCx) -> String {
+        let res = self.fmt_nested(cx).unwrap();
+        serde_json::to_string(&res).unwrap()
     }
 }
