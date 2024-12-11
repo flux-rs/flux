@@ -974,7 +974,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             }
             rty::ExprKind::ConstDefId(did) => {
-                let var = self.register_rust_const(*did);
+                let var = self.register_rust_const(*did, scx);
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
@@ -1269,32 +1269,44 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
-    fn register_rust_const(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
+    fn register_rust_const(
+        &mut self,
+        def_id: DefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::GlobalVar {
         let key = Key::Const(def_id);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
                 // TODO(nilehmann) generalize const sorts
                 let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                assert!(ty.is_integral());
+                if ty.is_integral() {
+                    // FIXME(nilehmann) we should probably report an error in case const evaluation
+                    // fails instead of silently ignore it.
+                    let val = self
+                        .genv
+                        .tcx()
+                        .const_eval_poly(def_id)
+                        .ok()
+                        .and_then(|val| {
+                            let val = val.try_to_scalar_int()?;
+                            rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
+                        });
 
-                // FIXME(nilehmann) we should probably report an error in case const evaluation
-                // fails instead of silently ignore it.
-                let val = self
-                    .genv
-                    .tcx()
-                    .const_eval_poly(def_id)
-                    .ok()
-                    .and_then(|val| {
-                        let val = val.try_to_scalar_int()?;
-                        rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
-                    });
-
-                ConstInfo {
-                    name: self.global_var_gen.fresh(),
-                    comment: format!("rust const: {}", def_id_to_string(def_id)),
-                    sort: fixpoint::Sort::Int,
-                    val: val.map(|v| Expr::constant(Constant::from(v))),
+                    ConstInfo {
+                        name: self.global_var_gen.fresh(),
+                        comment: format!("rust const: {}", def_id_to_string(def_id)),
+                        sort: fixpoint::Sort::Int,
+                        val: val.map(|v| Expr::constant(Constant::from(v))),
+                    }
+                } else {
+                    let info = self.genv.constant_info(def_id).unwrap();
+                    ConstInfo {
+                        name: self.global_var_gen.fresh(),
+                        comment: format!("rust const: {}", def_id_to_string(def_id)),
+                        sort: scx.sort_to_fixpoint(&info.sort),
+                        val: info.value,
+                    }
                 }
             })
             .name

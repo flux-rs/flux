@@ -250,6 +250,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
+    fn resolve_constant(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
+        let constant = &self.specs.constants[&owner_id.local_id()];
+        ItemResolver::run(self, owner_id, |item_resolver| {
+            item_resolver.visit_constant(constant);
+        })?;
+        RefinementResolver::resolve_constant(self, constant)
+    }
+    
     fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id.local_id()].fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
@@ -450,6 +458,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Fn(..) => {
                 self.define_generics(def_id);
                 self.resolve_fn_sig(def_id).collect_err(&mut self.err);
+            }
+            ItemKind::Const(..) => {
+                self.resolve_constant(def_id).collect_err(&mut self.err);
             }
             _ => {}
         }

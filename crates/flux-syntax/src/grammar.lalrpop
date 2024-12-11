@@ -131,6 +131,10 @@ SortDecl: surface::SortDecl = {
     }
 }
 
+pub ConstantInfo: surface::ConstantInfo = {
+    <expr:Expr> => surface::ConstantInfo { expr }
+}
+
 pub QualNames: surface::QualNames = {
     <names:Comma<Ident>> => surface::QualNames { names }
 }

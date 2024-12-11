@@ -470,6 +470,21 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
+    pub(crate) fn desugar_const_info(
+        &mut self,
+        def_id: LocalDefId,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<fhir::Item<'genv>> {
+        let expr = self.desugar_expr(&const_info.expr)?;
+        let constant_info = fhir::ConstantInfo { owner: OwnerId { def_id }, expr };
+        let owner_id = self.owner;
+        let generics = fhir::Generics::trivial();
+        let kind = fhir::ItemKind::Constant(constant_info);
+        let res = Ok(fhir::Item { owner_id, generics, kind });
+        println!("TRACE: desugar_const_info {res:?}");
+        res
+    }
+
     pub(crate) fn desugar_fn_spec(
         &mut self,
         fn_spec: &surface::FnSpec,

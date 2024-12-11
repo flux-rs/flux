@@ -267,6 +267,7 @@ pub enum ItemKind<'fhir> {
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
+    Constant(ConstantInfo<'fhir>),
 }
 
 #[derive(Debug)]
@@ -308,6 +309,12 @@ impl FluxItem<'_> {
             FluxItem::Func(func) => func.name,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ConstantInfo<'fhir> {
+    pub owner: OwnerId,
+    pub expr: Expr<'fhir>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1193,6 +1200,10 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
+    }
+
+    pub fn trivial() -> Self {
+        Generics { params: &[], refinement_params: &[], predicates: &[] }
     }
 }
 

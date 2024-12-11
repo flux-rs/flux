@@ -55,6 +55,7 @@ pub fn provide(providers: &mut Providers) {
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
+    providers.constant_info = constant_info;
     providers.type_of = type_of;
     providers.variants_of = variants_of;
     providers.fn_sig = fn_sig;
@@ -135,6 +136,12 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
 
     Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
+}
+
+fn constant_info(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
+    let def_id = genv.maybe_extern_id(def_id);
+    let item = genv.map().expect_item(def_id.local_id())?;
+    todo!("FOR GODS SAKE {item:?}")
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {

@@ -113,6 +113,7 @@ pub struct Tables<K: Eq + Hash> {
     sort_of_assoc_reft: UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
+    constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
@@ -242,6 +243,10 @@ impl CrateStore for CStore {
         key: (DefId, Symbol),
     ) -> OptResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         get!(self, sort_of_assoc_reft, key)
+    }
+
+    fn constant_info(&self, key: DefId) -> OptResult<rty::ConstantInfo> {
+        get!(self, constant_info, key)
     }
 }
 

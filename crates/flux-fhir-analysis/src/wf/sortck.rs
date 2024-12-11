@@ -303,10 +303,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 } else {
                     span_bug!(path.span, "unexpected const in var position")
                 }
-                // let sort = self.genv.sort_of_rust_ty(def_id, ty).unwrap();
-                // println!("TRACE: synth_var {sort:?}");
-                // assert!(ty.is_integral());
-                // Ok(rty::Sort::Int)
             }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),

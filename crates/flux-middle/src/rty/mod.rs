@@ -967,6 +967,13 @@ pub enum SortArg {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub struct ConstantInfo {
+    pub def_id: DefId,
+    pub sort: Sort,
+    pub value: Option<Expr>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

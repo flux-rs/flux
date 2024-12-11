@@ -136,6 +136,18 @@ pub fn desugar<'genv>(
                         ),
                     );
                 }
+                hir::ItemKind::Const(..) => {
+                    let constant_ = &specs.constants[&owner_id];
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::Item(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, None)
+                                    .desugar_const_info(def_id, constant_)?,
+                            ),
+                        ),
+                    );
+                }
                 _ => span_bug!(item.span, "unsupported item"),
             }
         }

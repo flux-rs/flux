@@ -134,6 +134,7 @@ pub struct Providers {
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
+    pub constant_info: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::ConstantInfo>,
     pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
@@ -184,6 +185,7 @@ impl Default for Providers {
             default_assoc_refinement_def: |_, _, _| empty_query!(),
             sort_of_assoc_reft: |_, _, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
+            constant_info: |_, _| empty_query!(),
         }
     }
 }
@@ -205,6 +207,7 @@ pub struct Queries<'genv, 'tcx> {
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
+    constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -240,6 +243,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
             adt_def: Default::default(),
+            constant_info: Default::default(),
             generics_of: Default::default(),
             refinement_generics_of: Default::default(),
             predicates_of: Default::default(),
@@ -420,6 +424,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: LocalDefId,
     ) -> QueryResult<Rc<rty::WfckResults>> {
         run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
+    }
+
+    pub(crate) fn constant_info(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::ConstantInfo> {
+        run_with_cache(&self.constant_info, def_id, || {
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (self.providers.constant_info)(genv, def_id.local_id()),
+                |def_id| genv.cstore().constant_info(def_id),
+                |def_id| {
+                    // todo
+                    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                    let sort = genv.sort_of_rust_ty(def_id, ty)?.unwrap();
+                    Ok(rty::ConstantInfo { def_id, sort, value: None })
+                },
+            )
+        })
     }
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {

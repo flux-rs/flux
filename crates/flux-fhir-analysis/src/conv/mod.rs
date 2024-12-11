@@ -565,6 +565,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
+    pub(crate) fn conv_constant_info(
+        &mut self,
+        def_id: MaybeExternId,
+        constant_info: &fhir::ConstantInfo,
+    ) -> QueryResult<rty::ConstantInfo> {
+        todo!("CONV constant_info")
+    }
+
     pub(crate) fn conv_fn_sig(
         &mut self,
         fn_id: MaybeExternId,

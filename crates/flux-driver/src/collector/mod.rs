@@ -442,7 +442,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
             ("constant", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Constant)?
+                self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -602,7 +602,7 @@ enum FluxAttrKind {
     Items(Vec<surface::Item>),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
-    Constant(surface::Ty),
+    Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
@@ -711,7 +711,7 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
-    fn constant(&mut self) -> Option<surface::Ty> {
+    fn constant(&mut self) -> Option<surface::ConstantInfo> {
         read_attr!(self, Constant)
     }
 

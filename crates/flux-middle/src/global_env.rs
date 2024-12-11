@@ -202,6 +202,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into_query_param())
     }
 
+    pub fn constant_info(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::ConstantInfo> {
+        self.inner
+            .queries
+            .constant_info(self, def_id.into_query_param())
+    }
+
     pub fn adt_sort_def_of(
         self,
         def_id: impl IntoQueryParam<DefId>,
