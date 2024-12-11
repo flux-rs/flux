@@ -829,7 +829,7 @@
         <span class="kw">let </span>trait_ref = trait_ref
             .lower(<span class="self">self</span>.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?</span>;
-        <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
+        <span class="kw">let </span>trait_ref = Refiner::default_for_item(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
     }
 

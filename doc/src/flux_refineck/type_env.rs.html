@@ -1156,7 +1156,7 @@
         <span class="prelude-val">Ok</span>(Ty::mk_ref(re, t2, Mutability::Mut))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_local_ptrs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; InferResult&lt;()&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold_local_ptrs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; InferResult {
         <span class="kw">for </span>(loc, bound, ty) <span class="kw">in </span><span class="self">self</span>.bindings.local_ptrs() {
             infcx.subtyping(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span>bound, ConstrReason::FoldLocal)<span class="question-mark">?</span>;
             <span class="self">self</span>.bindings.remove_local(<span class="kw-2">&amp;</span>loc);

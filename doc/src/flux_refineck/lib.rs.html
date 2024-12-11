@@ -361,7 +361,8 @@
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -532,6 +533,7 @@
         <span class="comment">// PHASE 4: subtyping check for trait-method implementations
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>((refine_tree, kvars)) =
             trait_impl_subtyping(genv, local_id, config.check_overflow, span)
+                .with_span(span)
                 .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
         </span>{
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);

@@ -521,7 +521,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Refiner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub fn </span>new(
+    <span class="kw">pub fn </span>new_for_item(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
         refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::SubsetTyCtor,
@@ -530,12 +530,12 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ genv, def_id, generics, refine })
     }
 
-    <span class="kw">pub fn </span>default(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: DefId) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="self">Self</span>::new(genv, def_id, refine_default)
+    <span class="kw">pub fn </span>default_for_item(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: DefId) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="self">Self</span>::new_for_item(genv, def_id, refine_default)
     }
 
     <span class="kw">pub fn </span>with_holes(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: DefId) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="self">Self</span>::new(genv, def_id, |bty| {
+        <span class="self">Self</span>::new_for_item(genv, def_id, |bty| {
             <span class="kw">let </span>sort = bty.sort();
             <span class="kw">let </span>constr = rty::SubsetTy::new(
                 bty.shift_in_escaping(<span class="number">1</span>),

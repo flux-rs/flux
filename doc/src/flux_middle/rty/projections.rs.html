@@ -729,7 +729,7 @@
         )
         .expect_type();
         <span class="kw">let </span>rustc_ty = ty.lower(<span class="self">self</span>.tcx()).unwrap();
-        <span class="prelude-val">Ok</span>(Refiner::default(<span class="self">self</span>.genv, <span class="self">self</span>.def_id)<span class="question-mark">?
+        <span class="prelude-val">Ok</span>(Refiner::default_for_item(<span class="self">self</span>.genv, <span class="self">self</span>.def_id)<span class="question-mark">?
             </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
             </span>.expect_base())
     }

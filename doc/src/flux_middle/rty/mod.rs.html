@@ -3848,7 +3848,7 @@
         <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>alloc_ty = Refiner::default(genv, def_id)<span class="question-mark">?</span>.refine_ty(
+        <span class="kw">let </span>alloc_ty = Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>.refine_ty(
             <span class="kw-2">&amp;</span>genv
                 .lower_type_of(generics.own_params[<span class="number">1</span>].def_id)<span class="question-mark">?
                 </span>.skip_binder(),

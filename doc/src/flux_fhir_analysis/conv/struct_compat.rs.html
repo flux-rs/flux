@@ -907,7 +907,7 @@
     def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;rty::TyCtor&gt; {
     <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
-    <span class="kw">let </span>expected = Refiner::default(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expected = Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_ty(<span class="kw-2">&amp;</span>rust_ty)<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
 
     <span class="kw">if </span>zipper
@@ -932,7 +932,7 @@
 ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
     <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>expected =
-        Refiner::default(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
+        Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
     <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = zipper.zip_poly_fn_sig(fn_sig, <span class="kw-2">&amp;</span>expected) {
@@ -949,7 +949,7 @@
     variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
     adt_def_id: MaybeExternId,
 ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
-    <span class="kw">let </span>refiner = Refiner::default(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span>refiner = Refiner::default_for_item(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
     <span class="comment">// TODO check same number of variants
     </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
