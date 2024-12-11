@@ -133,6 +133,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 if attrs.extern_spec() {
                     return ExternSpecCollector::collect(self, *body_id);
                 }
+
+                self.collect_constant(owner_id, attrs)?;
             }
             _ => {}
         }
@@ -236,6 +238,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }))
     }
 
+    fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        let span = self.tcx.source_span(owner_id);
+        let constant = attrs
+            .constant()
+            .ok_or_else(|| self.errors.emit(errors::InvalidAttr { span }))?;
+        self.specs.constants.insert(owner_id, constant);
+        Ok(())
+    }
+
     fn parse_field_spec(
         &mut self,
         field: &rustc_hir::FieldDef,
@@ -303,6 +314,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         Ok(variant)
+    }
+
+    fn collect_constant(&mut self, owner_id: OwnerId, attrs: FluxAttrs) -> Result {
+        self.parse_constant_spec(owner_id, attrs)
     }
 
     fn collect_fn_spec(
@@ -425,6 +440,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("invariant", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
+            }
+            ("constant", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Constant)?
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -584,6 +602,7 @@ enum FluxAttrKind {
     Items(Vec<surface::Item>),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
+    Constant(surface::Ty),
     Variant(surface::VariantDef),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
@@ -692,6 +711,10 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
+    fn constant(&mut self) -> Option<surface::Ty> {
+        read_attr!(self, Constant)
+    }
+
     fn variant(&mut self) -> Option<surface::VariantDef> {
         read_attr!(self, Variant)
     }
@@ -731,6 +754,7 @@ impl FluxAttrKind {
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
+            FluxAttrKind::Constant(_) => attr_name!(Constant),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),

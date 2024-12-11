@@ -364,6 +364,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
 #[derive(Default)]
 pub struct Specs {
     pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
+    pub constants: UnordMap<OwnerId, surface::Ty>,
     pub structs: UnordMap<OwnerId, surface::StructDef>,
     pub traits: UnordMap<OwnerId, surface::Trait>,
     pub impls: UnordMap<OwnerId, surface::Impl>,

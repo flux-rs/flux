@@ -207,7 +207,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_loc(&mut self, loc: &fhir::PathExpr) -> Result {
-        let found = self.synth_var(loc);
+        let found = self.synth_var(loc)?;
         if found == rty::Sort::Loc {
             Ok(())
         } else {
@@ -217,7 +217,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
-            fhir::ExprKind::Var(var, _) => Ok(self.synth_var(var)),
+            fhir::ExprKind::Var(var, _) => self.synth_var(var),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
@@ -283,17 +283,33 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_var(&mut self, path: &fhir::PathExpr) -> rty::Sort {
+    fn synth_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
         match path.res {
-            ExprRes::Param(_, id) => self.param_sort(id),
+            ExprRes::Param(_, id) => Ok(self.param_sort(id)),
             ExprRes::Const(def_id) => {
                 // TODO(nilehmann) generalize const sorts
                 let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                assert!(ty.is_integral());
-                rty::Sort::Int
+                if ty.is_integral() {
+                    Ok(rty::Sort::Int)
+                } else if let Some(sort) =
+                    self.genv.sort_of_rust_ty(def_id, ty).unwrap_or_else(|err| {
+                        span_bug!(
+                            path.span,
+                            "unknown sort for `{def_id:?}` of type {ty:?} with {err:?}"
+                        )
+                    })
+                {
+                    Ok(sort)
+                } else {
+                    span_bug!(path.span, "unexpected const in var position")
+                }
+                // let sort = self.genv.sort_of_rust_ty(def_id, ty).unwrap();
+                // println!("TRACE: synth_var {sort:?}");
+                // assert!(ty.is_integral());
+                // Ok(rty::Sort::Int)
             }
-            ExprRes::ConstGeneric(_) => rty::Sort::Int, // TODO: generalize generic-const sorts
-            ExprRes::NumConst(_) => rty::Sort::Int,
+            ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
+            ExprRes::NumConst(_) => Ok(rty::Sort::Int),
             ExprRes::GlobalFunc(_, _) => {
                 span_bug!(path.span, "unexpected func in var position")
             }

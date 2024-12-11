@@ -28,7 +28,7 @@ impl GlobalEnv<'_, '_> {
         Ok(sort)
     }
 
-    fn sort_of_rust_ty(
+    pub fn sort_of_rust_ty(
         self,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
