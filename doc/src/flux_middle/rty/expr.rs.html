@@ -1381,7 +1381,189 @@
 <a href="#1380" id="1380">1380</a>
 <a href="#1381" id="1381">1381</a>
 <a href="#1382" id="1382">1382</a>
-<a href="#1383" id="1383">1383</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
+<a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
@@ -2477,10 +2659,12 @@
         <span class="macro">w!</span>(<span class="string">"{}: {:?}"</span>, ^<span class="self">self</span>.name, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
     }
 }
-<span class="kw">mod </span>pretty {
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>pretty {
     <span class="kw">use </span>flux_rustc_bridge::def_id_to_string;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::rty::pretty::nested_with_bound_vars;
 
     <span class="attr">#[derive(PartialEq, Eq, PartialOrd, Ord)]
     </span><span class="kw">enum </span>Precedence {
@@ -2518,18 +2702,18 @@
         }
     }
 
+    <span class="kw">pub fn </span>should_parenthesize(op: <span class="kw-2">&amp;</span>BinOp, child: <span class="kw-2">&amp;</span>Expr) -&gt; bool {
+        <span class="kw">if let </span>ExprKind::BinaryOp(child_op, ..) = child.kind() {
+            child_op.precedence() &lt; op.precedence()
+                || (child_op.precedence() == op.precedence() &amp;&amp; !op.precedence().is_associative())
+        } <span class="kw">else </span>{
+            <span class="bool-val">false
+        </span>}
+    }
+
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Expr {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="kw">fn </span>should_parenthesize(op: <span class="kw-2">&amp;</span>BinOp, child: <span class="kw-2">&amp;</span>Expr) -&gt; bool {
-                <span class="kw">if let </span>ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    child_op.precedence() &lt; op.precedence()
-                        || (child_op.precedence() == op.precedence()
-                            &amp;&amp; !op.precedence().is_associative())
-                } <span class="kw">else </span>{
-                    <span class="bool-val">false
-                </span>}
-            }
             <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.clone() };
             <span class="kw">match </span>e.kind() {
                 ExprKind::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, var),
@@ -2763,5 +2947,185 @@
     }
 
     <span class="macro">impl_debug_with_default_cx!</span>(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+
+    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Lambda {
+        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+            nested_with_bound_vars(cx, <span class="string">"λ"</span>, <span class="self">self</span>.body.vars(), |prefix| {
+                <span class="kw">let </span>expr_d = <span class="self">self</span>.body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+                <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, expr_d.text);
+                <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+            })
+        }
+    }
+
+    <span class="kw">pub fn </span>aggregate_nested(
+        cx: <span class="kw-2">&amp;</span>PrettyCx,
+        def_id: DefId,
+        flds: <span class="kw-2">&amp;</span>[Expr],
+        is_named: bool,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+        <span class="macro">define_scoped!</span>(cx, _f);
+        <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
+        {
+            adt_sort_def
+                .field_names()
+                .iter()
+                .map(|name| <span class="macro">format!</span>(<span class="string">"{}"</span>, name))
+                .collect_vec()
+        } <span class="kw">else </span>{
+            (<span class="number">0</span>..flds.len()).map(|i| <span class="macro">format!</span>(<span class="string">"arg{}"</span>, i)).collect_vec()
+        };
+        <span class="kw">let </span>text = <span class="kw">if </span>is_named { <span class="macro">format_cx!</span>(<span class="string">"{:?}{{..}}"</span>, def_id) } <span class="kw">else </span>{ <span class="macro">format_cx!</span>(<span class="string">"{{..}}"</span>) };
+        <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>(key, fld) <span class="kw">in </span>iter::zip(keys, flds) {
+            <span class="kw">let </span>fld_d = fld.fmt_nested(cx)<span class="question-mark">?</span>;
+            children.push(NestedString { key: <span class="prelude-val">Some</span>(key), ..fld_d });
+        }
+        <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">Some</span>(children), key: <span class="prelude-val">None </span>})
+    }
+
+    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Expr {
+        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+            <span class="macro">define_scoped!</span>(cx, _f);
+            <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.clone() };
+            <span class="kw">match </span>e.kind() {
+                ExprKind::Var(..)
+                | ExprKind::Local(..)
+                | ExprKind::Constant(..)
+                | ExprKind::ConstDefId(..)
+                | ExprKind::Hole(..)
+                | ExprKind::GlobalFunc(..)
+                | ExprKind::KVar(..) =&gt; debug_nested(cx, <span class="kw-2">&amp;</span>e),
+
+                ExprKind::IfThenElse(p, e1, e2) =&gt; {
+                    <span class="kw">let </span>p_d = p.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"(if {} then {} else {})"</span>, p_d.text, e1_d.text, e2_d.text);
+                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[p_d.children, e1_d.children, e2_d.children]);
+                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::BinaryOp(op, e1, e2) =&gt; {
+                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>e1_text = <span class="kw">if </span>should_parenthesize(op, e1) {
+                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e1_d.text)
+                    } <span class="kw">else </span>{
+                        e1_d.text
+                    };
+                    <span class="kw">let </span>e2_text = <span class="kw">if </span>should_parenthesize(op, e2) {
+                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e2_d.text)
+                    } <span class="kw">else </span>{
+                        e2_d.text
+                    };
+                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>op_text = <span class="kw">if </span><span class="macro">matches!</span>(op, BinOp::Div) {
+                        op_d.text
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">" {} "</span>, op_d.text)
+                    };
+                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}{}"</span>, e1_text, op_text, e2_text);
+                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[e1_d.children, e2_d.children]);
+                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::UnaryOp(op, e) =&gt; {
+                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+                        <span class="macro">format!</span>(<span class="string">"{}{}"</span>, op_d.text, e_d.text)
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, op_d.text, e_d.text)
+                    };
+                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::FieldProj(e, proj) =&gt; {
+                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>proj_text =   <span class="comment">// proj
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+                    &amp;&amp; <span class="kw">let </span>FieldProj::Adt { def_id, field } = proj
+                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
+                {
+                    <span class="macro">format!</span>(<span class="string">"{}"</span>, adt_sort_def.field_names()[<span class="kw-2">*</span>field <span class="kw">as </span>usize])
+                } <span class="kw">else </span>{
+                    <span class="macro">format!</span>(<span class="string">"{}"</span>, proj.field_idx())
+                };
+                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, proj_text)
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, proj_text)
+                    };
+                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::Aggregate(AggregateKind::Tuple(<span class="kw">_</span>), flds) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+                    <span class="kw">for </span>e <span class="kw">in </span>flds {
+                        <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+                        texts.push(e_d.text);
+                        kidss.push(e_d.children);
+                    }
+                    <span class="kw">let </span>text = <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>texts[..] {
+                        <span class="macro">format!</span>(<span class="string">"({},)"</span>, e)
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">"({})"</span>, texts.join(<span class="string">", "</span>))
+                    };
+                    <span class="kw">let </span>children = float_children(kidss);
+                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
+                    aggregate_nested(cx, <span class="kw-2">*</span>def_id, flds, <span class="bool-val">true</span>)
+                }
+
+                ExprKind::PathProj(e, field) =&gt; {
+                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+                        <span class="macro">format!</span>(<span class="string">"{}.{:?}"</span>, e_d.text, field)
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">"({}).{:?}"</span>, e_d.text, field)
+                    };
+                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::Alias(alias, args) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+                        texts.push(arg_d.text);
+                        kidss.push(arg_d.children);
+                    }
+                    <span class="kw">let </span>text = <span class="macro">format_cx!</span>(<span class="string">"{:?}({:?})"</span>, alias, texts.join(<span class="string">", "</span>));
+                    <span class="kw">let </span>children = float_children(kidss);
+                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::App(func, args) =&gt; {
+                    <span class="kw">let </span>func_d = func.fmt_nested(cx)<span class="question-mark">?</span>;
+                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[func_d.children];
+                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+                        texts.push(arg_d.text);
+                        kidss.push(arg_d.children);
+                    }
+                    <span class="kw">let </span>text = <span class="kw">if </span>func.is_atom() {
+                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+                    } <span class="kw">else </span>{
+                        <span class="macro">format!</span>(<span class="string">"({})({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+                    };
+                    <span class="kw">let </span>children = float_children(kidss);
+                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+                }
+                ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
+
+                ExprKind::ForAll(expr) =&gt; {
+                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), |all_str| {
+                        <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+                    })
+                }
+            }
+        }
+    }
 }
 </code></pre></div></section></main></body></html>

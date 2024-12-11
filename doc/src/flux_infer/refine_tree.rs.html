@@ -825,7 +825,7 @@
 <span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    pretty::{PrettyCx, WithCx},
+    pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
@@ -1617,8 +1617,8 @@
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) <span class="kw">if </span>!e.simplify().is_trivially_true() =&gt; {
-                    <span class="kw">let </span>e = WithCx::new(<span class="kw-2">&amp;</span>cx, e);
-                    exprs.push(<span class="macro">format!</span>(<span class="string">"{e:?}"</span>));
+                    <span class="kw">let </span>e = e.nested_string(<span class="kw-2">&amp;</span>cx);
+                    exprs.push(e);
                 }
                 NodeKind::Root(binds) =&gt; {
                     <span class="kw">for </span>(name, sort) <span class="kw">in </span>binds {
