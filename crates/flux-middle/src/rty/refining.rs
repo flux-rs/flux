@@ -76,7 +76,7 @@ pub struct Refiner<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
-    pub fn new(
+    pub fn new_for_item(
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: DefId,
         refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
@@ -85,12 +85,12 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(Self { genv, def_id, generics, refine })
     }
 
-    pub fn default(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
-        Self::new(genv, def_id, refine_default)
+    pub fn default_for_item(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
+        Self::new_for_item(genv, def_id, refine_default)
     }
 
     pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, def_id: DefId) -> QueryResult<Self> {
-        Self::new(genv, def_id, |bty| {
+        Self::new_for_item(genv, def_id, |bty| {
             let sort = bty.sort();
             let constr = rty::SubsetTy::new(
                 bty.shift_in_escaping(1),
