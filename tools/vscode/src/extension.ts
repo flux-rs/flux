@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
         fluxViewProvider.toggle();
         const editor = vscode.window.activeTextEditor;
         if (editor) {
-            infoProvider.runFlux(editor.document.fileName, () => { fluxViewProvider.updateView(); });
+            infoProvider.runFlux(workspacePath, editor.document.fileName, () => { fluxViewProvider.updateView(); });
         }
     });
     context.subscriptions.push(disposable);
@@ -64,14 +64,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Track the set of saved (updated) source files
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((document) => {
-            fluxViewProvider.runFlux(document.fileName);
+            fluxViewProvider.runFlux(workspacePath, document.fileName);
         }
     ));
 
     // Track the set of opened files
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((document) => {
-            fluxViewProvider.runFlux(document.fileName);
+            fluxViewProvider.runFlux(workspacePath, document.fileName);
         }
     ));
 
@@ -123,13 +123,16 @@ async function runTouch(file: string) {
 }
 
 // run `cargo flux` on the file
-async function runCargoFlux(file: string) {
+async function runCargoFlux(workspacePath: string, file: string) {
+    const logDir = path.join(workspacePath, 'log');
     const fluxEnv = {
         ...process.env,
+        FLUX_LOG_DIR : logDir,
         FLUX_DUMP_CHECKER_TRACE : '1',
         FLUX_CHECK_FILES : file,
     };
     const command = `cargo flux`;
+    console.log("Running flux:", fluxEnv, command);
     await runShellCommand(fluxEnv, command);
 }
 
@@ -198,7 +201,7 @@ class InfoProvider {
         return this.currentLine;
     }
 
-    public async runFlux(file: string, beforeLoad: () => void) {
+    public async runFlux(workspacePath: string, file: string, beforeLoad: () => void) {
         if (!file.endsWith('.rs')) { return; }
 
         const src = this.relFile(file);
@@ -217,7 +220,7 @@ class InfoProvider {
         await runTouch(src);
         const curAt = getFileModificationTime(file);
         this._ModifiedAt.set(src, curAt);
-        await runCargoFlux(src)
+        await runCargoFlux(workspacePath, src)
    }
 
     public async loadFluxInfo() {
@@ -320,8 +323,8 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    public runFlux(file: string) {
-        this._infoProvider.runFlux(file, () => { this.updateView(); })
+    public runFlux(workspacePath: string, file: string) {
+        this._infoProvider.runFlux(workspacePath, file, () => { this.updateView(); })
             .then(() => this._infoProvider.loadFluxInfo())
             .then(() => this.updateView());
     }
