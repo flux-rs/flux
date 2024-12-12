@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
     const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
 
     fileWatcher.onDidChange((uri) => {
-        // console.log(`checker trace changed: ${uri.fsPath}`);
+        console.log(`checker trace changed: ${uri.fsPath}`);
         infoProvider.loadFluxInfo()
             .then(() => fluxViewProvider.updateView())
     });
@@ -105,7 +105,8 @@ async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
 
         return stdout.trim();
     } catch (error) {
-        console.log(`Command failed: ${error}`);
+        const err = { text: error };
+        console.log(`Command failed: ${err}`);
         // vscode.window.showErrorMessage(`Command failed: ${error}`);
         // throw error;
     }
@@ -122,7 +123,7 @@ async function runTouch(file: string) {
     await runShellCommand(process.env, command)
 }
 
-// run `cargo flux` on the file
+// run `cargo flux` on the file (absolute path)
 async function runCargoFlux(workspacePath: string, file: string) {
     const logDir = path.join(workspacePath, 'log');
     const fluxEnv = {
@@ -179,6 +180,7 @@ class InfoProvider {
     private updateInfo(fileName: string, fileInfo: LineInfo[]) {
         const startMap = this.positionMap(fileInfo, Position.Start);
         const endMap = this.positionMap(fileInfo, Position.End);
+        console.log("updateInfo:", fileName, startMap, endMap);
         this._StartMap.set(fileName, startMap);
         this._EndMap.set(fileName, endMap);
     }
@@ -187,10 +189,15 @@ class InfoProvider {
         const file = this.currentFile;
         const pos = this.currentPosition;
         const line = this.currentLine;
+        const map = pos === Position.Start ? this._StartMap : this._EndMap;
+        console.log("getLineInfo (0):", file, pos, line, map);
         if (file) {
-            const map = pos === Position.Start ? this._StartMap : this._EndMap;
-            if (map.has(file)) {
-                return map.get(file)?.get(line);
+            const fileInfo = map.get(file);
+            console.log("getLineInfo (1):", fileInfo);
+            if (fileInfo) {
+                let lineInfo = fileInfo.get(line);
+                console.log("getLineInfo (2):", lineInfo);
+                return lineInfo; // map.get(file)?.get(line);
             } else {
                 return 'loading';
             }
@@ -220,12 +227,12 @@ class InfoProvider {
         await runTouch(src);
         const curAt = getFileModificationTime(file);
         this._ModifiedAt.set(src, curAt);
-        await runCargoFlux(workspacePath, src)
+        // note we use `file` for the ABSOLUTE path due to odd cargo workspace behavior
+        await runCargoFlux(workspacePath, file)
    }
 
     public async loadFluxInfo() {
       try {
-          // console.log("Loading flux info");
           const lineInfos = await readFluxCheckerTrace();
           lineInfos.forEach((lineInfo, fileName) => {
               this.updateInfo(fileName, lineInfo);
@@ -648,13 +655,17 @@ function parseStatementSpan(span: string): StmtSpan | undefined {
 }
 
 function parseEvent(event: any): [string, LineInfo] | undefined {
+    try {
     const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
     if (position !== undefined) {
         const stmt_span = parseStatementSpan(event.fields.stmt_span);
-        if (stmt_span /* && files.has(stmt_span.file) */) {
+        if (stmt_span) {
             const info = {line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json};
             return [stmt_span.file, info];
         }
+    }
+    } catch (error) {
+        console.log(`Failed to parse event: ${error}`);
     }
     return undefined;
 }

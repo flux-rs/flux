@@ -159,9 +159,17 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let tcx = self.genv.tcx();
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
+        let current_dir = tcx.sess.opts.working_dir.clone();
         if let FileName::Real(file_name) = sm.span_to_filename(span) {
-            if let Some(path) = file_name.local_path() {
-                let file = path.to_string_lossy().to_string();
+            // TODO: use span_to_location_info
+            if let Some(file_path) = file_name.local_path()
+                && let Some(current_dir_path) = current_dir.local_path()
+            {
+                let file = current_dir_path
+                    .join(file_path)
+                    .to_string_lossy()
+                    .to_string();
+                // println!("TRACE: matches_check_file {def_id:?}: file={file:?}");
                 return config::is_checked_file(&file);
             }
         }
@@ -183,9 +191,14 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        if !self.matches_check_file(def_id.local_id()) {
+        let matches = self.matches_check_file(def_id.local_id());
+        println!("TRACE: check_def: {def_id:?} matches = {matches:?}");
+        if !matches {
             return Ok(());
         }
+        // if !self.matches_check_file(def_id.local_id()) {
+        //     return Ok(());
+        // }
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
