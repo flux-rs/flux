@@ -221,7 +221,7 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 <p>Then, import attributes from <code>flux_rs</code> and add the appropriate refinement annoations.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use flux_rs::*
+</span>use flux_rs::*;
 
 #[sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
 fn inc(x: i32) -&gt; i32 {
