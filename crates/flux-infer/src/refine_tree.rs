@@ -8,7 +8,7 @@ use flux_common::{index::IndexVec, iter::IterExt};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{PrettyCx, WithCx},
+    pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
@@ -800,8 +800,8 @@ impl RefineCtxtTrace {
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
-                    let e = WithCx::new(&cx, e);
-                    exprs.push(format!("{e:?}"));
+                    let e = e.nested_string(&cx);
+                    exprs.push(e);
                 }
                 NodeKind::Root(binds) => {
                     for (name, sort) in binds {

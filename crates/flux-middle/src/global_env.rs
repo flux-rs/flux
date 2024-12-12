@@ -233,7 +233,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let trait_ref = trait_ref
             .lower(self.tcx())
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
-        let trait_ref = Refiner::default(self, impl_id)?.refine_trait_ref(&trait_ref)?;
+        let trait_ref = Refiner::default_for_item(self, impl_id)?.refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 

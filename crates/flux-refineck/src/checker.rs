@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot, SubtypeReason},
+    infer::{ConstrReason, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason},
     refine_tree::{AssumeInvariants, RefineCtxtTrace, RefineTree, Snapshot},
 };
 use flux_middle::{
@@ -41,7 +41,7 @@ use rustc_hir::{
 use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::{SourceInfo, SwitchTargets},
+    mir::SwitchTargets,
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{sym, Span};
@@ -76,6 +76,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     visited: BitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
+    default_refiner: Refiner<'genv, 'tcx>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -146,30 +147,30 @@ enum Guard {
 impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: GlobalEnv<'genv, 'tcx>,
-        def_id: LocalDefId,
+        local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult> {
-        dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
-            let span = genv.tcx().def_span(def_id);
+        let def_id = local_id.to_def_id();
+        dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
+            let span = genv.tcx().def_span(local_id);
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
             // In shape mode we don't care about kvars
             let kvars = KVarGen::dummy();
-            let mut root_ctxt =
-                InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
+            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
-            let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
+            let body = genv.mir(local_id).with_span(span)?;
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
-                .fn_sig(def_id)
+                .fn_sig(local_id)
                 .with_span(span)?
                 .instantiate_identity()
                 .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
                 .with_span(span)?;
-            Checker::run(infcx, def_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -179,31 +180,31 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: GlobalEnv<'genv, 'tcx>,
-        def_id: LocalDefId,
+        local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarGen)> {
+        let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
         let mut kvars = fixpoint_encoding::KVarGen::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
-        let mut root_ctxt =
-            InferCtxtRoot::new(genv, def_id.to_def_id(), kvars, None).with_span(span)?;
+        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
-            let body = genv.mir(def_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id.to_def_id(), &body.infcx);
+            let body = genv.mir(local_id).with_span(span)?;
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
                 .instantiate_identity()
                 .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
                 .with_span(span)?;
-            Checker::run(infcx, def_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt.split())
         })
@@ -232,7 +233,7 @@ fn check_fn_subtyping(
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
     overflow_checking: bool,
     span: Span,
-) -> Result {
+) -> InferResult {
     let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
@@ -245,9 +246,7 @@ fn check_fn_subtyping(
     let super_sig =
         super_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
-    let super_sig = super_sig
-        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
-        .with_span(span)?;
+    let super_sig = super_sig.normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -257,17 +256,16 @@ fn check_fn_subtyping(
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, span, &sub_sig, &actuals)?;
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, &sub_sig, &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
     infcx.push_scope();
-    let refine_args = infcx.instantiate_refine_args(*def_id).with_span(span)?;
+    let refine_args = infcx.instantiate_refine_args(*def_id)?;
     let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
     let sub_sig = sub_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)
-        .with_span(span)?;
+        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
 
     // 3. INPUT subtyping (g-input <: f-input)
     for requires in super_sig.requires() {
@@ -275,9 +273,7 @@ fn check_fn_subtyping(
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
         let reason = ConstrReason::Subtype(SubtypeReason::Input);
-        infcx
-            .fun_arg_subtyping(&mut env, &actual, formal, reason)
-            .with_span(span)?;
+        infcx.fun_arg_subtyping(&mut env, &actual, formal, reason)?;
     }
     // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
     for requires in sub_sig.requires() {
@@ -286,7 +282,7 @@ fn check_fn_subtyping(
     }
 
     // 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
-    let evars_sol = infcx.pop_scope().with_span(span)?;
+    let evars_sol = infcx.pop_scope()?;
     infcx.replace_evars(&evars_sol);
     let output = sub_sig
         .output()
@@ -300,19 +296,16 @@ fn check_fn_subtyping(
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
     let reason = ConstrReason::Subtype(SubtypeReason::Output);
-    infcx
-        .subtyping(&output.ret, &super_output.ret, reason)
-        .with_span(span)?;
-    let evars_sol = infcx.pop_scope().with_span(span)?;
+    infcx.subtyping(&output.ret, &super_output.ret, reason)?;
+    let evars_sol = infcx.pop_scope()?;
     infcx.replace_evars(&evars_sol);
 
     // 6. Update state with Output "ensures" and check super ensures
     infcx.push_scope();
     env.update_ensures(&mut infcx, &output, overflow_checking);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
-    env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))
-        .with_span(span)?;
-    let evars_sol = infcx.pop_scope().with_span(span)?;
+    env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))?;
+    let evars_sol = infcx.pop_scope()?;
     infcx.replace_evars(&evars_sol);
 
     Ok(())
@@ -325,9 +318,9 @@ pub(crate) fn trait_impl_subtyping(
     def_id: LocalDefId,
     overflow_checking: bool,
     span: Span,
-) -> Result<Option<(RefineTree, KVarGen)>> {
+) -> InferResult<Option<(RefineTree, KVarGen)>> {
     // Skip the check if this is not an impl method
-    let Some((trait_ref, trait_method_id)) = find_trait_item(&genv, def_id).with_span(span)? else {
+    let Some((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
     };
     // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
@@ -336,8 +329,7 @@ pub(crate) fn trait_impl_subtyping(
     }
     let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
-    let mut root_ctxt =
-        InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args)).with_span(span)?;
+    let mut root_ctxt = InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args))?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv
@@ -345,14 +337,13 @@ pub(crate) fn trait_impl_subtyping(
             .infer_ctxt()
             .build(TypingMode::non_body_analysis());
         let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
-        let trait_fn_sig = genv.fn_sig(trait_method_id).with_span(span)?;
+        let trait_fn_sig = genv.fn_sig(trait_method_id)?;
         let tcx = genv.tcx();
         let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-        let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id()).with_span(span)?;
+        let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
         let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
-        let trait_refine_args =
-            RefineArgs::identity_for_item(genv, trait_method_id).with_span(span)?;
-        let impl_sig = genv.fn_sig(def_id).with_span(span)?;
+        let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
+        let impl_sig = genv.fn_sig(def_id)?;
         check_fn_subtyping(
             &mut infcx,
             &def_id.to_def_id(),
@@ -362,14 +353,13 @@ pub(crate) fn trait_impl_subtyping(
             Some((&trait_args, &trait_refine_args)),
             overflow_checking,
             span,
-        )?;
-        Ok(())
+        )
     })?;
     Ok(Some(root_ctxt.split()))
 }
 
 fn find_trait_item(
-    genv: &GlobalEnv<'_, '_>,
+    genv: GlobalEnv<'_, '_>,
     def_id: LocalDefId,
 ) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
@@ -397,10 +387,9 @@ fn find_trait_item(
 fn unfold_local_ptrs(
     infcx: &mut InferCtxt,
     env: &mut TypeEnv,
-    span: Span,
     fn_sig: &EarlyBinder<PolyFnSig>,
     actuals: &[Ty],
-) -> Result<Vec<Ty>> {
+) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
     let fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
     let mut tys = vec![];
@@ -410,7 +399,7 @@ fn unfold_local_ptrs(
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound).with_span(span)?;
+            let loc = env.unfold_local_ptr(infcx, bound)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
@@ -429,10 +418,9 @@ fn unfold_local_ptrs(
 /// --------------------- [local-fold]
 /// Γ, l:[<: T2] T1 => Γ
 /// ```
-fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
+fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> InferResult {
     let mut at = infcx.at(span);
-    env.fold_local_ptrs(&mut at).with_span(span)?;
-    Ok(())
+    env.fold_local_ptrs(&mut at)
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
@@ -472,6 +460,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             output: fn_sig.output().clone(),
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
+            default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
         };
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
@@ -556,13 +545,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         place: &Place,
         ty: Ty,
-        source_info: SourceInfo,
+        span: Span,
     ) -> Result {
         let ty = infcx
             .hoister(AssumeInvariants::yes(self.check_overflow()))
             .hoist(&ty);
-        env.assign(&mut infcx.at(source_info.span), place, ty)
-            .with_src_info(source_info)
+        env.assign(&mut infcx.at(span), place, ty).with_span(span)
     }
 
     fn check_statement(
@@ -575,7 +563,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(infcx, env, stmt_span, rvalue)?;
-                self.check_assign_ty(infcx, env, place, ty, stmt.source_info)?;
+                self.check_assign_ty(infcx, env, place, ty, stmt_span)?;
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
@@ -636,7 +624,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::Yield { resume, resume_arg, .. } => {
                 if let Some(resume_ty) = self.resume_ty.clone() {
-                    self.check_assign_ty(infcx, env, resume_arg, resume_ty, source_info)?;
+                    self.check_assign_ty(infcx, env, resume_arg, resume_ty, terminator_span)?;
                 } else {
                     bug!("yield in non-generator function");
                 }
@@ -654,10 +642,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let actuals = self.check_operands(infcx, env, terminator_span, args)?;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
-                        let fn_sig = self
-                            .genv
-                            .fn_sig(*resolved_id)
-                            .with_src_info(terminator.source_info)?;
+                        let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
 
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
@@ -665,7 +650,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             *resolved_id,
                             &resolved_args.lowered,
                         )
-                        .with_src_info(terminator.source_info)?;
+                        .with_span(terminator_span)?;
                         self.check_call(
                             infcx,
                             env,
@@ -768,7 +753,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals = unfold_local_ptrs(infcx, env, span, &fn_sig, actuals)?;
+        let actuals = unfold_local_ptrs(infcx, env, &fn_sig, actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
         infcx.push_scope();
 
@@ -833,7 +818,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         infcx.push_scope();
         env.update_ensures(infcx, &output, self.check_overflow());
-        fold_local_ptrs(infcx, env, span)?;
+        fold_local_ptrs(infcx, env, span).with_span(span)?;
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
 
@@ -898,7 +883,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     None,
                     self.check_overflow(),
                     span,
-                )?;
+                )
+                .with_span(span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1345,7 +1331,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             CastKind::PointerCoercion(mir::PointerCast::Unsize) => {
-                self.check_unsize_cast(infcx, env, stmt_span, from, to)?
+                self.check_unsize_cast(infcx, env, stmt_span, from, to)
+                    .with_span(stmt_span)?
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
@@ -1373,7 +1360,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         None,
                         self.check_overflow(),
                         stmt_span,
-                    )?;
+                    )
+                    .with_span(stmt_span)?;
                     to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
@@ -1399,7 +1387,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
         src: &Ty,
         dst: &ty::Ty,
-    ) -> Result<Ty> {
+    ) -> InferResult<Ty> {
         // Convert `ptr` to `&mut`
         let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
             env.ptr_to_ref(
@@ -1408,8 +1396,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 *re,
                 path,
                 PtrToRefBound::Identity,
-            )
-            .with_span(span)?
+            )?
         } else {
             src.clone()
         };
@@ -1417,7 +1404,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
             && let ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
-            return self.refine_default(dst).with_span(self.body.span());
+            return Ok(self.refine_default(dst)?);
         }
 
         // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
@@ -1435,10 +1422,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
         {
             let idx = Expr::from_const(self.genv.tcx(), arr_len);
-            Ty::mk_box(self.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
-                .with_span(span)
+            Ok(Ty::mk_box(
+                self.genv,
+                Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx),
+                alloc_ty.clone(),
+            )?)
         } else {
-            Err(query_bug!("unsupported unsize cast from `{src:?}` to `{dst:?}`")).with_span(span)
+            Err(query_bug!("unsupported unsize cast from `{src:?}` to `{dst:?}`"))?
         }
     }
 
@@ -1446,12 +1436,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
-        source_span: Span,
+        span: Span,
         operands: &[Operand],
     ) -> Result<Vec<Ty>> {
         operands
             .iter()
-            .map(|op| self.check_operand(infcx, env, source_span, op))
+            .map(|op| self.check_operand(infcx, env, span, op))
             .try_collect()
     }
 
@@ -1459,26 +1449,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         infcx: &mut InferCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        span: Span,
         operand: &Operand,
     ) -> Result<Ty> {
         let ty = match operand {
-            Operand::Copy(p) => {
-                env.lookup_place(&mut infcx.at(source_span), p)
-                    .with_span(source_span)?
-            }
-            Operand::Move(p) => {
-                env.move_place(&mut infcx.at(source_span), p)
-                    .with_span(source_span)?
-            }
-            Operand::Constant(c) => self.check_constant(c)?,
+            Operand::Copy(p) => env.lookup_place(&mut infcx.at(span), p).with_span(span)?,
+            Operand::Move(p) => env.move_place(&mut infcx.at(span), p).with_span(span)?,
+            Operand::Constant(c) => self.check_constant(c).with_span(span)?,
         };
         Ok(infcx
             .hoister(AssumeInvariants::yes(self.check_overflow()))
             .hoist(&ty))
     }
 
-    fn check_constant(&mut self, c: &Constant) -> Result<Ty> {
+    fn check_constant(&mut self, c: &Constant) -> QueryResult<Ty> {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
@@ -1504,21 +1488,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const);
-                let ctor = self
-                    .default_refiner()
-                    .with_span(self.body.span())?
-                    .refine_ty_or_base(ty)
-                    .with_span(self.body.span())?
-                    .expect_base();
+                let ctor = self.default_refiner.refine_ty_or_base(ty)?.expect_base();
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
-            Constant::Opaque(ty) => self.refine_default(ty).with_span(self.body.span()),
+            Constant::Opaque(ty) => self.refine_default(ty),
             Constant::Unevaluated(ty, def_id) => {
-                let ty = self.refine_default(ty).with_span(self.body.span())?;
-                let info = self
-                    .genv
-                    .constant_info(def_id)
-                    .with_span(self.body.span())?;
+                let ty = self.refine_default(ty)?;
+                let info = self.genv.constant_info(def_id)?;
                 if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx) = info
                 {
@@ -1592,12 +1568,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.config().check_overflow
     }
 
-    fn default_refiner(&self) -> QueryResult<Refiner<'genv, 'tcx>> {
-        Refiner::default(self.genv, self.def_id.to_def_id())
-    }
-
     fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
-        self.default_refiner()?.refine_ty(ty)
+        self.default_refiner.refine_ty(ty)
     }
 
     fn refine_with_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
@@ -1613,7 +1585,7 @@ fn instantiate_args_for_fun_call(
 ) -> QueryResult<Vec<rty::GenericArg>> {
     let params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    let hole_refiner = Refiner::new(genv, caller_id, |bty| {
+    let hole_refiner = Refiner::new_for_item(genv, caller_id, |bty| {
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
         let constr = if !sort.is_unit() {
@@ -1623,7 +1595,7 @@ fn instantiate_args_for_fun_call(
         };
         Binder::bind_with_sort(constr, sort)
     })?;
-    let default_refiner = Refiner::default(genv, caller_id)?;
+    let default_refiner = Refiner::default_for_item(genv, caller_id)?;
 
     let callee_generics = genv.generics_of(callee_id)?;
     args.iter()
@@ -1647,7 +1619,7 @@ fn instantiate_args_for_constructor(
 
     let adt_generics = genv.generics_of(adt_id)?;
     let hole_refiner = Refiner::with_holes(genv, caller_id)?;
-    let default_refiner = Refiner::default(genv, caller_id)?;
+    let default_refiner = Refiner::default_for_item(genv, caller_id)?;
     args.iter()
         .enumerate()
         .map(|(idx, arg)| {
@@ -1948,7 +1920,6 @@ pub(crate) mod errors {
     use flux_middle::{def_id_to_string, global_env::GlobalEnv, queries::QueryErr, MaybeExternId};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
-    use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
@@ -2021,7 +1992,6 @@ pub(crate) mod errors {
 
     pub trait ResultExt<T> {
         fn with_span(self, span: Span) -> Result<T, CheckerError>;
-        fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError>;
     }
 
     impl<T, E> ResultExt<T> for Result<T, E>
@@ -2030,10 +2000,6 @@ pub(crate) mod errors {
     {
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
             self.map_err(|kind| kind.into().at(span))
-        }
-
-        fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError> {
-            self.map_err(|kind| kind.into().at(src_info.span))
         }
     }
 }

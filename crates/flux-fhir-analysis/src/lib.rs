@@ -446,7 +446,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
                 }
                 MaybeExternId::Extern(_, extern_id) => {
                     let ty = genv.lower_type_of(extern_id)?.skip_binder();
-                    Refiner::default(genv, ty_param_owner(genv, extern_id))?
+                    Refiner::default_for_item(genv, ty_param_owner(genv, extern_id))?
                         .refine_ty_or_base(&ty)?
                         .into()
                 }
@@ -454,7 +454,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
             let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
-            Refiner::default(genv, def_id.resolved_id())?
+            Refiner::default_for_item(genv, def_id.resolved_id())?
                 .refine_ty_or_base(&ty)?
                 .into()
         }

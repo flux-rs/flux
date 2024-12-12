@@ -30,7 +30,7 @@ pub(crate) fn type_alias(
     def_id: MaybeExternId,
 ) -> QueryResult<rty::TyCtor> {
     let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
-    let expected = Refiner::default(genv, def_id.resolved_id())?.refine_ty(&rust_ty)?;
+    let expected = Refiner::default_for_item(genv, def_id.resolved_id())?.refine_ty(&rust_ty)?;
     let mut zipper = Zipper::new(genv, def_id);
 
     if zipper
@@ -55,7 +55,7 @@ pub(crate) fn fn_sig(
 ) -> QueryResult<rty::PolyFnSig> {
     let rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())?.skip_binder();
     let expected =
-        Refiner::default(genv, def_id.resolved_id())?.refine_poly_fn_sig(&rust_fn_sig)?;
+        Refiner::default_for_item(genv, def_id.resolved_id())?.refine_poly_fn_sig(&rust_fn_sig)?;
 
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
@@ -72,7 +72,7 @@ pub(crate) fn variants(
     variants: &[rty::PolyVariant],
     adt_def_id: MaybeExternId,
 ) -> QueryResult<Vec<rty::PolyVariant>> {
-    let refiner = Refiner::default(genv, adt_def_id.resolved_id())?;
+    let refiner = Refiner::default_for_item(genv, adt_def_id.resolved_id())?;
     let mut zipper = Zipper::new(genv, adt_def_id);
     // TODO check same number of variants
     for (i, variant) in variants.iter().enumerate() {

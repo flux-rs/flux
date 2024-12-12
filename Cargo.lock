@@ -598,6 +598,8 @@ dependencies = [
  "itertools 0.13.0",
  "liquid-fixpoint",
  "rustc-hash 2.0.0",
+ "serde",
+ "serde_json",
  "toposort-scc",
 ]
 

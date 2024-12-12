@@ -59,7 +59,7 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
 
 ```rust
-use flux_rs::*
+use flux_rs::*;
 
 #[sig(fn(x: i32) -> i32{v: x < v)]
 fn inc(x: i32) -> i32 {

@@ -1358,7 +1358,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         match self.owner() {
             FluxOwnerId::Rust(owner_id) => {
                 let def_id = self.genv().maybe_extern_id(owner_id.def_id);
-                Refiner::default(self.genv(), def_id.resolved_id())
+                Refiner::default_for_item(self.genv(), def_id.resolved_id())
             }
             FluxOwnerId::Flux(_) => Err(query_bug!("cannot refine types insicde flux item")),
         }

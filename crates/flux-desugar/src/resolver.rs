@@ -128,7 +128,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         }
                         hir::UseKind::Glob => {
                             let is_prelude = is_prelude_import(self.genv.tcx(), item);
-                            for mod_child in glob_imports(self.genv.tcx(), path) {
+                            for mod_child in self.glob_imports(path) {
                                 if let Some(ns @ (TypeNS | ValueNS)) = mod_child.res.ns() {
                                     let name = mod_child.ident.name;
                                     let res = map_res(mod_child.res);
@@ -323,17 +323,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         None
     }
 
+    fn glob_imports(&self, path: &hir::UsePath) -> impl Iterator<Item = &'tcx ModChild> {
+        let res = path.segments.last().unwrap().res;
+
+        let tcx = self.genv.tcx();
+        let curr_mod = self.current_module.to_def_id();
+        if let hir::def::Res::Def(DefKind::Mod, module_id) = res { Some(module_id) } else { None }
+            .into_iter()
+            .flat_map(move |module_id| visible_module_children(tcx, module_id, curr_mod))
+    }
+
     fn resolve_ident_in_module(&self, module_id: DefId, ident: Ident) -> Option<hir::def::Res> {
-        let curr_mod = self.current_module.def_id;
-        module_children(self.genv.tcx(), module_id)
-            .iter()
-            .find_map(|child| {
-                if child.vis.is_accessible_from(curr_mod, self.genv.tcx()) && child.ident == ident {
-                    Some(map_res(child.res))
-                } else {
-                    None
-                }
-            })
+        visible_module_children(self.genv.tcx(), module_id, self.current_module.to_def_id())
+            .find_map(|child| if child.ident == ident { Some(map_res(child.res)) } else { None })
     }
 
     pub fn into_output(self) -> Result<ResolverOutput> {
@@ -533,12 +535,15 @@ fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
     }
 }
 
-fn glob_imports<'tcx>(tcx: TyCtxt<'tcx>, path: &hir::UsePath) -> &'tcx [ModChild] {
-    let res = path.segments.last().unwrap().res;
-    let hir::def::Res::Def(DefKind::Mod, module_id) = res else {
-        return &[];
-    };
+/// Iterator over module children visible form `curr_mod`
+fn visible_module_children(
+    tcx: TyCtxt,
+    module_id: DefId,
+    curr_mod: DefId,
+) -> impl Iterator<Item = &ModChild> {
     module_children(tcx, module_id)
+        .iter()
+        .filter(move |child| child.vis.is_accessible_from(curr_mod, tcx))
 }
 
 /// Return true if the item has a `#[prelude_import]` annotation

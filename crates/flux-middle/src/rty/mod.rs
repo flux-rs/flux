@@ -1221,7 +1221,7 @@ impl Ty {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
 
         let generics = genv.generics_of(def_id)?;
-        let alloc_ty = Refiner::default(genv, def_id)?.refine_ty(
+        let alloc_ty = Refiner::default_for_item(genv, def_id)?.refine_ty(
             &genv
                 .lower_type_of(generics.own_params[1].def_id)?
                 .skip_binder(),
