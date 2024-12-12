@@ -251,13 +251,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_constant(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let constant = &self.specs.constants[&owner_id.local_id()];
-        ItemResolver::run(self, owner_id, |item_resolver| {
-            item_resolver.visit_constant(constant);
-        })?;
-        RefinementResolver::resolve_constant(self, constant)
+        if let Some(constant) = self.specs.constants.get(&owner_id.local_id()) {
+            ItemResolver::run(self, owner_id, |item_resolver| {
+                item_resolver.visit_constant(constant);
+            })?;
+            RefinementResolver::resolve_constant(self, constant)?;
+        }
+        Ok(())
     }
-    
+
     fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id.local_id()].fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {

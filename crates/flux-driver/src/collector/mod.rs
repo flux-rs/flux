@@ -239,11 +239,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        let span = self.tcx.source_span(owner_id);
-        let constant = attrs
-            .constant()
-            .ok_or_else(|| self.errors.emit(errors::InvalidAttr { span }))?;
-        self.specs.constants.insert(owner_id, constant);
+        if let Some(constant) = attrs.constant() {
+            self.specs.constants.insert(owner_id, constant);
+        }
         Ok(())
     }
 
