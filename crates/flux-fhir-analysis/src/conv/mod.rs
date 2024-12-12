@@ -359,6 +359,17 @@ pub(crate) fn conv_invariants(
     cx.conv_invariants(&mut env, invariants)
 }
 
+pub(crate) fn conv_constant(
+    genv: GlobalEnv,
+    constant: &fhir::ConstantInfo,
+    wfckresults: &WfckResults,
+) -> QueryResult<rty::ConstantInfo> {
+    let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
+    let mut env = Env::new(&[]);
+    let expr = cx.conv_expr(&mut env, &constant.expr)?;
+    Ok(rty::ConstantInfo { value: Some(expr) })
+}
+
 pub(crate) fn conv_defn(
     genv: GlobalEnv,
     func: &fhir::SpecFunc,
@@ -567,10 +578,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     pub(crate) fn conv_constant_info(
         &mut self,
-        def_id: MaybeExternId,
         constant_info: &fhir::ConstantInfo,
     ) -> QueryResult<rty::ConstantInfo> {
-        todo!("CONV constant_info")
+        let mut env = Env::new(&[]);
+        let expr = self.conv_expr(&mut env, &constant_info.expr)?;
+        Ok(rty::ConstantInfo { value: Some(expr) })
     }
 
     pub(crate) fn conv_fn_sig(

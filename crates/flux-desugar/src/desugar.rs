@@ -480,9 +480,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let owner_id = self.owner;
         let generics = fhir::Generics::trivial();
         let kind = fhir::ItemKind::Constant(constant_info);
-        let res = Ok(fhir::Item { owner_id, generics, kind });
-        println!("TRACE: desugar_const_info {res:?}");
-        res
+        Ok(fhir::Item { owner_id, generics, kind })
     }
 
     pub(crate) fn desugar_fn_spec(

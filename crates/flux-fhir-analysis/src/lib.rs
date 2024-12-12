@@ -141,7 +141,9 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
 fn constant_info(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
     let def_id = genv.maybe_extern_id(def_id);
     let item = genv.map().expect_item(def_id.local_id())?;
-    todo!("FOR GODS SAKE {item:?}")
+    let constant = item.expect_constant();
+    let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
+    conv::conv_constant(genv, constant, &wfckresults)
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {

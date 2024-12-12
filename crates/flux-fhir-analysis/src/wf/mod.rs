@@ -59,6 +59,25 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_constant(
+    genv: GlobalEnv,
+    def_id: MaybeExternId<OwnerId>,
+    constant: &fhir::ConstantInfo,
+) -> Result<WfckResults> {
+    let owner_id = def_id.local_id();
+    let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner_id));
+    // let mut wf = Wf::new(&mut infcx);
+    let mut err = None;
+    let Ok(Some(sort)) = genv.sort_of_def_id(owner_id.to_def_id()) else {
+        panic!("Unsupported constant {def_id:?}");
+    };
+    infcx
+        .check_expr(&constant.expr, &sort)
+        .collect_err(&mut err);
+    err.into_result()?;
+    Ok(infcx.into_results())
+}
+
 pub(crate) fn check_invariants(
     genv: GlobalEnv,
     adt_def_id: MaybeExternId<OwnerId>,
@@ -225,7 +244,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::Constant(constant_info) => {
-                        cx.conv_constant_info(def_id, constant_info)?;
+                        cx.conv_constant_info(constant_info)?;
                     }
                 }
             }

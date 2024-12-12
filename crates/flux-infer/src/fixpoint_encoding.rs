@@ -1301,10 +1301,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     }
                 } else {
                     let info = self.genv.constant_info(def_id).unwrap();
+                    let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                     ConstInfo {
                         name: self.global_var_gen.fresh(),
                         comment: format!("rust const: {}", def_id_to_string(def_id)),
-                        sort: scx.sort_to_fixpoint(&info.sort),
+                        sort: scx.sort_to_fixpoint(&sort),
                         val: info.value,
                     }
                 }

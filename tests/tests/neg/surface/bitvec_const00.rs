@@ -26,3 +26,8 @@ pub fn test1() -> BV32 {
 pub fn test2() -> BV32 {
     BV32::new(0x4567)
 }
+
+#[flux_rs::sig(fn () -> BV32{v: is_start(v)})]
+pub fn test3() -> BV32 {
+    BV32::new(0x4568) //~ ERROR: refinement type
+}

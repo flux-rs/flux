@@ -287,17 +287,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match path.res {
             ExprRes::Param(_, id) => Ok(self.param_sort(id)),
             ExprRes::Const(def_id) => {
-                // TODO(nilehmann) generalize const sorts
-                let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                if ty.is_integral() {
-                    Ok(rty::Sort::Int)
-                } else if let Some(sort) =
-                    self.genv.sort_of_rust_ty(def_id, ty).unwrap_or_else(|err| {
-                        span_bug!(
-                            path.span,
-                            "unknown sort for `{def_id:?}` of type {ty:?} with {err:?}"
-                        )
-                    })
+                if let Some(sort) = self
+                    .genv
+                    .sort_of_def_id(def_id)
+                    .unwrap_or_else(|_err| span_bug!(path.span, "unknown sort for `{def_id:?}`"))
                 {
                     Ok(sort)
                 } else {
