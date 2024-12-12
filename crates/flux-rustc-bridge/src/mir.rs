@@ -794,6 +794,7 @@ impl fmt::Debug for Constant {
             Constant::Char(c) => write!(f, "\'{c}\'"),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
             Constant::Param(p, _) => write!(f, "{:?}", p),
+            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {:?} from {:?}>", ty, def_id),
         }
     }
 }

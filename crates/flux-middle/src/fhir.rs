@@ -218,14 +218,6 @@ pub struct Item<'fhir> {
 }
 
 impl<'fhir> Item<'fhir> {
-    pub fn expect_constant(&self) -> &ConstantInfo<'fhir> {
-        if let ItemKind::Constant(constant) = &self.kind {
-            constant
-        } else {
-            bug!("expected constant")
-        }
-    }
-
     pub fn expect_enum(&self) -> &EnumDef<'fhir> {
         if let ItemKind::Enum(enum_def) = &self.kind {
             enum_def

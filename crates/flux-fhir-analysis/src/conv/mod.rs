@@ -377,15 +377,12 @@ pub(crate) fn conv_constant(
                     rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
                 });
                 if let Some(constant_) = val {
-                    Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_)))
-                } else {
-                    // FIXME(nilehmann) we should probably report an error in case const evaluation
-                    // fails instead of silently ignore it.
-                    Ok(rty::ConstantInfo::Uninterpreted)
+                    return Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_)));
                 }
-            } else {
-                Ok(rty::ConstantInfo::Uninterpreted)
+                // FIXME(nilehmann) we should probably report an error in case const evaluation
+                // fails instead of silently ignore it.
             }
+            Ok(rty::ConstantInfo::Uninterpreted)
         }
     }
 }

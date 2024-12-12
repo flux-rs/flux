@@ -437,7 +437,22 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 def_id,
                 |def_id| (self.providers.constant_info)(genv, def_id.local_id()),
                 |def_id| genv.cstore().constant_info(def_id),
-                |_def_id| Ok(rty::ConstantInfo::Uninterpreted),
+                |def_id| {
+                    // TODO(RJ): fix duplication with [`conv_constant`]` in `flux-fhir-analysis`
+                    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                    if ty.is_integral() {
+                        let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
+                            let val = val.try_to_scalar_int()?;
+                            rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
+                        });
+                        if let Some(constant_) = val {
+                            return Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(
+                                constant_,
+                            )));
+                        }
+                    }
+                    Ok(rty::ConstantInfo::Uninterpreted)
+                },
             )
         })
     }

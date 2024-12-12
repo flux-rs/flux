@@ -63,17 +63,19 @@ pub(crate) fn check_constant(
     genv: GlobalEnv,
     def_id: MaybeExternId<OwnerId>,
     constant: &fhir::ConstantInfo,
-    sort: &rty::Sort,
 ) -> Result<WfckResults> {
     let owner_id = def_id.local_id();
+    let span = genv.tcx().def_span(owner_id.to_def_id());
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner_id));
-    // let mut wf = Wf::new(&mut infcx);
+    let Some(sort) = genv
+        .sort_of_def_id(owner_id.def_id.to_def_id())
+        .emit(&genv)?
+    else {
+        return Err(genv.sess().emit_err(errors::InvalidConstant::new(span)));
+    };
     let mut err = None;
     if let Some(expr) = &constant.expr {
         infcx.check_expr(expr, &sort).collect_err(&mut err);
-    } else if *sort != rty::Sort::Int {
-        let span = genv.tcx().def_span(owner_id.to_def_id());
-        return Err(genv.sess().emit_err(errors::MissingConstant::new(span)));
     }
     err.into_result()?;
     Ok(infcx.into_results())

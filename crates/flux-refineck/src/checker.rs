@@ -1513,6 +1513,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
             Constant::Opaque(ty) => self.refine_default(ty).with_span(self.body.span()),
+            Constant::Unevaluated(ty, def_id) => {
+                let ty = self.refine_default(ty).with_span(self.body.span())?;
+                let info = self
+                    .genv
+                    .constant_info(def_id)
+                    .with_span(self.body.span())?;
+                if let Some(bty) = ty.as_bty_skipping_existentials()
+                    && let rty::ConstantInfo::Interpreted(idx) = info
+                {
+                    Ok(Ty::indexed(bty.clone(), idx))
+                } else {
+                    Ok(ty)
+                }
+            }
         }
     }
 

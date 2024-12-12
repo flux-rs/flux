@@ -1,5 +1,5 @@
 use flux_arc_interner::List;
-use flux_common::{bug, tracked_span_bug};
+use flux_common::tracked_span_bug;
 use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
@@ -74,7 +74,7 @@ impl GlobalEnv<'_, '_> {
             | ty::TyKind::Array(..)
             | ty::TyKind::Alias(..)
             | ty::TyKind::Never => Some(rty::Sort::unit()),
-            _ => bug!("unexpected self ty {ty:?}"),
+            _ => None,
         };
         Ok(sort)
     }

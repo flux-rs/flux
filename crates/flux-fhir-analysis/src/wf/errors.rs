@@ -80,13 +80,13 @@ impl UnknownQualifier {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_missing_constant, code = E0999)]
-pub(super) struct MissingConstant {
+#[diag(fhir_analysis_invalid_constant, code = E0999)]
+pub(super) struct InvalidConstant {
     #[primary_span]
     span: Span,
 }
 
-impl MissingConstant {
+impl InvalidConstant {
     pub(super) fn new(span: Span) -> Self {
         Self { span }
     }
