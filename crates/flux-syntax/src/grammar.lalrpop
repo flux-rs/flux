@@ -160,14 +160,10 @@ ParamMode: surface::ParamMode = {
 }
 
 BaseSort: surface::BaseSort = {
-    "bitvec" "<" <lo:@L> <lit:Lit> <hi:@R> ">" =>? {
-        if let Ok(width) = lit.symbol.as_str().parse::<usize>() {
-            Ok(surface::BaseSort::BitVec(width))
-        } else {
-            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-        }
+    "bitvec" <width: AngleBrackets<BitVecWidth>> => {
+        surface::BaseSort::BitVec(width)
     },
-    <segments:Sep1<"::", Ident>> <args:("<" <Comma<BaseSort>> ">")?> => {
+    <segments:Sep1<"::", Ident>> <args:AngleBrackets<Comma<BaseSort>>?> => {
         let path = surface::SortPath {
             segments,
             args: args.unwrap_or_default(),
@@ -175,6 +171,16 @@ BaseSort: surface::BaseSort = {
         };
         surface::BaseSort::Path(path)
     },
+}
+
+BitVecWidth: usize = {
+    <lo:@L> <lit:Lit> <hi:@R> =>? {
+        if let Ok(width) = lit.symbol.as_str().parse::<usize>() {
+            Ok(width)
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    }
 }
 
 Sort: surface::Sort = {
@@ -432,15 +438,7 @@ BaseTyKind: surface::BaseTyKind = {
     }
 }
 
-GenericArgTys: Vec<surface::Ty> = {
-    "<" <Comma<Ty>> ">",
-    "<" <Comma<Ty>> ">(?=>)",
-}
-
-GenericArgs: Vec<surface::GenericArg> = {
-    "<" <Comma<GenericArg>> ">",
-    "<" <Comma<GenericArg>> ">(?=>)",
-}
+GenericArgs: Vec<surface::GenericArg> = AngleBrackets<Comma<GenericArg>>;
 
 GenericArg: surface::GenericArg = {
     <bind:Ident> "=" <ty:Ty> => surface::GenericArg {
@@ -690,6 +688,13 @@ Ident: surface::Ident = {
     }
 }
 
+// Something enclosed by angle brackets. This handles the case where there are two adjacent
+// angle brackets which we tokenize differently to account for the right shift operator.
+AngleBrackets<T>: T = {
+    "<" <T> ">",
+    "<" <T> ">(?=>)",
+}
+
 Sep<S, T>: Vec<T> = {
     <mut v:(<T> S)*> <e:T?> => {
         if let Some(e) = e { v.push(e); }
@@ -781,6 +786,6 @@ extern {
         "else" => Token::Else,
         "::" => Token::PathSep,
         "_" => Token::Underscore,
-	".." => Token::DotDot,
+        ".." => Token::DotDot,
     }
 }
