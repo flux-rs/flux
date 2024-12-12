@@ -353,6 +353,8 @@ pub enum Constant {
     Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
+    /// Better than opaque -- we track `DefId` so we can get the actual refinement index
+    Unevaluated(Ty, DefId),
 }
 
 impl Terminator<'_> {

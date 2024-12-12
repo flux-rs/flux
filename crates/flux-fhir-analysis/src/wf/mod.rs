@@ -63,18 +63,15 @@ pub(crate) fn check_constant(
     genv: GlobalEnv,
     def_id: MaybeExternId<OwnerId>,
     constant: &fhir::ConstantInfo,
+    sort: &rty::Sort,
 ) -> Result<WfckResults> {
     let owner_id = def_id.local_id();
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner_id));
     // let mut wf = Wf::new(&mut infcx);
     let mut err = None;
-    let Ok(Some(sort)) = genv.sort_of_def_id(owner_id.to_def_id()) else {
-        panic!("Unsupported constant {def_id:?}");
-    };
-
     if let Some(expr) = &constant.expr {
         infcx.check_expr(expr, &sort).collect_err(&mut err);
-    } else if sort != rty::Sort::Int {
+    } else if *sort != rty::Sort::Int {
         let span = genv.tcx().def_span(owner_id.to_def_id());
         return Err(genv.sess().emit_err(errors::MissingConstant::new(span)));
     }
@@ -247,9 +244,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
-                    fhir::ItemKind::Constant(constant_info) => {
-                        cx.conv_constant_info(constant_info)?;
-                    }
+                    fhir::ItemKind::Constant(_) => {}
                 }
             }
             fhir::OwnerNode::TraitItem(trait_item) => {

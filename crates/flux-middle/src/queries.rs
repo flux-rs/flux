@@ -437,11 +437,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 def_id,
                 |def_id| (self.providers.constant_info)(genv, def_id.local_id()),
                 |def_id| genv.cstore().constant_info(def_id),
-                |_def_id| {
-                    // todo
-                    // let sort = genv.sort_of_def_id(def_id)?.unwrap();
-                    Ok(rty::ConstantInfo { /* def_id, sort, */ value: None })
-                },
+                |_def_id| Ok(rty::ConstantInfo::Uninterpreted),
             )
         })
     }

@@ -361,16 +361,33 @@ pub(crate) fn conv_invariants(
 
 pub(crate) fn conv_constant(
     genv: GlobalEnv,
-    constant: &fhir::ConstantInfo,
+    def_id: DefId,
+    info: &fhir::ConstantInfo,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::ConstantInfo> {
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     let mut env = Env::new(&[]);
-    let value = match &constant.expr {
-        Some(expr) => Some(cx.conv_expr(&mut env, expr)?),
-        None => None,
-    };
-    Ok(rty::ConstantInfo { value })
+    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+    match &info.expr {
+        Some(expr) => Ok(rty::ConstantInfo::Interpreted(cx.conv_expr(&mut env, expr)?)),
+        None => {
+            if ty.is_integral() {
+                let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
+                    let val = val.try_to_scalar_int()?;
+                    rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
+                });
+                if let Some(constant_) = val {
+                    Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_)))
+                } else {
+                    // FIXME(nilehmann) we should probably report an error in case const evaluation
+                    // fails instead of silently ignore it.
+                    Ok(rty::ConstantInfo::Uninterpreted)
+                }
+            } else {
+                Ok(rty::ConstantInfo::Uninterpreted)
+            }
+        }
+    }
 }
 
 pub(crate) fn conv_defn(
@@ -577,18 +594,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .ok_or_else(|| self.emit(errors::InvalidBaseInstance::new(ty_alias.span)))?;
             Ok(ctor.to_ty_ctor())
         }
-    }
-
-    pub(crate) fn conv_constant_info(
-        &mut self,
-        constant_info: &fhir::ConstantInfo,
-    ) -> QueryResult<rty::ConstantInfo> {
-        let mut env = Env::new(&[]);
-        let value = match &constant_info.expr {
-            Some(expr) => Some(self.conv_expr(&mut env, expr)?),
-            None => None,
-        };
-        Ok(rty::ConstantInfo { value })
     }
 
     pub(crate) fn conv_fn_sig(
@@ -1752,7 +1757,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
+                    ExprRes::Const(def_id) => {
+                        if P::HAS_ELABORATED_INFORMATION {
+                            let info = self.genv().constant_info(def_id)?;
+                            rty::Expr::const_def_id(def_id, info).at(espan)
+                        } else {
+                            let Some(sort) = self.genv().sort_of_def_id(def_id)? else {
+                                span_bug!(expr.span, "missing sort for const {def_id:?}");
+                            };
+                            rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
+                        }
+                    }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)

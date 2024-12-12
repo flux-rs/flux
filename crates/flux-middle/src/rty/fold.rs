@@ -890,7 +890,7 @@ impl TypeSuperVisitable for Expr {
             | ExprKind::Hole(_)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
-            | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
+            | ExprKind::ConstDefId(_, _) => ControlFlow::Continue(()),
         }
     }
 }
@@ -908,7 +908,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
+            ExprKind::ConstDefId(did, info) => Expr::const_def_id(*did, info.clone()),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(
                     op.try_fold_with(folder)?,

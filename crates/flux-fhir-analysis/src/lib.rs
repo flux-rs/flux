@@ -138,12 +138,16 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
 }
 
-fn constant_info(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
+    let Some(sort) = genv.sort_of_def_id(local_def_id.to_def_id())? else {
+        return Err(query_bug!(local_def_id, "missing sort"))?;
+    };
+
+    let def_id = genv.maybe_extern_id(local_def_id);
     let item = genv.map().expect_item(def_id.local_id())?;
     let constant = item.expect_constant();
-    let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
-    conv::conv_constant(genv, constant, &wfckresults)
+    let wfckresults = wf::check_constant(genv, item.owner_id, constant, &sort)?;
+    conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
