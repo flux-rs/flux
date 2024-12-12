@@ -137,7 +137,11 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Const(..) => {
-                    let constant_ = &specs.constants[&owner_id];
+                    let constant_ = match specs.constants.get(&owner_id) {
+                        Some(constant_) => constant_,
+                        None => &surface::ConstantInfo { expr: None },
+                    };
+
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(

@@ -475,7 +475,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         def_id: LocalDefId,
         const_info: &surface::ConstantInfo,
     ) -> Result<fhir::Item<'genv>> {
-        let expr = self.desugar_expr(&const_info.expr)?;
+        let expr = match &const_info.expr {
+            Some(expr) => Some(self.desugar_expr(expr)?),
+            None => None,
+        };
         let constant_info = fhir::ConstantInfo { owner: OwnerId { def_id }, expr };
         let owner_id = self.owner;
         let generics = fhir::Generics::trivial();

@@ -322,7 +322,7 @@ impl FluxItem<'_> {
 #[derive(Debug, Clone, Copy)]
 pub struct ConstantInfo<'fhir> {
     pub owner: OwnerId,
-    pub expr: Expr<'fhir>,
+    pub expr: Option<Expr<'fhir>>,
 }
 
 #[derive(Debug, Clone, Copy)]

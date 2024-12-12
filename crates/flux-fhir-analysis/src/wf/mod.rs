@@ -71,9 +71,13 @@ pub(crate) fn check_constant(
     let Ok(Some(sort)) = genv.sort_of_def_id(owner_id.to_def_id()) else {
         panic!("Unsupported constant {def_id:?}");
     };
-    infcx
-        .check_expr(&constant.expr, &sort)
-        .collect_err(&mut err);
+
+    if let Some(expr) = &constant.expr {
+        infcx.check_expr(expr, &sort).collect_err(&mut err);
+    } else if sort != rty::Sort::Int {
+        let span = genv.tcx().def_span(owner_id.to_def_id());
+        return Err(genv.sess().emit_err(errors::MissingConstant::new(span)));
+    }
     err.into_result()?;
     Ok(infcx.into_results())
 }

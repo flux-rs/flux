@@ -43,6 +43,9 @@ fhir_analysis_unknown_qualifier =
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 
+fhir_analysis_missing_constant =
+    missing constant specification for non-integral constant
+
 fhir_analysis_expected_fun =
     expected function, found `{$found}`
 

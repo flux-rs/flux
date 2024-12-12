@@ -18,7 +18,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, Constant, ESpan, Expr, Lambda, List},
+    rty::{self, BoundVariableKind, ESpan, Expr, Lambda, List},
     MaybeExternId,
 };
 use itertools::Itertools;
@@ -741,6 +741,7 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 struct ConstInfo {
     name: fixpoint::GlobalVar,
     sort: fixpoint::Sort,
@@ -974,7 +975,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             }
             rty::ExprKind::ConstDefId(did) => {
-                let var = self.register_rust_const(*did, scx);
+                let var = self.register_rust_const(*did, scx)?;
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
@@ -1273,44 +1274,46 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: DefId,
         scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::GlobalVar {
+    ) -> QueryResult<fixpoint::GlobalVar> {
         let key = Key::Const(def_id);
-        self.const_map
-            .entry(key)
-            .or_insert_with(|| {
-                // TODO(nilehmann) generalize const sorts
-                let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                if ty.is_integral() {
-                    // FIXME(nilehmann) we should probably report an error in case const evaluation
-                    // fails instead of silently ignore it.
-                    let val = self
-                        .genv
-                        .tcx()
-                        .const_eval_poly(def_id)
-                        .ok()
-                        .and_then(|val| {
-                            let val = val.try_to_scalar_int()?;
-                            rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
-                        });
 
-                    ConstInfo {
-                        name: self.global_var_gen.fresh(),
-                        comment: format!("rust const: {}", def_id_to_string(def_id)),
-                        sort: fixpoint::Sort::Int,
-                        val: val.map(|v| Expr::constant(Constant::from(v))),
-                    }
-                } else {
-                    let info = self.genv.constant_info(def_id).unwrap();
-                    let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
-                    ConstInfo {
-                        name: self.global_var_gen.fresh(),
-                        comment: format!("rust const: {}", def_id_to_string(def_id)),
-                        sort: scx.sort_to_fixpoint(&sort),
-                        val: info.value,
-                    }
-                }
-            })
-            .name
+        // already in the `const_map`
+        if let Some(const_info) = self.const_map.get(&key) {
+            return Ok(const_info.name);
+        };
+        // generate and insert to `const_map`
+        let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+        let const_info = if ty.is_integral() {
+            // FIXME(nilehmann) we should probably report an error in case const evaluation
+            // fails instead of silently ignore it.
+            let val = self
+                .genv
+                .tcx()
+                .const_eval_poly(def_id)
+                .ok()
+                .and_then(|val| {
+                    let val = val.try_to_scalar_int()?;
+                    rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
+                });
+            ConstInfo {
+                name: self.global_var_gen.fresh(),
+                comment: format!("rust const: {}", def_id_to_string(def_id)),
+                sort: fixpoint::Sort::Int,
+                val: val.map(Expr::constant),
+            }
+        } else {
+            let info = self.genv.constant_info(def_id)?;
+            let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
+            ConstInfo {
+                name: self.global_var_gen.fresh(),
+                comment: format!("rust const: {}", def_id_to_string(def_id)),
+                sort: scx.sort_to_fixpoint(&sort),
+                val: info.value,
+            }
+        };
+        let res = const_info.name;
+        self.const_map.insert(key, const_info);
+        Ok(res)
     }
 
     /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
@@ -1363,11 +1366,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .const_map
             .values()
             .filter_map(|const_info| {
-                if let Some(val) = &const_info.val {
-                    Some((const_info.name, val.clone()))
-                } else {
-                    None
-                }
+                const_info
+                    .val
+                    .as_ref()
+                    .map(|val| (const_info.name, val.clone()))
             })
             .collect_vec();
         for (var, val) in const_infos {

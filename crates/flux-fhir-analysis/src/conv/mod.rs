@@ -366,8 +366,11 @@ pub(crate) fn conv_constant(
 ) -> QueryResult<rty::ConstantInfo> {
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     let mut env = Env::new(&[]);
-    let expr = cx.conv_expr(&mut env, &constant.expr)?;
-    Ok(rty::ConstantInfo { value: Some(expr) })
+    let value = match &constant.expr {
+        Some(expr) => Some(cx.conv_expr(&mut env, expr)?),
+        None => None,
+    };
+    Ok(rty::ConstantInfo { value })
 }
 
 pub(crate) fn conv_defn(
@@ -581,8 +584,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         constant_info: &fhir::ConstantInfo,
     ) -> QueryResult<rty::ConstantInfo> {
         let mut env = Env::new(&[]);
-        let expr = self.conv_expr(&mut env, &constant_info.expr)?;
-        Ok(rty::ConstantInfo { value: Some(expr) })
+        let value = match &constant_info.expr {
+            Some(expr) => Some(self.conv_expr(&mut env, expr)?),
+            None => None,
+        };
+        Ok(rty::ConstantInfo { value })
     }
 
     pub(crate) fn conv_fn_sig(

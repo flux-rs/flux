@@ -88,7 +88,7 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct ConstantInfo {
-    pub expr: Expr,
+    pub expr: Option<Expr>,
 }
 
 #[derive(Debug)]

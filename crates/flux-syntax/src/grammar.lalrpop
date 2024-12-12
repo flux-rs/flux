@@ -132,7 +132,7 @@ SortDecl: surface::SortDecl = {
 }
 
 pub ConstantInfo: surface::ConstantInfo = {
-    <expr:Expr> => surface::ConstantInfo { expr }
+    <expr:Expr> => surface::ConstantInfo { expr: Some(expr) }
 }
 
 pub QualNames: surface::QualNames = {

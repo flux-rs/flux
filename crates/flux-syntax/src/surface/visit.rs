@@ -274,7 +274,9 @@ pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
     vis.visit_ty(&ty_alias.ty);
 }
 pub fn walk_constant<V: Visitor>(vis: &mut V, constant_info: &ConstantInfo) {
-    vis.visit_expr(&constant_info.expr)
+    if let Some(expr) = &constant_info.expr {
+        vis.visit_expr(expr);
+    }
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
