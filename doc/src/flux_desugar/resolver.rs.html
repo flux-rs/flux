@@ -792,7 +792,12 @@
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
 <a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
     bug,
@@ -922,7 +927,7 @@
                         }
                         hir::UseKind::Glob =&gt; {
                             <span class="kw">let </span>is_prelude = is_prelude_import(<span class="self">self</span>.genv.tcx(), item);
-                            <span class="kw">for </span>mod_child <span class="kw">in </span>glob_imports(<span class="self">self</span>.genv.tcx(), path) {
+                            <span class="kw">for </span>mod_child <span class="kw">in </span><span class="self">self</span>.glob_imports(path) {
                                 <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = mod_child.res.ns() {
                                     <span class="kw">let </span>name = mod_child.ident.name;
                                     <span class="kw">let </span>res = map_res(mod_child.res);
@@ -1107,17 +1112,19 @@
         <span class="prelude-val">None
     </span>}
 
+    <span class="kw">fn </span>glob_imports(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::UsePath) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>ModChild&gt; {
+        <span class="kw">let </span>res = path.segments.last().unwrap().res;
+
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>curr_mod = <span class="self">self</span>.current_module.to_def_id();
+        <span class="kw">if let </span>hir::def::Res::Def(DefKind::Mod, module_id) = res { <span class="prelude-val">Some</span>(module_id) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+            .into_iter()
+            .flat_map(<span class="kw">move </span>|module_id| visible_module_children(tcx, module_id, curr_mod))
+    }
+
     <span class="kw">fn </span>resolve_ident_in_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_id: DefId, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
-        <span class="kw">let </span>curr_mod = <span class="self">self</span>.current_module.def_id;
-        module_children(<span class="self">self</span>.genv.tcx(), module_id)
-            .iter()
-            .find_map(|child| {
-                <span class="kw">if </span>child.vis.is_accessible_from(curr_mod, <span class="self">self</span>.genv.tcx()) &amp;&amp; child.ident == ident {
-                    <span class="prelude-val">Some</span>(map_res(child.res))
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
-            })
+        visible_module_children(<span class="self">self</span>.genv.tcx(), module_id, <span class="self">self</span>.current_module.to_def_id())
+            .find_map(|child| <span class="kw">if </span>child.ident == ident { <span class="prelude-val">Some</span>(map_res(child.res)) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
     }
 
     <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;ResolverOutput&gt; {
@@ -1314,12 +1321,15 @@
     }
 }
 
-<span class="kw">fn </span>glob_imports&lt;<span class="lifetime">'tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, path: <span class="kw-2">&amp;</span>hir::UsePath) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[ModChild] {
-    <span class="kw">let </span>res = path.segments.last().unwrap().res;
-    <span class="kw">let </span>hir::def::Res::Def(DefKind::Mod, module_id) = res <span class="kw">else </span>{
-        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
-    };
+<span class="doccomment">/// Iterator over module children visible form `curr_mod`
+</span><span class="kw">fn </span>visible_module_children(
+    tcx: TyCtxt,
+    module_id: DefId,
+    curr_mod: DefId,
+) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>ModChild&gt; {
     module_children(tcx, module_id)
+        .iter()
+        .filter(<span class="kw">move </span>|child| child.vis.is_accessible_from(curr_mod, tcx))
 }
 
 <span class="doccomment">/// Return true if the item has a `#[prelude_import]` annotation
