@@ -140,24 +140,29 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
 
 fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
     let def_id = genv.maybe_extern_id(local_def_id);
-    let body_id = genv
-        .tcx()
-        .hir()
-        .maybe_body_owned_by(def_id.local_id())
-        .map(|b| b.id())
-        .unwrap();
-    let body_owner_def_id = genv.tcx().hir().body_owner_def_id(body_id);
-
-    println!("TRACE: constant_info: {local_def_id:?} {body_owner_def_id:?}");
-
-    if let fhir::Node::Item(item) = genv.map().node(def_id.local_id())?
+    let node = genv.map().node(def_id.local_id())?;
+    let owner = rustc_hir::OwnerId { def_id: local_def_id };
+    let constant = if let fhir::Node::Item(item) = node
         && let ItemKind::Const(constant) = &item.kind
     {
-        let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
-        conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
+        constant
     } else {
-        Ok(rty::ConstantInfo::Uninterpreted)
-    }
+        &fhir::ConstantInfo { owner, expr: None }
+    };
+    let Some(sort) = genv.sort_of_def_id(owner.def_id.to_def_id()).emit(&genv)? else {
+        return Ok(rty::ConstantInfo::Uninterpreted);
+    };
+    let wfckresults = wf::check_constant(genv, owner, constant, &sort)?;
+    conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
+
+    // CUT if let fhir::Node::Item(item) = genv.map().node(def_id.local_id())?
+    // CUT     && let ItemKind::Const(constant) = &item.kind
+    // CUT {
+    // CUT     let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
+    // CUT     conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
+    // CUT } else {
+    // CUT     Ok(rty::ConstantInfo::Uninterpreted)
+    // CUT }
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {

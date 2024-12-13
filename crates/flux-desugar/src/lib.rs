@@ -56,9 +56,8 @@ pub fn desugar<'genv>(
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
-    println!("TRACE: desugar: {:?}", owner_id);
-    match genv.tcx().hir_owner_node(owner_id) {
-        rustc_hir::OwnerNode::Item(item) => {
+    match genv.tcx().hir_node_by_def_id(def_id) {
+        rustc_hir::Node::Item(item) => {
             match item.kind {
                 hir::ItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -157,7 +156,7 @@ pub fn desugar<'genv>(
                 _ => span_bug!(item.span, "unsupported item"),
             }
         }
-        rustc_hir::OwnerNode::TraitItem(trait_item) => {
+        rustc_hir::Node::TraitItem(trait_item) => {
             match trait_item.kind {
                 rustc_hir::TraitItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -193,7 +192,7 @@ pub fn desugar<'genv>(
                 }
             }
         }
-        rustc_hir::OwnerNode::ImplItem(impl_item) => {
+        rustc_hir::Node::ImplItem(impl_item) => {
             match &impl_item.kind {
                 rustc_hir::ImplItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -229,10 +228,11 @@ pub fn desugar<'genv>(
                 }
             }
         }
-        rustc_hir::OwnerNode::ForeignItem(_)
-        | rustc_hir::OwnerNode::Crate(_)
-        | rustc_hir::OwnerNode::Synthetic => {
-            bug!("unsupported node");
+        rustc_hir::Node::AnonConst(..) => {
+            nodes.insert(def_id, fhir::Node::AnonConst());
+        }
+        node => {
+            bug!("unsupported node: {node:?}");
         }
     }
     Ok(nodes)

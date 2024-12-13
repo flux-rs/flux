@@ -79,18 +79,18 @@ impl UnknownQualifier {
     }
 }
 
-#[derive(Diagnostic)]
-#[diag(fhir_analysis_invalid_constant, code = E0999)]
-pub(super) struct InvalidConstant {
-    #[primary_span]
-    span: Span,
-}
-
-impl InvalidConstant {
-    pub(super) fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
+// CUT #[derive(Diagnostic)]
+// CUT #[diag(fhir_analysis_invalid_constant, code = E0999)]
+// CUT pub(super) struct InvalidConstant {
+// CUT     #[primary_span]
+// CUT     span: Span,
+// CUT }
+// CUT
+// CUT impl InvalidConstant {
+// CUT     pub(super) fn new(span: Span) -> Self {
+// CUT         Self { span }
+// CUT     }
+// CUT }
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_missing_ensures, code = E0999)]
