@@ -169,7 +169,7 @@ You could for example check a file as a library instead of a binary like so</p>
 <p>For example, the refinement below will only work when running <code>rustc-flux</code> which is intended for use on a single file.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
 fn inc(x: i32) -&gt; i32 {
     x - 1
 }
