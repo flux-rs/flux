@@ -646,6 +646,18 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     if uneval.args.is_empty() {
                         return Ok(Constant::Unevaluated(ty.lower(tcx)?, uneval.def));
                     }
+                    // HACK(RJ) see tests/tests/pos/surface/const09.rs
+                    // The const has `args` which makes it unevaluated...
+                    let const_ = constant
+                        .const_
+                        .eval(tcx, ParamEnv::empty(), rustc_span::DUMMY_SP)
+                        .map(|val| Const::Val(val, constant.const_.ty()))
+                        .unwrap_or(constant.const_);
+                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
+                        if let Some(constant) = self.scalar_int_to_constant(scalar, ty) {
+                            return Ok(constant);
+                        }
+                    }
                 }
                 Some(Constant::Opaque(ty.lower(tcx)?))
             }
