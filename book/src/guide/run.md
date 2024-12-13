@@ -113,7 +113,7 @@ driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver
 (similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of `librustc`. Thus, to avoid the
-hassle you should never execute it directly.  Instead, use `rustc-flux` or `cargo-flux`.
+hassle you should never execute it directly. Instead, use `rustc-flux` or `cargo-flux`.
 
 ## Editor Support
 
@@ -142,21 +142,21 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 
 You can set various `env` variables to customize the behavior of `flux`.
 
-* `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
-  * By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
-* `FLUX_SYSROOT` tells `cargo-flux` and `rustc-flux` where to find the `flux-driver` binary.
-  * Defaults to the default installation location in `~/.flux`.
-* `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
-* `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
-* `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
-* `FLUX_DUMP_TIMINGS=1` saves the profile information
-* `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
-* `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
-* `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
-* `FLUX_CHECK_FILES=path/to/file1.rs,path/to/file2.rs` only checks the specified files
-* `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
-* `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
-* `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
+- `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
+  - By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
+- `FLUX_SYSROOT` tells `cargo-flux` and `rustc-flux` where to find the `flux-driver` binary.
+  - Defaults to the default installation location in `~/.flux`.
+- `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
+- `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
+- `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
+- `FLUX_DUMP_TIMINGS=1` saves the profile information
+- `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
+- `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
+- `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
+- `FLUX_CHECK_FILES=/absolute/path/to/file1.rs,/absolute/path/to/file2.rs` only checks the specified files
+- `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
+- `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
+- `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
   operations, default `0`. When set to `0`, it still checks for underflow on
   unsigned integer subtraction.
 
