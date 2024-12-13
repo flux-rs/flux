@@ -25,7 +25,7 @@ When running flux on a file with `rustc-flux path/to/test.rs`, refinement annota
 For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
 
 ```rust
-#[flux::sig(fn(x: i32) -> i32{v: x < v)]
+#[flux::sig(fn(x: i32) -> i32{v: x < v})]
 fn inc(x: i32) -> i32 {
     x - 1
 }
