@@ -259,7 +259,7 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
         }
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ItemKind::Constant(constant_info) => vis.visit_constant_info(constant_info),
+        ItemKind::Const(constant_info) => vis.visit_constant_info(constant_info),
     }
 }
 
@@ -268,6 +268,7 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type => {}
+        TraitItemKind::Const(info) => vis.visit_constant_info(info),
     }
 }
 

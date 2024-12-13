@@ -490,7 +490,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let constant_info = self.desugar_const_spec(def_id, const_info)?;
         let owner_id = self.owner;
         let generics = fhir::Generics::trivial();
-        let kind = fhir::ItemKind::Constant(constant_info);
+        let kind = fhir::ItemKind::Const(constant_info);
         Ok(fhir::Item { owner_id, generics, kind })
     }
 
@@ -506,6 +506,17 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { owner_id, generics, kind })
     }
 
+    pub(crate) fn desugar_trait_const(
+        &mut self,
+        def_id: LocalDefId,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<fhir::TraitItem<'genv>> {
+        let constant_info = self.desugar_const_spec(def_id, const_info)?;
+        let owner_id = self.owner;
+        let generics = fhir::Generics::trivial();
+        let kind = fhir::TraitItemKind::Const(constant_info);
+        Ok(fhir::TraitItem { owner_id, generics, kind })
+    }
     pub(crate) fn desugar_fn_spec(
         &mut self,
         fn_spec: &surface::FnSpec,

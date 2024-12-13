@@ -140,8 +140,14 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
 
 fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
     let def_id = genv.maybe_extern_id(local_def_id);
+    let is_owner = genv
+        .tcx()
+        .hir()
+        .maybe_body_owned_by(def_id.local_id())
+        .is_some();
+    println!("TRACE: constant_info: {:?} is_owner={is_owner:?}", def_id);
     if let fhir::Node::Item(item) = genv.map().node(def_id.local_id())?
-        && let ItemKind::Constant(constant) = &item.kind
+        && let ItemKind::Const(constant) = &item.kind
     {
         let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
         conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)

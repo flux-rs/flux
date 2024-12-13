@@ -55,6 +55,8 @@ pub fn desugar<'genv>(
     let specs = genv.collect_specs();
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
+
+    println!("TRACE: desugar: {:?}", owner_id);
     match genv.tcx().hir_owner_node(owner_id) {
         rustc_hir::OwnerNode::Item(item) => {
             match item.kind {
@@ -175,7 +177,19 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) => {
-                    bug!("unsupported item");
+                    let constant_ = match specs.constants.get(&owner_id) {
+                        Some(constant_) => constant_,
+                        None => &surface::ConstantInfo { expr: None },
+                    };
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::TraitItem(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, None)
+                                    .desugar_trait_const(def_id, constant_)?,
+                            ),
+                        ),
+                    );
                 }
             }
         }
@@ -203,7 +217,6 @@ pub fn desugar<'genv>(
                         Some(constant_) => constant_,
                         None => &surface::ConstantInfo { expr: None },
                     };
-
                     nodes.insert(
                         def_id,
                         fhir::Node::ImplItem(

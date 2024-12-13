@@ -246,7 +246,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
-                    fhir::ItemKind::Constant(_) => {}
+                    fhir::ItemKind::Const(_) => {}
                 }
             }
             fhir::OwnerNode::TraitItem(trait_item) => {
@@ -256,6 +256,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &trait_item.generics)?;
                     }
                     fhir::TraitItemKind::Type => {}
+                    fhir::TraitItemKind::Const(_) => {}
                 }
             }
             fhir::OwnerNode::ImplItem(impl_item) => {

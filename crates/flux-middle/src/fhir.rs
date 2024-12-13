@@ -267,7 +267,7 @@ pub enum ItemKind<'fhir> {
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
-    Constant(ConstantInfo<'fhir>),
+    Const(ConstantInfo<'fhir>),
 }
 
 #[derive(Debug)]
@@ -280,6 +280,7 @@ pub struct TraitItem<'fhir> {
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
+    Const(ConstantInfo<'fhir>),
     Type,
 }
 

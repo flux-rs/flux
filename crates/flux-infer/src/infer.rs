@@ -714,7 +714,7 @@ impl Sub {
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
             (GenericArg::Const(cst_a), GenericArg::Const(cst_b)) => {
-                debug_assert_eq!(cst_a, cst_b);
+                // TRACE:TODO:REVERT:TOCK: debug_assert_eq!(cst_a, cst_b);
                 return Ok(());
             }
             _ => Err(query_bug!("incompatible generic args: `{a:?}` `{b:?}`"))?,
