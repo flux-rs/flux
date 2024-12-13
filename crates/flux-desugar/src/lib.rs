@@ -147,7 +147,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(
                             genv.alloc(
                                 cx.as_rust_item_ctxt(owner_id, None)
-                                    .desugar_const_info(def_id, constant_)?,
+                                    .desugar_const(def_id, constant_)?,
                             ),
                         ),
                     );
@@ -199,7 +199,20 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) => {
-                    bug!("unsupported item");
+                    let constant_ = match specs.constants.get(&owner_id) {
+                        Some(constant_) => constant_,
+                        None => &surface::ConstantInfo { expr: None },
+                    };
+
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::ImplItem(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, None)
+                                    .desugar_impl_const(def_id, constant_)?,
+                            ),
+                        ),
+                    );
                 }
             }
         }

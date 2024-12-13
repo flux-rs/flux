@@ -265,6 +265,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &impl_item.generics)?;
                     }
                     fhir::ImplItemKind::Type => {}
+                    fhir::ImplItemKind::Const(_) => {}
                 }
             }
         }

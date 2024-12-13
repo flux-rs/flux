@@ -143,7 +143,6 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     if let fhir::Node::Item(item) = genv.map().node(def_id.local_id())?
         && let ItemKind::Constant(constant) = &item.kind
     {
-        // let item = genv.map().expect_item(def_id.local_id())?;
         let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
         conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
     } else {

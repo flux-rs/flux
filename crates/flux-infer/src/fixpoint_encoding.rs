@@ -1288,7 +1288,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    comment: format!("rust const: {}", def_id_to_string(def_id)),
+                    comment: format!("rust const: {} {val:?}", def_id_to_string(def_id)),
                     sort: scx.sort_to_fixpoint(&sort),
                     val,
                 }

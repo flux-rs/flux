@@ -470,20 +470,40 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
-    pub(crate) fn desugar_const_info(
+    pub(crate) fn desugar_const_spec(
         &mut self,
         def_id: LocalDefId,
         const_info: &surface::ConstantInfo,
-    ) -> Result<fhir::Item<'genv>> {
+    ) -> Result<fhir::ConstantInfo<'genv>> {
         let expr = match &const_info.expr {
             Some(expr) => Some(self.desugar_expr(expr)?),
             None => None,
         };
-        let constant_info = fhir::ConstantInfo { owner: OwnerId { def_id }, expr };
+        Ok(fhir::ConstantInfo { owner: OwnerId { def_id }, expr })
+    }
+
+    pub(crate) fn desugar_const(
+        &mut self,
+        def_id: LocalDefId,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<fhir::Item<'genv>> {
+        let constant_info = self.desugar_const_spec(def_id, const_info)?;
         let owner_id = self.owner;
         let generics = fhir::Generics::trivial();
         let kind = fhir::ItemKind::Constant(constant_info);
         Ok(fhir::Item { owner_id, generics, kind })
+    }
+
+    pub(crate) fn desugar_impl_const(
+        &mut self,
+        def_id: LocalDefId,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<fhir::ImplItem<'genv>> {
+        let constant_info = self.desugar_const_spec(def_id, const_info)?;
+        let owner_id = self.owner;
+        let generics = fhir::Generics::trivial();
+        let kind = fhir::ImplItemKind::Const(constant_info);
+        Ok(fhir::ImplItem { owner_id, generics, kind })
     }
 
     pub(crate) fn desugar_fn_spec(

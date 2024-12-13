@@ -293,6 +293,7 @@ pub struct ImplItem<'fhir> {
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
+    Const(ConstantInfo<'fhir>),
     Type,
 }
 
