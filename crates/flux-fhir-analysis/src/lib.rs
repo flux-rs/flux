@@ -154,15 +154,6 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     };
     let wfckresults = wf::check_constant(genv, owner, constant, &sort)?;
     conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
-
-    // CUT if let fhir::Node::Item(item) = genv.map().node(def_id.local_id())?
-    // CUT     && let ItemKind::Const(constant) = &item.kind
-    // CUT {
-    // CUT     let wfckresults = wf::check_constant(genv, item.owner_id, constant)?;
-    // CUT     conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
-    // CUT } else {
-    // CUT     Ok(rty::ConstantInfo::Uninterpreted)
-    // CUT }
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
