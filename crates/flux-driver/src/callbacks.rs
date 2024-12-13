@@ -191,14 +191,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        let matches = self.matches_check_file(def_id.local_id());
-        println!("TRACE: check_def: {def_id:?} matches = {matches:?}");
-        if !matches {
+        if !self.matches_check_file(def_id.local_id()) {
             return Ok(());
         }
-        // if !self.matches_check_file(def_id.local_id()) {
-        //     return Ok(());
-        // }
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {

@@ -80,6 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Reload the flux trace information for changedFiles
     const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
     const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
+    console.log(`fileWatcher at:`, logFilePattern);
 
     fileWatcher.onDidChange((uri) => {
         console.log(`checker trace changed: ${uri.fsPath}`);
@@ -94,6 +95,7 @@ const execPromise = promisify(child_process.exec);
 
 async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
     try {
+        console.log("Running command: ", command);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -105,8 +107,7 @@ async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
 
         return stdout.trim();
     } catch (error) {
-        const err = { text: error };
-        console.log(`Command failed: ${err}`);
+        console.log(`Command failed:`, error);
         // vscode.window.showErrorMessage(`Command failed: ${error}`);
         // throw error;
     }
@@ -162,7 +163,7 @@ class InfoProvider {
     }
 
     public setPosition(file: string, line: number, column: number, text: string) {
-        this.currentFile = this.relFile(file);
+        this.currentFile = file; // this.relFile(file);
         this.currentLine = line;
         this.currentColumn = column;
         this.currentPosition = text.slice(0, column - 1).trim() === '' ? Position.Start : Position.End;
@@ -197,7 +198,7 @@ class InfoProvider {
             if (fileInfo) {
                 let lineInfo = fileInfo.get(line);
                 console.log("getLineInfo (2):", lineInfo);
-                return lineInfo; // map.get(file)?.get(line);
+                return lineInfo;
             } else {
                 return 'loading';
             }
@@ -233,6 +234,7 @@ class InfoProvider {
 
     public async loadFluxInfo() {
       try {
+          // console.log("Loading flux info");
           const lineInfos = await readFluxCheckerTrace();
           lineInfos.forEach((lineInfo, fileName) => {
               this.updateInfo(fileName, lineInfo);
@@ -622,7 +624,7 @@ type Rcx = {
 }
 
 type StmtSpan = {
-    file: string;
+    file: string | null;
     start_line: number;
     start_col: number;
     end_line: number;
@@ -654,12 +656,20 @@ function parseStatementSpan(span: string): StmtSpan | undefined {
     return undefined;
 }
 
+function parseStatementSpanJSON(span: string): StmtSpan | undefined {
+    if (span) {
+        return JSON.parse(span);
+    }
+    return undefined;
+}
+
+
 function parseEvent(event: any): [string, LineInfo] | undefined {
     try {
     const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
     if (position !== undefined) {
-        const stmt_span = parseStatementSpan(event.fields.stmt_span);
-        if (stmt_span) {
+        const stmt_span = parseStatementSpanJSON(event.fields.stmt_span_json);
+        if (stmt_span && stmt_span.file) {
             const info = {line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json};
             return [stmt_span.file, info];
         }
