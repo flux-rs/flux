@@ -277,7 +277,13 @@
 <a href="#276" id="276">276</a>
 <a href="#277" id="277">277</a>
 <a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
@@ -438,9 +444,15 @@
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
         <span class="kw">let </span>span = tcx.def_span(def_id);
         <span class="kw">let </span>sm = tcx.sess.source_map();
+        <span class="kw">let </span>current_dir = tcx.sess.opts.working_dir.clone();
         <span class="kw">if let </span>FileName::Real(file_name) = sm.span_to_filename(span) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = file_name.local_path() {
-                <span class="kw">let </span>file = path.to_string_lossy().to_string();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(file_path) = file_name.local_path()
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(current_dir_path) = current_dir.local_path()
+            {
+                <span class="kw">let </span>file = current_dir_path
+                    .join(file_path)
+                    .to_string_lossy()
+                    .to_string();
                 <span class="kw">return </span>config::is_checked_file(<span class="kw-2">&amp;</span>file);
             }
         }

@@ -232,7 +232,7 @@ driver</a>
 (similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
-hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
+hassle you should never execute it directly. Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
 <h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
 <p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
@@ -268,7 +268,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
-<li><code>FLUX_CHECK_FILES=path/to/file1.rs,path/to/file2.rs</code> only checks the specified files</li>
+<li><code>FLUX_CHECK_FILES=/absolute/path/to/file1.rs,/absolute/path/to/file2.rs</code> only checks the specified files</li>
 <li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer

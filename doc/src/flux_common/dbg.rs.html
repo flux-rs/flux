@@ -132,7 +132,8 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a></pre></div><pre class="rust"><code><span class="doccomment">//! This file contains functions and macros to log debugging information meant for developers.
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a></pre></div><pre class="rust"><code><span class="doccomment">//! This file contains functions and macros to log debugging information meant for developers.
 </span><span class="kw">use </span>std::{
     fmt, fs,
     io::{<span class="self">self</span>, Write},
@@ -211,7 +212,8 @@
             <span class="kw">let </span>local_names = <span class="kw-2">&amp;</span>ck.body.local_names;
             <span class="kw">let </span>rcx_json = RefineCtxtTrace::new(genv, <span class="macro-nonterminal">$rcx</span>);
             <span class="kw">let </span>env_json = TypeEnvTrace::new(genv, local_names, <span class="macro-nonterminal">$env</span>);
-            <span class="macro">tracing::info!</span>(event = <span class="macro">concat!</span>(<span class="string">"statement_"</span>, <span class="macro-nonterminal">$pos</span>), stmt = <span class="question-mark">?</span><span class="macro-nonterminal">$stmt</span>, stmt_span = <span class="question-mark">?</span><span class="macro-nonterminal">$span</span>, rcx = <span class="question-mark">?</span><span class="macro-nonterminal">$rcx</span>, env = <span class="question-mark">?</span><span class="macro-nonterminal">$env</span>, rcx_json = <span class="question-mark">?</span>rcx_json, env_json = <span class="question-mark">?</span>env_json)
+            <span class="kw">let </span>span_json = SpanTrace::new(genv, <span class="macro-nonterminal">$span</span>);
+            <span class="macro">tracing::info!</span>(event = <span class="macro">concat!</span>(<span class="string">"statement_"</span>, <span class="macro-nonterminal">$pos</span>), stmt = <span class="question-mark">?</span><span class="macro-nonterminal">$stmt</span>, stmt_span = <span class="question-mark">?</span><span class="macro-nonterminal">$span</span>, rcx = <span class="question-mark">?</span><span class="macro-nonterminal">$rcx</span>, env = <span class="question-mark">?</span><span class="macro-nonterminal">$env</span>, rcx_json = <span class="question-mark">?</span>rcx_json, env_json = <span class="question-mark">?</span>env_json, stmt_span_json = <span class="question-mark">?</span>span_json)
         }
     }};
 }
