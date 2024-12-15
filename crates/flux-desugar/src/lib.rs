@@ -148,7 +148,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(
                             genv.alloc(
                                 cx.as_rust_item_ctxt(owner_id, None)
-                                    .desugar_const(def_id, constant_)?,
+                                    .desugar_const(constant_)?,
                             ),
                         ),
                     );
@@ -176,17 +176,10 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) => {
-                    let constant_ = match specs.constants.get(&owner_id) {
-                        Some(constant_) => constant_,
-                        None => &surface::ConstantInfo { expr: None },
-                    };
                     nodes.insert(
                         def_id,
                         fhir::Node::TraitItem(
-                            genv.alloc(
-                                cx.as_rust_item_ctxt(owner_id, None)
-                                    .desugar_trait_const(def_id, constant_)?,
-                            ),
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, None).desugar_trait_const()?),
                         ),
                     );
                 }
@@ -212,24 +205,17 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) => {
-                    let constant_ = match specs.constants.get(&owner_id) {
-                        Some(constant_) => constant_,
-                        None => &surface::ConstantInfo { expr: None },
-                    };
                     nodes.insert(
                         def_id,
                         fhir::Node::ImplItem(
-                            genv.alloc(
-                                cx.as_rust_item_ctxt(owner_id, None)
-                                    .desugar_impl_const(def_id, constant_)?,
-                            ),
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, None).desugar_impl_const()?),
                         ),
                     );
                 }
             }
         }
         rustc_hir::Node::AnonConst(..) => {
-            nodes.insert(def_id, fhir::Node::AnonConst());
+            nodes.insert(def_id, fhir::Node::AnonConst);
         }
         node => {
             bug!("unsupported node: {node:?}");

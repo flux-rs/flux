@@ -6,4 +6,3 @@ impl Cow {
     fn test() -> usize {
         GRASS
     }
-}

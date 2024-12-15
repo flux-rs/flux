@@ -1,10 +1,10 @@
 use super::{
-    AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, ConstantInfo,
-    Ensures, EnumDef, Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort,
-    GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item,
-    ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort,
-    PolyTraitRef, QPath, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft,
-    TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
+    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
+    GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
+    Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
+    RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
+    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -95,10 +95,6 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_fn_sig(&mut self, sig: &FnSig<'v>) {
         walk_fn_sig(self, sig);
-    }
-
-    fn visit_constant_info(&mut self, constant_info: &ConstantInfo<'v>) {
-        walk_constant_info(self, constant_info);
     }
 
     fn visit_fn_decl(&mut self, decl: &FnDecl<'v>) {
@@ -259,7 +255,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
         }
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ItemKind::Const(constant_info) => vis.visit_constant_info(constant_info),
+        ItemKind::Const(info) => {
+            if let Some(expr) = info {
+                vis.visit_expr(expr)
+            }
+        }
     }
 }
 
@@ -268,7 +268,11 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type => {}
-        TraitItemKind::Const(info) => vis.visit_constant_info(info),
+        TraitItemKind::Const(info) => {
+            if let Some(expr) = info {
+                vis.visit_expr(expr)
+            }
+        }
     }
 }
 
@@ -276,7 +280,11 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
     vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ImplItemKind::Const(info) => vis.visit_constant_info(info),
+        ImplItemKind::Const(info) => {
+            if let Some(expr) = info {
+                vis.visit_expr(expr)
+            }
+        }
         ImplItemKind::Type => {}
     }
 }
@@ -307,10 +315,6 @@ pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBo
 
 pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
     vis.visit_fn_decl(sig.decl);
-}
-
-pub fn walk_constant_info<'v, V: Visitor<'v>>(vis: &mut V, constant_info: &ConstantInfo<'v>) {
-    vis.visit_constant_info(constant_info);
 }
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {

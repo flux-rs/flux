@@ -1283,7 +1283,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 // generate and insert to `const_map`
                 let val = match info {
                     rty::ConstantInfo::Uninterpreted => None,
-                    rty::ConstantInfo::Interpreted(expr) => Some(expr.clone()),
+                    rty::ConstantInfo::Interpreted(expr, _) => Some(expr.clone()),
                 };
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 ConstInfo {

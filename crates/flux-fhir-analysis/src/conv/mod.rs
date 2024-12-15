@@ -362,14 +362,15 @@ pub(crate) fn conv_invariants(
 pub(crate) fn conv_constant(
     genv: GlobalEnv,
     def_id: DefId,
-    info: &fhir::ConstantInfo,
+    expr: &Option<fhir::Expr>,
+    sort: rty::Sort,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::ConstantInfo> {
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     let mut env = Env::new(&[]);
     let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-    match &info.expr {
-        Some(expr) => Ok(rty::ConstantInfo::Interpreted(cx.conv_expr(&mut env, expr)?)),
+    match expr {
+        Some(expr) => Ok(rty::ConstantInfo::Interpreted(cx.conv_expr(&mut env, expr)?, sort)),
         None => {
             if ty.is_integral() {
                 let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
@@ -377,7 +378,10 @@ pub(crate) fn conv_constant(
                     rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
                 });
                 if let Some(constant_) = val {
-                    return Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_)));
+                    return Ok(rty::ConstantInfo::Interpreted(
+                        rty::Expr::constant(constant_),
+                        rty::Sort::Int,
+                    ));
                 }
                 // FIXME(nilehmann) we should probably report an error in case const evaluation
                 // fails instead of silently ignore it.

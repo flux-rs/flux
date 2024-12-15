@@ -446,9 +446,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                             rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
                         });
                         if let Some(constant_) = val {
-                            return Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(
-                                constant_,
-                            )));
+                            return Ok(rty::ConstantInfo::Interpreted(
+                                rty::Expr::constant(constant_),
+                                rty::Sort::Int,
+                            ));
                         }
                     }
                     Ok(rty::ConstantInfo::Uninterpreted)

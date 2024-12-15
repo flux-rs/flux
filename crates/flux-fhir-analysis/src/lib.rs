@@ -142,18 +142,18 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     let def_id = genv.maybe_extern_id(local_def_id);
     let node = genv.map().node(def_id.local_id())?;
     let owner = rustc_hir::OwnerId { def_id: local_def_id };
-    let constant = if let fhir::Node::Item(item) = node
-        && let ItemKind::Const(constant) = &item.kind
+    let expr = if let fhir::Node::Item(item) = node
+        && let ItemKind::Const(expr) = &item.kind
     {
-        constant
+        expr
     } else {
-        &fhir::ConstantInfo { owner, expr: None }
+        &None
     };
     let Some(sort) = genv.sort_of_def_id(owner.def_id.to_def_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
-    let wfckresults = wf::check_constant(genv, owner, constant, &sort)?;
-    conv::conv_constant(genv, local_def_id.to_def_id(), constant, &wfckresults)
+    let wfckresults = wf::check_constant(genv, owner, expr, &sort)?;
+    conv::conv_constant(genv, local_def_id.to_def_id(), expr, sort, &wfckresults)
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {

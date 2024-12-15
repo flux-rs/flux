@@ -62,14 +62,14 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
 pub(crate) fn check_constant(
     genv: GlobalEnv,
     owner: OwnerId,
-    constant: &fhir::ConstantInfo,
+    expr: &Option<fhir::Expr>,
     sort: &rty::Sort,
 ) -> Result<WfckResults> {
     // let span = genv.tcx().def_span(owner.to_def_id());
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
 
     let mut err = None;
-    if let Some(expr) = &constant.expr {
+    if let Some(expr) = expr {
         infcx.check_expr(expr, &sort).collect_err(&mut err);
     }
     err.into_result()?;

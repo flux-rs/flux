@@ -1496,7 +1496,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ty = self.refine_default(ty)?;
                 let info = self.genv.constant_info(def_id)?;
                 let res = if let Some(bty) = ty.as_bty_skipping_existentials()
-                    && let rty::ConstantInfo::Interpreted(idx) = info
+                    && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {
                     Ok(Ty::indexed(bty.clone(), idx))
                 } else {

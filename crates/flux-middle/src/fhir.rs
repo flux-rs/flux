@@ -155,7 +155,7 @@ pub enum Node<'fhir> {
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
-    AnonConst(),
+    AnonConst,
 }
 
 impl<'fhir> Node<'fhir> {
@@ -165,7 +165,7 @@ impl<'fhir> Node<'fhir> {
             Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
             Node::OpaqueTy(_) => None,
-            Node::AnonConst(..) => None,
+            Node::AnonConst => None,
         }
     }
 
@@ -269,7 +269,7 @@ pub enum ItemKind<'fhir> {
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
-    Const(ConstantInfo<'fhir>),
+    Const(Option<Expr<'fhir>>),
 }
 
 #[derive(Debug)]
@@ -282,7 +282,7 @@ pub struct TraitItem<'fhir> {
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const(ConstantInfo<'fhir>),
+    Const(Option<Expr<'fhir>>),
     Type,
 }
 
@@ -296,7 +296,7 @@ pub struct ImplItem<'fhir> {
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const(ConstantInfo<'fhir>),
+    Const(Option<Expr<'fhir>>),
     Type,
 }
 
@@ -313,12 +313,6 @@ impl FluxItem<'_> {
             FluxItem::Func(func) => func.name,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConstantInfo<'fhir> {
-    pub owner: OwnerId,
-    pub expr: Option<Expr<'fhir>>,
 }
 
 #[derive(Debug, Clone, Copy)]
