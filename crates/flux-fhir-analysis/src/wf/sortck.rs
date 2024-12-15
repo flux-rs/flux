@@ -292,6 +292,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     .sort_of_def_id(def_id)
                     .unwrap_or_else(|_err| span_bug!(path.span, "unknown sort for `{def_id:?}`"))
                 {
+                    let info = self.genv.constant_info(def_id).emit(&self.genv)?;
+                    // non-integral constant
+                    if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
+                        Err(self.emit_err(errors::ConstantAnnotationNeeded::new(path.span)))?
+                    }
                     Ok(sort)
                 } else {
                     span_bug!(path.span, "unexpected const in var position")

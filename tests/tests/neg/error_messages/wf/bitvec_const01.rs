@@ -31,12 +31,12 @@ fn test2() -> BV32 {
 
 pub const BAD3: BV32 = BV32::new(0x4567);
 
-#[flux_rs::sig(fn () -> BV32{v: v == BAD3})]
+#[flux_rs::sig(fn () -> BV32{v: v == BAD3})] //~ ERROR constant annotation required
 fn test3() -> BV32 {
-    BV32::new(0x4567) //~ ERROR refinement type
+    BV32::new(0x4567)
 }
 
-#[flux_rs::sig(fn () -> BV32{v: v == BAD3})]
+#[flux_rs::sig(fn () -> BV32{v: v == BAD3})] //~ ERROR constant annotation required
 fn test4() -> BV32 {
-    BAD3 //~ ERROR refinement type
+    BAD3
 }
