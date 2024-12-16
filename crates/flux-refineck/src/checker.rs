@@ -1764,7 +1764,7 @@ impl Mode for ShapeMode {
         ck: &mut Checker<'_, 'genv, 'tcx, ShapeMode>,
         _: InferCtxt<'_, 'genv, 'tcx>,
         env: TypeEnv,
-        terminator_span: Span,
+        _: Span,
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_envs = &mut ck.inherited.mode.bb_envs;
@@ -1772,12 +1772,12 @@ impl Mode for ShapeMode {
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let modified = match bb_envs.entry(ck.def_id).or_default().entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(env).with_span(terminator_span)?,
+            Entry::Occupied(mut entry) => entry.get_mut().join(env),
             Entry::Vacant(entry) => {
                 let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
                     .scope()
                     .unwrap_or_else(|| tracked_span_bug!());
-                entry.insert(env.into_infer(scope).with_span(terminator_span)?);
+                entry.insert(env.into_infer(scope));
                 true
             }
         };
@@ -1920,7 +1920,7 @@ fn snapshot_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_string, global_env::GlobalEnv, queries::QueryErr, MaybeExternId};
+    use flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_span::Span;
@@ -1929,25 +1929,25 @@ pub(crate) mod errors {
 
     #[derive(Debug)]
     pub struct CheckerError {
-        kind: CheckerErrKind,
+        kind: InferErr,
         span: Span,
     }
 
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+            Self { kind: InferErr::OpaqueStruct(def_id), span }
         }
 
         pub fn emit(self, genv: GlobalEnv, fn_def_id: MaybeExternId) -> ErrorGuaranteed {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
-                CheckerErrKind::Inference => {
+                InferErr::UnsolvedEvar(_) => {
                     let mut diag =
                         dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
                     diag.code(E0999);
                     diag.emit()
                 }
-                CheckerErrKind::OpaqueStruct(def_id) => {
+                InferErr::OpaqueStruct(def_id) => {
                     let mut diag =
                         dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
                     let fn_span = genv.tcx().def_span(fn_def_id);
@@ -1957,38 +1957,10 @@ pub(crate) mod errors {
                     diag.code(E0999);
                     diag.emit()
                 }
-                CheckerErrKind::Query(err) => {
+                InferErr::Query(err) => {
                     let level = rustc_errors::Level::Error;
                     err.at(self.span).into_diag(dcx, level).emit()
                 }
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    pub enum CheckerErrKind {
-        Inference,
-        OpaqueStruct(DefId),
-        Query(QueryErr),
-    }
-
-    impl CheckerErrKind {
-        pub fn at(self, span: Span) -> CheckerError {
-            CheckerError { kind: self, span }
-        }
-    }
-
-    impl From<QueryErr> for CheckerErrKind {
-        fn from(err: QueryErr) -> Self {
-            CheckerErrKind::Query(err)
-        }
-    }
-
-    impl From<InferErr> for CheckerErrKind {
-        fn from(err: InferErr) -> Self {
-            match err {
-                InferErr::UnsolvedEvar(_) => CheckerErrKind::Inference,
-                InferErr::Query(err) => CheckerErrKind::Query(err),
             }
         }
     }
@@ -1999,10 +1971,10 @@ pub(crate) mod errors {
 
     impl<T, E> ResultExt<T> for Result<T, E>
     where
-        E: Into<CheckerErrKind>,
+        E: Into<InferErr>,
     {
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
-            self.map_err(|kind| kind.into().at(span))
+            self.map_err(|err| CheckerError { kind: err.into(), span })
         }
     }
 }
