@@ -1474,18 +1474,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         path: &fhir::Path,
     ) -> QueryResult<rty::TyOrCtor> {
         let bty = match path.res {
-            fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
-            fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
-            fhir::Res::PrimTy(PrimTy::Char) => rty::BaseTy::Char,
-            fhir::Res::PrimTy(PrimTy::Int(int_ty)) => {
-                rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))
-            }
-            fhir::Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))
-            }
-            fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
-                rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
-            }
+            fhir::Res::PrimTy(prim_ty) => prim_ty_to_bty(prim_ty),
             fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) => {
                 let adt_def = self.genv().adt_def(did)?;
                 let args = self.conv_generic_args(env, did, path.last_segment())?;
@@ -1745,6 +1734,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     #[track_caller]
     fn emit(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.genv().sess().emit_err(err)
+    }
+}
+
+fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
+    match prim_ty {
+        rustc_hir::PrimTy::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
+        rustc_hir::PrimTy::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty)),
+        rustc_hir::PrimTy::Float(float_ty) => {
+            rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
+        }
+        rustc_hir::PrimTy::Str => rty::BaseTy::Str,
+        rustc_hir::PrimTy::Bool => rty::BaseTy::Bool,
+        rustc_hir::PrimTy::Char => rty::BaseTy::Char,
     }
 }
 
