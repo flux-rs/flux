@@ -34,7 +34,10 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
 
 <span class="kw">use crate</span>::{queries::QueryResult, rty};
 
@@ -45,7 +48,10 @@
     <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtDef&gt;;
     <span class="kw">fn </span>adt_sort_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtSortDef&gt;;
     <span class="kw">fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::Generics&gt;;
-    <span class="kw">fn </span>refinement_generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::RefinementGenerics&gt;;
+    <span class="kw">fn </span>refinement_generics_of(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+    ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt;;
     <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt;;
     <span class="kw">fn </span>predicates_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;;
     <span class="kw">fn </span>assoc_refinements_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AssocRefinements&gt;;

@@ -806,11 +806,7 @@
 <a href="#805" id="805">805</a>
 <a href="#806" id="806">806</a>
 <a href="#807" id="807">807</a>
-<a href="#808" id="808">808</a>
-<a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#808" id="808">808</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -826,7 +822,7 @@
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, SpecFuncDefns, Ty,
+        BaseTy, EarlyReftParam, Expr, GenericArgs, Name, RefineParam, Sort, SpecFuncDefns, Ty,
         TyCtor, TyKind, Var,
     },
 };
@@ -1013,33 +1009,28 @@
         args: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GenericArgs&gt;,
     ) -&gt; QueryResult&lt;RefineTree&gt; {
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>reft_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>params: Vec&lt;(Var, Sort)&gt; = itertools::chain(
-            generics
-                .const_params(genv)<span class="question-mark">?
-                </span>.into_iter()
-                .map(|(pcst, sort)| <span class="prelude-val">Ok</span>((Var::ConstGeneric(pcst), sort))),
-            (<span class="number">0</span>..reft_generics.count()).map(|i| {
-                <span class="kw">let </span>param = reft_generics.param_at(i, genv)<span class="question-mark">?</span>;
-                <span class="kw">let </span>var = Var::EarlyParam(EarlyReftParam { index: i <span class="kw">as </span>u32, name: param.name });
-                <span class="prelude-val">Ok</span>((var, param.sort))
-            }),
-        )
-        .collect::&lt;QueryResult&lt;<span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>params = generics
+            .const_params(genv)<span class="question-mark">?
+            </span>.into_iter()
+            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
+            .collect_vec();
+        <span class="kw">let </span>offset = params.len();
+        genv.refinement_generics_of(def_id)<span class="question-mark">?</span>.fill_item(
+            genv,
+            <span class="kw-2">&amp;mut </span>params,
+            <span class="kw-2">&amp;mut </span>|param, index| {
+                <span class="kw">let </span>index = (index - offset) <span class="kw">as </span>u32;
+                <span class="kw">let </span>param: RefineParam = <span class="kw">if let </span><span class="prelude-val">Some</span>(args) = args {
+                    param.instantiate(genv.tcx(), args, <span class="kw-2">&amp;</span>[])
+                } <span class="kw">else </span>{
+                    param.instantiate_identity()
+                };
+                <span class="kw">let </span>var = Var::EarlyParam(EarlyReftParam { index, name: param.name });
+                (var, param.sort)
+            },
+        )<span class="question-mark">?</span>;
 
-        <span class="comment">// We have `generic_args` when want to instantiate a generic trait method at a particular
-        // impl's type, e.g. when doing impl-trait subtyping.
-        </span><span class="kw">let </span>params = <span class="kw">if let </span><span class="prelude-val">Some</span>(generic_args) = args {
-            params
-                .iter()
-                .map(|(var, sort)| {
-                    (<span class="kw-2">*</span>var, EarlyBinder(sort.clone()).instantiate(genv.tcx(), generic_args, <span class="kw-2">&amp;</span>[]))
-                })
-                .collect()
-        } <span class="kw">else </span>{
-            params
-        };
         <span class="kw">let </span>root =
             Node { kind: NodeKind::Root(params), nbindings: <span class="number">0</span>, parent: <span class="prelude-val">None</span>, children: <span class="macro">vec!</span>[] };
         <span class="kw">let </span>root = NodePtr(Rc::new(RefCell::new(root)));
@@ -1533,7 +1524,8 @@
                 <span class="kw">let </span>n = node.borrow();
                 <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
                     NodeKind::Root(bindings) =&gt; {
-                        <span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings {
+                        <span class="comment">// We reverse here because is reversed again at the end
+                        </span><span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings.iter().rev() {
                             elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?} {:?}"</span>, ^name, sort));
                         }
                     }

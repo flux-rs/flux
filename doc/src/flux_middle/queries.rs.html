@@ -888,7 +888,8 @@
 <a href="#887" id="887">887</a>
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -1032,7 +1033,8 @@
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;,
     <span class="kw">pub </span>fn_sig: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
     <span class="kw">pub </span>generics_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::Generics&gt;,
-    <span class="kw">pub </span>refinement_generics_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::RefinementGenerics&gt;,
+    <span class="kw">pub </span>refinement_generics_of:
+        <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt;,
     <span class="kw">pub </span>predicates_of:
         <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;,
     <span class="kw">pub </span>assoc_refinements_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AssocRefinements&gt;,
@@ -1099,7 +1101,7 @@
     adt_def: Cache&lt;DefId, QueryResult&lt;rty::AdtDef&gt;&gt;,
     constant_info: Cache&lt;DefId, QueryResult&lt;rty::ConstantInfo&gt;&gt;,
     generics_of: Cache&lt;DefId, QueryResult&lt;rty::Generics&gt;&gt;,
-    refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
+    refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt;&gt;,
     predicates_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
     assoc_refinements_of: Cache&lt;DefId, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
     assoc_refinement_def: Cache&lt;(DefId, Symbol), QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
@@ -1379,7 +1381,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -&gt; QueryResult&lt;rty::RefinementGenerics&gt; {
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.refinement_generics_of, def_id, || {
             dispatch_query(
                 genv,
@@ -1388,11 +1390,11 @@
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
                     <span class="kw">let </span>parent = genv.tcx().generics_of(def_id).parent;
-                    <span class="prelude-val">Ok</span>(rty::RefinementGenerics {
+                    <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::RefinementGenerics {
                         parent,
                         parent_count: <span class="number">0</span>,
                         own_params: List::empty(),
-                    })
+                    }))
                 },
             )
         })

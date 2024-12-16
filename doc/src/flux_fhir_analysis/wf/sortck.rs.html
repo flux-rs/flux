@@ -869,7 +869,20 @@
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -902,6 +915,7 @@
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
     bv_size_unification_table: InPlaceUnificationTable&lt;rty::BvSizeVid&gt;,
     sort_of_bty: FxHashMap&lt;FhirId, rty::Sort&gt;,
+    path_args: UnordMap&lt;FhirId, rty::GenericArgs&gt;,
     sort_of_alias_reft: UnordMap&lt;FhirId, rty::FuncSort&gt;,
 }
 
@@ -918,6 +932,7 @@
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
+            path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
     }
@@ -1318,6 +1333,17 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>sort_of_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
         <span class="self">self</span>.sort_of_bty
+            .get(<span class="kw-2">&amp;</span>fhir_id)
+            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"no entry found for `{fhir_id:?}`"</span>))
+            .clone()
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>insert_path_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, args: rty::GenericArgs) {
+        <span class="self">self</span>.path_args.insert(fhir_id, args);
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>path_args(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::GenericArgs {
+        <span class="self">self</span>.path_args
             .get(<span class="kw-2">&amp;</span>fhir_id)
             .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"no entry found for `{fhir_id:?}`"</span>))
             .clone()

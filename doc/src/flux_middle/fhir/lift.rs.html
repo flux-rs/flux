@@ -937,7 +937,7 @@
         <span class="kw">let </span>segments =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, path.segments, |segment| <span class="self">self</span>.lift_path_segment(segment))<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(fhir::Path { res, segments, refine: <span class="kw-2">&amp;</span>[], span: path.span })
+        <span class="prelude-val">Ok</span>(fhir::Path { res, fhir_id: <span class="self">self</span>.next_fhir_id(), segments, refine: <span class="kw-2">&amp;</span>[], span: path.span })
     }
 
     <span class="kw">fn </span>lift_path_segment(

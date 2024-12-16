@@ -407,7 +407,10 @@
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
 <a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a></pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a></pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -512,7 +515,7 @@
 #[derive(TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Tables&lt;K: Eq + Hash&gt; {
     generics_of: UnordMap&lt;K, QueryResult&lt;rty::Generics&gt;&gt;,
-    refinement_generics_of: UnordMap&lt;K, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
+    refinement_generics_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt;&gt;,
     predicates_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
     item_bounds: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt;&gt;,
     assoc_refinements_of: UnordMap&lt;K, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
@@ -617,7 +620,10 @@
         <span class="macro">get!</span>(<span class="self">self</span>, generics_of, def_id)
     }
 
-    <span class="kw">fn </span>refinement_generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::RefinementGenerics&gt; {
+    <span class="kw">fn </span>refinement_generics_of(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+    ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt; {
         <span class="macro">get!</span>(<span class="self">self</span>, refinement_generics_of, def_id)
     }
 

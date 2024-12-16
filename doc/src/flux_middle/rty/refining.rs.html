@@ -443,7 +443,8 @@
 <a href="#442" id="442">442</a>
 <a href="#443" id="443">443</a>
 <a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -765,7 +766,8 @@
 
         <span class="kw">let </span>refine_args = <span class="kw">if let </span>ty::AliasKind::Opaque = alias_kind {
             rty::RefineArgs::for_item(<span class="self">self</span>.genv, def_id, |param, <span class="kw">_</span>| {
-                rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
+                <span class="kw">let </span>param = param.instantiate(<span class="self">self</span>.genv.tcx(), <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
+                rty::Expr::hole(rty::HoleKind::Expr(param.sort))
             })<span class="question-mark">?
         </span>} <span class="kw">else </span>{
             List::empty()

@@ -2465,7 +2465,65 @@
 <a href="#2464" id="2464">2464</a>
 <a href="#2465" id="2465">2465</a>
 <a href="#2466" id="2466">2466</a>
-<a href="#2467" id="2467">2467</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
+<a href="#2513" id="2513">2513</a>
+<a href="#2514" id="2514">2514</a>
+<a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2497,7 +2555,7 @@
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId, OwnerId, PrimTy, Safety};
+<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId, OwnerId, Safety};
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
@@ -2556,6 +2614,10 @@
     <span class="doccomment">/// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`. Used
     /// during the first phase to collect the sort of base types.
     </span><span class="kw">fn </span>insert_bty_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, sort: rty::Sort);
+
+    <span class="doccomment">/// Called after converting an path with the generic arguments. Using during the first phase
+    /// to instantiate sort of generic refinements.
+    </span><span class="kw">fn </span>insert_path_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, args: rty::GenericArgs);
 
     <span class="doccomment">/// Called after converting an [`fhir::ExprKind::Alias`] with the sort of the resulting
     /// [`rty::AliasReft`]. Used during the first phase to collect the sorts of refinement aliases.
@@ -2626,6 +2688,8 @@
     }
 
     <span class="kw">fn </span>insert_bty_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: FhirId, <span class="kw">_</span>: rty::Sort) {}
+
+    <span class="kw">fn </span>insert_path_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: FhirId, <span class="kw">_</span>: rty::GenericArgs) {}
 
     <span class="kw">fn </span>insert_alias_reft_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: FhirId, <span class="kw">_</span>: rty::FuncSort) {}
 }
@@ -3194,7 +3258,7 @@
             fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
             fhir::SortRes::TyParam(def_id) =&gt; {
                 <span class="kw">if </span>!path.args.is_empty() {
-                    <span class="kw">let </span>err = errors::GenericsOnTyParam::new(
+                    <span class="kw">let </span>err = errors::GenericsOnSortTyParam::new(
                         path.segments.last().unwrap().span,
                         path.args.len(),
                     );
@@ -3278,7 +3342,13 @@
         prim_sort: fhir::PrimSort,
     ) -&gt; QueryResult {
         <span class="kw">if </span>path.args.len() != prim_sort.generics() {
-            <span class="prelude-val">Err</span>(emit_prim_sort_generics_error(<span class="self">self</span>.genv(), path, prim_sort))<span class="question-mark">?</span>;
+            <span class="kw">let </span>err = errors::GenericsOnPrimitiveSort::new(
+                path.segments.last().unwrap().span,
+                prim_sort.name_str(),
+                path.args.len(),
+                prim_sort.generics(),
+            );
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -3941,17 +4011,9 @@
         path: <span class="kw-2">&amp;</span>fhir::Path,
     ) -&gt; QueryResult&lt;rty::TyOrCtor&gt; {
         <span class="kw">let </span>bty = <span class="kw">match </span>path.res {
-            fhir::Res::PrimTy(PrimTy::Bool) =&gt; rty::BaseTy::Bool,
-            fhir::Res::PrimTy(PrimTy::Str) =&gt; rty::BaseTy::Str,
-            fhir::Res::PrimTy(PrimTy::Char) =&gt; rty::BaseTy::Char,
-            fhir::Res::PrimTy(PrimTy::Int(int_ty)) =&gt; {
-                rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty))
-            }
-            fhir::Res::PrimTy(PrimTy::Uint(uint_ty)) =&gt; {
-                rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty))
-            }
-            fhir::Res::PrimTy(PrimTy::Float(float_ty)) =&gt; {
-                rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
+            fhir::Res::PrimTy(prim_ty) =&gt; {
+                <span class="self">self</span>.check_prim_ty_generics(path, prim_ty)<span class="question-mark">?</span>;
+                prim_ty_to_bty(prim_ty)
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum | DefKind::Union, did) =&gt; {
                 <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_def(did)<span class="question-mark">?</span>;
@@ -3961,6 +4023,7 @@
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
                 <span class="kw">let </span>owner_id = ty_param_owner(<span class="self">self</span>.genv(), def_id);
                 <span class="kw">let </span>param_ty = def_id_to_param_ty(<span class="self">self</span>.genv(), def_id);
+                <span class="self">self</span>.check_ty_param_generics(path, param_ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>param = <span class="self">self
                     </span>.genv()
                     .generics_of(owner_id)<span class="question-mark">?
@@ -3974,6 +4037,7 @@
                 }
             }
             fhir::Res::SelfTyParam { trait_ } =&gt; {
+                <span class="self">self</span>.check_self_ty_generics(path)<span class="question-mark">?</span>;
                 <span class="kw">let </span>param = <span class="kw-2">&amp;</span><span class="self">self</span>.genv().generics_of(trait_)<span class="question-mark">?</span>.own_params[<span class="number">0</span>];
                 <span class="kw">match </span>param.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
@@ -3984,6 +4048,7 @@
                 }
             }
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; {
+                <span class="self">self</span>.check_self_ty_generics(path)<span class="question-mark">?</span>;
                 <span class="kw">if </span>P::EXPAND_TYPE_ALIASES {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv().type_of(alias_to)<span class="question-mark">?</span>.instantiate_identity());
                 } <span class="kw">else </span>{
@@ -4020,6 +4085,7 @@
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) =&gt; {
                 <span class="kw">let </span>args = <span class="self">self</span>.conv_generic_args(env, def_id, path.last_segment())<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="number">0</span>.insert_path_args(path.fhir_id, args.clone());
                 <span class="kw">let </span>refine_args = path
                     .refine
                     .iter()
@@ -4034,11 +4100,7 @@
                 } <span class="kw">else </span>{
                     rty::BaseTy::Alias(
                         rty::AliasKind::Weak,
-                        rty::AliasTy {
-                            def_id,
-                            args: List::from(args),
-                            refine_args: List::from(refine_args),
-                        },
+                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
                     )
                 }
             }
@@ -4073,10 +4135,10 @@
         env: <span class="kw-2">&amp;mut </span>Env,
         def_id: DefId,
         segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
-    ) -&gt; QueryResult&lt;Vec&lt;rty::GenericArg&gt;&gt; {
+    ) -&gt; QueryResult&lt;List&lt;rty::GenericArg&gt;&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[];
         <span class="self">self</span>.conv_generic_args_into(env, def_id, segment, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(into)
+        <span class="prelude-val">Ok</span>(List::from(into))
     }
 
     <span class="kw">fn </span>conv_generic_args_into(
@@ -4212,6 +4274,51 @@
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit(<span class="kw-2">&amp;</span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'genv</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.genv().sess().emit_err(err)
+    }
+
+    <span class="kw">fn </span>check_prim_ty_generics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'_</span>&gt;,
+        prim_ty: rustc_hir::PrimTy,
+    ) -&gt; QueryResult {
+        <span class="kw">if </span>!path.last_segment().args.is_empty() {
+            <span class="kw">let </span>err = errors::GenericsOnPrimTy { span: path.span, name: prim_ty.name_str() };
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>check_ty_param_generics(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'_</span>&gt;,
+        param_ty: rty::ParamTy,
+    ) -&gt; QueryResult {
+        <span class="kw">if </span>!path.last_segment().args.is_empty() {
+            <span class="kw">let </span>err = errors::GenericsOnTyParam { span: path.span, name: param_ty.name };
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>check_self_ty_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'_</span>&gt;) -&gt; QueryResult {
+        <span class="kw">if </span>!path.last_segment().args.is_empty() {
+            <span class="kw">let </span>err = errors::GenericsOnSelfTy { span: path.span };
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="kw">fn </span>prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -&gt; rty::BaseTy {
+    <span class="kw">match </span>prim_ty {
+        rustc_hir::PrimTy::Int(int_ty) =&gt; rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
+        rustc_hir::PrimTy::Uint(uint_ty) =&gt; rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty)),
+        rustc_hir::PrimTy::Float(float_ty) =&gt; {
+            rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
+        }
+        rustc_hir::PrimTy::Str =&gt; rty::BaseTy::Str,
+        rustc_hir::PrimTy::Bool =&gt; rty::BaseTy::Bool,
+        rustc_hir::PrimTy::Char =&gt; rty::BaseTy::Char,
     }
 }
 
@@ -4644,20 +4751,6 @@
     <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
 
-<span class="kw">fn </span>emit_prim_sort_generics_error(
-    genv: GlobalEnv,
-    path: <span class="kw-2">&amp;</span>fhir::SortPath,
-    prim_sort: fhir::PrimSort,
-) -&gt; ErrorGuaranteed {
-    <span class="kw">let </span>err = errors::GenericsOnPrimitiveSort::new(
-        path.segments.last().unwrap().span,
-        prim_sort.name_str(),
-        path.args.len(),
-        prim_sort.generics(),
-    );
-    genv.sess().emit_err(err)
-}
-
 <span class="kw">fn </span>conv_lit(lit: fhir::Lit) -&gt; rty::Constant {
     <span class="kw">match </span>lit {
         fhir::Lit::Int(n) =&gt; rty::Constant::from(n),
@@ -4709,7 +4802,7 @@
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv};
     <span class="kw">use </span>rustc_hir::def_id::DefId;
-    <span class="kw">use </span>rustc_span::{symbol::Ident, Span};
+    <span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
@@ -4888,15 +4981,15 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_type_parameter, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnTyParam {
+    #[diag(fhir_analysis_generics_on_sort_ty_param, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnSortTyParam {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
         found: usize,
     }
 
-    <span class="kw">impl </span>GenericsOnTyParam {
+    <span class="kw">impl </span>GenericsOnSortTyParam {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: usize) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, found }
         }
@@ -4930,6 +5023,29 @@
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: usize) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, found }
         }
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_prim_ty, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnPrimTy {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_ty_param, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnTyParam {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="kw">pub </span>name: Symbol,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_self_ty, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnSelfTy {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
     }
 }
 </code></pre></div></section></main></body></html>

@@ -522,8 +522,6 @@
 <span class="kw">mod </span>param_usage;
 <span class="kw">mod </span>sortck;
 
-<span class="kw">use </span>std::iter;
-
 <span class="kw">use </span>flux_common::result::{ErrorCollector, ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
@@ -893,31 +891,29 @@
     }
 
     <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="kw">let </span>genv = <span class="self">self</span>.genv();
         <span class="kw">if let </span>fhir::Res::Def(DefKind::TyAlias, def_id) = path.res {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self
-                </span>.infcx
-                .genv
-                .refinement_generics_of(def_id)
-                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)
-                .ok()
-            <span class="kw">else </span>{
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(generics) = genv.refinement_generics_of(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
                 <span class="kw">return</span>;
             };
 
-            <span class="kw">if </span>path.refine.len() != generics.own_params.len() {
+            <span class="kw">if </span>path.refine.len() != generics.count() {
                 <span class="self">self</span>.errors.emit(errors::EarlyBoundArgCountMismatch::new(
                     path.span,
-                    generics.own_params.len(),
+                    generics.count(),
                     path.refine.len(),
                 ));
             }
 
-            <span class="kw">for </span>(expr, param) <span class="kw">in </span>iter::zip(path.refine, <span class="kw-2">&amp;</span>generics.own_params) {
+            <span class="kw">let </span>args = <span class="self">self</span>.infcx.path_args(path.fhir_id);
+            <span class="kw">for </span>(i, expr) <span class="kw">in </span>path.refine.iter().enumerate() {
+                <span class="kw">let </span><span class="prelude-val">Ok</span>(param) = generics.param_at(i, genv).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{ <span class="kw">return </span>};
+                <span class="kw">let </span>param = param.instantiate(genv.tcx(), <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
                 <span class="self">self</span>.infcx
                     .check_expr(expr, <span class="kw-2">&amp;</span>param.sort)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
             }
-        }
+        };
         fhir::visit::walk_path(<span class="self">self</span>, path);
     }
 }
@@ -985,6 +981,10 @@
 
     <span class="kw">fn </span>insert_bty_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, sort: rty::Sort) {
         <span class="self">self</span>.infcx.insert_sort_for_bty(fhir_id, sort);
+    }
+
+    <span class="kw">fn </span>insert_path_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, args: rty::GenericArgs) {
+        <span class="self">self</span>.infcx.insert_path_args(fhir_id, args);
     }
 
     <span class="kw">fn </span>insert_alias_reft_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, fsort: rty::FuncSort) {

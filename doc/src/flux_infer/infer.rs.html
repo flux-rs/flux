@@ -883,7 +883,12 @@
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
@@ -1049,8 +1054,13 @@
         InferCtxtAt { infcx: <span class="self">self</span>, span }
     }
 
-    <span class="kw">pub fn </span>instantiate_refine_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, callee_def_id: DefId) -&gt; InferResult&lt;List&lt;Expr&gt;&gt; {
+    <span class="kw">pub fn </span>instantiate_refine_args(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        callee_def_id: DefId,
+        args: <span class="kw-2">&amp;</span>[rty::GenericArg],
+    ) -&gt; InferResult&lt;List&lt;Expr&gt;&gt; {
         <span class="prelude-val">Ok</span>(RefineArgs::for_item(<span class="self">self</span>.genv, callee_def_id, |param, <span class="kw">_</span>| {
+            <span class="kw">let </span>param = param.instantiate(<span class="self">self</span>.genv.tcx(), args, <span class="kw-2">&amp;</span>[]);
             <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode)
         })<span class="question-mark">?</span>)
     }

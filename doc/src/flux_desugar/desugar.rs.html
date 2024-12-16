@@ -1559,7 +1559,9 @@
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
 <a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2282,6 +2284,7 @@
         <span class="kw">let </span>res = Res::Def(def_kind, def_id);
         fhir::Path {
             span,
+            fhir_id: <span class="self">self</span>.next_fhir_id(),
             res,
             segments: <span class="self">self</span>.genv.alloc_slice_fill_iter([fhir::PathSegment {
                 ident: surface::Ident::new(lang_item.name(), span),
@@ -2706,6 +2709,7 @@
         <span class="kw">let </span>proj_start = path.segments.len() - unresolved_segments;
         <span class="kw">let </span>fhir_path = fhir::Path {
             res: partial_res.base_res(),
+            fhir_id: <span class="self">self</span>.next_fhir_id(),
             segments: <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.segments[..proj_start], |segment| {
                 <span class="self">self</span>.desugar_path_segment(segment)
             })<span class="question-mark">?</span>,

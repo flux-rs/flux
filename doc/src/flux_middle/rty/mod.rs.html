@@ -2641,7 +2641,41 @@
 <a href="#2640" id="2640">2640</a>
 <a href="#2641" id="2641">2641</a>
 <a href="#2642" id="2642">2642</a>
-<a href="#2643" id="2643">2643</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2643" id="2643">2643</a>
+<a href="#2644" id="2644">2644</a>
+<a href="#2645" id="2645">2645</a>
+<a href="#2646" id="2646">2646</a>
+<a href="#2647" id="2647">2647</a>
+<a href="#2648" id="2648">2648</a>
+<a href="#2649" id="2649">2649</a>
+<a href="#2650" id="2650">2650</a>
+<a href="#2651" id="2651">2651</a>
+<a href="#2652" id="2652">2652</a>
+<a href="#2653" id="2653">2653</a>
+<a href="#2654" id="2654">2654</a>
+<a href="#2655" id="2655">2655</a>
+<a href="#2656" id="2656">2656</a>
+<a href="#2657" id="2657">2657</a>
+<a href="#2658" id="2658">2658</a>
+<a href="#2659" id="2659">2659</a>
+<a href="#2660" id="2660">2660</a>
+<a href="#2661" id="2661">2661</a>
+<a href="#2662" id="2662">2662</a>
+<a href="#2663" id="2663">2663</a>
+<a href="#2664" id="2664">2664</a>
+<a href="#2665" id="2665">2665</a>
+<a href="#2666" id="2666">2666</a>
+<a href="#2667" id="2667">2667</a>
+<a href="#2668" id="2668">2668</a>
+<a href="#2669" id="2669">2669</a>
+<a href="#2670" id="2670">2670</a>
+<a href="#2671" id="2671">2671</a>
+<a href="#2672" id="2672">2672</a>
+<a href="#2673" id="2673">2673</a>
+<a href="#2674" id="2674">2674</a>
+<a href="#2675" id="2675">2675</a>
+<a href="#2676" id="2676">2676</a>
+<a href="#2677" id="2677">2677</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2863,7 +2897,9 @@
     <span class="kw">pub </span>own_params: List&lt;RefineParam&gt;,
 }
 
-<span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(
+    PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>sort: Sort,
     <span class="kw">pub </span>name: Symbol,
@@ -3854,7 +3890,7 @@
         <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
         <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>args = <span class="macro">vec!</span>[GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+        <span class="kw">let </span>args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         <span class="kw">let </span>bty = BaseTy::adt(adt_def, args);
         <span class="prelude-val">Ok</span>(Ty::indexed(bty, Expr::unit_adt(def_id)))
@@ -4100,8 +4136,8 @@
         BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
-    <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
-        BaseTy::Adt(adt_def, args.into())
+    <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: GenericArgs) -&gt; BaseTy {
+        BaseTy::Adt(adt_def, args)
     }
 
     <span class="kw">pub fn </span>fn_def(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
@@ -4400,40 +4436,20 @@
 <span class="attr">#[extension(<span class="kw">pub trait </span>RefineArgsExt)]
 </span><span class="kw">impl </span>RefineArgs {
     <span class="kw">fn </span>identity_for_item(genv: GlobalEnv, def_id: DefId) -&gt; QueryResult&lt;RefineArgs&gt; {
-        <span class="self">Self</span>::for_item(genv, def_id, |param, exprs| {
-            <span class="kw">let </span>index = exprs.len() <span class="kw">as </span>u32;
-            Expr::var(Var::EarlyParam(EarlyReftParam { index, name: param.name }))
+        <span class="self">Self</span>::for_item(genv, def_id, |param, index| {
+            Expr::var(Var::EarlyParam(EarlyReftParam { index: index <span class="kw">as </span>u32, name: param.name() }))
         })
     }
 
     <span class="kw">fn </span>for_item&lt;F&gt;(genv: GlobalEnv, def_id: DefId, <span class="kw-2">mut </span>mk: F) -&gt; QueryResult&lt;RefineArgs&gt;
     <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>RefineParam, <span class="kw-2">&amp;</span>[Expr]) -&gt; Expr,
+        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; Expr,
     {
         <span class="kw">let </span>reft_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>count = reft_generics.count();
         <span class="kw">let </span><span class="kw-2">mut </span>args = Vec::with_capacity(count);
-        <span class="self">Self</span>::fill_item(genv, <span class="kw-2">&amp;mut </span>args, <span class="kw-2">&amp;</span>reft_generics, <span class="kw-2">&amp;mut </span>mk)<span class="question-mark">?</span>;
+        reft_generics.fill_item(genv, <span class="kw-2">&amp;mut </span>args, <span class="kw-2">&amp;mut </span>mk)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(List::from_vec(args))
-    }
-
-    <span class="kw">fn </span>fill_item&lt;F&gt;(
-        genv: GlobalEnv,
-        args: <span class="kw-2">&amp;mut </span>Vec&lt;Expr&gt;,
-        reft_generics: <span class="kw-2">&amp;</span>RefinementGenerics,
-        mk: <span class="kw-2">&amp;mut </span>F,
-    ) -&gt; QueryResult&lt;()&gt;
-    <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>RefineParam, <span class="kw-2">&amp;</span>[Expr]) -&gt; Expr,
-    {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = reft_generics.parent {
-            <span class="kw">let </span>parent_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
-            <span class="self">Self</span>::fill_item(genv, args, <span class="kw-2">&amp;</span>parent_generics, mk)<span class="question-mark">?</span>;
-        }
-        <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>reft_generics.own_params {
-            args.push(mk(param, args));
-        }
-        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -4806,14 +4822,8 @@
         <span class="self">self</span>.parent_count + <span class="self">self</span>.own_params.len()
     }
 
-    <span class="kw">pub fn </span>param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, param_index: usize, genv: GlobalEnv) -&gt; QueryResult&lt;RefineParam&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.own_params[index].clone())
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
-            genv.refinement_generics_of(parent)<span class="question-mark">?
-                </span>.param_at(param_index, genv)
-        }
+    <span class="kw">pub fn </span>own_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.own_params.len()
     }
 
     <span class="comment">// /// Iterate and collect all parameters in this item including parents
@@ -4830,6 +4840,64 @@
     //         .try_collect()
     // }
 </span>}
+
+<span class="kw">impl </span>EarlyBinder&lt;RefinementGenerics&gt; {
+    <span class="kw">pub fn </span>parent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+        <span class="self">self</span>.skip_binder_ref().parent
+    }
+
+    <span class="kw">pub fn </span>parent_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.skip_binder_ref().parent_count
+    }
+
+    <span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.skip_binder_ref().count()
+    }
+
+    <span class="kw">pub fn </span>own_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.skip_binder_ref().own_count()
+    }
+
+    <span class="kw">pub fn </span>own_param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, index: usize) -&gt; EarlyBinder&lt;RefineParam&gt; {
+        <span class="self">self</span>.as_ref().map(|this| this.own_params[index].clone())
+    }
+
+    <span class="kw">pub fn </span>param_at(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        param_index: usize,
+        genv: GlobalEnv,
+    ) -&gt; QueryResult&lt;EarlyBinder&lt;RefineParam&gt;&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count()) {
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.own_param_at(index))
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>parent = <span class="self">self</span>.parent().expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
+            genv.refinement_generics_of(parent)<span class="question-mark">?
+                </span>.param_at(param_index, genv)
+        }
+    }
+
+    <span class="kw">pub fn </span>iter_own_params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = EarlyBinder&lt;RefineParam&gt;&gt; + <span class="kw">use</span>&lt;<span class="lifetime">'_</span>&gt; {
+        <span class="self">self</span>.skip_binder_ref()
+            .own_params
+            .iter()
+            .cloned()
+            .map(EarlyBinder)
+    }
+
+    <span class="kw">pub fn </span>fill_item&lt;F, R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, vec: <span class="kw-2">&amp;mut </span>Vec&lt;R&gt;, mk: <span class="kw-2">&amp;mut </span>F) -&gt; QueryResult
+    <span class="kw">where
+        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; R,
+    {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.parent() {
+            genv.refinement_generics_of(def_id)<span class="question-mark">?
+                </span>.fill_item(genv, vec, mk)<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>param <span class="kw">in </span><span class="self">self</span>.iter_own_params() {
+            vec.push(mk(param, vec.len()));
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
 
 <span class="kw">impl </span>EarlyBinder&lt;GenericPredicates&gt; {
     <span class="kw">pub fn </span>predicates(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;List&lt;Clause&gt;&gt; {

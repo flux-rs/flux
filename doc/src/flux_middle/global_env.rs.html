@@ -860,7 +860,7 @@
     <span class="kw">pub fn </span>refinement_generics_of(
         <span class="self">self</span>,
         def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
-    ) -&gt; QueryResult&lt;rty::RefinementGenerics&gt; {
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt; {
         <span class="self">self</span>.inner
             .queries
             .refinement_generics_of(<span class="self">self</span>, def_id.into_query_param())
