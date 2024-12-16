@@ -2199,8 +2199,12 @@ impl EarlyBinder<RefinementGenerics> {
         }
     }
 
-    pub fn iter_own_params(&self) -> impl Iterator<Item = EarlyBinder<RefineParam>> {
-        [].into_iter()
+    pub fn iter_own_params(&self) -> impl Iterator<Item = EarlyBinder<RefineParam>> + use<'_> {
+        self.skip_binder_ref()
+            .own_params
+            .iter()
+            .cloned()
+            .map(EarlyBinder)
     }
 
     pub fn fill_item<F, R>(&self, genv: GlobalEnv, vec: &mut Vec<R>, mk: &mut F) -> QueryResult

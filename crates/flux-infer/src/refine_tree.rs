@@ -202,21 +202,23 @@ impl RefineTree {
     ) -> QueryResult<RefineTree> {
         let generics = genv.generics_of(def_id)?;
 
-        let mut params: Vec<(Var, Sort)> = generics
+        let mut params = generics
             .const_params(genv)?
             .into_iter()
             .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
             .collect_vec();
+        let offset = params.len();
         genv.refinement_generics_of(def_id)?.fill_item(
             genv,
             &mut params,
             &mut |param, index| {
+                let index = (index - offset) as u32;
                 let param: RefineParam = if let Some(args) = args {
                     param.instantiate(genv.tcx(), args, &[])
                 } else {
                     param.instantiate_identity()
                 };
-                let var = Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name });
+                let var = Var::EarlyParam(EarlyReftParam { index, name: param.name });
                 (var, param.sort)
             },
         )?;
@@ -714,7 +716,8 @@ mod pretty {
                 let n = node.borrow();
                 match &n.kind {
                     NodeKind::Root(bindings) => {
-                        for (name, sort) in bindings {
+                        // We reverse here because is reversed again at the end
+                        for (name, sort) in bindings.iter().rev() {
                             elements.push(format_cx!(cx, "{:?} {:?}", ^name, sort));
                         }
                     }
