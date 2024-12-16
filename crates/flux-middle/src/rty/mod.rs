@@ -1213,7 +1213,7 @@ impl Ty {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
         let adt_def = genv.adt_def(def_id)?;
 
-        let args = vec![GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+        let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
@@ -1459,8 +1459,8 @@ impl BaseTy {
         BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
-    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
-        BaseTy::Adt(adt_def, args.into())
+    pub fn adt(adt_def: AdtDef, args: GenericArgs) -> BaseTy {
+        BaseTy::Adt(adt_def, args)
     }
 
     pub fn fn_def(def_id: DefId, args: impl Into<GenericArgs>) -> BaseTy {

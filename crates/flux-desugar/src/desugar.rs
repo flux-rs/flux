@@ -721,6 +721,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let res = Res::Def(def_kind, def_id);
         fhir::Path {
             span,
+            fhir_id: self.next_fhir_id(),
             res,
             segments: self.genv.alloc_slice_fill_iter([fhir::PathSegment {
                 ident: surface::Ident::new(lang_item.name(), span),
@@ -1145,6 +1146,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         let proj_start = path.segments.len() - unresolved_segments;
         let fhir_path = fhir::Path {
             res: partial_res.base_res(),
+            fhir_id: self.next_fhir_id(),
             segments: try_alloc_slice!(self.genv(), &path.segments[..proj_start], |segment| {
                 self.desugar_path_segment(segment)
             })?,

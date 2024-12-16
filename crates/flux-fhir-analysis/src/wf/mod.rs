@@ -6,8 +6,6 @@ mod errors;
 mod param_usage;
 mod sortck;
 
-use std::iter;
-
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
@@ -377,32 +375,29 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_path(&mut self, path: &fhir::Path<'genv>) {
+        let genv = self.genv();
         if let fhir::Res::Def(DefKind::TyAlias, def_id) = path.res {
-            let Some(generics) = self
-                .infcx
-                .genv
-                .refinement_generics_of(def_id)
-                .emit(&self.errors)
-                .ok()
-            else {
+            let Ok(generics) = genv.refinement_generics_of(def_id).emit(&self.errors) else {
                 return;
             };
 
-            if path.refine.len() != generics.own_count() {
+            if path.refine.len() != generics.count() {
                 self.errors.emit(errors::EarlyBoundArgCountMismatch::new(
                     path.span,
-                    generics.own_count(),
+                    generics.count(),
                     path.refine.len(),
                 ));
             }
 
-            let a = 0;
-            // for (expr, param) in iter::zip(path.refine, &generics.own_params) {
-            //     self.infcx
-            //         .check_expr(expr, &param.sort)
-            //         .collect_err(&mut self.errors);
-            // }
-        }
+            let args = self.infcx.path_args(path.fhir_id);
+            for (i, expr) in path.refine.iter().enumerate() {
+                let Ok(param) = generics.param_at(i, genv).emit(&self.errors) else { return };
+                let param = param.instantiate(genv.tcx(), &args, &[]);
+                self.infcx
+                    .check_expr(expr, &param.sort)
+                    .collect_err(&mut self.errors);
+            }
+        };
         fhir::visit::walk_path(self, path);
     }
 }
@@ -470,6 +465,10 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
 
     fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
         self.infcx.insert_sort_for_bty(fhir_id, sort);
+    }
+
+    fn insert_path_args(&mut self, fhir_id: FhirId, args: rty::GenericArgs) {
+        self.infcx.insert_path_args(fhir_id, args);
     }
 
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {

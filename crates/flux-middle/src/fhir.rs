@@ -661,6 +661,7 @@ pub enum QPath<'fhir> {
 #[derive(Clone, Copy)]
 pub struct Path<'fhir> {
     pub res: Res,
+    pub fhir_id: FhirId,
     pub segments: &'fhir [PathSegment<'fhir>],
     pub refine: &'fhir [Expr<'fhir>],
     pub span: Span,
