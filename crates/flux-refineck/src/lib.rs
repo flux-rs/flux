@@ -36,9 +36,8 @@ use checker::{trait_impl_subtyping, Checker};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
-    infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::RefineTree,
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt},
+    infer::{ConstrReason, InferCtxtRoot, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -81,11 +80,11 @@ fn invoke_fixpoint(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
     def_id: MaybeExternId,
-    mut refine_tree: RefineTree,
-    kvars: KVarGen,
+    infcx_root: InferCtxtRoot,
     config: CheckerConfig,
     ext: &str,
 ) -> QueryResult<Vec<Tag>> {
+    let (mut refine_tree, kvars) = infcx_root.split();
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
     }
@@ -155,27 +154,25 @@ pub fn check_fn(
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
-        let (refine_tree, kvars) =
+        let infcx_root =
             Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, config)
                 .map_err(|err| err.emit(genv, def_id))?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
-        let errors = invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "fluxc")
-            .emit(&genv)?;
+        let errors =
+            invoke_fixpoint(genv, cache, def_id, infcx_root, config, "fluxc").emit(&genv)?;
         tracing::info!("check_fn::fixpoint");
         report_fixpoint_errors(genv, local_id, errors)?;
 
         // PHASE 4: subtyping check for trait-method implementations
-        if let Some((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, config.check_overflow, span)
-                .with_span(span)
-                .map_err(|err| err.emit(genv, def_id))?
+        if let Some(infcx_root) = trait_impl_subtyping(genv, local_id, config.check_overflow, span)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))?
         {
             tracing::info!("check_fn::refine-subtyping");
-            let errors =
-                invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "sub.fluxc")
-                    .emit(&genv)?;
+            let errors = invoke_fixpoint(genv, cache, def_id, infcx_root, config, "sub.fluxc")
+                .emit(&genv)?;
             tracing::info!("check_fn::fixpoint-subtyping");
             report_fixpoint_errors(genv, local_id, errors)?;
         }

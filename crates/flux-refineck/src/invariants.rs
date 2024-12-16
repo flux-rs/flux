@@ -2,10 +2,11 @@ use flux_common::{iter::IterExt, result::ResultExt};
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, KVarGen},
-    infer::{ConstrReason, Tag},
-    refine_tree::RefineTree,
+    infer::{ConstrReason, InferCtxtRoot, Tag},
 };
 use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+use rustc_infer::infer::TyCtxtInferExt;
+use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{invoke_fixpoint, CheckerConfig};
@@ -37,10 +38,16 @@ fn check_invariant(
     invariant: &rty::Invariant,
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
-    let mut refine_tree = RefineTree::new(genv, def_id.local_id().into(), None).emit(&genv)?;
+    let resolved_id = def_id.resolved_id();
+    let mut infcx_root =
+        InferCtxtRoot::new(genv, resolved_id, KVarGen::dummy(), None).emit(&genv)?;
 
+    let region_infercx = genv
+        .tcx()
+        .infer_ctxt()
+        .build(TypingMode::non_body_analysis());
     for variant_idx in adt_def.variants().indices() {
-        let mut rcx = refine_tree.refine_ctxt_at_root();
+        let mut rcx = infcx_root.infcx(resolved_id, &region_infercx);
 
         let variant = genv
             .variant_sig(adt_def.did(), variant_idx)
@@ -56,16 +63,8 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let errors = invoke_fixpoint(
-        genv,
-        cache,
-        def_id,
-        refine_tree,
-        KVarGen::dummy(),
-        checker_config,
-        "fluxc",
-    )
-    .emit(&genv)?;
+    let errors =
+        invoke_fixpoint(genv, cache, def_id, infcx_root, checker_config, "fluxc").emit(&genv)?;
 
     if errors.is_empty() {
         Ok(())

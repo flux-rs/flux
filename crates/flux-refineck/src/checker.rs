@@ -5,7 +5,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason},
-    refine_tree::{AssumeInvariants, RefineCtxtTrace, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxtTrace, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -186,7 +186,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
-    ) -> Result<(RefineTree, KVarGen)> {
+    ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
         let mut kvars = fixpoint_encoding::KVarGen::new();
@@ -208,7 +208,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
                 .with_span(span)?;
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
-            Ok(root_ctxt.split())
+            Ok(root_ctxt)
         })
     }
 }
@@ -315,12 +315,12 @@ fn check_fn_subtyping(
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-pub(crate) fn trait_impl_subtyping(
-    genv: GlobalEnv,
+pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     def_id: LocalDefId,
     overflow_checking: bool,
     span: Span,
-) -> InferResult<Option<(RefineTree, KVarGen)>> {
+) -> InferResult<Option<InferCtxtRoot<'genv, 'tcx>>> {
     // Skip the check if this is not an impl method
     let Some((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
@@ -357,7 +357,7 @@ pub(crate) fn trait_impl_subtyping(
             span,
         )
     })?;
-    Ok(Some(root_ctxt.split()))
+    Ok(Some(root_ctxt))
 }
 
 fn find_trait_item(
