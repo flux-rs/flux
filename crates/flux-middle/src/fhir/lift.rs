@@ -397,7 +397,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let segments =
             try_alloc_slice!(self.genv, path.segments, |segment| self.lift_path_segment(segment))?;
 
-        Ok(fhir::Path { res, segments, refine: &[], span: path.span })
+        Ok(fhir::Path { res, fhir_id: self.next_fhir_id(), segments, refine: &[], span: path.span })
     }
 
     fn lift_path_segment(

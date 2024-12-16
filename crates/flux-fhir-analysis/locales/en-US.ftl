@@ -243,7 +243,7 @@ fhir_analysis_incorrect_generics_on_sort =
         *[other] {$expected} generic arguments
     } on sort
 
-fhir_analysis_generics_on_type_parameter =
+fhir_analysis_generics_on_sort_ty_param=
     type parameter expects no generics but found {$found}
     .label = found generics on sort type parameter
 
@@ -258,6 +258,14 @@ fhir_analysis_generics_on_opaque_sort =
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined
 
+fhir_analysis_generics_on_prim_ty =
+    generic arguments are not allowed on builtin type `{$name}`
+
+fhir_analysis_generics_on_ty_param =
+    generic arguments are not allowed on type parameter `{$name}`
+
+fhir_analysis_generics_on_self_ty =
+    generic arguments are not allowed on self type
 
 # Check impl against trait errors
 

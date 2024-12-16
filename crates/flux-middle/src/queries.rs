@@ -142,7 +142,8 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
-    pub refinement_generics_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::RefinementGenerics>,
+    pub refinement_generics_of:
+        fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>,
     pub predicates_of:
         fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AssocRefinements>,
@@ -209,7 +210,7 @@ pub struct Queries<'genv, 'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     constant_info: Cache<DefId, QueryResult<rty::ConstantInfo>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
-    refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
+    refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     assoc_refinements_of: Cache<DefId, QueryResult<rty::AssocRefinements>>,
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
@@ -489,7 +490,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::RefinementGenerics> {
+    ) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
             dispatch_query(
                 genv,
@@ -498,11 +499,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
                     let parent = genv.tcx().generics_of(def_id).parent;
-                    Ok(rty::RefinementGenerics {
+                    Ok(rty::EarlyBinder(rty::RefinementGenerics {
                         parent,
                         parent_count: 0,
                         own_params: List::empty(),
-                    })
+                    }))
                 },
             )
         })

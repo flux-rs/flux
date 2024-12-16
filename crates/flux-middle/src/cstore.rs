@@ -9,7 +9,10 @@ pub trait CrateStore {
     fn adt_def(&self, def_id: DefId) -> OptResult<rty::AdtDef>;
     fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef>;
     fn generics_of(&self, def_id: DefId) -> OptResult<rty::Generics>;
-    fn refinement_generics_of(&self, def_id: DefId) -> OptResult<rty::RefinementGenerics>;
+    fn refinement_generics_of(
+        &self,
+        def_id: DefId,
+    ) -> OptResult<rty::EarlyBinder<rty::RefinementGenerics>>;
     fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::Clauses>>;
     fn predicates_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::GenericPredicates>>;
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements>;

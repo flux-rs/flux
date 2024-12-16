@@ -31,6 +31,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
+    path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: UnordMap<FhirId, rty::FuncSort>,
 }
 
@@ -47,6 +48,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
+            path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
     }
@@ -447,6 +449,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> rty::Sort {
         self.sort_of_bty
+            .get(&fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
+            .clone()
+    }
+
+    pub(crate) fn insert_path_args(&mut self, fhir_id: FhirId, args: rty::GenericArgs) {
+        self.path_args.insert(fhir_id, args);
+    }
+
+    pub(crate) fn path_args(&self, fhir_id: FhirId) -> rty::GenericArgs {
+        self.path_args
             .get(&fhir_id)
             .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
             .clone()

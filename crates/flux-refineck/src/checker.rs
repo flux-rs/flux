@@ -263,7 +263,7 @@ fn check_fn_subtyping(
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
     infcx.push_scope();
-    let refine_args = infcx.instantiate_refine_args(*def_id)?;
+    let refine_args = infcx.instantiate_refine_args(*def_id, sub_args)?;
     let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
     let sub_sig = sub_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
@@ -777,7 +777,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let refine_args = match callee_def_id {
             Some(callee_def_id) => {
                 infcx
-                    .instantiate_refine_args(callee_def_id)
+                    .instantiate_refine_args(callee_def_id, &generic_args)
                     .with_span(span)?
             }
             None => rty::List::empty(),

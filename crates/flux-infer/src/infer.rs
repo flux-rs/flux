@@ -164,8 +164,13 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
     }
 
-    pub fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> InferResult<List<Expr>> {
+    pub fn instantiate_refine_args(
+        &mut self,
+        callee_def_id: DefId,
+        args: &[rty::GenericArg],
+    ) -> InferResult<List<Expr>> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
+            let param = param.instantiate(self.genv.tcx(), args, &[]);
             self.fresh_infer_var(&param.sort, param.mode)
         })?)
     }

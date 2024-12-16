@@ -220,7 +220,9 @@ pub struct RefinementGenerics {
     pub own_params: List<RefineParam>,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
+#[derive(
+    PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
+)]
 pub struct RefineParam {
     pub sort: Sort,
     pub name: Symbol,
@@ -1211,7 +1213,7 @@ impl Ty {
         let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
         let adt_def = genv.adt_def(def_id)?;
 
-        let args = vec![GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+        let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         let bty = BaseTy::adt(adt_def, args);
         Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
@@ -1457,8 +1459,8 @@ impl BaseTy {
         BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
-    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
-        BaseTy::Adt(adt_def, args.into())
+    pub fn adt(adt_def: AdtDef, args: GenericArgs) -> BaseTy {
+        BaseTy::Adt(adt_def, args)
     }
 
     pub fn fn_def(def_id: DefId, args: impl Into<GenericArgs>) -> BaseTy {
@@ -1757,40 +1759,20 @@ pub type RefineArgs = List<Expr>;
 #[extension(pub trait RefineArgsExt)]
 impl RefineArgs {
     fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
-        Self::for_item(genv, def_id, |param, exprs| {
-            let index = exprs.len() as u32;
-            Expr::var(Var::EarlyParam(EarlyReftParam { index, name: param.name }))
+        Self::for_item(genv, def_id, |param, index| {
+            Expr::var(Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() }))
         })
     }
 
     fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<RefineArgs>
     where
-        F: FnMut(&RefineParam, &[Expr]) -> Expr,
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> Expr,
     {
         let reft_generics = genv.refinement_generics_of(def_id)?;
         let count = reft_generics.count();
         let mut args = Vec::with_capacity(count);
-        Self::fill_item(genv, &mut args, &reft_generics, &mut mk)?;
+        reft_generics.fill_item(genv, &mut args, &mut mk)?;
         Ok(List::from_vec(args))
-    }
-
-    fn fill_item<F>(
-        genv: GlobalEnv,
-        args: &mut Vec<Expr>,
-        reft_generics: &RefinementGenerics,
-        mk: &mut F,
-    ) -> QueryResult<()>
-    where
-        F: FnMut(&RefineParam, &[Expr]) -> Expr,
-    {
-        if let Some(def_id) = reft_generics.parent {
-            let parent_generics = genv.refinement_generics_of(def_id)?;
-            Self::fill_item(genv, args, &parent_generics, mk)?;
-        }
-        for param in &reft_generics.own_params {
-            args.push(mk(param, args));
-        }
-        Ok(())
     }
 }
 
@@ -2163,14 +2145,8 @@ impl RefinementGenerics {
         self.parent_count + self.own_params.len()
     }
 
-    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<RefineParam> {
-        if let Some(index) = param_index.checked_sub(self.parent_count) {
-            Ok(self.own_params[index].clone())
-        } else {
-            let parent = self.parent.expect("parent_count > 0 but no parent?");
-            genv.refinement_generics_of(parent)?
-                .param_at(param_index, genv)
-        }
+    pub fn own_count(&self) -> usize {
+        self.own_params.len()
     }
 
     // /// Iterate and collect all parameters in this item including parents
@@ -2186,6 +2162,64 @@ impl RefinementGenerics {
     //         .map(|i| Ok(f(self.param_at(i, genv)?)))
     //         .try_collect()
     // }
+}
+
+impl EarlyBinder<RefinementGenerics> {
+    pub fn parent(&self) -> Option<DefId> {
+        self.skip_binder_ref().parent
+    }
+
+    pub fn parent_count(&self) -> usize {
+        self.skip_binder_ref().parent_count
+    }
+
+    pub fn count(&self) -> usize {
+        self.skip_binder_ref().count()
+    }
+
+    pub fn own_count(&self) -> usize {
+        self.skip_binder_ref().own_count()
+    }
+
+    pub fn own_param_at(&self, index: usize) -> EarlyBinder<RefineParam> {
+        self.as_ref().map(|this| this.own_params[index].clone())
+    }
+
+    pub fn param_at(
+        &self,
+        param_index: usize,
+        genv: GlobalEnv,
+    ) -> QueryResult<EarlyBinder<RefineParam>> {
+        if let Some(index) = param_index.checked_sub(self.parent_count()) {
+            Ok(self.own_param_at(index))
+        } else {
+            let parent = self.parent().expect("parent_count > 0 but no parent?");
+            genv.refinement_generics_of(parent)?
+                .param_at(param_index, genv)
+        }
+    }
+
+    pub fn iter_own_params(&self) -> impl Iterator<Item = EarlyBinder<RefineParam>> + use<'_> {
+        self.skip_binder_ref()
+            .own_params
+            .iter()
+            .cloned()
+            .map(EarlyBinder)
+    }
+
+    pub fn fill_item<F, R>(&self, genv: GlobalEnv, vec: &mut Vec<R>, mk: &mut F) -> QueryResult
+    where
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> R,
+    {
+        if let Some(def_id) = self.parent() {
+            genv.refinement_generics_of(def_id)?
+                .fill_item(genv, vec, mk)?;
+        }
+        for param in self.iter_own_params() {
+            vec.push(mk(param, vec.len()));
+        }
+        Ok(())
+    }
 }
 
 impl EarlyBinder<GenericPredicates> {

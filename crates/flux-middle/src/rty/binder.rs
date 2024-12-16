@@ -16,7 +16,7 @@ use rustc_span::Symbol;
 use super::{
     fold::TypeFoldable,
     subst::{self, BoundVarReplacer, FnMutDelegate},
-    Expr, GenericArg, InferMode, Sort,
+    Expr, GenericArg, InferMode, RefineParam, Sort,
 };
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -63,6 +63,12 @@ impl<T: TypeFoldable> EarlyBinder<T> {
                 refine_args,
             ))
             .into_ok()
+    }
+}
+
+impl EarlyBinder<RefineParam> {
+    pub fn name(&self) -> Symbol {
+        self.skip_binder_ref().name
     }
 }
 
