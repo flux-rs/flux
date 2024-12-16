@@ -495,15 +495,13 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_impl_const(&mut self) -> Result<fhir::ImplItem<'genv>> {
         let owner_id = self.owner;
         let generics = self.as_lift_cx().lift_generics()?;
-        let kind = fhir::ImplItemKind::Const(None);
-        Ok(fhir::ImplItem { owner_id, generics, kind })
+        Ok(fhir::ImplItem { owner_id, generics, kind: fhir::ImplItemKind::Const })
     }
 
     pub(crate) fn desugar_trait_const(&mut self) -> Result<fhir::TraitItem<'genv>> {
         let owner_id = self.owner;
         let generics = self.as_lift_cx().lift_generics()?;
-        let kind = fhir::TraitItemKind::Const(None);
-        Ok(fhir::TraitItem { owner_id, generics, kind })
+        Ok(fhir::TraitItem { owner_id, generics, kind: fhir::TraitItemKind::Const })
     }
     pub(crate) fn desugar_fn_spec(
         &mut self,

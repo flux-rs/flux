@@ -24,7 +24,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    fhir::{self, ItemKind},
+    fhir::{self},
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
@@ -142,18 +142,24 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     let def_id = genv.maybe_extern_id(local_def_id);
     let node = genv.map().node(def_id.local_id())?;
     let owner = rustc_hir::OwnerId { def_id: local_def_id };
-    let expr = if let fhir::Node::Item(item) = node
-        && let ItemKind::Const(expr) = &item.kind
-    {
-        expr
-    } else {
-        &None
-    };
     let Some(sort) = genv.sort_of_def_id(owner.def_id.to_def_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
-    let wfckresults = wf::check_constant(genv, owner, expr, &sort)?;
-    conv::conv_constant(genv, local_def_id.to_def_id(), expr, sort, &wfckresults)
+    match node {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
+            // for these constants we use the expression
+            let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
+            conv::conv_constant_expr(genv, local_def_id.to_def_id(), expr, sort, &wfckresults)
+        }
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
+        | fhir::Node::AnonConst
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
+            // for these constants we try to evaluate if they are integral and return uninterpreted if we fail
+            conv::conv_constant(genv, local_def_id.to_def_id())
+        }
+        _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
+    }
 }
 
 fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {

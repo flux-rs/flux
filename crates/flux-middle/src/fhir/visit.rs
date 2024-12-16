@@ -268,11 +268,7 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type => {}
-        TraitItemKind::Const(info) => {
-            if let Some(expr) = info {
-                vis.visit_expr(expr)
-            }
-        }
+        TraitItemKind::Const => {}
     }
 }
 
@@ -280,11 +276,7 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
     vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
-        ImplItemKind::Const(info) => {
-            if let Some(expr) = info {
-                vis.visit_expr(expr)
-            }
-        }
+        ImplItemKind::Const => {}
         ImplItemKind::Type => {}
     }
 }

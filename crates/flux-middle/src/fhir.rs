@@ -282,7 +282,7 @@ pub struct TraitItem<'fhir> {
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const(Option<Expr<'fhir>>),
+    Const,
     Type,
 }
 
@@ -296,7 +296,7 @@ pub struct ImplItem<'fhir> {
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
-    Const(Option<Expr<'fhir>>),
+    Const,
     Type,
 }
 
