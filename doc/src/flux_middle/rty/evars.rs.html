@@ -226,8 +226,7 @@
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+<a href="#228" id="228">228</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 <span class="kw">use </span>flux_common::{bug, index::IndexVec};
 <span class="kw">use </span>itertools::Itertools;
@@ -441,9 +440,8 @@
     <span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>EVar {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"?{}e#{}"</span>, ^<span class="self">self</span>.id.as_u32(), ^<span class="self">self</span>.cx.<span class="number">0</span>)
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">w!</span>(cx, f, <span class="string">"?{}e#{}"</span>, ^<span class="self">self</span>.id.as_u32(), ^<span class="self">self</span>.cx.<span class="number">0</span>)
         }
     }
 

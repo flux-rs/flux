@@ -883,8 +883,7 @@
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
@@ -1763,8 +1762,7 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
+            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
         }
     }
 

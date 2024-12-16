@@ -580,40 +580,12 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
-<span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
@@ -623,52 +595,34 @@
 <span class="kw">use </span>serde::Serialize;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> _define_scoped {
-    (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:expr) =&gt; {
-        <span class="attr">#[allow(unused_macros)]
-        </span><span class="macro">macro_rules!</span> scoped_cx {
-            () =&gt; {
-                <span class="macro-nonterminal">$cx
-            </span>};
-        }
-
-        <span class="attr">#[allow(unused_macros)]
-        </span><span class="macro">macro_rules!</span> scoped_fmt {
-            () =&gt; {
-                <span class="macro-nonterminal">$fmt
-            </span>};
-        }
-    };
-}
-<span class="kw">pub use </span><span class="kw">crate</span>::_define_scoped <span class="kw">as </span>define_scoped;
-
-<span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _with_cx {
-    (<span class="macro-nonterminal">$e</span>:expr) =&gt; {
-        <span class="macro-nonterminal">$crate::pretty::WithCx::new</span>(<span class="macro">scoped_cx!</span>(), <span class="macro-nonterminal">$e</span>)
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$e</span>:expr) =&gt; {
+        <span class="macro-nonterminal">$crate::pretty::WithCx::new</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$e</span>)
     };
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_with_cx <span class="kw">as </span>with_cx;
 
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _format_args_cx {
-    (<span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
-        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
-    };
-    (<span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {{
+        <span class="attr">#[allow(unused_variables)]
+        </span><span class="kw">let </span>cx = <span class="macro-nonterminal">$cx</span>;
+        <span class="macro">format_args_cx!</span>(@go (cx, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
+    }};
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
         <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>)
     };
-    (@go (<span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
+    (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
+        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
     };
-    (@go (<span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$head</span>),))
+    (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
+        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
     };
-    (@go (<span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
+    (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
         <span class="macro">format_args_cx!</span>(@as_expr <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
     };
-    (@go (<span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@as_expr <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$head</span>),))
+    (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
+        <span class="macro">format_args_cx!</span>(@as_expr <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
     };
     (@as_expr <span class="macro-nonterminal">$e</span>:expr) =&gt; { <span class="macro-nonterminal">$e </span>};
 }
@@ -684,18 +638,12 @@
 
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _w {
-    (<span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
-        <span class="macro">scoped_fmt!</span>().write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
+        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
     };
-    (<span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
-        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
+        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>))
     };
-    (<span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
-        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$fmt</span>))
-    };
-    (<span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
-        <span class="macro">write!</span>(<span class="macro">scoped_fmt!</span>(), <span class="macro-nonterminal">$fmt</span>)
-    }
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_w <span class="kw">as </span>w;
 
@@ -806,7 +754,7 @@
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>BoundVarEnv {
     name_gen: IndexGen&lt;BoundVarName&gt;,
-    layers: RefCell&lt;Vec&lt;FxHashMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
+    layers: RefCell&lt;Vec&lt;UnordMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>BoundVarEnv {
@@ -819,7 +767,7 @@
     }
 
     <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
-        <span class="kw">let </span><span class="kw-2">mut </span>layer = FxHashMap::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>layer = UnordMap::default();
         <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
             <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
                 layer.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
@@ -944,39 +892,38 @@
         right: <span class="kw-2">&amp;</span>str,
         f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>fmt::Write,
     ) -&gt; fmt::Result {
-        <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
-        <span class="macro">w!</span>(<span class="string">"{left}"</span>)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{left}"</span>)<span class="question-mark">?</span>;
         <span class="kw">for </span>(i, var) <span class="kw">in </span>vars.iter().enumerate() {
             <span class="kw">if </span>i &gt; <span class="number">0 </span>{
-                <span class="macro">w!</span>(<span class="string">", "</span>)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">", "</span>)<span class="question-mark">?</span>;
             }
             <span class="kw">match </span>var {
-                BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, re)<span class="question-mark">?</span>,
+                BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{:?}"</span>, re)<span class="question-mark">?</span>,
                 BoundVariableKind::Refine(sort, mode, BoundReftKind::Named(name)) =&gt; {
                     <span class="kw">if </span>print_infer_mode {
-                        <span class="macro">w!</span>(<span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
                     }
-                    <span class="macro">w!</span>(<span class="string">"{}"</span>, ^name)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{}"</span>, ^name)<span class="question-mark">?</span>;
                     <span class="kw">if </span>!<span class="self">self</span>.hide_sorts {
-                        <span class="macro">w!</span>(<span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
                     }
                 }
                 BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) =&gt; {
                     <span class="kw">if </span>print_infer_mode {
-                        <span class="macro">w!</span>(<span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
                     }
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.lookup(INNERMOST, BoundVar::from_usize(i)) {
-                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{:?}"</span>, ^name)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">"_"</span>)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"_"</span>)<span class="question-mark">?</span>;
                     }
                     <span class="kw">if </span>!<span class="self">self</span>.hide_sorts {
-                        <span class="macro">w!</span>(<span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
                     }
                 }
             }
         }
-        <span class="macro">w!</span>(<span class="string">"{right}"</span>)
+        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{right}"</span>)
     }
 
     <span class="kw">pub fn </span>fmt_bound_reft(
@@ -985,16 +932,15 @@
         breft: BoundReft,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
-        <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
         <span class="kw">match </span>breft.kind {
             BoundReftKind::Annon =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.lookup(debruijn, breft.var) {
-                    <span class="macro">w!</span>(<span class="string">"{name:?}"</span>)
+                    <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{name:?}"</span>)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">"⭡{}/#{:?}"</span>, ^debruijn.as_usize(), ^breft.var)
+                    <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"⭡{}/#{:?}"</span>, ^debruijn.as_usize(), ^breft.var)
                 }
             }
-            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="string">"{name}"</span>),
+            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{name}"</span>),
         }
     }
 
@@ -1094,14 +1040,12 @@
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>DefId {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">define_scoped!</span>(cx, f);
-
         <span class="kw">let </span>path = cx.tcx.def_path(<span class="kw-2">*</span><span class="self">self</span>);
         <span class="kw">if </span>cx.fully_qualified_paths {
             <span class="kw">let </span>krate = cx.tcx.crate_name(<span class="self">self</span>.krate);
-            <span class="macro">w!</span>(<span class="string">"{}{}"</span>, ^krate, ^path.to_string_no_crate_verbose())
+            <span class="macro">w!</span>(cx, f, <span class="string">"{}{}"</span>, ^krate, ^path.to_string_no_crate_verbose())
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">"{}"</span>, ^path.data.last().unwrap())
+            <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^path.data.last().unwrap())
         }
     }
 }

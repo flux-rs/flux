@@ -810,12 +810,7 @@
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
 <a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a>
-<a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#812" id="812">812</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -1448,27 +1443,25 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineTree {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
+            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>NodePtr {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>node = <span class="self">self</span>.borrow();
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
                 NodeKind::Trace(trace) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">"@ {:?}"</span>, ^trace)<span class="question-mark">?</span>;
-                    <span class="macro">w!</span>(with_padding(f), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
+                    <span class="macro">w!</span>(cx, f, <span class="string">"@ {:?}"</span>, ^trace)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(cx, with_padding(f), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
                 }
                 NodeKind::Root(bindings) =&gt; {
-                    <span class="macro">w!</span>(
+                    <span class="macro">w!</span>(cx, f,
                         <span class="string">"∀ {}."</span>,
                         ^bindings
                             .iter()
                             .format_with(<span class="string">", "</span>, |(name, sort), f| {
-                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
+                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             })
                     )<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>node.children, cx, f)
@@ -1480,12 +1473,12 @@
                         (<span class="macro">vec!</span>[(<span class="kw-2">*</span>name, sort.clone())], node.children.clone())
                     };
 
-                    <span class="macro">w!</span>(
+                    <span class="macro">w!</span>(cx, f,
                         <span class="string">"∀ {}."</span>,
                         ^bindings
                             .into_iter()
                             .format_with(<span class="string">", "</span>, |(name, sort), f| {
-                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
+                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             })
                     )<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
@@ -1497,19 +1490,19 @@
                         (<span class="macro">vec!</span>[pred.clone()], node.children.clone())
                     };
                     <span class="kw">let </span>guard = Expr::and_from_iter(preds).simplify();
-                    <span class="macro">w!</span>(<span class="string">"{:?} =&gt;"</span>, <span class="macro">parens!</span>(guard, !guard.is_atom()))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?} =&gt;"</span>, <span class="macro">parens!</span>(guard, !guard.is_atom()))<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
                 }
                 NodeKind::Head(pred, tag) =&gt; {
                     <span class="kw">let </span>pred = <span class="kw">if </span>cx.simplify_exprs { pred.simplify() } <span class="kw">else </span>{ pred.clone() };
-                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="macro">parens!</span>(pred, !pred.is_atom()))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="macro">parens!</span>(pred, !pred.is_atom()))<span class="question-mark">?</span>;
                     <span class="kw">if </span>cx.tags {
-                        <span class="macro">w!</span>(<span class="string">" ~ {:?}"</span>, tag)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(cx, f, <span class="string">" ~ {:?}"</span>, tag)<span class="question-mark">?</span>;
                     }
                     <span class="prelude-val">Ok</span>(())
                 }
                 NodeKind::True =&gt; {
-                    <span class="macro">w!</span>(<span class="string">"true"</span>)
+                    <span class="macro">w!</span>(cx, f, <span class="string">"true"</span>)
                 }
             }
         }
@@ -1520,37 +1513,35 @@
         cx: <span class="kw-2">&amp;</span>PrettyCx,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
-        <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span>children {
-            [] =&gt; <span class="macro">w!</span>(<span class="string">" true"</span>),
+            [] =&gt; <span class="macro">w!</span>(cx, f, <span class="string">" true"</span>),
             [n] =&gt; {
                 <span class="kw">if </span>n.borrow().is_head() {
-                    <span class="macro">w!</span>(<span class="string">" {:?}"</span>, n)
+                    <span class="macro">w!</span>(cx, f, <span class="string">" {:?}"</span>, n)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(with_padding(f), <span class="string">"\n{:?}"</span>, n)
+                    <span class="macro">w!</span>(cx, with_padding(f), <span class="string">"\n{:?}"</span>, n)
                 }
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">w!</span>(with_padding(f), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, children)),
+            <span class="kw">_ </span>=&gt; <span class="macro">w!</span>(cx, with_padding(f), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, children)),
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span><span class="kw-2">mut </span>elements = <span class="macro">vec!</span>[];
             <span class="kw">for </span>node <span class="kw">in </span>ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)) {
                 <span class="kw">let </span>n = node.borrow();
                 <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
                     NodeKind::Root(bindings) =&gt; {
                         <span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings {
-                            elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?} {:?}"</span>, ^name, sort));
+                            elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?} {:?}"</span>, ^name, sort));
                         }
                     }
                     NodeKind::ForAll(name, sort) =&gt; {
-                        elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort));
+                        elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^name, sort));
                     }
                     NodeKind::Assumption(pred) =&gt; {
-                        elements.push(<span class="macro">format_cx!</span>(<span class="string">"{:?}"</span>, pred));
+                        elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, pred));
                     }
                     <span class="kw">_ </span>=&gt; {}
                 }
@@ -1561,19 +1552,18 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Scope {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">write!</span>(
                 f,
                 <span class="string">"[bindings = {}, reftgenerics = {}]"</span>,
                 <span class="self">self</span>.bindings
                     .iter_enumerated()
                     .format_with(<span class="string">", "</span>, |(name, sort), f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^name, sort))
                     }),
                 <span class="self">self</span>.params
                     .iter()
                     .format_with(<span class="string">", "</span>, |(param_const, sort), f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^param_const, sort))
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^param_const, sort))
                     }),
             )
         }

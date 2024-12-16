@@ -967,8 +967,7 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#969" id="969">969</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -1802,8 +1801,7 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
+            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
         }
 
         <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
@@ -1813,8 +1811,7 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnvShape {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"{:?} {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
+            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
         }
 
         <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
@@ -1824,8 +1821,7 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnv {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">"{:?} "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>vars = <span class="self">self</span>.data.vars();
             cx.with_bound_vars(vars, || {
@@ -1835,11 +1831,13 @@
                 <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
                 <span class="kw">if </span>!data.constrs.is_empty() {
                     <span class="macro">w!</span>(
+                        cx,
+                        f,
                         <span class="string">"{:?} ⇒ "</span>,
                         <span class="macro">join!</span>(<span class="string">", "</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
                     )<span class="question-mark">?</span>;
                 }
-                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>data.bindings)
+                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>data.bindings)
             })
         }
 

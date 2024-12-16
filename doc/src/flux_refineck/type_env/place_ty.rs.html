@@ -982,8 +982,7 @@
 <a href="#981" id="981">981</a>
 <a href="#982" id="982">982</a>
 <a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#984" id="984">984</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
@@ -1923,15 +1922,15 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>PlacesTree {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(
+                cx, f,
                 <span class="string">"{{{}}}"</span>,
                 ^<span class="self">self
                     </span>.iter()
                     .filter(|(<span class="kw">_</span>, binding)| !cx.hide_uninit || !binding.ty.is_uninit())
                     .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
                     .format_with(<span class="string">", "</span>, |(loc, binding), f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}:{:?} {:?}"</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}:{:?} {:?}"</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
                     })
             )
         }
@@ -1942,12 +1941,11 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>LocKind {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">define_scoped!</span>(cx, f);
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">match </span><span class="self">self </span>{
                 LocKind::Local | LocKind::Universal =&gt; <span class="prelude-val">Ok</span>(()),
-                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"[box]"</span>),
-                LocKind::LocalPtr(ty) =&gt; <span class="macro">w!</span>(<span class="string">"[local-ptr({ty:?})]"</span>),
+                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[box]"</span>),
+                LocKind::LocalPtr(ty) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[local-ptr({:?})]"</span>, ty),
             }
         }
     }
