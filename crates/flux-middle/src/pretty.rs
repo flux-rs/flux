@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt};
 use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
@@ -13,52 +13,34 @@ use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 use serde::Serialize;
 
 #[macro_export]
-macro_rules! _define_scoped {
-    ($cx:ident, $fmt:expr) => {
-        #[allow(unused_macros)]
-        macro_rules! scoped_cx {
-            () => {
-                $cx
-            };
-        }
-
-        #[allow(unused_macros)]
-        macro_rules! scoped_fmt {
-            () => {
-                $fmt
-            };
-        }
-    };
-}
-pub use crate::_define_scoped as define_scoped;
-
-#[macro_export]
 macro_rules! _with_cx {
-    ($e:expr) => {
-        $crate::pretty::WithCx::new(scoped_cx!(), $e)
+    ($cx:expr, $e:expr) => {
+        $crate::pretty::WithCx::new($cx, $e)
     };
 }
 pub use crate::_with_cx as with_cx;
 
 #[macro_export]
 macro_rules! _format_args_cx {
-    ($fmt:literal, $($args:tt)*) => {
-        format_args_cx!(@go ($fmt; $($args)*) -> ())
-    };
-    ($fmt:literal) => {
+    ($cx:expr, $fmt:literal, $($args:tt)*) => {{
+        #[allow(unused_variables)]
+        let cx = $cx;
+        format_args_cx!(@go (cx, $fmt; $($args)*) -> ())
+    }};
+    ($cx:expr, $fmt:literal) => {
         format_args!($fmt)
     };
-    (@go ($fmt:literal; ^$head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        format_args_cx!(@go ($fmt; $($tail)*) -> ($($accum)* $head,))
+    (@go ($cx:ident, $fmt:literal; ^$head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
+        format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $head,))
     };
-    (@go ($fmt:literal; $head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        format_args_cx!(@go ($fmt; $($tail)*) -> ($($accum)* $crate::pretty::with_cx!($head),))
+    (@go ($cx:ident, $fmt:literal; $head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
+        format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $crate::pretty::with_cx!($cx, $head),))
     };
-    (@go ($fmt:literal; ^$head:expr) -> ($($accum:tt)*)) => {
+    (@go ($cx:ident, $fmt:literal; ^$head:expr) -> ($($accum:tt)*)) => {
         format_args_cx!(@as_expr format_args!($fmt, $($accum)* $head,))
     };
-    (@go ($fmt:literal; $head:expr) -> ($($accum:tt)*)) => {
-        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $crate::pretty::with_cx!($head),))
+    (@go ($cx:ident, $fmt:literal; $head:expr) -> ($($accum:tt)*)) => {
+        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $crate::pretty::with_cx!($cx, $head),))
     };
     (@as_expr $e:expr) => { $e };
 }
@@ -74,18 +56,12 @@ pub use crate::_format_cx as format_cx;
 
 #[macro_export]
 macro_rules! _w {
-    ($fmt:literal, $($args:tt)*) => {
-        scoped_fmt!().write_fmt(format_args_cx!($fmt, $($args)*))
+    ($cx:expr, $f:expr, $fmt:literal, $($args:tt)*) => {
+        $f.write_fmt(format_args_cx!($cx, $fmt, $($args)*))
     };
-    ($f:expr, $fmt:literal, $($args:tt)*) => {
-        $f.write_fmt(format_args_cx!($fmt, $($args)*))
+    ($cx:expr, $f:expr, $fmt:literal) => {
+        $f.write_fmt(format_args_cx!($cx, $fmt))
     };
-    ($f:expr, $fmt:literal) => {
-        $f.write_fmt(format_args_cx!($fmt))
-    };
-    ($fmt:literal) => {
-        write!(scoped_fmt!(), $fmt)
-    }
 }
 pub use crate::_w as w;
 
@@ -196,7 +172,7 @@ newtype_index! {
 #[derive(Default)]
 struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
-    layers: RefCell<Vec<FxHashMap<BoundVar, BoundVarName>>>,
+    layers: RefCell<Vec<UnordMap<BoundVar, BoundVarName>>>,
 }
 
 impl BoundVarEnv {
@@ -209,7 +185,7 @@ impl BoundVarEnv {
     }
 
     fn push_layer(&self, vars: &[BoundVariableKind]) {
-        let mut layer = FxHashMap::default();
+        let mut layer = UnordMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
                 layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
@@ -334,39 +310,38 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         right: &str,
         f: &mut impl fmt::Write,
     ) -> fmt::Result {
-        define_scoped!(self, f);
-        w!("{left}")?;
+        w!(self, f, "{left}")?;
         for (i, var) in vars.iter().enumerate() {
             if i > 0 {
-                w!(", ")?;
+                w!(self, f, ", ")?;
             }
             match var {
-                BoundVariableKind::Region(re) => w!("{:?}", re)?,
+                BoundVariableKind::Region(re) => w!(self, f, "{:?}", re)?,
                 BoundVariableKind::Refine(sort, mode, BoundReftKind::Named(name)) => {
                     if print_infer_mode {
-                        w!("{}", ^mode.prefix_str())?;
+                        w!(self, f, "{}", ^mode.prefix_str())?;
                     }
-                    w!("{}", ^name)?;
+                    w!(self, f, "{}", ^name)?;
                     if !self.hide_sorts {
-                        w!(": {:?}", sort)?;
+                        w!(self, f, ": {:?}", sort)?;
                     }
                 }
                 BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) => {
                     if print_infer_mode {
-                        w!("{}", ^mode.prefix_str())?;
+                        w!(self, f, "{}", ^mode.prefix_str())?;
                     }
                     if let Some(name) = self.env.lookup(INNERMOST, BoundVar::from_usize(i)) {
-                        w!("{:?}", ^name)?;
+                        w!(self, f, "{:?}", ^name)?;
                     } else {
-                        w!("_")?;
+                        w!(self, f, "_")?;
                     }
                     if !self.hide_sorts {
-                        w!(": {:?}", sort)?;
+                        w!(self, f, ": {:?}", sort)?;
                     }
                 }
             }
         }
-        w!("{right}")
+        w!(self, f, "{right}")
     }
 
     pub fn fmt_bound_reft(
@@ -375,16 +350,15 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         breft: BoundReft,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        define_scoped!(self, f);
         match breft.kind {
             BoundReftKind::Annon => {
                 if let Some(name) = self.env.lookup(debruijn, breft.var) {
-                    w!("{name:?}")
+                    w!(self, f, "{name:?}")
                 } else {
-                    w!("⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
+                    w!(self, f, "⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
                 }
             }
-            BoundReftKind::Named(name) => w!("{name}"),
+            BoundReftKind::Named(name) => w!(self, f, "{name}"),
         }
     }
 
@@ -484,14 +458,12 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-
         let path = cx.tcx.def_path(*self);
         if cx.fully_qualified_paths {
             let krate = cx.tcx.crate_name(self.krate);
-            w!("{}{}", ^krate, ^path.to_string_no_crate_verbose())
+            w!(cx, f, "{}{}", ^krate, ^path.to_string_no_crate_verbose())
         } else {
-            w!("{}", ^path.data.last().unwrap())
+            w!(cx, f, "{}", ^path.data.last().unwrap())
         }
     }
 }

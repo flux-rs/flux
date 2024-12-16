@@ -333,20 +333,18 @@ mod pretty {
 
     impl Pretty for CanonicalConstrTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            define_scoped!(cx, f);
-            w!("{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
         }
     }
 
     impl Pretty for CanonicalTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            define_scoped!(cx, f);
             match self {
-                CanonicalTy::Constr(constr) => w!("{:?}", constr),
+                CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     cx.with_bound_vars(poly_constr.vars(), || {
                         cx.fmt_bound_vars(false, "∃", poly_constr.vars(), ". ", f)?;
-                        w!("{:?}", poly_constr.as_ref().skip_binder())
+                        w!(cx, f, "{:?}", poly_constr.as_ref().skip_binder())
                     })
                 }
             }

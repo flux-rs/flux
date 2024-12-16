@@ -877,8 +877,7 @@ mod pretty {
 
     impl Pretty for Tag {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?} at {:?}", ^self.reason, self.src_span)
+            w!(cx, f, "{:?} at {:?}", ^self.reason, self.src_span)
         }
     }
 

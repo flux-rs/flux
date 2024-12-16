@@ -212,9 +212,8 @@ mod pretty {
     use crate::pretty::*;
 
     impl Pretty for EVar {
-        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("?{}e#{}", ^self.id.as_u32(), ^self.cx.0)
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            w!(cx, f, "?{}e#{}", ^self.id.as_u32(), ^self.cx.0)
         }
     }
 

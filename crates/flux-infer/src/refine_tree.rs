@@ -631,27 +631,25 @@ mod pretty {
 
     impl Pretty for RefineTree {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", &self.root)
+            w!(cx, f, "{:?}", &self.root)
         }
     }
 
     impl Pretty for NodePtr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
                 NodeKind::Trace(trace) => {
-                    w!("@ {:?}", ^trace)?;
-                    w!(with_padding(f), "\n{:?}", join!("\n", &node.children))
+                    w!(cx, f, "@ {:?}", ^trace)?;
+                    w!(cx, with_padding(f), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {
-                    w!(
+                    w!(cx, f,
                         "∀ {}.",
                         ^bindings
                             .iter()
                             .format_with(", ", |(name, sort), f| {
-                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                                f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
                             })
                     )?;
                     fmt_children(&node.children, cx, f)
@@ -663,12 +661,12 @@ mod pretty {
                         (vec![(*name, sort.clone())], node.children.clone())
                     };
 
-                    w!(
+                    w!(cx, f,
                         "∀ {}.",
                         ^bindings
                             .into_iter()
                             .format_with(", ", |(name, sort), f| {
-                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                                f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
                             })
                     )?;
                     fmt_children(&children, cx, f)
@@ -680,19 +678,19 @@ mod pretty {
                         (vec![pred.clone()], node.children.clone())
                     };
                     let guard = Expr::and_from_iter(preds).simplify();
-                    w!("{:?} =>", parens!(guard, !guard.is_atom()))?;
+                    w!(cx, f, "{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
                     let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
-                    w!("{:?}", parens!(pred, !pred.is_atom()))?;
+                    w!(cx, f, "{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
-                        w!(" ~ {:?}", tag)?;
+                        w!(cx, f, " ~ {:?}", tag)?;
                     }
                     Ok(())
                 }
                 NodeKind::True => {
-                    w!("true")
+                    w!(cx, f, "true")
                 }
             }
         }
@@ -703,37 +701,35 @@ mod pretty {
         cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        define_scoped!(cx, f);
         match children {
-            [] => w!(" true"),
+            [] => w!(cx, f, " true"),
             [n] => {
                 if n.borrow().is_head() {
-                    w!(" {:?}", n)
+                    w!(cx, f, " {:?}", n)
                 } else {
-                    w!(with_padding(f), "\n{:?}", n)
+                    w!(cx, with_padding(f), "\n{:?}", n)
                 }
             }
-            _ => w!(with_padding(f), "\n{:?}", join!("\n", children)),
+            _ => w!(cx, with_padding(f), "\n{:?}", join!("\n", children)),
         }
     }
 
     impl Pretty for RefineCtxt<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             let mut elements = vec![];
             for node in ParentsIter::new(NodePtr::clone(&self.ptr)) {
                 let n = node.borrow();
                 match &n.kind {
                     NodeKind::Root(bindings) => {
                         for (name, sort) in bindings {
-                            elements.push(format_cx!("{:?} {:?}", ^name, sort));
+                            elements.push(format_cx!(cx, "{:?} {:?}", ^name, sort));
                         }
                     }
                     NodeKind::ForAll(name, sort) => {
-                        elements.push(format_cx!("{:?}: {:?}", ^name, sort));
+                        elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
                     NodeKind::Assumption(pred) => {
-                        elements.push(format_cx!("{:?}", pred));
+                        elements.push(format_cx!(cx, "{:?}", pred));
                     }
                     _ => {}
                 }
@@ -744,19 +740,18 @@ mod pretty {
 
     impl Pretty for Scope {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             write!(
                 f,
                 "[bindings = {}, reftgenerics = {}]",
                 self.bindings
                     .iter_enumerated()
                     .format_with(", ", |(name, sort), f| {
-                        f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                        f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
                     }),
                 self.params
                     .iter()
                     .format_with(", ", |(param_const, sort), f| {
-                        f(&format_args_cx!("{:?}: {:?}", ^param_const, sort))
+                        f(&format_args_cx!(cx, "{:?}: {:?}", ^param_const, sort))
                     }),
             )
         }
