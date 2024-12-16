@@ -883,7 +883,8 @@
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
@@ -1737,6 +1738,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>InferErr {
     UnsolvedEvar(EVar),
+    OpaqueStruct(DefId),
     Query(QueryErr),
 }
 

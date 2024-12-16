@@ -983,16 +983,11 @@
 <a href="#982" id="982">982</a>
 <a href="#983" id="983">983</a>
 <a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#985" id="985">985</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
-    infer::{ConstrReason, InferCtxt, InferCtxtAt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt},
 };
 <span class="kw">use </span>flux_middle::{
@@ -1009,9 +1004,7 @@
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 
-<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, CheckerConfig};
-
-<span class="kw">type </span>CheckerResult&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
+<span class="kw">use </span><span class="kw">crate</span>::CheckerConfig;
 
 <span class="attr">#[derive(Clone, Default)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>PlacesTree {
@@ -1083,7 +1076,7 @@
 <span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;);
 
 <span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span>Error = CheckerErrKind;
+    <span class="kw">type </span>Error = InferErr;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="self">self</span>.<span class="number">0</span>.hoister(AssumeInvariants::No).shallow().hoist(ty)
@@ -1117,7 +1110,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
         checker_conf: CheckerConfig,
-    ) -&gt; CheckerResult {
+    ) -&gt; InferResult {
         <span class="kw">let </span>cursor = <span class="self">self</span>.cursor_for(key);
         Unfolder::new(infcx, cursor, checker_conf).run(<span class="self">self</span>)
     }
@@ -1230,7 +1223,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
-    ) -&gt; CheckerResult&lt;LookupResult&gt; {
+    ) -&gt; InferResult&lt;LookupResult&gt; {
         <span class="self">self</span>.lookup_inner(key, Unfold(infcx))
     }
 
@@ -1389,9 +1382,9 @@
 }
 
 <span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span>Error = CheckerErrKind;
+    <span class="kw">type </span>Error = InferErr;
 
-    <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(elem) = <span class="self">self</span>.cursor.next() <span class="kw">else </span>{
             <span class="kw">return </span><span class="self">self</span>.unfold(ty);
         };
@@ -1417,7 +1410,7 @@
         Unfolder { infcx, cursor, insertions: <span class="macro">vec!</span>[], in_ref: <span class="prelude-val">None</span>, checker_conf, has_work: <span class="bool-val">true </span>}
     }
 
-    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, bindings: <span class="kw-2">&amp;mut </span>PlacesTree) -&gt; CheckerResult {
+    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, bindings: <span class="kw-2">&amp;mut </span>PlacesTree) -&gt; InferResult {
         <span class="kw">while </span><span class="self">self</span>.should_continue() {
             <span class="kw">let </span>binding = bindings.get_loc_mut(<span class="kw-2">&amp;</span><span class="self">self</span>.cursor.loc);
             binding.ty = binding.ty.try_fold_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>)<span class="question-mark">?</span>;
@@ -1428,7 +1421,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt, args), <span class="kw">_</span>) = ty.kind()
             &amp;&amp; adt.is_box()
         {
@@ -1454,7 +1447,7 @@
         }
     }
 
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>ty.kind() {
             TyKind::StrgRef(re, path, ty) =&gt; {
                 <span class="self">self</span>.unfold_strg_ref(path, ty);
@@ -1508,7 +1501,7 @@
         loc
     }
 
-    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, f: FieldIdx) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, f: FieldIdx) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(fields), idx) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>fields = fields.to_vec();
@@ -1547,7 +1540,7 @@
         <span class="prelude-val">Ok</span>(ty)
     }
 
-    <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, variant: VariantIdx) -&gt; CheckerResult&lt;Ty&gt; {
+    <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, variant: VariantIdx) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
                 <span class="kw">let </span>fields = downcast(<span class="self">self</span>.infcx, adt, args, variant, idx)<span class="question-mark">?
@@ -1565,7 +1558,7 @@
         <span class="prelude-val">Ok</span>(ty)
     }
 
-    <span class="kw">fn </span>index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult {
+    <span class="kw">fn </span>index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Array(arr_ty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                 arr_ty.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
@@ -1773,7 +1766,7 @@
     args: <span class="kw-2">&amp;</span>[GenericArg],
     variant_idx: VariantIdx,
     idx: <span class="kw-2">&amp;</span>Expr,
-) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
+) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">if </span>adt.is_struct() {
         <span class="macro">debug_assert_eq!</span>(variant_idx.as_u32(), <span class="number">0</span>);
         downcast_struct(infcx, adt, args, idx)
@@ -1797,7 +1790,7 @@
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx: <span class="kw-2">&amp;</span>Expr,
-) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
+) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">let </span>tcx = infcx.genv.tcx();
     <span class="kw">let </span>flds = adt
         .sort_def()
@@ -1812,14 +1805,11 @@
         .to_vec())
 }
 
-<span class="kw">fn </span>struct_variant(
-    genv: GlobalEnv,
-    def_id: DefId,
-) -&gt; CheckerResult&lt;EarlyBinder&lt;Binder&lt;VariantSig&gt;&gt;&gt; {
+<span class="kw">fn </span>struct_variant(genv: GlobalEnv, def_id: DefId) -&gt; InferResult&lt;EarlyBinder&lt;Binder&lt;VariantSig&gt;&gt;&gt; {
     <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
     <span class="macro">debug_assert!</span>(adt_def.is_struct() || adt_def.is_union());
     genv.variant_sig(def_id, VariantIdx::from_u32(<span class="number">0</span>))<span class="question-mark">?
-        </span>.ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
+        </span>.ok_or_else(|| InferErr::OpaqueStruct(def_id))
 }
 
 <span class="doccomment">/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
@@ -1836,7 +1826,7 @@
     variant_idx: VariantIdx,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx1: <span class="kw-2">&amp;</span>Expr,
-) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
+) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">let </span>tcx = infcx.genv.tcx();
     <span class="kw">let </span>variant_def = infcx
         .genv

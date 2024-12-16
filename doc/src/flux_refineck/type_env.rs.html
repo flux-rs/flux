@@ -957,7 +957,18 @@
 <a href="#956" id="956">956</a>
 <a href="#957" id="957">957</a>
 <a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -998,9 +1009,7 @@
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
 <span class="kw">use </span><span class="kw">super</span>::rty::Sort;
-<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, CheckerConfig};
-
-<span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
+<span class="kw">use </span><span class="kw">crate</span>::CheckerConfig;
 
 <span class="attr">#[derive(Clone, Default)]
 </span><span class="kw">pub struct </span>TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
@@ -1065,7 +1074,7 @@
             .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_infer(<span class="self">self</span>, scope: Scope) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockEnvShape&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_infer(<span class="self">self</span>, scope: Scope) -&gt; BasicBlockEnvShape {
         BasicBlockEnvShape::new(scope, <span class="self">self</span>)
     }
 
@@ -1073,7 +1082,11 @@
         <span class="prelude-val">Ok</span>(place.ty(genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_place(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_place(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        place: <span class="kw-2">&amp;</span>Place,
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>.ty)
     }
 
@@ -1094,7 +1107,7 @@
         re: Region,
         mutbl: Mutability,
         place: <span class="kw-2">&amp;</span>Place,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg &amp;&amp; mutbl == Mutability::Mut {
             <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Mut(re), result.path()))
@@ -1108,7 +1121,11 @@
 
     <span class="comment">// FIXME(nilehmann) this is only used in a single place and we have it because [`TypeEnv`]
     // doesn't expose a lookup without unfolding
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_ref_at_place(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Result </span>{
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_ref_at_place(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        place: <span class="kw-2">&amp;</span>Place,
+    ) -&gt; InferResult {
         <span class="kw">let </span>lookup = <span class="self">self</span>.bindings.lookup(place);
         <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() <span class="kw">else </span>{
             <span class="macro">tracked_span_bug!</span>(<span class="string">"ptr_to_borrow called on non mutable pointer type"</span>)
@@ -1205,7 +1222,12 @@
     /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
     /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
     /// assigned type are consistent with those expected by the place's original type definition.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place, new_ty: Ty) -&gt; <span class="prelude-ty">Result </span>{
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        place: <span class="kw-2">&amp;</span>Place,
+        new_ty: Ty,
+    ) -&gt; InferResult {
         <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
         <span class="kw">let </span>new_ty = ty_match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
@@ -1221,7 +1243,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_place(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_place(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg {
             <span class="kw">let </span>uninit = Ty::uninit();
@@ -1250,7 +1272,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
         bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
         target: BasicBlock,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; InferResult {
         infcx.push_scope();
 
         <span class="kw">let </span>bb_env = bb_env
@@ -1275,7 +1297,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; InferResult {
         <span class="self">self</span>.bindings.lookup(place).fold(infcx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
@@ -1316,7 +1338,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         checker_conf: CheckerConfig,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; InferResult {
         <span class="self">self</span>.bindings.unfold(infcx, place, checker_conf)
     }
 
@@ -1326,7 +1348,7 @@
         place: <span class="kw-2">&amp;</span>Place,
         variant_idx: VariantIdx,
         checker_config: CheckerConfig,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; InferResult {
         <span class="kw">let </span><span class="kw-2">mut </span>down_place = place.clone();
         down_place
             .projection
@@ -1411,10 +1433,10 @@
         TypeEnv { bindings: <span class="self">self</span>.bindings.clone(), local_decls }
     }
 
-    <span class="kw">fn </span>new(scope: Scope, env: TypeEnv) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockEnvShape&gt; {
+    <span class="kw">fn </span>new(scope: Scope, env: TypeEnv) -&gt; BasicBlockEnvShape {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = env.bindings;
         bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(<span class="kw-2">&amp;</span>scope, ty));
-        <span class="prelude-val">Ok</span>(BasicBlockEnvShape { scope, bindings })
+        BasicBlockEnvShape { scope, bindings }
     }
 
     <span class="kw">fn </span>pack_ty(scope: <span class="kw-2">&amp;</span>Scope, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
@@ -1516,7 +1538,7 @@
     <span class="doccomment">/// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: TypeEnv) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: TypeEnv) -&gt; bool {
         <span class="kw">let </span>paths = <span class="self">self</span>.bindings.paths();
 
         <span class="comment">// Join types
@@ -1529,7 +1551,7 @@
             <span class="self">self</span>.update(path, ty);
         }
 
-        <span class="prelude-val">Ok</span>(modified)
+        modified
     }
 
     <span class="kw">fn </span>join_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {

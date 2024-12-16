@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CheckerErrKind"],"struct":["CheckerError"],"trait":["ResultExt"]};
+window.SIDEBAR_ITEMS = {"struct":["CheckerError"],"trait":["ResultExt"]};

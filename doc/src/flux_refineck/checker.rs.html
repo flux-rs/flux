@@ -2005,8 +2005,7 @@
 <a href="#2004" id="2004">2004</a>
 <a href="#2005" id="2005">2005</a>
 <a href="#2006" id="2006">2006</a>
-<a href="#2007" id="2007">2007</a>
-<a href="#2008" id="2008">2008</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#2007" id="2007">2007</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2556,11 +2555,11 @@
         place: <span class="kw-2">&amp;</span>Place,
         ty: Ty,
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; InferResult {
         <span class="kw">let </span>ty = infcx
             .hoister(AssumeInvariants::yes(<span class="self">self</span>.check_overflow()))
             .hoist(<span class="kw-2">&amp;</span>ty);
-        env.assign(<span class="kw-2">&amp;mut </span>infcx.at(span), place, ty).with_span(span)
+        env.assign(<span class="kw-2">&amp;mut </span>infcx.at(span), place, ty)
     }
 
     <span class="kw">fn </span>check_statement(
@@ -2573,7 +2572,8 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span>stmt.kind {
             StatementKind::Assign(place, rvalue) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.check_rvalue(infcx, env, stmt_span, rvalue)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_assign_ty(infcx, env, place, ty, stmt_span)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_assign_ty(infcx, env, place, ty, stmt_span)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
             }
             StatementKind::SetDiscriminant { .. } =&gt; {
                 <span class="comment">// TODO(nilehmann) double check here that the place is unfolded to
@@ -2595,7 +2595,9 @@
                 <span class="comment">// Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
                 // TODO: There may be a use-case to actually "assume" the bool index associated with the operand,
                 // i.e. to strengthen the `rcx` / `env` with the assumption that the bool-index is in fact `true`...
-                </span><span class="kw">let _ </span>= <span class="self">self</span>.check_operand(infcx, env, stmt_span, op)<span class="question-mark">?</span>;
+                </span><span class="kw">let _ </span>= <span class="self">self
+                    </span>.check_operand(infcx, env, stmt_span, op)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -2634,14 +2636,17 @@
             TerminatorKind::Goto { target } =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>target, Guard::None)]),
             TerminatorKind::Yield { resume, resume_arg, .. } =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(resume_ty) = <span class="self">self</span>.resume_ty.clone() {
-                    <span class="self">self</span>.check_assign_ty(infcx, env, resume_arg, resume_ty, terminator_span)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.check_assign_ty(infcx, env, resume_arg, resume_ty, terminator_span)
+                        .with_span(terminator_span)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{
                     <span class="macro">bug!</span>(<span class="string">"yield in non-generator function"</span>);
                 }
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>resume, Guard::None)])
             }
             TerminatorKind::SwitchInt { discr, targets } =&gt; {
-                <span class="kw">let </span>discr_ty = <span class="self">self</span>.check_operand(infcx, env, terminator_span, discr)<span class="question-mark">?</span>;
+                <span class="kw">let </span>discr_ty = <span class="self">self
+                    </span>.check_operand(infcx, env, terminator_span, discr)
+                    .with_span(terminator_span)<span class="question-mark">?</span>;
                 <span class="kw">if </span>discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     <span class="prelude-val">Ok</span>(<span class="self">Self</span>::check_if(<span class="kw-2">&amp;</span>discr_ty, targets))
                 } <span class="kw">else </span>{
@@ -2649,7 +2654,9 @@
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } =&gt; {
-                <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(infcx, env, terminator_span, args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>actuals = <span class="self">self
+                    </span>.check_operands(infcx, env, terminator_span, args)
+                    .with_span(terminator_span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ret = <span class="kw">match </span>kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } =&gt; {
                         <span class="kw">let </span>fn_sig = <span class="self">self</span>.genv.fn_sig(<span class="kw-2">*</span>resolved_id).with_span(terminator_span)<span class="question-mark">?</span>;
@@ -2672,7 +2679,9 @@
                         )<span class="question-mark">?
                     </span>}
                     mir::CallKind::FnPtr { operand, .. } =&gt; {
-                        <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(infcx, env, terminator_span, operand)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>ty = <span class="self">self
+                            </span>.check_operand(infcx, env, terminator_span, operand)
+                            .with_span(terminator_span)<span class="question-mark">?</span>;
                         <span class="kw">if let </span>TyKind::Indexed(BaseTy::FnPtr(fn_sig), <span class="kw">_</span>) = infcx.unpack(<span class="kw-2">&amp;</span>ty).kind()
                         {
                             <span class="self">self</span>.check_call(
@@ -2705,7 +2714,8 @@
             TerminatorKind::Assert { cond, expected, target, msg } =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(
                     <span class="kw-2">*</span>target,
-                    <span class="self">self</span>.check_assert(infcx, env, terminator_span, cond, <span class="kw-2">*</span>expected, msg)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.check_assert(infcx, env, terminator_span, cond, <span class="kw-2">*</span>expected, msg)
+                        .with_span(terminator_span)<span class="question-mark">?</span>,
                 )])
             }
             TerminatorKind::Drop { place, target, .. } =&gt; {
@@ -2928,7 +2938,7 @@
         cond: <span class="kw-2">&amp;</span>Operand,
         expected: bool,
         msg: <span class="kw-2">&amp;</span>AssertKind,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Guard&gt; {
+    ) -&gt; InferResult&lt;Guard&gt; {
         <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(infcx, env, terminator_span, cond)<span class="question-mark">?</span>;
         <span class="kw">let </span>TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() <span class="kw">else </span>{
             <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected ty `{ty:?}`"</span>);
@@ -3079,9 +3089,14 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">match </span>rvalue {
-            Rvalue::Use(operand) =&gt; <span class="self">self</span>.check_operand(infcx, env, stmt_span, operand),
+            Rvalue::Use(operand) =&gt; {
+                <span class="self">self</span>.check_operand(infcx, env, stmt_span, operand)
+                    .with_span(stmt_span)
+            }
             Rvalue::Repeat(operand, c) =&gt; {
-                <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(infcx, env, stmt_span, operand)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty = <span class="self">self
+                    </span>.check_operand(infcx, env, stmt_span, operand)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
@@ -3101,14 +3116,21 @@
             }
             Rvalue::Len(place) =&gt; <span class="self">self</span>.check_len(infcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) =&gt; {
-                <span class="kw">let </span>from = <span class="self">self</span>.check_operand(infcx, env, stmt_span, op)<span class="question-mark">?</span>;
+                <span class="kw">let </span>from = <span class="self">self
+                    </span>.check_operand(infcx, env, stmt_span, op)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_cast(infcx, env, stmt_span, <span class="kw-2">*</span>kind, <span class="kw-2">&amp;</span>from, to)
+                    .with_span(stmt_span)
             }
             Rvalue::BinaryOp(bin_op, op1, op2) =&gt; {
                 <span class="self">self</span>.check_binary_op(infcx, env, stmt_span, <span class="kw-2">*</span>bin_op, op1, op2)
+                    .with_span(stmt_span)
             }
             Rvalue::NullaryOp(null_op, ty) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.check_nullary_op(<span class="kw-2">*</span>null_op, ty)),
-            Rvalue::UnaryOp(un_op, op) =&gt; <span class="self">self</span>.check_unary_op(infcx, env, stmt_span, <span class="kw-2">*</span>un_op, op),
+            Rvalue::UnaryOp(un_op, op) =&gt; {
+                <span class="self">self</span>.check_unary_op(infcx, env, stmt_span, <span class="kw-2">*</span>un_op, op)
+                    .with_span(stmt_span)
+            }
             Rvalue::Discriminant(place) =&gt; {
                 <span class="kw">let </span>ty = env
                     .lookup_place(<span class="kw-2">&amp;mut </span>infcx.at(stmt_span), place)
@@ -3124,7 +3146,9 @@
                 AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>, field_idx),
                 operands,
             ) =&gt; {
-                <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(infcx, env, stmt_span, operands)<span class="question-mark">?</span>;
+                <span class="kw">let </span>actuals = <span class="self">self
+                    </span>.check_operands(infcx, env, stmt_span, operands)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sig = genv
                     .variant_sig(<span class="kw-2">*</span>def_id, <span class="kw-2">*</span>variant_idx)
                     .with_span(stmt_span)<span class="question-mark">?
@@ -3137,17 +3161,23 @@
                 <span class="self">self</span>.check_call(infcx, env, stmt_span, <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id), sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) =&gt; {
-                <span class="kw">let </span>args = <span class="self">self</span>.check_operands(infcx, env, stmt_span, operands)<span class="question-mark">?</span>;
+                <span class="kw">let </span>args = <span class="self">self
+                    </span>.check_operands(infcx, env, stmt_span, operands)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>arr_ty = <span class="self">self</span>.refine_with_holes(arr_ty).with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_mk_array(infcx, env, stmt_span, <span class="kw-2">&amp;</span>args, arr_ty)
+                    .with_span(stmt_span)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) =&gt; {
-                <span class="kw">let </span>tys = <span class="self">self</span>.check_operands(infcx, env, stmt_span, args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>tys = <span class="self">self
+                    </span>.check_operands(infcx, env, stmt_span, args)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, args), operands) =&gt; {
                 <span class="kw">let </span>upvar_tys = <span class="self">self
-                    </span>.check_operands(infcx, env, stmt_span, operands)<span class="question-mark">?
+                    </span>.check_operands(infcx, env, stmt_span, operands)
+                    .with_span(stmt_span)<span class="question-mark">?
                     </span>.into_iter()
                     .map(|ty| {
                         <span class="kw">if let </span>TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
@@ -3170,11 +3200,14 @@
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) =&gt; {
                 <span class="kw">let </span>args = args.as_coroutine();
                 <span class="kw">let </span>resume_ty = <span class="self">self</span>.refine_default(args.resume_ty()).with_span(stmt_span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>upvar_tys = <span class="self">self</span>.check_operands(infcx, env, stmt_span, ops)<span class="question-mark">?</span>;
+                <span class="kw">let </span>upvar_tys = <span class="self">self
+                    </span>.check_operands(infcx, env, stmt_span, ops)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys.into()))
             }
             Rvalue::ShallowInitBox(operand, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.check_operand(infcx, env, stmt_span, operand)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_operand(infcx, env, stmt_span, operand)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 Ty::mk_box_with_default_alloc(<span class="self">self</span>.genv, Ty::uninit()).with_span(stmt_span)
             }
         }
@@ -3208,7 +3241,7 @@
         bin_op: mir::BinOp,
         op1: <span class="kw-2">&amp;</span>Operand,
         op2: <span class="kw-2">&amp;</span>Operand,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>check_overflow = <span class="self">self</span>.check_overflow();
         <span class="kw">let </span>ty1 = <span class="self">self</span>.check_operand(infcx, env, stmt_span, op1)<span class="question-mark">?</span>;
         <span class="kw">let </span>ty2 = <span class="self">self</span>.check_operand(infcx, env, stmt_span, op2)<span class="question-mark">?</span>;
@@ -3243,7 +3276,7 @@
         stmt_span: Span,
         un_op: mir::UnOp,
         op: <span class="kw-2">&amp;</span>Operand,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(infcx, env, stmt_span, op)<span class="question-mark">?</span>;
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(bty, idx) =&gt; {
@@ -3264,7 +3297,7 @@
         stmt_span: Span,
         args: <span class="kw-2">&amp;</span>[Ty],
         arr_ty: Ty,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         infcx.push_scope();
         <span class="kw">let </span>arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
@@ -3282,16 +3315,14 @@
                         <span class="kw-2">*</span>re,
                         path,
                         PtrToRefBound::Ty(bound.clone()),
-                    )
-                    .with_span(stmt_span)<span class="question-mark">?</span>;
+                    )<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; {
-                    at.subtyping(ty, <span class="kw-2">&amp;</span>arr_ty, ConstrReason::Other)
-                        .with_span(stmt_span)<span class="question-mark">?</span>;
+                    at.subtyping(ty, <span class="kw-2">&amp;</span>arr_ty, ConstrReason::Other)<span class="question-mark">?</span>;
                 }
             }
         }
-        <span class="kw">let </span>evars = <span class="kw-2">&amp;</span>infcx.pop_scope().with_span(stmt_span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>evars = <span class="kw-2">&amp;</span>infcx.pop_scope()<span class="question-mark">?</span>;
         infcx.replace_evars(evars);
 
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
@@ -3305,7 +3336,7 @@
         kind: CastKind,
         from: <span class="kw-2">&amp;</span>Ty,
         to: <span class="kw-2">&amp;</span>ty::Ty,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">use </span>ty::TyKind <span class="kw">as </span>RustTy;
         <span class="kw">let </span>ty = <span class="kw">match </span>kind {
             CastKind::PointerExposeProvenance =&gt; {
@@ -3341,24 +3372,21 @@
                 }
             }
             CastKind::PointerCoercion(mir::PointerCast::Unsize) =&gt; {
-                <span class="self">self</span>.check_unsize_cast(infcx, env, stmt_span, from, to)
-                    .with_span(stmt_span)<span class="question-mark">?
+                <span class="self">self</span>.check_unsize_cast(infcx, env, stmt_span, from, to)<span class="question-mark">?
             </span>}
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
             | CastKind::PointerCoercion(mir::PointerCast::MutToConstPointer)
             | CastKind::PointerCoercion(mir::PointerCast::ClosureFnPointer)
-            | CastKind::PointerWithExposedProvenance =&gt; {
-                <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
-            </span>}
+            | CastKind::PointerWithExposedProvenance =&gt; <span class="self">self</span>.refine_default(to)<span class="question-mark">?</span>,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) =&gt; {
-                <span class="kw">let </span>to = <span class="self">self</span>.refine_default(to).with_span(<span class="self">self</span>.body.span())<span class="question-mark">?</span>;
+                <span class="kw">let </span>to = <span class="self">self</span>.refine_default(to)<span class="question-mark">?</span>;
                 <span class="kw">if let </span>TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), <span class="kw">_</span>) = from.kind()
                     &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::FnPtr(super_sig), <span class="kw">_</span>) = to.kind()
                 {
                     <span class="kw">let </span>current_did = infcx.def_id;
-                    <span class="kw">let </span>sub_sig = infcx.genv.fn_sig(<span class="kw-2">*</span>def_id).with_span(stmt_span)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>sub_sig = infcx.genv.fn_sig(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
                     <span class="comment">// // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
                     </span><span class="kw">let </span>super_sig = EarlyBinder(super_sig.clone());
                     check_fn_subtyping(
@@ -3370,8 +3398,7 @@
                         <span class="prelude-val">None</span>,
                         <span class="self">self</span>.check_overflow(),
                         stmt_span,
-                    )
-                    .with_span(stmt_span)<span class="question-mark">?</span>;
+                    )<span class="question-mark">?</span>;
                     to
                 } <span class="kw">else </span>{
                     <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid cast from `{from:?}` to `{to:?}`"</span>)
@@ -3448,7 +3475,7 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
         operands: <span class="kw-2">&amp;</span>[Operand],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;&gt; {
+    ) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
         operands
             .iter()
             .map(|op| <span class="self">self</span>.check_operand(infcx, env, span, op))
@@ -3461,11 +3488,11 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
         operand: <span class="kw-2">&amp;</span>Operand,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; InferResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>operand {
-            Operand::Copy(p) =&gt; env.lookup_place(<span class="kw-2">&amp;mut </span>infcx.at(span), p).with_span(span)<span class="question-mark">?</span>,
-            Operand::Move(p) =&gt; env.move_place(<span class="kw-2">&amp;mut </span>infcx.at(span), p).with_span(span)<span class="question-mark">?</span>,
-            Operand::Constant(c) =&gt; <span class="self">self</span>.check_constant(c).with_span(span)<span class="question-mark">?</span>,
+            Operand::Copy(p) =&gt; env.lookup_place(<span class="kw-2">&amp;mut </span>infcx.at(span), p)<span class="question-mark">?</span>,
+            Operand::Move(p) =&gt; env.move_place(<span class="kw-2">&amp;mut </span>infcx.at(span), p)<span class="question-mark">?</span>,
+            Operand::Constant(c) =&gt; <span class="self">self</span>.check_constant(c)<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(infcx
             .hoister(AssumeInvariants::yes(<span class="self">self</span>.check_overflow()))
@@ -3526,7 +3553,8 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         bug::track_span(span, || {
             <span class="kw">for </span>stmt <span class="kw">in </span><span class="self">self</span>.ghost_stmts().statements_at(point) {
-                <span class="self">self</span>.check_ghost_statement(infcx, env, stmt, span)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_ghost_statement(infcx, env, stmt, span)
+                    .with_span(span)<span class="question-mark">?</span>;
             }
             <span class="prelude-val">Ok</span>(())
         })
@@ -3538,20 +3566,18 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         stmt: <span class="kw-2">&amp;</span>GhostStatement,
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; InferResult {
         <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, infcx, env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
         <span class="kw">match </span>stmt {
             GhostStatement::Fold(place) =&gt; {
-                env.fold(<span class="kw-2">&amp;mut </span>infcx.at(span), place).with_span(span)<span class="question-mark">?</span>;
+                env.fold(<span class="kw-2">&amp;mut </span>infcx.at(span), place)<span class="question-mark">?</span>;
             }
             GhostStatement::Unfold(place) =&gt; {
-                env.unfold(<span class="kw-2">&amp;mut </span>infcx.at(span), place, <span class="self">self</span>.config())
-                    .with_span(span)<span class="question-mark">?</span>;
+                env.unfold(<span class="kw-2">&amp;mut </span>infcx.at(span), place, <span class="self">self</span>.config())<span class="question-mark">?</span>;
             }
             GhostStatement::Unblock(place) =&gt; env.unblock(infcx, place, <span class="self">self</span>.check_overflow()),
             GhostStatement::PtrToRef(place) =&gt; {
-                env.ptr_to_ref_at_place(<span class="kw-2">&amp;mut </span>infcx.at(span), place)
-                    .with_span(span)<span class="question-mark">?</span>;
+                env.ptr_to_ref_at_place(<span class="kw-2">&amp;mut </span>infcx.at(span), place)<span class="question-mark">?</span>;
             }
         }
         <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, infcx, env, span, <span class="kw-2">&amp;</span><span class="self">self</span>);
@@ -3772,7 +3798,7 @@
         ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, ShapeMode&gt;,
         <span class="kw">_</span>: InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         env: TypeEnv,
-        terminator_span: Span,
+        <span class="kw">_</span>: Span,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
         <span class="kw">let </span>bb_envs = <span class="kw-2">&amp;mut </span>ck.inherited.mode.bb_envs;
@@ -3780,12 +3806,12 @@
         <span class="macro">dbg::shape_goto_enter!</span>(target, env, target_bb_env);
 
         <span class="kw">let </span>modified = <span class="kw">match </span>bb_envs.entry(ck.def_id).or_default().entry(target) {
-            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; entry.get_mut().join(env).with_span(terminator_span)<span class="question-mark">?</span>,
+            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; entry.get_mut().join(env),
             Entry::Vacant(entry) =&gt; {
                 <span class="kw">let </span>scope = snapshot_at_dominator(ck.body, <span class="kw-2">&amp;</span>ck.snapshots, target)
                     .scope()
                     .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
-                entry.insert(env.into_infer(scope).with_span(terminator_span)<span class="question-mark">?</span>);
+                entry.insert(env.into_infer(scope));
                 <span class="bool-val">true
             </span>}
         };
@@ -3928,7 +3954,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, queries::QueryErr, MaybeExternId};
+    <span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
     <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_span::Span;
@@ -3937,25 +3963,25 @@
 
     <span class="attr">#[derive(Debug)]
     </span><span class="kw">pub struct </span>CheckerError {
-        kind: CheckerErrKind,
+        kind: InferErr,
         span: Span,
     }
 
     <span class="kw">impl </span>CheckerError {
         <span class="kw">pub fn </span>opaque_struct(def_id: DefId, span: Span) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ kind: CheckerErrKind::OpaqueStruct(def_id), span }
+            <span class="self">Self </span>{ kind: InferErr::OpaqueStruct(def_id), span }
         }
 
         <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: MaybeExternId) -&gt; ErrorGuaranteed {
             <span class="kw">let </span>dcx = genv.sess().dcx().handle();
             <span class="kw">match </span><span class="self">self</span>.kind {
-                CheckerErrKind::Inference =&gt; {
+                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag =
                         dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error);
                     diag.code(E0999);
                     diag.emit()
                 }
-                CheckerErrKind::OpaqueStruct(def_id) =&gt; {
+                InferErr::OpaqueStruct(def_id) =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag =
                         dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
                     <span class="kw">let </span>fn_span = genv.tcx().def_span(fn_def_id);
@@ -3965,38 +3991,10 @@
                     diag.code(E0999);
                     diag.emit()
                 }
-                CheckerErrKind::Query(err) =&gt; {
+                InferErr::Query(err) =&gt; {
                     <span class="kw">let </span>level = rustc_errors::Level::Error;
                     err.at(<span class="self">self</span>.span).into_diag(dcx, level).emit()
                 }
-            }
-        }
-    }
-
-    <span class="attr">#[derive(Debug)]
-    </span><span class="kw">pub enum </span>CheckerErrKind {
-        Inference,
-        OpaqueStruct(DefId),
-        Query(QueryErr),
-    }
-
-    <span class="kw">impl </span>CheckerErrKind {
-        <span class="kw">pub fn </span>at(<span class="self">self</span>, span: Span) -&gt; CheckerError {
-            CheckerError { kind: <span class="self">self</span>, span }
-        }
-    }
-
-    <span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>CheckerErrKind {
-        <span class="kw">fn </span>from(err: QueryErr) -&gt; <span class="self">Self </span>{
-            CheckerErrKind::Query(err)
-        }
-    }
-
-    <span class="kw">impl </span>From&lt;InferErr&gt; <span class="kw">for </span>CheckerErrKind {
-        <span class="kw">fn </span>from(err: InferErr) -&gt; <span class="self">Self </span>{
-            <span class="kw">match </span>err {
-                InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; CheckerErrKind::Inference,
-                InferErr::Query(err) =&gt; CheckerErrKind::Query(err),
             }
         }
     }
@@ -4007,10 +4005,10 @@
 
     <span class="kw">impl</span>&lt;T, E&gt; ResultExt&lt;T&gt; <span class="kw">for </span><span class="prelude-ty">Result</span>&lt;T, E&gt;
     <span class="kw">where
-        </span>E: Into&lt;CheckerErrKind&gt;,
+        </span>E: Into&lt;InferErr&gt;,
     {
         <span class="kw">fn </span>with_span(<span class="self">self</span>, span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;T, CheckerError&gt; {
-            <span class="self">self</span>.map_err(|kind| kind.into().at(span))
+            <span class="self">self</span>.map_err(|err| CheckerError { kind: err.into(), span })
         }
     }
 }
