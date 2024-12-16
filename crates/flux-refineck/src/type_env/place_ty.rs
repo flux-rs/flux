@@ -3,7 +3,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    refine_tree::{AssumeInvariants, RefineCtxt},
+    refine_tree::AssumeInvariants,
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -130,7 +130,7 @@ impl PlacesTree {
         Unfolder::new(infcx, cursor, checker_conf).run(self)
     }
 
-    pub fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
+    pub fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place, check_overflow: bool) {
         let mut cursor = self.cursor_for(place);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         while let Some(elem) = cursor.next() {
@@ -161,7 +161,8 @@ impl PlacesTree {
         cursor.reset();
         Updater::update(self, cursor, |_, ty| {
             let unblocked = ty.unblocked();
-            rcx.hoister(AssumeInvariants::yes(check_overflow))
+            infcx
+                .hoister(AssumeInvariants::yes(check_overflow))
                 .hoist(&unblocked)
         });
     }

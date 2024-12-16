@@ -6,7 +6,7 @@ use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, Scope},
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -293,8 +293,8 @@ impl<'a> TypeEnv<'a> {
         });
     }
 
-    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
-        self.bindings.unblock(rcx, place, check_overflow);
+    pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place, check_overflow: bool) {
+        self.bindings.unblock(infcx, place, check_overflow);
     }
 
     pub(crate) fn check_goto(
@@ -806,14 +806,14 @@ impl TypeFoldable for BasicBlockEnvData {
 impl BasicBlockEnv {
     pub(crate) fn enter<'a>(
         &self,
-        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxt,
         local_decls: &'a LocalDecls,
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
         for constr in &data.constrs {
-            rcx.assume_pred(constr);
+            infcx.assume_pred(constr);
         }
         TypeEnv { bindings: data.bindings, local_decls }
     }

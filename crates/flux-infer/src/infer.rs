@@ -7,11 +7,12 @@ use flux_middle::{
     query_bug,
     rty::{
         self,
+        canonicalize::Hoister,
         evars::{EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
         EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
+        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
         Region, Sort, Ty, TyKind, Var,
     },
 };
@@ -25,7 +26,7 @@ use rustc_span::Span;
 
 use crate::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    refine_tree::{RefineCtxt, RefineTree, Scope, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -273,25 +274,65 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn tcx(&self) -> TyCtxt<'tcx> {
         self.genv.tcx()
     }
+
+    pub fn rcx(&self) -> &RefineCtxt<'infcx> {
+        &self.rcx
+    }
+}
+
+/// Delegate methods to [`RefineCtxt`]
+impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
+    pub fn define_vars(&mut self, sort: &Sort) -> Expr {
+        self.rcx.define_vars(sort)
+    }
+
+    pub fn define_var(&mut self, sort: &Sort) -> Name {
+        self.rcx.define_var(sort)
+    }
+
+    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+        self.rcx.check_pred(pred, tag)
+    }
+
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
+        self.rcx.replace_evars(evars);
+    }
+
+    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
+        self.rcx.assume_pred(pred);
+    }
+
+    pub fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.hoister(AssumeInvariants::No).hoist(ty)
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        self.rcx.snapshot()
+    }
+
+    pub fn hoister(
+        &mut self,
+        assume_invariants: AssumeInvariants,
+    ) -> Hoister<Unpacker<'_, 'infcx>> {
+        self.rcx.hoister(assume_invariants)
+    }
+
+    pub fn scope(&self) -> Scope {
+        self.rcx.scope()
+    }
+
+    pub fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
+        self.rcx.assume_invariants(ty, overflow_checking);
+    }
+
+    fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+        self.rcx.check_impl(pred1, pred2, tag)
+    }
 }
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(&self.rcx, f)
-    }
-}
-
-impl<'infcx> std::ops::Deref for InferCtxt<'infcx, '_, '_> {
-    type Target = RefineCtxt<'infcx>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.rcx
-    }
-}
-
-impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.rcx
     }
 }
 
