@@ -2,7 +2,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
-    infer::{ConstrReason, InferCtxt, InferCtxtAt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
     refine_tree::{AssumeInvariants, RefineCtxt},
 };
 use flux_middle::{
@@ -19,9 +19,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
-use crate::{checker::errors::CheckerErrKind, CheckerConfig};
-
-type CheckerResult<T = ()> = std::result::Result<T, CheckerErrKind>;
+use crate::CheckerConfig;
 
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
@@ -93,7 +91,7 @@ pub(crate) trait LookupMode {
 struct Unfold<'a, 'infcx, 'genv, 'tcx>(&'a mut InferCtxt<'infcx, 'genv, 'tcx>);
 
 impl LookupMode for Unfold<'_, '_, '_, '_> {
-    type Error = CheckerErrKind;
+    type Error = InferErr;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
         self.0.hoister(AssumeInvariants::No).shallow().hoist(ty)
@@ -127,7 +125,7 @@ impl PlacesTree {
         infcx: &mut InferCtxt,
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
-    ) -> CheckerResult {
+    ) -> InferResult {
         let cursor = self.cursor_for(key);
         Unfolder::new(infcx, cursor, checker_conf).run(self)
     }
@@ -240,7 +238,7 @@ impl PlacesTree {
         &mut self,
         infcx: &mut InferCtxt,
         key: &impl LookupKey,
-    ) -> CheckerResult<LookupResult> {
+    ) -> InferResult<LookupResult> {
         self.lookup_inner(key, Unfold(infcx))
     }
 
@@ -399,9 +397,9 @@ struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
 }
 
 impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
-    type Error = CheckerErrKind;
+    type Error = InferErr;
 
-    fn try_fold_ty(&mut self, ty: &Ty) -> CheckerResult<Ty> {
+    fn try_fold_ty(&mut self, ty: &Ty) -> InferResult<Ty> {
         let Some(elem) = self.cursor.next() else {
             return self.unfold(ty);
         };
@@ -427,7 +425,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         Unfolder { infcx, cursor, insertions: vec![], in_ref: None, checker_conf, has_work: true }
     }
 
-    fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
+    fn run(mut self, bindings: &mut PlacesTree) -> InferResult {
         while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
@@ -438,7 +436,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         Ok(())
     }
 
-    fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
+    fn unfold(&mut self, ty: &Ty) -> InferResult<Ty> {
         if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind()
             && adt.is_box()
         {
@@ -464,7 +462,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         }
     }
 
-    fn deref(&mut self, ty: &Ty) -> CheckerResult<Ty> {
+    fn deref(&mut self, ty: &Ty) -> InferResult<Ty> {
         let ty = match ty.kind() {
             TyKind::StrgRef(re, path, ty) => {
                 self.unfold_strg_ref(path, ty);
@@ -518,7 +516,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         loc
     }
 
-    fn field(&mut self, ty: &Ty, f: FieldIdx) -> CheckerResult<Ty> {
+    fn field(&mut self, ty: &Ty, f: FieldIdx) -> InferResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
                 let mut fields = fields.to_vec();
@@ -557,7 +555,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         Ok(ty)
     }
 
-    fn downcast(&mut self, ty: &Ty, variant: VariantIdx) -> CheckerResult<Ty> {
+    fn downcast(&mut self, ty: &Ty, variant: VariantIdx) -> InferResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let fields = downcast(self.infcx, adt, args, variant, idx)?
@@ -575,7 +573,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
         Ok(ty)
     }
 
-    fn index(&mut self, ty: &Ty) -> CheckerResult {
+    fn index(&mut self, ty: &Ty) -> InferResult {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
                 arr_ty.try_fold_with(self)?;
@@ -783,7 +781,7 @@ fn downcast(
     args: &[GenericArg],
     variant_idx: VariantIdx,
     idx: &Expr,
-) -> CheckerResult<Vec<Ty>> {
+) -> InferResult<Vec<Ty>> {
     if adt.is_struct() {
         debug_assert_eq!(variant_idx.as_u32(), 0);
         downcast_struct(infcx, adt, args, idx)
@@ -807,7 +805,7 @@ fn downcast_struct(
     adt: &AdtDef,
     args: &[GenericArg],
     idx: &Expr,
-) -> CheckerResult<Vec<Ty>> {
+) -> InferResult<Vec<Ty>> {
     let tcx = infcx.genv.tcx();
     let flds = adt
         .sort_def()
@@ -822,14 +820,11 @@ fn downcast_struct(
         .to_vec())
 }
 
-fn struct_variant(
-    genv: GlobalEnv,
-    def_id: DefId,
-) -> CheckerResult<EarlyBinder<Binder<VariantSig>>> {
+fn struct_variant(genv: GlobalEnv, def_id: DefId) -> InferResult<EarlyBinder<Binder<VariantSig>>> {
     let adt_def = genv.adt_def(def_id)?;
     debug_assert!(adt_def.is_struct() || adt_def.is_union());
     genv.variant_sig(def_id, VariantIdx::from_u32(0))?
-        .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
+        .ok_or_else(|| InferErr::OpaqueStruct(def_id))
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
@@ -846,7 +841,7 @@ fn downcast_enum(
     variant_idx: VariantIdx,
     args: &[GenericArg],
     idx1: &Expr,
-) -> CheckerResult<Vec<Ty>> {
+) -> InferResult<Vec<Ty>> {
     let tcx = infcx.genv.tcx();
     let variant_def = infcx
         .genv

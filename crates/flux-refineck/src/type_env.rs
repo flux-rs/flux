@@ -39,9 +39,7 @@ use serde::Serialize;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
-use crate::{checker::errors::CheckerErrKind, CheckerConfig};
-
-type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
+use crate::CheckerConfig;
 
 #[derive(Clone, Default)]
 pub struct TypeEnv<'a> {
@@ -106,7 +104,7 @@ impl<'a> TypeEnv<'a> {
             .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
-    pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape> {
+    pub(crate) fn into_infer(self, scope: Scope) -> BasicBlockEnvShape {
         BasicBlockEnvShape::new(scope, self)
     }
 
@@ -114,7 +112,11 @@ impl<'a> TypeEnv<'a> {
         Ok(place.ty(genv, self.local_decls)?.ty)
     }
 
-    pub(crate) fn lookup_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result<Ty> {
+    pub(crate) fn lookup_place(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        place: &Place,
+    ) -> InferResult<Ty> {
         Ok(self.bindings.lookup_unfolding(infcx, place)?.ty)
     }
 
@@ -135,7 +137,7 @@ impl<'a> TypeEnv<'a> {
         re: Region,
         mutbl: Mutability,
         place: &Place,
-    ) -> Result<Ty> {
+    ) -> InferResult<Ty> {
         let result = self.bindings.lookup_unfolding(infcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
@@ -149,7 +151,11 @@ impl<'a> TypeEnv<'a> {
 
     // FIXME(nilehmann) this is only used in a single place and we have it because [`TypeEnv`]
     // doesn't expose a lookup without unfolding
-    pub(crate) fn ptr_to_ref_at_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
+    pub(crate) fn ptr_to_ref_at_place(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        place: &Place,
+    ) -> InferResult {
         let lookup = self.bindings.lookup(place);
         let TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() else {
             tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
@@ -246,7 +252,12 @@ impl<'a> TypeEnv<'a> {
     /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
     /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
     /// assigned type are consistent with those expected by the place's original type definition.
-    pub(crate) fn assign(&mut self, infcx: &mut InferCtxtAt, place: &Place, new_ty: Ty) -> Result {
+    pub(crate) fn assign(
+        &mut self,
+        infcx: &mut InferCtxtAt,
+        place: &Place,
+        new_ty: Ty,
+    ) -> InferResult {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
@@ -262,7 +273,7 @@ impl<'a> TypeEnv<'a> {
         Ok(())
     }
 
-    pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result<Ty> {
+    pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult<Ty> {
         let result = self.bindings.lookup_unfolding(infcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit();
@@ -291,7 +302,7 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxtAt,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
-    ) -> Result {
+    ) -> InferResult {
         infcx.push_scope();
 
         let bb_env = bb_env
@@ -316,7 +327,7 @@ impl<'a> TypeEnv<'a> {
         Ok(())
     }
 
-    pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
+    pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult {
         self.bindings.lookup(place).fold(infcx)?;
         Ok(())
     }
@@ -357,7 +368,7 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
-    ) -> Result {
+    ) -> InferResult {
         self.bindings.unfold(infcx, place, checker_conf)
     }
 
@@ -367,7 +378,7 @@ impl<'a> TypeEnv<'a> {
         place: &Place,
         variant_idx: VariantIdx,
         checker_config: CheckerConfig,
-    ) -> Result {
+    ) -> InferResult {
         let mut down_place = place.clone();
         down_place
             .projection
@@ -452,10 +463,10 @@ impl BasicBlockEnvShape {
         TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
-    fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape> {
+    fn new(scope: Scope, env: TypeEnv) -> BasicBlockEnvShape {
         let mut bindings = env.bindings;
         bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(&scope, ty));
-        Ok(BasicBlockEnvShape { scope, bindings })
+        BasicBlockEnvShape { scope, bindings }
     }
 
     fn pack_ty(scope: &Scope, ty: &Ty) -> Ty {
@@ -557,7 +568,7 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(&mut self, other: TypeEnv) -> Result<bool> {
+    pub(crate) fn join(&mut self, other: TypeEnv) -> bool {
         let paths = self.bindings.paths();
 
         // Join types
@@ -570,7 +581,7 @@ impl BasicBlockEnvShape {
             self.update(path, ty);
         }
 
-        Ok(modified)
+        modified
     }
 
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {

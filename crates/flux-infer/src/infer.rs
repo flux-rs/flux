@@ -852,6 +852,7 @@ fn mk_coroutine_obligations(
 #[derive(Debug)]
 pub enum InferErr {
     UnsolvedEvar(EVar),
+    OpaqueStruct(DefId),
     Query(QueryErr),
 }
 
