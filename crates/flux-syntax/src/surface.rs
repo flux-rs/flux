@@ -87,6 +87,11 @@ pub struct TyAlias {
 }
 
 #[derive(Debug)]
+pub struct ConstantInfo {
+    pub expr: Option<Expr>,
+}
+
+#[derive(Debug)]
 pub struct StructDef {
     pub generics: Option<Generics>,
     pub refined_by: Option<RefineParams>,

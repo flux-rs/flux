@@ -359,6 +359,37 @@ pub(crate) fn conv_invariants(
     cx.conv_invariants(&mut env, invariants)
 }
 
+pub(crate) fn conv_constant(genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::ConstantInfo> {
+    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+    if ty.is_integral() {
+        let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
+            let val = val.try_to_scalar_int()?;
+            rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
+        });
+        if let Some(constant_) = val {
+            return Ok(rty::ConstantInfo::Interpreted(
+                rty::Expr::constant(constant_),
+                rty::Sort::Int,
+            ));
+        }
+        // FIXME(nilehmann) we should probably report an error in case const evaluation
+        // fails instead of silently ignore it.
+    }
+    Ok(rty::ConstantInfo::Uninterpreted)
+}
+
+pub(crate) fn conv_constant_expr(
+    genv: GlobalEnv,
+    _def_id: DefId,
+    expr: &fhir::Expr,
+    sort: rty::Sort,
+    wfckresults: &WfckResults,
+) -> QueryResult<rty::ConstantInfo> {
+    let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
+    let mut env = Env::new(&[]);
+    Ok(rty::ConstantInfo::Interpreted(cx.conv_expr(&mut env, expr)?, sort))
+}
+
 pub(crate) fn conv_defn(
     genv: GlobalEnv,
     func: &fhir::SpecFunc,
@@ -1726,7 +1757,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id).at(espan),
+                    ExprRes::Const(def_id) => {
+                        if P::HAS_ELABORATED_INFORMATION {
+                            let info = self.genv().constant_info(def_id)?;
+                            rty::Expr::const_def_id(def_id, info).at(espan)
+                        } else {
+                            let Some(sort) = self.genv().sort_of_def_id(def_id)? else {
+                                span_bug!(expr.span, "missing sort for const {def_id:?}");
+                            };
+                            rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
+                        }
+                    }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)

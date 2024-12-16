@@ -1,5 +1,5 @@
 use flux_arc_interner::List;
-use flux_common::{bug, tracked_span_bug};
+use flux_common::tracked_span_bug;
 use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
@@ -28,7 +28,16 @@ impl GlobalEnv<'_, '_> {
         Ok(sort)
     }
 
-    fn sort_of_rust_ty(
+    pub fn sort_of_def_id(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
+        let ty = self.tcx().type_of(def_id).no_bound_vars().unwrap();
+        if ty.is_integral() {
+            Ok(Some(rty::Sort::Int))
+        } else {
+            self.sort_of_rust_ty(def_id, ty)
+        }
+    }
+
+    pub fn sort_of_rust_ty(
         self,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
@@ -65,7 +74,7 @@ impl GlobalEnv<'_, '_> {
             | ty::TyKind::Array(..)
             | ty::TyKind::Alias(..)
             | ty::TyKind::Never => Some(rty::Sort::unit()),
-            _ => bug!("unexpected self ty {ty:?}"),
+            _ => None,
         };
         Ok(sort)
     }

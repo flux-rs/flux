@@ -15,7 +15,7 @@ use rustc_middle::{
         TyCtxt, TypingMode, ValTree,
     },
 };
-use rustc_span::{Span, Symbol, DUMMY_SP};
+use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -611,16 +611,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         use rustc_middle::ty::TyKind;
         use rustc_mir::{interpret::Scalar, Const};
         let tcx = self.tcx;
-
-        // HACK(nilehmann) we evaluate the constant to support u32::MAX
-        // we should instead lower it as is and refine its type.
-        let const_ = constant
-            .const_
-            .eval(tcx, ParamEnv::empty(), DUMMY_SP)
-            .map(|val| Const::Val(val, constant.const_.ty()))
-            .unwrap_or(constant.const_);
+        let const_ = constant.const_;
         let ty = constant.ty();
-        match (const_, ty.kind()) {
+        match (constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
             }
@@ -647,7 +640,27 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
-            (_, _) => Some(Constant::Opaque(ty.lower(tcx)?)),
+
+            (_, _) => {
+                if let Const::Unevaluated(uneval, _) = const_ {
+                    if uneval.args.is_empty() {
+                        return Ok(Constant::Unevaluated(ty.lower(tcx)?, uneval.def));
+                    }
+                    // HACK(RJ) see tests/tests/pos/surface/const09.rs
+                    // The const has `args` which makes it unevaluated...
+                    let const_ = constant
+                        .const_
+                        .eval(tcx, ParamEnv::empty(), rustc_span::DUMMY_SP)
+                        .map(|val| Const::Val(val, constant.const_.ty()))
+                        .unwrap_or(constant.const_);
+                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
+                        if let Some(constant) = self.scalar_int_to_constant(scalar, ty) {
+                            return Ok(constant);
+                        }
+                    }
+                }
+                Some(Constant::Opaque(ty.lower(tcx)?))
+            }
         }
         .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }

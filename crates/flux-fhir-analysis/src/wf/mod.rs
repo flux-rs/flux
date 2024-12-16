@@ -59,6 +59,19 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_constant_expr(
+    genv: GlobalEnv,
+    owner: OwnerId,
+    expr: &fhir::Expr,
+    sort: &rty::Sort,
+) -> Result<WfckResults> {
+    let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
+    let mut err = None;
+    infcx.check_expr(expr, sort).collect_err(&mut err);
+    err.into_result()?;
+    Ok(infcx.into_results())
+}
+
 pub(crate) fn check_invariants(
     genv: GlobalEnv,
     adt_def_id: MaybeExternId<OwnerId>,
@@ -224,6 +237,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_fn_sig(def_id, fn_sig)?;
                         cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
+                    fhir::ItemKind::Const(_) => {}
                 }
             }
             fhir::OwnerNode::TraitItem(trait_item) => {
@@ -233,6 +247,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &trait_item.generics)?;
                     }
                     fhir::TraitItemKind::Type => {}
+                    fhir::TraitItemKind::Const => {}
                 }
             }
             fhir::OwnerNode::ImplItem(impl_item) => {
@@ -242,6 +257,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                         cx.conv_generic_predicates(def_id, &impl_item.generics)?;
                     }
                     fhir::ImplItemKind::Type => {}
+                    fhir::ImplItemKind::Const => {}
                 }
             }
         }

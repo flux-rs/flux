@@ -55,8 +55,9 @@ pub fn desugar<'genv>(
     let specs = genv.collect_specs();
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
-    match genv.tcx().hir_owner_node(owner_id) {
-        rustc_hir::OwnerNode::Item(item) => {
+
+    match genv.tcx().hir_node_by_def_id(def_id) {
+        rustc_hir::Node::Item(item) => {
             match item.kind {
                 hir::ItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -136,10 +137,26 @@ pub fn desugar<'genv>(
                         ),
                     );
                 }
+                hir::ItemKind::Const(..) => {
+                    let constant_ = match specs.constants.get(&owner_id) {
+                        Some(constant_) => constant_,
+                        None => &surface::ConstantInfo { expr: None },
+                    };
+
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::Item(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, None)
+                                    .desugar_const(constant_)?,
+                            ),
+                        ),
+                    );
+                }
                 _ => span_bug!(item.span, "unsupported item"),
             }
         }
-        rustc_hir::OwnerNode::TraitItem(trait_item) => {
+        rustc_hir::Node::TraitItem(trait_item) => {
             match trait_item.kind {
                 rustc_hir::TraitItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -159,11 +176,16 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) => {
-                    bug!("unsupported item");
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::TraitItem(
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, None).desugar_trait_const()?),
+                        ),
+                    );
                 }
             }
         }
-        rustc_hir::OwnerNode::ImplItem(impl_item) => {
+        rustc_hir::Node::ImplItem(impl_item) => {
             match &impl_item.kind {
                 rustc_hir::ImplItemKind::Fn(..) => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
@@ -183,14 +205,20 @@ pub fn desugar<'genv>(
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) => {
-                    bug!("unsupported item");
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::ImplItem(
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, None).desugar_impl_const()?),
+                        ),
+                    );
                 }
             }
         }
-        rustc_hir::OwnerNode::ForeignItem(_)
-        | rustc_hir::OwnerNode::Crate(_)
-        | rustc_hir::OwnerNode::Synthetic => {
-            bug!("unsupported node");
+        rustc_hir::Node::AnonConst(..) => {
+            nodes.insert(def_id, fhir::Node::AnonConst);
+        }
+        node => {
+            bug!("unsupported node: {node:?}");
         }
     }
     Ok(nodes)

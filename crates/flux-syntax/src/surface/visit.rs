@@ -1,11 +1,12 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArg, Ensures, EnumDef,
-    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
-    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
-    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
+    Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
+    FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
+    Indices, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc,
+    StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -75,6 +76,10 @@ pub trait Visitor: Sized {
 
     fn visit_struct_def(&mut self, struct_def: &StructDef) {
         walk_struct_def(self, struct_def);
+    }
+
+    fn visit_constant(&mut self, _constant: &ConstantInfo) {
+        walk_constant(self, _constant);
     }
 
     fn visit_enum_def(&mut self, enum_def: &EnumDef) {
@@ -267,6 +272,11 @@ pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
         vis.visit_refine_param(index);
     }
     vis.visit_ty(&ty_alias.ty);
+}
+pub fn walk_constant<V: Visitor>(vis: &mut V, constant_info: &ConstantInfo) {
+    if let Some(expr) = &constant_info.expr {
+        vis.visit_expr(expr);
+    }
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {

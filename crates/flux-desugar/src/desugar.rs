@@ -470,6 +470,40 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
+    pub(crate) fn desugar_const_spec(
+        &mut self,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<Option<fhir::Expr<'genv>>> {
+        let expr = match &const_info.expr {
+            Some(expr) => Some(self.desugar_expr(expr)?),
+            None => None,
+        };
+        Ok(expr)
+    }
+
+    pub(crate) fn desugar_const(
+        &mut self,
+        const_info: &surface::ConstantInfo,
+    ) -> Result<fhir::Item<'genv>> {
+        let expr = self.desugar_const_spec(const_info)?;
+        let owner_id = self.owner;
+        let generics = self.as_lift_cx().lift_generics()?;
+        let kind = fhir::ItemKind::Const(expr);
+        Ok(fhir::Item { owner_id, generics, kind })
+    }
+
+    pub(crate) fn desugar_impl_const(&mut self) -> Result<fhir::ImplItem<'genv>> {
+        let owner_id = self.owner;
+        let generics = self.as_lift_cx().lift_generics()?;
+        Ok(fhir::ImplItem { owner_id, generics, kind: fhir::ImplItemKind::Const })
+    }
+
+    pub(crate) fn desugar_trait_const(&mut self) -> Result<fhir::TraitItem<'genv>> {
+        let owner_id = self.owner;
+        let generics = self.as_lift_cx().lift_generics()?;
+        Ok(fhir::TraitItem { owner_id, generics, kind: fhir::TraitItemKind::Const })
+    }
+
     pub(crate) fn desugar_fn_spec(
         &mut self,
         fn_spec: &surface::FnSpec,

@@ -43,6 +43,9 @@ fhir_analysis_unknown_qualifier =
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 
+fhir_analysis_invalid_constant =
+    invalid constant specification for non-integral constant
+
 fhir_analysis_expected_fun =
     expected function, found `{$found}`
 
@@ -99,6 +102,11 @@ fhir_analysis_param_not_determined =
 fhir_analysis_sort_annotation_needed =
     sort annotation needed
     .label = help: consider giving this parameter an explicit sort
+
+fhir_analysis_constant_annotation_needed =
+    constant annotation required
+    .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
+
 
 fhir_analysis_cannot_infer_sort =
     sort annotation needed

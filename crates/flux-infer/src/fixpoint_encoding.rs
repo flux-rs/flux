@@ -360,7 +360,7 @@ where
 
         let kvars = self.kcx.into_fixpoint();
 
-        let constraint = self.ecx.assume_const_values(constraint);
+        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
         let qualifiers = self
             .ecx
@@ -741,10 +741,11 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 struct ConstInfo {
     name: fixpoint::GlobalVar,
     sort: fixpoint::Sort,
-    val: Option<rty::Constant>,
+    val: Option<rty::Expr>,
     comment: String,
 }
 
@@ -973,8 +974,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     fixpoint::Expr::App(Box::new(ctor), args)
                 }
             }
-            rty::ExprKind::ConstDefId(did) => {
-                let var = self.register_rust_const(*did);
+            rty::ExprKind::ConstDefId(did, info) => {
+                let var = self.register_rust_const(*did, scx, info);
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
@@ -1269,31 +1270,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
-    fn register_rust_const(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
+    fn register_rust_const(
+        &mut self,
+        def_id: DefId,
+        scx: &mut SortEncodingCtxt,
+        info: &rty::ConstantInfo,
+    ) -> fixpoint::GlobalVar {
         let key = Key::Const(def_id);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                // TODO(nilehmann) generalize const sorts
-                let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                assert!(ty.is_integral());
-
-                // FIXME(nilehmann) we should probably report an error in case const evaluation
-                // fails instead of silently ignore it.
-                let val = self
-                    .genv
-                    .tcx()
-                    .const_eval_poly(def_id)
-                    .ok()
-                    .and_then(|val| {
-                        let val = val.try_to_scalar_int()?;
-                        rty::Constant::from_scalar_int(self.genv.tcx(), val, &ty)
-                    });
-
+                // generate and insert to `const_map`
+                let val = match info {
+                    rty::ConstantInfo::Uninterpreted => None,
+                    rty::ConstantInfo::Interpreted(expr, _) => Some(expr.clone()),
+                };
+                let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    comment: format!("rust const: {}", def_id_to_string(def_id)),
-                    sort: fixpoint::Sort::Int,
+                    comment: format!("rust const: {} {val:?}", def_id_to_string(def_id)),
+                    sort: scx.sort_to_fixpoint(&sort),
                     val,
                 }
             })
@@ -1341,23 +1337,31 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
-    fn assume_const_values(&self, mut constraint: fixpoint::Constraint) -> fixpoint::Constraint {
-        for const_info in self.const_map.values() {
-            if let Some(val) = const_info.val {
-                let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(const_info.name));
-                let e2 = fixpoint::Expr::Constant(const_to_fixpoint(val));
-                let pred = fixpoint::Pred::Expr(e1.eq(e2));
-                constraint = fixpoint::Constraint::ForAll(
-                    fixpoint::Bind {
-                        name: fixpoint::Var::Underscore,
-                        sort: fixpoint::Sort::Int,
-                        pred,
-                    },
-                    Box::new(constraint),
-                );
-            }
+    fn assume_const_values(
+        &mut self,
+        mut constraint: fixpoint::Constraint,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Constraint> {
+        let const_infos = self
+            .const_map
+            .values()
+            .filter_map(|const_info| {
+                const_info
+                    .val
+                    .as_ref()
+                    .map(|val| (const_info.name, val.clone()))
+            })
+            .collect_vec();
+        for (var, val) in const_infos {
+            let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
+            let e2 = self.expr_to_fixpoint(&val, scx)?;
+            let pred = fixpoint::Pred::Expr(e1.eq(e2));
+            constraint = fixpoint::Constraint::ForAll(
+                fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
+                Box::new(constraint),
+            );
         }
-        constraint
+        Ok(constraint)
     }
 
     fn qualifiers_for(

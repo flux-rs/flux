@@ -967,6 +967,14 @@ pub enum SortArg {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum ConstantInfo {
+    /// An uninterpreted constant
+    Uninterpreted,
+    /// A non-integral constant whose value is specified by the user
+    Interpreted(Expr, Sort),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

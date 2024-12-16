@@ -155,6 +155,7 @@ pub enum Node<'fhir> {
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
+    AnonConst,
 }
 
 impl<'fhir> Node<'fhir> {
@@ -164,6 +165,7 @@ impl<'fhir> Node<'fhir> {
             Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
             Node::OpaqueTy(_) => None,
+            Node::AnonConst => None,
         }
     }
 
@@ -267,6 +269,7 @@ pub enum ItemKind<'fhir> {
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
+    Const(Option<Expr<'fhir>>),
 }
 
 #[derive(Debug)]
@@ -279,6 +282,7 @@ pub struct TraitItem<'fhir> {
 #[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
+    Const,
     Type,
 }
 
@@ -292,6 +296,7 @@ pub struct ImplItem<'fhir> {
 #[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
+    Const,
     Type,
 }
 
@@ -1193,6 +1198,10 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
+    }
+
+    pub fn trivial() -> Self {
+        Generics { params: &[], refinement_params: &[], predicates: &[] }
     }
 }
 

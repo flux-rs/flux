@@ -428,6 +428,14 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Self::for_rust_item(resolver).run(|vis| vis.visit_enum_def(enum_def))
     }
 
+    pub(crate) fn resolve_constant(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        constant_info: &surface::ConstantInfo,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_constant(constant_info))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_constant(constant_info))
+    }
+
     pub(crate) fn resolve_ty_alias(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         ty_alias: &surface::TyAlias,
