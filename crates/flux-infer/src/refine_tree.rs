@@ -14,7 +14,7 @@ use flux_middle::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyBinder, EarlyReftParam, Expr, GenericArgs, Name, Sort, SpecFuncDefns, Ty,
+        BaseTy, EarlyReftParam, Expr, GenericArgs, Name, RefineParam, Sort, SpecFuncDefns, Ty,
         TyCtor, TyKind, Var,
     },
 };
@@ -201,33 +201,26 @@ impl RefineTree {
         args: Option<&GenericArgs>,
     ) -> QueryResult<RefineTree> {
         let generics = genv.generics_of(def_id)?;
-        let reft_generics = genv.refinement_generics_of(def_id)?;
 
-        let params: Vec<(Var, Sort)> = itertools::chain(
-            generics
-                .const_params(genv)?
-                .into_iter()
-                .map(|(pcst, sort)| Ok((Var::ConstGeneric(pcst), sort))),
-            (0..reft_generics.count()).map(|i| {
-                let param = reft_generics.param_at(i, genv)?;
-                let var = Var::EarlyParam(EarlyReftParam { index: i as u32, name: param.name });
-                Ok((var, param.sort))
-            }),
-        )
-        .collect::<QueryResult<_>>()?;
+        let mut params: Vec<(Var, Sort)> = generics
+            .const_params(genv)?
+            .into_iter()
+            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
+            .collect_vec();
+        genv.refinement_generics_of(def_id)?.fill_item(
+            genv,
+            &mut params,
+            &mut |param, index| {
+                let param: RefineParam = if let Some(args) = args {
+                    param.instantiate(genv.tcx(), args, &[])
+                } else {
+                    param.instantiate_identity()
+                };
+                let var = Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name });
+                (var, param.sort)
+            },
+        )?;
 
-        // We have `generic_args` when want to instantiate a generic trait method at a particular
-        // impl's type, e.g. when doing impl-trait subtyping.
-        let params = if let Some(generic_args) = args {
-            params
-                .iter()
-                .map(|(var, sort)| {
-                    (*var, EarlyBinder(sort.clone()).instantiate(genv.tcx(), generic_args, &[]))
-                })
-                .collect()
-        } else {
-            params
-        };
         let root =
             Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));

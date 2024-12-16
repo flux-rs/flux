@@ -388,19 +388,20 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 return;
             };
 
-            if path.refine.len() != generics.own_params.len() {
+            if path.refine.len() != generics.own_count() {
                 self.errors.emit(errors::EarlyBoundArgCountMismatch::new(
                     path.span,
-                    generics.own_params.len(),
+                    generics.own_count(),
                     path.refine.len(),
                 ));
             }
 
-            for (expr, param) in iter::zip(path.refine, &generics.own_params) {
-                self.infcx
-                    .check_expr(expr, &param.sort)
-                    .collect_err(&mut self.errors);
-            }
+            let a = 0;
+            // for (expr, param) in iter::zip(path.refine, &generics.own_params) {
+            //     self.infcx
+            //         .check_expr(expr, &param.sort)
+            //         .collect_err(&mut self.errors);
+            // }
         }
         fhir::visit::walk_path(self, path);
     }

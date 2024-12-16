@@ -246,7 +246,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refinement_generics_of(
         self,
         def_id: impl IntoQueryParam<DefId>,
-    ) -> QueryResult<rty::RefinementGenerics> {
+    ) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
         self.inner
             .queries
             .refinement_generics_of(self, def_id.into_query_param())

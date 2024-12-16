@@ -103,7 +103,7 @@ impl Key for (DefId, Symbol) {
 #[derive(TyEncodable, TyDecodable)]
 pub struct Tables<K: Eq + Hash> {
     generics_of: UnordMap<K, QueryResult<rty::Generics>>,
-    refinement_generics_of: UnordMap<K, QueryResult<rty::RefinementGenerics>>,
+    refinement_generics_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
@@ -208,7 +208,10 @@ impl CrateStore for CStore {
         get!(self, generics_of, def_id)
     }
 
-    fn refinement_generics_of(&self, def_id: DefId) -> OptResult<rty::RefinementGenerics> {
+    fn refinement_generics_of(
+        &self,
+        def_id: DefId,
+    ) -> OptResult<rty::EarlyBinder<rty::RefinementGenerics>> {
         get!(self, refinement_generics_of, def_id)
     }
 

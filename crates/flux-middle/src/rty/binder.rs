@@ -9,6 +9,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
+use rustc_hir::def_id::DefId;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{BoundRegionKind, TyCtxt};
 use rustc_span::Symbol;
@@ -16,7 +17,7 @@ use rustc_span::Symbol;
 use super::{
     fold::TypeFoldable,
     subst::{self, BoundVarReplacer, FnMutDelegate},
-    Expr, GenericArg, InferMode, Sort,
+    Expr, GenericArg, InferMode, RefineParam, RefinementGenerics, Sort,
 };
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -63,6 +64,12 @@ impl<T: TypeFoldable> EarlyBinder<T> {
                 refine_args,
             ))
             .into_ok()
+    }
+}
+
+impl EarlyBinder<RefineParam> {
+    pub fn name(&self) -> Symbol {
+        self.skip_binder_ref().name
     }
 }
 

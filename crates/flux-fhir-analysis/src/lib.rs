@@ -400,11 +400,11 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
 fn refinement_generics_of(
     genv: GlobalEnv,
     local_id: LocalDefId,
-) -> QueryResult<rty::RefinementGenerics> {
+) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
     let parent = genv.tcx().generics_of(local_id).parent;
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
-    match genv.map().node(local_id)? {
+    let generics = match genv.map().node(local_id)? {
         fhir::Node::Item(fhir::Item {
             kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
             generics,
@@ -420,10 +420,11 @@ fn refinement_generics_of(
         }) => {
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
-            Ok(rty::RefinementGenerics { parent, parent_count, own_params: params })
+            rty::RefinementGenerics { parent, parent_count, own_params: params }
         }
-        _ => Ok(rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() }),
-    }
+        _ => rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },
+    };
+    Ok(rty::EarlyBinder(generics))
 }
 
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
