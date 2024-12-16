@@ -852,7 +852,43 @@
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -988,6 +1024,7 @@
     <span class="kw">pub </span>adt_sort_def_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtSortDef&gt;,
     <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;,
     <span class="kw">pub </span>adt_def: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt;,
+    <span class="kw">pub </span>constant_info: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::ConstantInfo&gt;,
     <span class="kw">pub </span>type_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;,
     <span class="kw">pub </span>variants_of: <span class="kw">fn</span>(
         GlobalEnv,
@@ -1038,6 +1075,7 @@
             default_assoc_refinement_def: |<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             sort_of_assoc_reft: |<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             item_bounds: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
+            constant_info: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
         }
     }
 }
@@ -1059,6 +1097,7 @@
     adt_sort_def_of: Cache&lt;DefId, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
     check_wf: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;&gt;,
     adt_def: Cache&lt;DefId, QueryResult&lt;rty::AdtDef&gt;&gt;,
+    constant_info: Cache&lt;DefId, QueryResult&lt;rty::ConstantInfo&gt;&gt;,
     generics_of: Cache&lt;DefId, QueryResult&lt;rty::Generics&gt;&gt;,
     refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
     predicates_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
@@ -1094,6 +1133,7 @@
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
             adt_def: Default::default(),
+            constant_info: Default::default(),
             generics_of: Default::default(),
             refinement_generics_of: Default::default(),
             predicates_of: Default::default(),
@@ -1274,6 +1314,38 @@
         def_id: LocalDefId,
     ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.check_wf, def_id, || (<span class="self">self</span>.providers.check_wf)(genv, def_id))
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>constant_info(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        genv: GlobalEnv,
+        def_id: DefId,
+    ) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.constant_info, def_id, || {
+            dispatch_query(
+                genv,
+                def_id,
+                |def_id| (<span class="self">self</span>.providers.constant_info)(genv, def_id.local_id()),
+                |def_id| genv.cstore().constant_info(def_id),
+                |def_id| {
+                    <span class="comment">// TODO(RJ): fix duplication with [`conv_constant`]` in `flux-fhir-analysis`
+                    </span><span class="kw">let </span>ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                    <span class="kw">if </span>ty.is_integral() {
+                        <span class="kw">let </span>val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
+                            <span class="kw">let </span>val = val.try_to_scalar_int()<span class="question-mark">?</span>;
+                            rty::Constant::from_scalar_int(genv.tcx(), val, <span class="kw-2">&amp;</span>ty)
+                        });
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(constant_) = val {
+                            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Interpreted(
+                                rty::Expr::constant(constant_),
+                                rty::Sort::Int,
+                            ));
+                        }
+                    }
+                    <span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted)
+                },
+            )
+        })
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, def_id: DefId) -&gt; QueryResult&lt;rty::AdtDef&gt; {

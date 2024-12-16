@@ -132,8 +132,17 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>rustc_hir::def::DefKind;
 <span class="kw">use </span>rustc_span::def_id::DefId;
 
@@ -162,7 +171,16 @@
         <span class="prelude-val">Ok</span>(sort)
     }
 
-    <span class="kw">fn </span>sort_of_rust_ty(
+    <span class="kw">pub fn </span>sort_of_def_id(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
+        <span class="kw">let </span>ty = <span class="self">self</span>.tcx().type_of(def_id).no_bound_vars().unwrap();
+        <span class="kw">if </span>ty.is_integral() {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Sort::Int))
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.sort_of_rust_ty(def_id, ty)
+        }
+    }
+
+    <span class="kw">pub fn </span>sort_of_rust_ty(
         <span class="self">self</span>,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
@@ -199,7 +217,7 @@
             | ty::TyKind::Array(..)
             | ty::TyKind::Alias(..)
             | ty::TyKind::Never =&gt; <span class="prelude-val">Some</span>(rty::Sort::unit()),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"unexpected self ty {ty:?}"</span>),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Ok</span>(sort)
     }

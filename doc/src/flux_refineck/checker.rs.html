@@ -1994,7 +1994,19 @@
 <a href="#1993" id="1993">1993</a>
 <a href="#1994" id="1994">1994</a>
 <a href="#1995" id="1995">1995</a>
-<a href="#1996" id="1996">1996</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -3490,6 +3502,18 @@
                 <span class="prelude-val">Ok</span>(ctor.replace_bound_reft(<span class="kw-2">&amp;</span>idx).to_ty())
             }
             Constant::Opaque(ty) =&gt; <span class="self">self</span>.refine_default(ty),
+            Constant::Unevaluated(ty, def_id) =&gt; {
+                <span class="kw">let </span>ty = <span class="self">self</span>.refine_default(ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>info = <span class="self">self</span>.genv.constant_info(def_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(bty) = ty.as_bty_skipping_existentials()
+                    &amp;&amp; <span class="kw">let </span>rty::ConstantInfo::Interpreted(idx, <span class="kw">_</span>) = info
+                {
+                    <span class="prelude-val">Ok</span>(Ty::indexed(bty.clone(), idx))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(ty)
+                };
+                res
+            }
         }
     }
 

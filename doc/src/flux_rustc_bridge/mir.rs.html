@@ -802,7 +802,10 @@
 <a href="#801" id="801">801</a>
 <a href="#802" id="802">802</a>
 <a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
 
@@ -1157,6 +1160,8 @@
     Param(ParamConst, Ty),
     <span class="doccomment">/// General catch-all for constants of a given Ty
     </span>Opaque(Ty),
+    <span class="doccomment">/// Better than opaque -- we track `DefId` so we can get the actual refinement index
+    </span>Unevaluated(Ty, DefId),
 }
 
 <span class="kw">impl </span>Terminator&lt;<span class="lifetime">'_</span>&gt; {
@@ -1596,6 +1601,7 @@
             Constant::Char(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"\'{c}\'"</span>),
             Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
             Constant::Param(p, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
+            Constant::Unevaluated(ty, def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;uneval {:?} from {:?}&gt;"</span>, ty, def_id),
         }
     }
 }

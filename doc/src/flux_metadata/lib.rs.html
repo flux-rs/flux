@@ -402,7 +402,12 @@
 <a href="#401" id="401">401</a>
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a></pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a></pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -517,6 +522,7 @@
     sort_of_assoc_reft: UnordMap&lt;(K, Symbol), QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;&gt;,
     fn_sig: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;,
     adt_def: UnordMap&lt;K, QueryResult&lt;rty::AdtDef&gt;&gt;,
+    constant_info: UnordMap&lt;K, QueryResult&lt;rty::ConstantInfo&gt;&gt;,
     adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
     variants: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
     type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
@@ -646,6 +652,10 @@
         key: (DefId, Symbol),
     ) -&gt; OptResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt; {
         <span class="macro">get!</span>(<span class="self">self</span>, sort_of_assoc_reft, key)
+    }
+
+    <span class="kw">fn </span>constant_info(<span class="kw-2">&amp;</span><span class="self">self</span>, key: DefId) -&gt; OptResult&lt;rty::ConstantInfo&gt; {
+        <span class="macro">get!</span>(<span class="self">self</span>, constant_info, key)
     }
 }
 

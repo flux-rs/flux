@@ -503,7 +503,14 @@
 <a href="#502" id="502">502</a>
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
     GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
@@ -760,6 +767,11 @@
         }
         ItemKind::Impl(impl_) =&gt; vis.visit_impl(impl_),
         ItemKind::Fn(fn_sig) =&gt; vis.visit_fn_sig(fn_sig),
+        ItemKind::Const(info) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = info {
+                vis.visit_expr(expr);
+            }
+        }
     }
 }
 
@@ -768,6 +780,7 @@
     <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
         TraitItemKind::Fn(fn_sig) =&gt; vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type =&gt; {}
+        TraitItemKind::Const =&gt; {}
     }
 }
 
@@ -775,6 +788,7 @@
     vis.visit_generics(<span class="kw-2">&amp;</span>impl_item.generics);
     <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
         ImplItemKind::Fn(fn_sig) =&gt; vis.visit_fn_sig(fn_sig),
+        ImplItemKind::Const =&gt; {}
         ImplItemKind::Type =&gt; {}
     }
 }

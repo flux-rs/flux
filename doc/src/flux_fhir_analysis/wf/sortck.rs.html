@@ -863,7 +863,13 @@
 <a href="#862" id="862">862</a>
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1072,7 +1078,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>found = <span class="self">self</span>.synth_var(loc);
+        <span class="kw">let </span>found = <span class="self">self</span>.synth_var(loc)<span class="question-mark">?</span>;
         <span class="kw">if </span>found == rty::Sort::Loc {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
@@ -1082,7 +1088,7 @@
 
     <span class="kw">fn </span>synth_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.synth_var(var)),
+            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="self">self</span>.synth_var(var),
             fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(synth_lit(<span class="kw-2">*</span>lit)),
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.synth_unary_op(<span class="kw-2">*</span>op, e),
@@ -1148,17 +1154,23 @@
         }
     }
 
-    <span class="kw">fn </span>synth_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; rty::Sort {
+    <span class="kw">fn </span>synth_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span>path.res {
-            ExprRes::Param(<span class="kw">_</span>, id) =&gt; <span class="self">self</span>.param_sort(id),
+            ExprRes::Param(<span class="kw">_</span>, id) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.param_sort(id)),
             ExprRes::Const(def_id) =&gt; {
-                <span class="comment">// TODO(nilehmann) generalize const sorts
-                </span><span class="kw">let </span>ty = <span class="self">self</span>.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-                <span class="macro">assert!</span>(ty.is_integral());
-                rty::Sort::Int
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_def_id(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">? </span>{
+                    <span class="kw">let </span>info = <span class="self">self</span>.genv.constant_info(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                    <span class="comment">// non-integral constant
+                    </span><span class="kw">if </span>sort != rty::Sort::Int &amp;&amp; <span class="macro">matches!</span>(info, rty::ConstantInfo::Uninterpreted) {
+                        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ConstantAnnotationNeeded::new(path.span)))<span class="question-mark">?</span>;
+                    }
+                    <span class="prelude-val">Ok</span>(sort)
+                } <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected const in var position"</span>)
+                }
             }
-            ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; rty::Sort::Int, <span class="comment">// TODO: generalize generic-const sorts
-            </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; rty::Sort::Int,
+            ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
+            </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
             ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)
             }

@@ -603,7 +603,16 @@
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
 <a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -805,6 +814,15 @@
 
     <span class="kw">pub fn </span>adt_def(<span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
         <span class="self">self</span>.inner.queries.adt_def(<span class="self">self</span>, def_id.into_query_param())
+    }
+
+    <span class="kw">pub fn </span>constant_info(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>IntoQueryParam&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+        <span class="self">self</span>.inner
+            .queries
+            .constant_info(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>adt_sort_def_of(

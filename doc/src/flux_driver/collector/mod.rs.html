@@ -948,7 +948,29 @@
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
 <a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1083,6 +1105,8 @@
                 <span class="kw">if </span>attrs.extern_spec() {
                     <span class="kw">return </span>ExternSpecCollector::collect(<span class="self">self</span>, <span class="kw-2">*</span>body_id);
                 }
+
+                <span class="self">self</span>.collect_constant(owner_id, attrs)<span class="question-mark">?</span>;
             }
             <span class="kw">_ </span>=&gt; {}
         }
@@ -1186,6 +1210,13 @@
             }))
     }
 
+    <span class="kw">fn </span>parse_constant_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(constant) = attrs.constant() {
+            <span class="self">self</span>.specs.constants.insert(owner_id, constant);
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>parse_field_spec(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         field: <span class="kw-2">&amp;</span>rustc_hir::FieldDef,
@@ -1253,6 +1284,10 @@
         }
 
         <span class="prelude-val">Ok</span>(variant)
+    }
+
+    <span class="kw">fn </span>collect_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="self">self</span>.parse_constant_spec(owner_id, attrs)
     }
 
     <span class="kw">fn </span>collect_fn_spec(
@@ -1375,6 +1410,9 @@
             </span>}
             (<span class="string">"invariant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)<span class="question-mark">?
+            </span>}
+            (<span class="string">"constant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)<span class="question-mark">?
             </span>}
             (<span class="string">"cfg"</span>, AttrArgs::Delimited(..)) =&gt; {
                 <span class="kw">let </span>crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -1534,6 +1572,7 @@
     Items(Vec&lt;surface::Item&gt;),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
+    Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
@@ -1642,6 +1681,10 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Field)
     }
 
+    <span class="kw">fn </span>constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::ConstantInfo&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, Constant)
+    }
+
     <span class="kw">fn </span>variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::VariantDef&gt; {
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Variant)
     }
@@ -1681,6 +1724,7 @@
             FluxAttrKind::Items(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Items),
             FluxAttrKind::QualNames(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(QualNames),
             FluxAttrKind::Field(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Field),
+            FluxAttrKind::Constant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Constant),
             FluxAttrKind::Variant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Variant),
             FluxAttrKind::TypeAlias(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TypeAlias),
             FluxAttrKind::CrateConfig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(CrateConfig),

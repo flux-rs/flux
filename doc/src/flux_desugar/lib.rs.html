@@ -287,7 +287,35 @@
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
 
@@ -344,8 +372,9 @@
     <span class="kw">let </span>specs = genv.collect_specs();
     <span class="kw">let </span>owner_id = OwnerId { def_id };
     <span class="kw">let </span><span class="kw-2">mut </span>nodes = UnordMap::default();
-    <span class="kw">match </span>genv.tcx().hir_owner_node(owner_id) {
-        rustc_hir::OwnerNode::Item(item) =&gt; {
+
+    <span class="kw">match </span>genv.tcx().hir_node_by_def_id(def_id) {
+        rustc_hir::Node::Item(item) =&gt; {
             <span class="kw">match </span>item.kind {
                 hir::ItemKind::Fn(..) =&gt; {
                     <span class="kw">let </span>fn_spec = specs.fn_sigs.get(<span class="kw-2">&amp;</span>owner_id).unwrap();
@@ -425,10 +454,26 @@
                         ),
                     );
                 }
+                hir::ItemKind::Const(..) =&gt; {
+                    <span class="kw">let </span>constant_ = <span class="kw">match </span>specs.constants.get(<span class="kw-2">&amp;</span>owner_id) {
+                        <span class="prelude-val">Some</span>(constant_) =&gt; constant_,
+                        <span class="prelude-val">None </span>=&gt; <span class="kw-2">&amp;</span>surface::ConstantInfo { expr: <span class="prelude-val">None </span>},
+                    };
+
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::Item(
+                            genv.alloc(
+                                cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
+                                    .desugar_const(constant_)<span class="question-mark">?</span>,
+                            ),
+                        ),
+                    );
+                }
                 <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(item.span, <span class="string">"unsupported item"</span>),
             }
         }
-        rustc_hir::OwnerNode::TraitItem(trait_item) =&gt; {
+        rustc_hir::Node::TraitItem(trait_item) =&gt; {
             <span class="kw">match </span>trait_item.kind {
                 rustc_hir::TraitItemKind::Fn(..) =&gt; {
                     <span class="kw">let </span>fn_spec = specs.fn_sigs.get(<span class="kw-2">&amp;</span>owner_id).unwrap();
@@ -448,11 +493,16 @@
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) =&gt; {
-                    <span class="macro">bug!</span>(<span class="string">"unsupported item"</span>);
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::TraitItem(
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_trait_const()<span class="question-mark">?</span>),
+                        ),
+                    );
                 }
             }
         }
-        rustc_hir::OwnerNode::ImplItem(impl_item) =&gt; {
+        rustc_hir::Node::ImplItem(impl_item) =&gt; {
             <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
                 rustc_hir::ImplItemKind::Fn(..) =&gt; {
                     <span class="kw">let </span>fn_spec = specs.fn_sigs.get(<span class="kw-2">&amp;</span>owner_id).unwrap();
@@ -472,14 +522,20 @@
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) =&gt; {
-                    <span class="macro">bug!</span>(<span class="string">"unsupported item"</span>);
+                    nodes.insert(
+                        def_id,
+                        fhir::Node::ImplItem(
+                            genv.alloc(cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_impl_const()<span class="question-mark">?</span>),
+                        ),
+                    );
                 }
             }
         }
-        rustc_hir::OwnerNode::ForeignItem(<span class="kw">_</span>)
-        | rustc_hir::OwnerNode::Crate(<span class="kw">_</span>)
-        | rustc_hir::OwnerNode::Synthetic =&gt; {
-            <span class="macro">bug!</span>(<span class="string">"unsupported node"</span>);
+        rustc_hir::Node::AnonConst(..) =&gt; {
+            nodes.insert(def_id, fhir::Node::AnonConst);
+        }
+        node =&gt; {
+            <span class="macro">bug!</span>(<span class="string">"unsupported node: {node:?}"</span>);
         }
     }
     <span class="prelude-val">Ok</span>(nodes)

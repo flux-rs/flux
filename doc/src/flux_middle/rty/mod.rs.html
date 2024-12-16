@@ -2633,7 +2633,15 @@
 <a href="#2632" id="2632">2632</a>
 <a href="#2633" id="2633">2633</a>
 <a href="#2634" id="2634">2634</a>
-<a href="#2635" id="2635">2635</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2635" id="2635">2635</a>
+<a href="#2636" id="2636">2636</a>
+<a href="#2637" id="2637">2637</a>
+<a href="#2638" id="2638">2638</a>
+<a href="#2639" id="2639">2639</a>
+<a href="#2640" id="2640">2640</a>
+<a href="#2641" id="2641">2641</a>
+<a href="#2642" id="2642">2642</a>
+<a href="#2643" id="2643">2643</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -3599,6 +3607,14 @@
 </span><span class="kw">pub enum </span>SortArg {
     Sort(Sort),
     BvSize(BvSize),
+}
+
+<span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub enum </span>ConstantInfo {
+    <span class="doccomment">/// An uninterpreted constant
+    </span>Uninterpreted,
+    <span class="doccomment">/// A non-integral constant whose value is specified by the user
+    </span>Interpreted(Expr, Sort),
 }
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

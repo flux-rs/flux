@@ -654,7 +654,8 @@
 <a href="#653" id="653">653</a>
 <a href="#654" id="654">654</a>
 <a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 </span><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -1019,6 +1020,7 @@
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>Specs {
     <span class="kw">pub </span>fn_sigs: UnordMap&lt;OwnerId, surface::FnSpec&gt;,
+    <span class="kw">pub </span>constants: UnordMap&lt;OwnerId, surface::ConstantInfo&gt;,
     <span class="kw">pub </span>structs: UnordMap&lt;OwnerId, surface::StructDef&gt;,
     <span class="kw">pub </span>traits: UnordMap&lt;OwnerId, surface::Trait&gt;,
     <span class="kw">pub </span>impls: UnordMap&lt;OwnerId, surface::Impl&gt;,

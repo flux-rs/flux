@@ -2424,7 +2424,48 @@
 <a href="#2423" id="2423">2423</a>
 <a href="#2424" id="2424">2424</a>
 <a href="#2425" id="2425">2425</a>
-<a href="#2426" id="2426">2426</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2426" id="2426">2426</a>
+<a href="#2427" id="2427">2427</a>
+<a href="#2428" id="2428">2428</a>
+<a href="#2429" id="2429">2429</a>
+<a href="#2430" id="2430">2430</a>
+<a href="#2431" id="2431">2431</a>
+<a href="#2432" id="2432">2432</a>
+<a href="#2433" id="2433">2433</a>
+<a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2783,6 +2824,37 @@
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
     env.push_layer(Layer::coalesce(wfckresults, def_id.resolved_id(), params));
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_constant(genv: GlobalEnv, def_id: DefId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+    <span class="kw">let </span>ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+    <span class="kw">if </span>ty.is_integral() {
+        <span class="kw">let </span>val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
+            <span class="kw">let </span>val = val.try_to_scalar_int()<span class="question-mark">?</span>;
+            rty::Constant::from_scalar_int(genv.tcx(), val, <span class="kw-2">&amp;</span>ty)
+        });
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(constant_) = val {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Interpreted(
+                rty::Expr::constant(constant_),
+                rty::Sort::Int,
+            ));
+        }
+        <span class="comment">// FIXME(nilehmann) we should probably report an error in case const evaluation
+        // fails instead of silently ignore it.
+    </span>}
+    <span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted)
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_constant_expr(
+    genv: GlobalEnv,
+    _def_id: DefId,
+    expr: <span class="kw-2">&amp;</span>fhir::Expr,
+    sort: rty::Sort,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults,
+) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
+    <span class="prelude-val">Ok</span>(rty::ConstantInfo::Interpreted(cx.conv_expr(<span class="kw-2">&amp;mut </span>env, expr)<span class="question-mark">?</span>, sort))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_defn(
@@ -4152,7 +4224,17 @@
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>var.res {
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
-                    ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id).at(espan),
+                    ExprRes::Const(def_id) =&gt; {
+                        <span class="kw">if </span>P::HAS_ELABORATED_INFORMATION {
+                            <span class="kw">let </span>info = <span class="self">self</span>.genv().constant_info(def_id)<span class="question-mark">?</span>;
+                            rty::Expr::const_def_id(def_id, info).at(espan)
+                        } <span class="kw">else </span>{
+                            <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv().sort_of_def_id(def_id)<span class="question-mark">? </span><span class="kw">else </span>{
+                                <span class="macro">span_bug!</span>(expr.span, <span class="string">"missing sort for const {def_id:?}"</span>);
+                            };
+                            rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
+                        }
+                    }
                     ExprRes::ConstGeneric(def_id) =&gt; {
                         rty::Expr::const_generic(def_id_to_param_const(<span class="self">self</span>.genv(), def_id))
                             .at(espan)

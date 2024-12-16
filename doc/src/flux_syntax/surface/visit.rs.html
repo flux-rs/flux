@@ -519,14 +519,25 @@
 <a href="#518" id="518">518</a>
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstructorArg, Ensures, EnumDef,
-    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
-    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
-    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
+    Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
+    FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
+    Indices, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc,
+    StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
 
 <span class="attr">#[macro_export]
@@ -596,6 +607,10 @@
 
     <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>StructDef) {
         walk_struct_def(<span class="self">self</span>, struct_def);
+    }
+
+    <span class="kw">fn </span>visit_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _constant: <span class="kw-2">&amp;</span>ConstantInfo) {
+        walk_constant(<span class="self">self</span>, _constant);
     }
 
     <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>EnumDef) {
@@ -788,6 +803,11 @@
         vis.visit_refine_param(index);
     }
     vis.visit_ty(<span class="kw-2">&amp;</span>ty_alias.ty);
+}
+<span class="kw">pub fn </span>walk_constant&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, constant_info: <span class="kw-2">&amp;</span>ConstantInfo) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="kw-2">&amp;</span>constant_info.expr {
+        vis.visit_expr(expr);
+    }
 }
 
 <span class="kw">pub fn </span>walk_struct_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, struct_def: <span class="kw-2">&amp;</span>StructDef) {

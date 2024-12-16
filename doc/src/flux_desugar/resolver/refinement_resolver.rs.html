@@ -990,7 +990,15 @@
 <a href="#989" id="989">989</a>
 <a href="#990" id="990">990</a>
 <a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
 <span class="kw">use </span>flux_errors::Errors;
@@ -1418,6 +1426,14 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_enum_def(enum_def))<span class="question-mark">?</span>;
         <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_enum_def(enum_def))
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_constant(
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        constant_info: <span class="kw-2">&amp;</span>surface::ConstantInfo,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_constant(constant_info))<span class="question-mark">?</span>;
+        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_constant(constant_info))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_ty_alias(

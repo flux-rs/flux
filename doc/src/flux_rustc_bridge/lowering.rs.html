@@ -1190,7 +1190,20 @@
 <a href="#1189" id="1189">1189</a>
 <a href="#1190" id="1190">1190</a>
 <a href="#1191" id="1191">1191</a>
-<a href="#1192" id="1192">1192</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<a href="#1192" id="1192">1192</a>
+<a href="#1193" id="1193">1193</a>
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1207,7 +1220,7 @@
         TyCtxt, TypingMode, ValTree,
     },
 };
-<span class="kw">use </span>rustc_span::{Span, Symbol, DUMMY_SP};
+<span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
@@ -1803,16 +1816,9 @@
         <span class="kw">use </span>rustc_middle::ty::TyKind;
         <span class="kw">use </span>rustc_mir::{interpret::Scalar, Const};
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx;
-
-        <span class="comment">// HACK(nilehmann) we evaluate the constant to support u32::MAX
-        // we should instead lower it as is and refine its type.
-        </span><span class="kw">let </span>const_ = constant
-            .const_
-            .eval(tcx, ParamEnv::empty(), DUMMY_SP)
-            .map(|val| Const::Val(val, constant.const_.ty()))
-            .unwrap_or(constant.const_);
+        <span class="kw">let </span>const_ = constant.const_;
         <span class="kw">let </span>ty = constant.ty();
-        <span class="kw">match </span>(const_, ty.kind()) {
+        <span class="kw">match </span>(constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.scalar_int_to_constant(scalar, ty)
             }
@@ -1839,7 +1845,27 @@
                 }
             }
             (<span class="kw">_</span>, TyKind::Tuple(tys)) <span class="kw">if </span>tys.is_empty() =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Constant::Unit),
-            (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Constant::Opaque(ty.lower(tcx)<span class="question-mark">?</span>)),
+
+            (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+                <span class="kw">if let </span>Const::Unevaluated(uneval, <span class="kw">_</span>) = const_ {
+                    <span class="kw">if </span>uneval.args.is_empty() {
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(Constant::Unevaluated(ty.lower(tcx)<span class="question-mark">?</span>, uneval.def));
+                    }
+                    <span class="comment">// HACK(RJ) see tests/tests/pos/surface/const09.rs
+                    // The const has `args` which makes it unevaluated...
+                    </span><span class="kw">let </span>const_ = constant
+                        .const_
+                        .eval(tcx, ParamEnv::empty(), rustc_span::DUMMY_SP)
+                        .map(|val| Const::Val(val, constant.const_.ty()))
+                        .unwrap_or(constant.const_);
+                    <span class="kw">if let </span>Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(constant) = <span class="self">self</span>.scalar_int_to_constant(scalar, ty) {
+                            <span class="kw">return </span><span class="prelude-val">Ok</span>(constant);
+                        }
+                    }
+                }
+                <span class="prelude-val">Some</span>(Constant::Opaque(ty.lower(tcx)<span class="question-mark">?</span>))
+            }
         }
         .ok_or_else(|| UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported constant `{constant:?}`"</span>)))
     }

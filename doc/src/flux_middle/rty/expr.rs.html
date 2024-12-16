@@ -1586,8 +1586,8 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs,
-    GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
+    GenericArgs, GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
 };
 <span class="kw">use crate</span>::{
     big_int::BigInt,
@@ -1714,7 +1714,7 @@
     Var(Var),
     Local(Local),
     Constant(Constant),
-    ConstDefId(DefId),
+    ConstDefId(DefId, ConstantInfo),
     BinaryOp(BinOp, Expr, Expr),
     GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
@@ -2020,8 +2020,8 @@
         ExprKind::Constant(c).intern()
     }
 
-    <span class="kw">pub fn </span>const_def_id(c: DefId) -&gt; Expr {
-        ExprKind::ConstDefId(c).intern()
+    <span class="kw">pub fn </span>const_def_id(c: DefId, info: ConstantInfo) -&gt; Expr {
+        ExprKind::ConstDefId(c, info).intern()
     }
 
     <span class="kw">pub fn </span>const_generic(param: ParamConst) -&gt; Expr {
@@ -2718,7 +2718,7 @@
             <span class="kw">match </span>e.kind() {
                 ExprKind::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, var),
                 ExprKind::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^local),
-                ExprKind::ConstDefId(did) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^def_id_to_string(<span class="kw-2">*</span>did)),
+                ExprKind::ConstDefId(did, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^def_id_to_string(<span class="kw-2">*</span>did)),
                 ExprKind::Constant(c) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, c),
                 ExprKind::BinaryOp(op, e1, e2) =&gt; {
                     <span class="kw">if </span>should_parenthesize(op, e1) {

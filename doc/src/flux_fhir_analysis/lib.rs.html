@@ -598,7 +598,32 @@
 <a href="#597" id="597">597</a>
 <a href="#598" id="598">598</a>
 <a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -624,7 +649,7 @@
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
-    fhir,
+    fhir::{<span class="self">self</span>},
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
@@ -655,6 +680,7 @@
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
+    providers.constant_info = constant_info;
     providers.type_of = type_of;
     providers.variants_of = variants_of;
     providers.fn_sig = fn_sig;
@@ -735,6 +761,30 @@
     <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
 
     <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>, invariants, is_opaque))
+}
+
+<span class="kw">fn </span>constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+    <span class="kw">let </span>def_id = genv.maybe_extern_id(local_def_id);
+    <span class="kw">let </span>node = genv.map().node(def_id.local_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span>owner = rustc_hir::OwnerId { def_id: local_def_id };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_def_id(owner.def_id.to_def_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span><span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted);
+    };
+    <span class="kw">match </span>node {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">Some</span>(expr)), .. }) =&gt; {
+            <span class="comment">// for these constants we must check and use the expression
+            </span><span class="kw">let </span>wfckresults = wf::check_constant_expr(genv, owner, expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+            conv::conv_constant_expr(genv, local_def_id.to_def_id(), expr, sort, <span class="kw-2">&amp;</span>wfckresults)
+        }
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">None</span>), .. })
+        | fhir::Node::AnonConst
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) =&gt; {
+            <span class="comment">// for these constants we try to evaluate if they are integral and return uninterpreted if we fail
+            </span>conv::conv_constant(genv, local_def_id.to_def_id())
+        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected const item"</span>))<span class="question-mark">?</span>,
+    }
 }
 
 <span class="kw">fn </span>invariants_of(genv: GlobalEnv, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {

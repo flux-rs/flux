@@ -1911,7 +1911,7 @@
             | ExprKind::Hole(<span class="kw">_</span>)
             | ExprKind::Local(<span class="kw">_</span>)
             | ExprKind::GlobalFunc(..)
-            | ExprKind::ConstDefId(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
+            | ExprKind::ConstDefId(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
         }
     }
 }
@@ -1929,7 +1929,7 @@
             ExprKind::Var(var) =&gt; Expr::var(<span class="kw-2">*</span>var),
             ExprKind::Local(local) =&gt; Expr::local(<span class="kw-2">*</span>local),
             ExprKind::Constant(c) =&gt; Expr::constant(<span class="kw-2">*</span>c),
-            ExprKind::ConstDefId(did) =&gt; Expr::const_def_id(<span class="kw-2">*</span>did),
+            ExprKind::ConstDefId(did, info) =&gt; Expr::const_def_id(<span class="kw-2">*</span>did, info.clone()),
             ExprKind::BinaryOp(op, e1, e2) =&gt; {
                 Expr::binary_op(
                     op.try_fold_with(folder)<span class="question-mark">?</span>,
