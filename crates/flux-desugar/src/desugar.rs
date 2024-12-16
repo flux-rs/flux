@@ -503,7 +503,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let generics = self.as_lift_cx().lift_generics()?;
         Ok(fhir::TraitItem { owner_id, generics, kind: fhir::TraitItemKind::Const })
     }
-    
+
     pub(crate) fn desugar_fn_spec(
         &mut self,
         fn_spec: &surface::FnSpec,
