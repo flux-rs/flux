@@ -67,7 +67,7 @@ pub(crate) fn check_constant_expr(
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
     let mut err = None;
-    infcx.check_expr(expr, &sort).collect_err(&mut err);
+    infcx.check_expr(expr, sort).collect_err(&mut err);
     err.into_result()?;
     Ok(infcx.into_results())
 }

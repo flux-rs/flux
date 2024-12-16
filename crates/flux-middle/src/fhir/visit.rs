@@ -257,7 +257,7 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
         ItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
         ItemKind::Const(info) => {
             if let Some(expr) = info {
-                vis.visit_expr(expr)
+                vis.visit_expr(expr);
             }
         }
     }
