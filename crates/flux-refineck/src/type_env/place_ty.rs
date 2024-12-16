@@ -938,15 +938,15 @@ mod pretty {
 
     impl Pretty for PlacesTree {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             w!(
+                cx, f,
                 "{{{}}}",
                 ^self
                     .iter()
                     .filter(|(_, binding)| !cx.hide_uninit || !binding.ty.is_uninit())
                     .sorted_by(|(loc1, _), (loc2, _)| loc1.cmp(loc2))
                     .format_with(", ", |(loc, binding), f| {
-                        f(&format_args_cx!("{:?}:{:?} {:?}", loc, &binding.kind, &binding.ty))
+                        f(&format_args_cx!(cx, "{:?}:{:?} {:?}", loc, &binding.kind, &binding.ty))
                     })
             )
         }
@@ -957,12 +957,11 @@ mod pretty {
     }
 
     impl Pretty for LocKind {
-        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
-                LocKind::Box(_) => w!("[box]"),
-                LocKind::LocalPtr(ty) => w!("[local-ptr({ty:?})]"),
+                LocKind::Box(_) => w!(cx, f, "[box]"),
+                LocKind::LocalPtr(ty) => w!(cx, f, "[local-ptr({:?})]", ty),
             }
         }
     }

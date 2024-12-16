@@ -832,8 +832,7 @@ mod pretty {
 
     impl Pretty for TypeEnv<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", &self.bindings)
+            w!(cx, f, "{:?}", &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PrettyCx {
@@ -843,8 +842,7 @@ mod pretty {
 
     impl Pretty for BasicBlockEnvShape {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?} {:?}", &self.scope, &self.bindings)
+            w!(cx, f, "{:?} {:?}", &self.scope, &self.bindings)
         }
 
         fn default_cx(tcx: TyCtxt) -> PrettyCx {
@@ -854,8 +852,7 @@ mod pretty {
 
     impl Pretty for BasicBlockEnv {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?} ", &self.scope)?;
+            w!(cx, f, "{:?} ", &self.scope)?;
 
             let vars = self.data.vars();
             cx.with_bound_vars(vars, || {
@@ -865,11 +862,13 @@ mod pretty {
                 let data = self.data.as_ref().skip_binder();
                 if !data.constrs.is_empty() {
                     w!(
+                        cx,
+                        f,
                         "{:?} ⇒ ",
                         join!(", ", data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
                     )?;
                 }
-                w!("{:?}", &data.bindings)
+                w!(cx, f, "{:?}", &data.bindings)
             })
         }
 

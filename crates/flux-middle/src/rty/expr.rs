@@ -1090,8 +1090,7 @@ pub struct FieldBind<T> {
 
 impl<T: Pretty> Pretty for FieldBind<T> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("{}: {:?}", ^self.name, &self.value)
+        w!(cx, f, "{}: {:?}", ^self.name, &self.value)
     }
 }
 
@@ -1148,60 +1147,59 @@ pub(crate) mod pretty {
 
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::Var(var) => w!("{:?}", var),
-                ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::ConstDefId(did, _) => w!("{}", ^def_id_to_string(*did)),
-                ExprKind::Constant(c) => w!("{:?}", c),
+                ExprKind::Var(var) => w!(cx, f, "{:?}", var),
+                ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
+                ExprKind::ConstDefId(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
-                        w!("({:?})", e1)?;
+                        w!(cx, f, "({:?})", e1)?;
                     } else {
-                        w!("{:?}", e1)?;
+                        w!(cx, f, "{:?}", e1)?;
                     }
                     if matches!(op, BinOp::Div) {
-                        w!("{:?}", op)?;
+                        w!(cx, f, "{:?}", op)?;
                     } else {
-                        w!(" {:?} ", op)?;
+                        w!(cx, f, " {:?} ", op)?;
                     }
                     if should_parenthesize(op, e2) {
-                        w!("({:?})", e2)?;
+                        w!(cx, f, "({:?})", e2)?;
                     } else {
-                        w!("{:?}", e2)?;
+                        w!(cx, f, "{:?}", e2)?;
                     }
                     Ok(())
                 }
                 ExprKind::UnaryOp(op, e) => {
                     if e.is_atom() {
-                        w!("{:?}{:?}", op, e)
+                        w!(cx, f, "{:?}{:?}", op, e)
                     } else {
-                        w!("{:?}({:?})", op, e)
+                        w!(cx, f, "{:?}({:?})", op, e)
                     }
                 }
                 ExprKind::FieldProj(e, proj) => {
                     // base
                     if e.is_atom() {
-                        w!("{:?}", e)?;
+                        w!(cx, f, "{:?}", e)?;
                     } else {
-                        w!("({:?})", e)?;
+                        w!(cx, f, "({:?})", e)?;
                     };
                     // proj
                     if let Some(genv) = cx.genv
                         && let FieldProj::Adt { def_id, field } = proj
                         && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
-                        w!(".{}", ^adt_sort_def.field_names()[*field as usize])
+                        w!(cx, f, ".{}", ^adt_sort_def.field_names()[*field as usize])
                     } else {
-                        w!(".{:?}", ^proj.field_idx())
+                        w!(cx, f, ".{:?}", ^proj.field_idx())
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
                     if let [e] = &flds[..] {
-                        w!("({:?},)", e)
+                        w!(cx, f, "({:?},)", e)
                     } else {
-                        w!("({:?})", join!(", ", flds))
+                        w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
@@ -1214,49 +1212,49 @@ pub(crate) mod pretty {
                             .zip(flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
-                        w!("{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                        w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
                     } else {
-                        w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                        w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
                     }
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_atom() {
-                        w!("{:?}.{:?}", e, field)
+                        w!(cx, f, "{:?}.{:?}", e, field)
                     } else {
-                        w!("({:?}).{:?}", e, field)
+                        w!(cx, f, "({:?}).{:?}", e, field)
                     }
                 }
                 ExprKind::App(func, args) => {
-                    w!("{:?}({})",
+                    w!(cx, f, "{:?}({})",
                         parens!(func, !func.is_atom()),
                         ^args
                             .iter()
-                            .format_with(", ", |arg, f| f(&format_args_cx!("{:?}", arg)))
+                            .format_with(", ", |arg, f| f(&format_args_cx!(cx, "{:?}", arg)))
                     )
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
-                    w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
+                    w!(cx, f, "if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
                 ExprKind::Hole(_) => {
-                    w!("*")
+                    w!(cx, f, "*")
                 }
                 ExprKind::KVar(kvar) => {
-                    w!("{:?}", kvar)
+                    w!(cx, f, "{:?}", kvar)
                 }
                 ExprKind::Alias(alias, args) => {
-                    w!("{:?}({:?})", alias, join!(", ", args))
+                    w!(cx, f, "{:?}({:?})", alias, join!(", ", args))
                 }
                 ExprKind::Abs(lam) => {
-                    w!("{:?}", lam)
+                    w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
+                ExprKind::GlobalFunc(func, _) => w!(cx, f, "{}", ^func),
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
                     cx.with_bound_vars(vars, || {
                         if !vars.is_empty() {
                             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
-                        w!("{:?}", expr.as_ref().skip_binder())
+                        w!(cx, f, "{:?}", expr.as_ref().skip_binder())
                     })
                 }
             }
@@ -1264,63 +1262,64 @@ pub(crate) mod pretty {
     }
 
     impl Pretty for Constant {
-        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                Constant::Int(i) => w!("{i}"),
-                Constant::Real(r) => w!("{}.0", ^r.0),
-                Constant::Bool(b) => w!("{b}"),
-                Constant::Str(sym) => w!("\"{sym}\""),
-                Constant::Char(c) => write!(f, "\'{c}\'"),
+                Constant::Int(i) => w!(cx, f, "{i}"),
+                Constant::Real(r) => w!(cx, f, "{}.0", ^r.0),
+                Constant::Bool(b) => w!(cx, f, "{b}"),
+                Constant::Str(sym) => w!(cx, f, "\"{sym}\""),
+                Constant::Char(c) => w!(cx, f, "\'{c}\'"),
             }
         }
     }
 
     impl Pretty for AliasReft {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("<({:?}) as {:?}", &self.args[0], self.trait_id)?;
+            w!(cx, f, "<({:?}) as {:?}", &self.args[0], self.trait_id)?;
             let args = &self.args[1..];
             if !args.is_empty() {
-                w!("<{:?}>", join!(", ", args))?;
+                w!(cx, f, "<{:?}>", join!(", ", args))?;
             }
-            w!(">::{}", ^self.name)
+            w!(cx, f, ">::{}", ^self.name)
         }
     }
 
     impl Pretty for Lambda {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             let vars = self.body.vars();
             cx.with_bound_vars(vars, || {
                 cx.fmt_bound_vars(false, "λ", vars, ". ", f)?;
-                w!("{:?}", self.body.as_ref().skip_binder())
+                w!(cx, f, "{:?}", self.body.as_ref().skip_binder())
             })
         }
     }
 
     impl Pretty for Var {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             match self {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
-                Var::EarlyParam(var) => w!("{}", ^var.name),
-                Var::Free(name) => w!("{:?}", ^name),
-                Var::EVar(evar) => w!("{:?}", evar),
-                Var::ConstGeneric(param) => w!("{}", ^param.name),
+                Var::EarlyParam(var) => w!(cx, f, "{}", ^var.name),
+                Var::Free(name) => w!(cx, f, "{:?}", ^name),
+                Var::EVar(evar) => w!(cx, f, "{:?}", evar),
+                Var::ConstGeneric(param) => w!(cx, f, "{}", ^param.name),
             }
         }
     }
 
     impl Pretty for KVar {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", ^self.kvid)?;
+            w!(cx, f, "{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
+                    w!(
+                        cx,
+                        f,
+                        "({:?})[{:?}]",
+                        join!(", ", self.self_args()),
+                        join!(", ", self.scope())
+                    )?;
                 }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", self.self_args()))?,
+                KVarArgs::SelfOnly => w!(cx, f, "({:?})", join!(", ", self.self_args()))?,
                 KVarArgs::Hide => {}
             }
             Ok(())
@@ -1329,10 +1328,9 @@ pub(crate) mod pretty {
 
     impl Pretty for Path {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", &self.loc)?;
+            w!(cx, f, "{:?}", &self.loc)?;
             for field in &self.projection {
-                w!(".{}", ^u32::from(*field))?;
+                w!(cx, f, ".{}", ^u32::from(*field))?;
             }
             Ok(())
         }
@@ -1340,43 +1338,40 @@ pub(crate) mod pretty {
 
     impl Pretty for Loc {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             match self {
-                Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Var(var) => w!("{:?}", var),
+                Loc::Local(local) => w!(cx, f, "{:?}", ^local),
+                Loc::Var(var) => w!(cx, f, "{:?}", var),
             }
         }
     }
 
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             match self {
-                BinOp::Iff => w!("⇔"),
-                BinOp::Imp => w!("⇒"),
-                BinOp::Or => w!("∨"),
-                BinOp::And => w!("∧"),
-                BinOp::Eq => w!("="),
-                BinOp::Ne => w!("≠"),
-                BinOp::Gt(_) => w!(">"),
-                BinOp::Ge(_) => w!("≥"),
-                BinOp::Lt(_) => w!("<"),
-                BinOp::Le(_) => w!("≤"),
-                BinOp::Add => w!("+"),
-                BinOp::Sub => w!("-"),
-                BinOp::Mul => w!("*"),
-                BinOp::Div => w!("/"),
-                BinOp::Mod => w!("mod"),
+                BinOp::Iff => w!(cx, f, "⇔"),
+                BinOp::Imp => w!(cx, f, "⇒"),
+                BinOp::Or => w!(cx, f, "∨"),
+                BinOp::And => w!(cx, f, "∧"),
+                BinOp::Eq => w!(cx, f, "="),
+                BinOp::Ne => w!(cx, f, "≠"),
+                BinOp::Gt(_) => w!(cx, f, ">"),
+                BinOp::Ge(_) => w!(cx, f, "≥"),
+                BinOp::Lt(_) => w!(cx, f, "<"),
+                BinOp::Le(_) => w!(cx, f, "≤"),
+                BinOp::Add => w!(cx, f, "+"),
+                BinOp::Sub => w!(cx, f, "-"),
+                BinOp::Mul => w!(cx, f, "*"),
+                BinOp::Div => w!(cx, f, "/"),
+                BinOp::Mod => w!(cx, f, "mod"),
             }
         }
     }
 
     impl Pretty for UnOp {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             match self {
-                UnOp::Not => w!("¬"),
-                UnOp::Neg => w!("-"),
+                UnOp::Not => w!(cx, f, "¬"),
+                UnOp::Neg => w!(cx, f, "-"),
             }
         }
     }
@@ -1399,7 +1394,6 @@ pub(crate) mod pretty {
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
-        define_scoped!(cx, _f);
         let keys = if let Some(genv) = cx.genv
             && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
         {
@@ -1411,7 +1405,8 @@ pub(crate) mod pretty {
         } else {
             (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
         };
-        let text = if is_named { format_cx!("{:?}{{..}}", def_id) } else { format_cx!("{{..}}") };
+        let text =
+            if is_named { format_cx!(cx, "{:?}{{..}}", def_id) } else { format_cx!(cx, "{{..}}") };
         let mut children = vec![];
         for (key, fld) in iter::zip(keys, flds) {
             let fld_d = fld.fmt_nested(cx)?;
@@ -1422,7 +1417,6 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            define_scoped!(cx, _f);
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(..)
@@ -1529,7 +1523,7 @@ pub(crate) mod pretty {
                         texts.push(arg_d.text);
                         kidss.push(arg_d.children);
                     }
-                    let text = format_cx!("{:?}({:?})", alias, texts.join(", "));
+                    let text = format_cx!(cx, "{:?}({:?})", alias, texts.join(", "));
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }

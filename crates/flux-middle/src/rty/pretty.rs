@@ -1,32 +1,29 @@
 use std::{fmt, iter};
 
 use expr::{pretty::aggregate_nested, FieldBind};
-use flux_rustc_bridge::ty::region_to_string;
 use rustc_type_ir::DebruijnIndex;
-use ty::{UnevaluatedConst, ValTree};
+use ty::{region_to_string, UnevaluatedConst, ValTree};
 
 use super::*;
 use crate::pretty::*;
 
 impl Pretty for ClauseKind {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
-            ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
-            ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
-            ClauseKind::ConstArgHasType(c, ty) => w!("ConstArgHasType ({:?}, {:?})", c, ty),
+            ClauseKind::Trait(pred) => w!(cx, f, "Trait ({:?})", ^pred),
+            ClauseKind::Projection(pred) => w!(cx, f, "Projection ({:?})", ^pred),
+            ClauseKind::TypeOutlives(pred) => w!(cx, f, "Outlives ({:?}, {:?})", &pred.0, &pred.1),
+            ClauseKind::ConstArgHasType(c, ty) => w!(cx, f, "ConstArgHasType ({:?}, {:?})", c, ty),
         }
     }
 }
 
 impl Pretty for BoundRegionKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            BoundRegionKind::BrAnon => w!("'<annon>"),
-            BoundRegionKind::BrNamed(_, sym) => w!("{sym}"),
-            BoundRegionKind::BrEnv => w!("'<env>"),
+            BoundRegionKind::BrAnon => w!(cx, f, "'<annon>"),
+            BoundRegionKind::BrNamed(_, sym) => w!(cx, f, "{sym}"),
+            BoundRegionKind::BrEnv => w!(cx, f, "'<env>"),
         }
     }
 }
@@ -36,12 +33,11 @@ where
     T: Pretty,
 {
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         cx.with_bound_vars(self.vars(), || {
             if !self.vars().is_empty() {
                 cx.fmt_bound_vars(true, "for<", self.vars(), "> ", f)?;
             }
-            w!("{:?}", self.skip_binder_ref())
+            w!(cx, f, "{:?}", self.skip_binder_ref())
         })
     }
 }
@@ -54,113 +50,106 @@ impl<T: Pretty> std::fmt::Debug for Binder<T> {
 
 impl Pretty for PolyFnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         let vars = self.vars();
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
                 cx.fmt_bound_vars(true, "for<", vars, "> ", f)?;
             }
-            w!("{:?}", self.skip_binder_ref())
+            w!(cx, f, "{:?}", self.skip_binder_ref())
         })
     }
 }
 
 impl Pretty for SortCtor {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SortCtor::Set => w!("Set"),
-            SortCtor::Map => w!("Map"),
-            SortCtor::User { name, .. } => w!("{}", ^name),
+            SortCtor::Set => w!(cx, f, "Set"),
+            SortCtor::Map => w!(cx, f, "Map"),
+            SortCtor::User { name, .. } => w!(cx, f, "{}", ^name),
             SortCtor::Adt(adt_sort_def) => {
-                w!("{:?}", adt_sort_def.did())
+                w!(cx, f, "{:?}", adt_sort_def.did())
             }
         }
     }
 }
 
 impl Pretty for SortInfer {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SortInfer::SortVar(svid) => w!("{:?}", ^svid),
-            SortInfer::NumVar(nvid) => w!("{:?}", ^nvid),
+            SortInfer::SortVar(svid) => w!(cx, f, "{:?}", ^svid),
+            SortInfer::NumVar(nvid) => w!(cx, f, "{:?}", ^nvid),
         }
     }
 }
 
 impl Pretty for Sort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            Sort::Bool => w!("bool"),
-            Sort::Int => w!("int"),
-            Sort::Real => w!("real"),
-            Sort::Str => w!("str"),
-            Sort::Char => w!("char"),
-            Sort::BitVec(size) => w!("bitvec({:?})", size),
-            Sort::Loc => w!("loc"),
-            Sort::Var(n) => w!("@{}", ^n.index()),
-            Sort::Func(sort) => w!("{:?}", sort),
+            Sort::Bool => w!(cx, f, "bool"),
+            Sort::Int => w!(cx, f, "int"),
+            Sort::Real => w!(cx, f, "real"),
+            Sort::Str => w!(cx, f, "str"),
+            Sort::Char => w!(cx, f, "char"),
+            Sort::BitVec(size) => w!(cx, f, "bitvec({:?})", size),
+            Sort::Loc => w!(cx, f, "loc"),
+            Sort::Var(n) => w!(cx, f, "@{}", ^n.index()),
+            Sort::Func(sort) => w!(cx, f, "{:?}", sort),
             Sort::Tuple(sorts) => {
                 if let [sort] = &sorts[..] {
-                    w!("({:?},)", sort)
+                    w!(cx, f, "({:?},)", sort)
                 } else {
-                    w!("({:?})", join!(", ", sorts))
+                    w!(cx, f, "({:?})", join!(", ", sorts))
                 }
             }
             Sort::Alias(kind, alias_ty) => {
                 fmt_alias_ty(cx, f, *kind, alias_ty)?;
-                w!("::sort")
+                w!(cx, f, "::sort")
             }
             Sort::App(ctor, sorts) => {
                 if sorts.is_empty() {
-                    w!("{:?}", ctor)
+                    w!(cx, f, "{:?}", ctor)
                 } else {
-                    w!("{:?}<{:?}>", ctor, join!(", ", sorts))
+                    w!(cx, f, "{:?}<{:?}>", ctor, join!(", ", sorts))
                 }
             }
-            Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
-            Sort::Infer(svar) => w!("{:?}", svar),
-            Sort::Err => w!("err"),
+            Sort::Param(param_ty) => w!(cx, f, "{}::sort", ^param_ty),
+            Sort::Infer(svar) => w!(cx, f, "{:?}", svar),
+            Sort::Err => w!(cx, f, "err"),
         }
     }
 }
 
 impl Pretty for SortArg {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            SortArg::Sort(sort) => w!("{:?}", sort),
-            SortArg::BvSize(size) => w!("{:?}", size),
+            SortArg::Sort(sort) => w!(cx, f, "{:?}", sort),
+            SortArg::BvSize(size) => w!(cx, f, "{:?}", size),
         }
     }
 }
 
 impl Pretty for BvSize {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BvSize::Fixed(size) => w!("{}", ^size),
-            BvSize::Param(param) => w!("{:?}", ^param),
-            BvSize::Infer(size_vid) => w!("{:?}", ^size_vid),
+            BvSize::Fixed(size) => w!(cx, f, "{}", ^size),
+            BvSize::Param(param) => w!(cx, f, "{:?}", ^param),
+            BvSize::Infer(size_vid) => w!(cx, f, "{:?}", ^size_vid),
         }
     }
 }
 
 impl Pretty for FuncSort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self.inputs() {
             [input] => {
-                w!(f, "{:?} -> {:?}", input, self.output())
+                w!(cx, f, "{:?} -> {:?}", input, self.output())
             }
             inputs => {
-                w!(f,
+                w!(cx, f,
                    "({}) -> {:?}",
                    ^inputs
                        .iter()
-                       .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
+                       .format_with(", ", |s, f| f(&format_args_cx!(cx, "{:?}", s))),
                    self.output()
                 )
             }
@@ -170,22 +159,20 @@ impl Pretty for FuncSort {
 
 impl Pretty for PolyFuncSort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         if self.params.is_empty() {
-            w!("{:?}", &self.fsort)
+            w!(cx, f, "{:?}", &self.fsort)
         } else {
-            w!("for<{}> {:?}", ^self.params.len(), &self.fsort)
+            w!(cx, f, "for<{}> {:?}", ^self.params.len(), &self.fsort)
         }
     }
 }
 
 impl Pretty for FnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         if !self.requires.is_empty() {
-            w!("[{:?}] ", join!(", ", &self.requires))?;
+            w!(cx, f, "[{:?}] ", join!(", ", &self.requires))?;
         }
-        w!("fn({:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
+        w!(cx, f, "fn({:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
 
         Ok(())
     }
@@ -193,23 +180,21 @@ impl Pretty for FnSig {
 
 impl Pretty for Binder<FnOutput> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         let vars = self.vars();
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
                 cx.fmt_bound_vars(true, "exists<", vars, "> ", f)?;
             }
-            w!("{:?}", self.skip_binder_ref())
+            w!(cx, f, "{:?}", self.skip_binder_ref())
         })
     }
 }
 
 impl Pretty for FnOutput {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("{:?}", &self.ret)?;
+        w!(cx, f, "{:?}", &self.ret)?;
         if !self.ensures.is_empty() {
-            w!("; [{:?}]", join!(", ", &self.ensures))?;
+            w!(cx, f, "; [{:?}]", join!(", ", &self.ensures))?;
         }
         Ok(())
     }
@@ -217,21 +202,19 @@ impl Pretty for FnOutput {
 
 impl Pretty for Ensures {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            Ensures::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
-            Ensures::Pred(e) => w!("{:?}", e),
+            Ensures::Type(loc, ty) => w!(cx, f, "{:?}: {:?}", ^loc, ty),
+            Ensures::Pred(e) => w!(cx, f, "{:?}", e),
         }
     }
 }
 
 impl Pretty for SubsetTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         if self.pred.is_trivially_true() {
-            w!("{:?}[{:?}]", &self.bty, &self.idx)
+            w!(cx, f, "{:?}[{:?}]", &self.bty, &self.idx)
         } else {
-            w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
+            w!(cx, f, "{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
         }
     }
 }
@@ -252,7 +235,6 @@ impl PrettyNested for IdxFmt {
 
 impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         let e = &self.0;
         let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
         if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
@@ -261,28 +243,27 @@ impl Pretty for IdxFmt {
         {
             let field_binds = iter::zip(adt_sort_def.field_names(), flds)
                 .map(|(name, value)| FieldBind { name: *name, value: value.clone() });
-            w!("{{ {:?} }}", join!(", ", field_binds))
+            w!(cx, f, "{{ {:?} }}", join!(", ", field_binds))
         } else {
-            w!("{:?}", e)
+            w!(cx, f, "{:?}", e)
         }
     }
 }
 
 impl Pretty for Ty {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self.kind() {
             TyKind::Indexed(bty, idx) => {
-                w!("{:?}", parens!(bty, !bty.is_atom()))?;
+                w!(cx, f, "{:?}", parens!(bty, !bty.is_atom()))?;
                 if cx.hide_refinements {
                     return Ok(());
                 }
                 if idx.is_unit() {
                     if bty.is_adt() {
-                        w!("[]")?;
+                        w!(cx, f, "[]")?;
                     }
                 } else {
-                    w!("[{:?}]", IdxFmt(idx.clone()))?;
+                    w!(cx, f, "[{:?}]", IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -290,45 +271,45 @@ impl Pretty for Ty {
                 let vars = ty_ctor.vars();
                 cx.with_bound_vars(vars, || {
                     if cx.hide_refinements {
-                        w!("{:?}", ty_ctor.skip_binder_ref())
+                        w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
                     } else {
                         cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                        w!("{:?}", ty_ctor.skip_binder_ref())
+                        w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
                     }
                 })
             }
-            TyKind::Uninit => w!("uninit"),
-            TyKind::StrgRef(re, loc, ty) => w!("&{:?} strg <{:?}: {:?}>", re, loc, ty),
-            TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-            TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.did(), ^place),
+            TyKind::Uninit => w!(cx, f, "uninit"),
+            TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
+            TyKind::Ptr(pk, loc) => w!(cx, f, "ptr({:?}, {:?})", pk, loc),
+            TyKind::Discr(adt_def, place) => w!(cx, f, "discr({:?}, {:?})", adt_def.did(), ^place),
             TyKind::Constr(pred, ty) => {
                 if cx.hide_refinements {
-                    w!("{:?}", ty)
+                    w!(cx, f, "{:?}", ty)
                 } else {
-                    w!("{{ {:?} | {:?} }}", ty, pred)
+                    w!(cx, f, "{{ {:?} | {:?} }}", ty, pred)
                 }
             }
-            TyKind::Param(param_ty) => w!("{}", ^param_ty),
+            TyKind::Param(param_ty) => w!(cx, f, "{}", ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) => {
                 // base-name
-                w!("{:?}", adt.did())?;
+                w!(cx, f, "{:?}", adt.did())?;
                 // variant-name: if it is not a struct
                 if !adt.is_struct() {
-                    w!("::{}", ^adt.variant(*variant_idx).name)?;
+                    w!(cx, f, "::{}", ^adt.variant(*variant_idx).name)?;
                 }
                 // fields: use curly-braces + names for structs, otherwise use parens
                 if adt.is_struct() {
                     let field_binds = iter::zip(&adt.variant(*variant_idx).fields, fields)
                         .map(|(field_def, value)| FieldBind { name: field_def.name, value });
-                    w!(" {{ {:?} }}", join!(", ", field_binds))?;
+                    w!(cx, f, " {{ {:?} }}", join!(", ", field_binds))?;
                 } else if !fields.is_empty() {
-                    w!("({:?})", join!(", ", fields))?;
+                    w!(cx, f, "({:?})", join!(", ", fields))?;
                 }
                 Ok(())
             }
-            TyKind::Blocked(ty) => w!("†{:?}", ty),
+            TyKind::Blocked(ty) => w!(cx, f, "†{:?}", ty),
             TyKind::Infer(ty_vid) => {
-                w!("{ty_vid:?}")
+                w!(cx, f, "{ty_vid:?}")
             }
         }
     }
@@ -340,49 +321,44 @@ impl Pretty for Ty {
 
 impl Pretty for PtrKind {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
             PtrKind::Mut(re) => {
-                w!("mut")?;
+                w!(cx, f, "mut")?;
                 if !cx.hide_regions {
-                    w!("[{:?}]", re)?;
+                    w!(cx, f, "[{:?}]", re)?;
                 }
                 Ok(())
             }
-            PtrKind::Box => w!("box"),
+            PtrKind::Box => w!(cx, f, "box"),
         }
     }
 }
 
 impl Pretty for List<Ty> {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         if let [ty] = &self[..] {
-            w!("({:?},)", ty)
+            w!(cx, f, "({:?},)", ty)
         } else {
-            w!("({:?})", join!(", ", self))
+            w!(cx, f, "({:?})", join!(", ", self))
         }
     }
 }
 
 impl Pretty for ExistentialPredicate {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExistentialPredicate::Trait(trait_ref) => w!("{:?}", trait_ref),
-            ExistentialPredicate::Projection(proj) => w!("({:?})", proj),
-            ExistentialPredicate::AutoTrait(def_id) => w!("{:?}", def_id),
+            ExistentialPredicate::Trait(trait_ref) => w!(cx, f, "{:?}", trait_ref),
+            ExistentialPredicate::Projection(proj) => w!(cx, f, "({:?})", proj),
+            ExistentialPredicate::AutoTrait(def_id) => w!(cx, f, "{:?}", def_id),
         }
     }
 }
 
 impl Pretty for ExistentialTraitRef {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-
-        w!("{:?}", self.def_id)?;
+        w!(cx, f, "{:?}", self.def_id)?;
         if !self.args.is_empty() {
-            w!("<{:?}>", join!(", ", &self.args))?;
+            w!(cx, f, "<{:?}>", join!(", ", &self.args))?;
         }
         Ok(())
     }
@@ -390,79 +366,76 @@ impl Pretty for ExistentialTraitRef {
 
 impl Pretty for ExistentialProjection {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-
-        w!("{:?}", self.def_id)?;
+        w!(cx, f, "{:?}", self.def_id)?;
         if !self.args.is_empty() {
-            w!("<{:?}>", join!(", ", &self.args))?;
+            w!(cx, f, "<{:?}>", join!(", ", &self.args))?;
         }
-        w!(" = {:?}", &self.term)
+        w!(cx, f, " = {:?}", &self.term)
     }
 }
 
 impl Pretty for BaseTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str()),
-            BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str()),
-            BaseTy::Bool => w!("bool"),
-            BaseTy::Str => w!("str"),
-            BaseTy::Char => w!("char"),
+            BaseTy::Int(int_ty) => w!(cx, f, "{}", ^int_ty.name_str()),
+            BaseTy::Uint(uint_ty) => w!(cx, f, "{}", ^uint_ty.name_str()),
+            BaseTy::Bool => w!(cx, f, "bool"),
+            BaseTy::Str => w!(cx, f, "str"),
+            BaseTy::Char => w!(cx, f, "char"),
             BaseTy::Adt(adt_def, args) => {
-                w!("{:?}", adt_def.did())?;
+                w!(cx, f, "{:?}", adt_def.did())?;
                 let args = args
                     .iter()
                     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
                     .collect_vec();
                 if !args.is_empty() {
-                    w!("<{:?}>", join!(", ", args))?;
+                    w!(cx, f, "<{:?}>", join!(", ", args))?;
                 }
                 Ok(())
             }
             BaseTy::FnDef(def_id, args) => {
-                w!("FnDef({:?}[{:?}])", def_id, join!(", ", args))
+                w!(cx, f, "FnDef({:?}[{:?}])", def_id, join!(", ", args))
             }
-            BaseTy::Param(param) => w!("{}", ^param),
-            BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
-            BaseTy::Slice(ty) => w!("[{:?}]", ty),
-            BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
-            BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
+            BaseTy::Param(param) => w!(cx, f, "{}", ^param),
+            BaseTy::Float(float_ty) => w!(cx, f, "{}", ^float_ty.name_str()),
+            BaseTy::Slice(ty) => w!(cx, f, "[{:?}]", ty),
+            BaseTy::RawPtr(ty, Mutability::Mut) => w!(cx, f, "*mut {:?}", ty),
+            BaseTy::RawPtr(ty, Mutability::Not) => w!(cx, f, "*const {:?}", ty),
             BaseTy::Ref(re, ty, mutbl) => {
-                w!("&")?;
+                w!(cx, f, "&")?;
                 if !cx.hide_regions {
-                    w!("{:?} ", re)?;
+                    w!(cx, f, "{:?} ", re)?;
                 }
-                w!("{}{:?}",  ^mutbl.prefix_str(), ty)
+                w!(cx, f, "{}{:?}",  ^mutbl.prefix_str(), ty)
             }
             BaseTy::FnPtr(poly_fn_sig) => {
-                w!("{:?}", poly_fn_sig)
+                w!(cx, f, "{:?}", poly_fn_sig)
             }
             BaseTy::Tuple(tys) => {
                 if let [ty] = &tys[..] {
-                    w!("({:?},)", ty)
+                    w!(cx, f, "({:?},)", ty)
                 } else {
-                    w!("({:?})", join!(", ", tys))
+                    w!(cx, f, "({:?})", join!(", ", tys))
                 }
             }
             BaseTy::Alias(kind, alias_ty) => fmt_alias_ty(cx, f, *kind, alias_ty),
-            BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
-            BaseTy::Never => w!("!"),
+            BaseTy::Array(ty, c) => w!(cx, f, "[{:?}; {:?}]", ty, ^c),
+            BaseTy::Never => w!(cx, f, "!"),
             BaseTy::Closure(did, args, _) => {
-                w!("{:?}<{:?}>", did, args)
+                w!(cx, f, "{:?}<{:?}>", did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) => {
-                w!("Coroutine({:?}, {:?})", did, resume_ty)?;
+                w!(cx, f, "Coroutine({:?}, {:?})", did, resume_ty)?;
                 if !upvars.is_empty() {
-                    w!("<{:?}>", join!(", ", upvars))?;
+                    w!(cx, f, "<{:?}>", join!(", ", upvars))?;
                 }
                 Ok(())
             }
             BaseTy::Dynamic(preds, re) => {
-                w!("dyn {:?} + {:?}", join!(" + ", preds), re)
+                w!(cx, f, "dyn {:?} + {:?}", join!(" + ", preds), re)
             }
             BaseTy::Infer(ty_vid) => {
-                w!("{ty_vid:?}")
+                w!(cx, f, "{ty_vid:?}")
             }
         }
     }
@@ -474,12 +447,11 @@ fn fmt_alias_ty(
     kind: AliasKind,
     alias_ty: &AliasTy,
 ) -> fmt::Result {
-    define_scoped!(cx, f);
     match kind {
         AliasKind::Weak => {
-            w!("{:?}", alias_ty.def_id)?;
+            w!(cx, f, "{:?}", alias_ty.def_id)?;
             if !alias_ty.args.is_empty() {
-                w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;
             }
         }
         AliasKind::Projection => {
@@ -488,29 +460,29 @@ fn fmt_alias_ty(
             let trait_generic_count = cx.tcx.generics_of(trait_ref).count() - 1;
 
             let [self_ty, args @ ..] = &alias_ty.args[..] else {
-                return w!("<alias_ty>");
+                return w!(cx, f, "<alias_ty>");
             };
 
-            w!("<{:?} as {:?}", self_ty, trait_ref)?;
+            w!(cx, f, "<{:?} as {:?}", self_ty, trait_ref)?;
 
             let trait_generics = &args[..trait_generic_count];
             if !trait_generics.is_empty() {
-                w!("<{:?}>", join!(", ", trait_generics))?;
+                w!(cx, f, "<{:?}>", join!(", ", trait_generics))?;
             }
-            w!(">::{}", ^assoc_name)?;
+            w!(cx, f, ">::{}", ^assoc_name)?;
 
             let assoc_generics = &args[trait_generic_count..];
             if !assoc_generics.is_empty() {
-                w!("<{:?}>", join!(", ", assoc_generics))?;
+                w!(cx, f, "<{:?}>", join!(", ", assoc_generics))?;
             }
         }
         AliasKind::Opaque => {
-            w!("{:?}", alias_ty.def_id)?;
+            w!(cx, f, "{:?}", alias_ty.def_id)?;
             if !alias_ty.args.is_empty() {
-                w!("<{:?}>", join!(", ", &alias_ty.args))?;
+                w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;
             }
             if !alias_ty.refine_args.is_empty() {
-                w!("⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
+                w!(cx, f, "⟨{:?}⟩", join!(", ", &alias_ty.refine_args))?;
             }
         }
     }
@@ -518,70 +490,63 @@ fn fmt_alias_ty(
 }
 
 impl Pretty for ValTree {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ValTree::Leaf(v) => w!("Leaf({v:?})"),
+            ValTree::Leaf(v) => w!(cx, f, "Leaf({v:?})"),
             ValTree::Branch(children) => {
-                w!("Branch([{:?}])", join!(", ", children))
+                w!(cx, f, "Branch([{:?}])", join!(", ", children))
             }
         }
     }
 }
 impl Pretty for UnevaluatedConst {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("UnevaluatedConst({:?}[...])", self.def)
+        w!(cx, f, "UnevaluatedConst({:?}[...])", self.def)
     }
 }
 
 impl Pretty for Const {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(_cx, f);
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
-            ConstKind::Value(_, v) => w!("{v:?}"),
-            ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
-            ConstKind::Unevaluated(uneval_const) => w!("{:?}", uneval_const),
+            ConstKind::Param(p) => w!(cx, f, "{}", ^p.name.as_str()),
+            ConstKind::Value(_, v) => w!(cx, f, "{v:?}"),
+            ConstKind::Infer(infer_const) => w!(cx, f, "{:?}", ^infer_const),
+            ConstKind::Unevaluated(uneval_const) => w!(cx, f, "{:?}", uneval_const),
         }
     }
 }
 
 impl Pretty for GenericArg {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
         match self {
-            GenericArg::Ty(ty) => w!("{:?}", ty),
+            GenericArg::Ty(ty) => w!(cx, f, "{:?}", ty),
             GenericArg::Base(ctor) => {
                 cx.with_bound_vars(ctor.vars(), || {
                     cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
-                    w!("{:?}", ctor.skip_binder_ref())
+                    w!(cx, f, "{:?}", ctor.skip_binder_ref())
                 })
             }
-            GenericArg::Lifetime(re) => w!("{:?}", re),
-            GenericArg::Const(c) => w!("{:?}", c),
+            GenericArg::Lifetime(re) => w!(cx, f, "{:?}", re),
+            GenericArg::Const(c) => w!(cx, f, "{:?}", c),
         }
     }
 }
 
 impl Pretty for VariantSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("({:?}) => {:?}", join!(", ", self.fields()), &self.idx)
+        w!(cx, f, "({:?}) => {:?}", join!(", ", self.fields()), &self.idx)
     }
 }
 
 impl Pretty for Region {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("{}", ^region_to_string(*self))
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        w!(cx, f, "{}", ^region_to_string(*self))
     }
 }
 
 impl Pretty for DebruijnIndex {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
-        w!("^{}", ^self.as_usize())
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        w!(cx, f, "^{}", ^self.as_usize())
     }
 }
 
@@ -636,7 +601,6 @@ impl PrettyNested for GenericArg {
 
 impl PrettyNested for BaseTy {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-        define_scoped!(cx, _f);
         match self {
             BaseTy::Int(..)
             | BaseTy::Uint(..)
@@ -653,7 +617,7 @@ impl PrettyNested for BaseTy {
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(..)
             | BaseTy::Infer(..) => {
-                let text = format_cx!("{:?}", self);
+                let text = format_cx!(cx, "{:?}", self);
                 Ok(NestedString { text, children: None, key: None })
             }
             BaseTy::Slice(ty) => {
@@ -663,7 +627,7 @@ impl PrettyNested for BaseTy {
             }
             BaseTy::Array(ty, c) => {
                 let ty_d = ty.fmt_nested(cx)?;
-                let text = format_cx!("[{:?}; {:?}]", ty_d.text, c);
+                let text = format_cx!(cx, "[{:?}; {:?}]", ty_d.text, c);
                 Ok(NestedString { text, children: ty_d.children, key: None })
             }
             BaseTy::RawPtr(ty, Mutability::Mut) => {
@@ -710,7 +674,7 @@ impl PrettyNested for BaseTy {
                 } else {
                     String::new()
                 };
-                let text = format_cx!("{:?}{:?}", adt_def.did(), args_str);
+                let text = format_cx!(cx, "{:?}{:?}", adt_def.did(), args_str);
                 let children = float_children(kidss);
                 Ok(NestedString { text, children, key: None })
             }
@@ -733,7 +697,6 @@ pub fn nested_with_bound_vars(
 
 impl PrettyNested for Ty {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-        define_scoped!(cx, _f);
         match self.kind() {
             TyKind::Indexed(bty, idx) => {
                 let bty_d = bty.fmt_nested(cx)?;
@@ -768,7 +731,7 @@ impl PrettyNested for Ty {
             }
             TyKind::Downcast(adt, .., variant_idx, fields) => {
                 let is_struct = adt.is_struct();
-                let mut text = format_cx!("{:?}", adt.did());
+                let mut text = format_cx!(cx, "{:?}", adt.did());
                 if !is_struct {
                     text.push_str(&format!("::{}", adt.variant(*variant_idx).name));
                 }
