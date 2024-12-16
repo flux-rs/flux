@@ -39,7 +39,11 @@ fn check_invariant(
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
-    let mut infcx_root = genv.infcx_root(resolved_id).build().emit(&genv)?;
+    let mut infcx_root = genv
+        .infcx_root(resolved_id)
+        .check_overflow(checker_config.check_overflow)
+        .build()
+        .emit(&genv)?;
 
     let region_infercx = genv
         .tcx()
@@ -57,7 +61,7 @@ fn check_invariant(
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
-            rcx.assume_invariants(&ty, checker_config.check_overflow);
+            rcx.assume_invariants(&ty);
         }
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));

@@ -77,6 +77,7 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
+    check_overflow: bool,
 }
 
 pub struct InferCtxtRootBuilder<'genv, 'tcx> {
@@ -121,6 +122,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
             refine_tree: RefineTree::new(self.genv, self.root_id, self.generic_args.as_ref())?,
+            check_overflow: self.check_overflow,
         })
     }
 }
@@ -131,13 +133,14 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         def_id: DefId,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt::new(
-            self.genv,
+        InferCtxt {
+            genv: self.genv,
             region_infcx,
             def_id,
-            self.refine_tree.refine_ctxt_at_root(),
-            &self.inner,
-        )
+            rcx: self.refine_tree.refine_ctxt_at_root(),
+            inner: &self.inner,
+            check_overflow: self.check_overflow,
+        }
     }
 
     pub fn fresh_kvar_in_scope(
@@ -161,6 +164,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub def_id: DefId,
     rcx: RefineCtxt<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
+    check_overflow: bool,
 }
 
 struct InferCtxtInner {
@@ -175,16 +179,6 @@ impl InferCtxtInner {
 }
 
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: DefId,
-        rcx: RefineCtxt<'infcx>,
-        inner: &'infcx RefCell<InferCtxtInner>,
-    ) -> Self {
-        Self { genv, region_infcx, def_id, rcx, inner }
-    }
-
     pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
         self.rcx.clear_children(snapshot);
     }
@@ -347,26 +341,27 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.hoister(AssumeInvariants::No).hoist(ty)
+        self.hoister(false).hoist(ty)
     }
 
     pub fn snapshot(&self) -> Snapshot {
         self.rcx.snapshot()
     }
 
-    pub fn hoister(
-        &mut self,
-        assume_invariants: AssumeInvariants,
-    ) -> Hoister<Unpacker<'_, 'infcx>> {
-        self.rcx.hoister(assume_invariants)
+    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx>> {
+        self.rcx.hoister(if assume_invariants {
+            AssumeInvariants::yes(self.check_overflow)
+        } else {
+            AssumeInvariants::No
+        })
     }
 
     pub fn scope(&self) -> Scope {
         self.rcx.scope()
     }
 
-    pub fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
-        self.rcx.assume_invariants(ty, overflow_checking);
+    pub fn assume_invariants(&mut self, ty: &Ty) {
+        self.rcx.assume_invariants(ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {

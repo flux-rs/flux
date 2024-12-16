@@ -6,7 +6,7 @@ use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
-    refine_tree::{AssumeInvariants, RefineCtxtTrace, Snapshot},
+    refine_tree::{RefineCtxtTrace, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -162,6 +162,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             // In shape mode we don't care about kvars
             let mut root_ctxt = genv
                 .infcx_root(def_id)
+                .check_overflow(config.check_overflow)
                 .with_dummy_kvars()
                 .build()
                 .with_span(span)?;
@@ -193,7 +194,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
-        let mut root_ctxt = genv.infcx_root(def_id).build().with_span(span)?;
+        let mut root_ctxt = genv
+            .infcx_root(def_id)
+            .check_overflow(config.check_overflow)
+            .build()
+            .with_span(span)?;
         let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -235,7 +240,6 @@ fn check_fn_subtyping(
     sub_args: &[GenericArg],
     super_sig: EarlyBinder<rty::PolyFnSig>,
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
-    overflow_checking: bool,
     span: Span,
 ) -> InferResult {
     let mut infcx = infcx.branch();
@@ -306,7 +310,7 @@ fn check_fn_subtyping(
 
     // 6. Update state with Output "ensures" and check super ensures
     infcx.push_scope();
-    env.update_ensures(&mut infcx, &output, overflow_checking);
+    env.update_ensures(&mut infcx, &output);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
     env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))?;
     let evars_sol = infcx.pop_scope()?;
@@ -335,6 +339,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let mut root_ctxt = genv
         .infcx_root(trait_method_id)
         .with_generic_args(&trait_ref.args)
+        .check_overflow(overflow_checking)
         .build()?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -357,7 +362,6 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
             &impl_args,
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
-            overflow_checking,
             span,
         )
     })?;
@@ -446,7 +450,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
-        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
+        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -482,7 +486,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut infcx = infcx.change_root(snapshot);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
-            env.unpack(&mut infcx, ck.config().check_overflow);
+            env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
         }
 
@@ -553,9 +557,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         span: Span,
     ) -> InferResult {
-        let ty = infcx
-            .hoister(AssumeInvariants::yes(self.check_overflow()))
-            .hoist(&ty);
+        let ty = infcx.hoister(true).hoist(&ty);
         env.assign(&mut infcx.at(span), place, ty)
     }
 
@@ -697,7 +699,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 };
 
                 let ret = infcx.unpack(&ret);
-                infcx.assume_invariants(&ret, self.check_overflow());
+                infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
@@ -834,7 +836,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
         infcx.push_scope();
-        env.update_ensures(infcx, &output, self.check_overflow());
+        env.update_ensures(infcx, &output);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
@@ -891,17 +893,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(
-                    infcx,
-                    def_id,
-                    sub_sig,
-                    args,
-                    oblig_sig,
-                    None,
-                    self.check_overflow(),
-                    span,
-                )
-                .with_span(span)?;
+                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)
+                    .with_span(span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1031,13 +1024,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx.assume_pred(&expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(
-                        &mut infcx.at(terminator_span),
-                        &place,
-                        variant_idx,
-                        self.config(),
-                    )
-                    .with_span(terminator_span)?;
+                    env.downcast(&mut infcx.at(terminator_span), &place, variant_idx)
+                        .with_span(terminator_span)?;
                 }
             }
             self.check_ghost_statements_at(
@@ -1393,7 +1381,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         args,
                         super_sig,
                         None,
-                        self.check_overflow(),
                         stmt_span,
                     )?;
                     to
@@ -1491,9 +1478,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(c)?,
         };
-        Ok(infcx
-            .hoister(AssumeInvariants::yes(self.check_overflow()))
-            .hoist(&ty))
+        Ok(infcx.hoister(true).hoist(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> QueryResult<Ty> {
@@ -1570,9 +1555,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.fold(&mut infcx.at(span), place)?;
             }
             GhostStatement::Unfold(place) => {
-                env.unfold(&mut infcx.at(span), place, self.config())?;
+                env.unfold(&mut infcx.at(span), place)?;
             }
-            GhostStatement::Unblock(place) => env.unblock(infcx, place, self.check_overflow()),
+            GhostStatement::Unblock(place) => env.unblock(infcx, place),
             GhostStatement::PtrToRef(place) => {
                 env.ptr_to_ref_at_place(&mut infcx.at(span), place)?;
             }
@@ -1770,9 +1755,7 @@ fn infer_under_mut_ref_hack(
             if let rty::Ref!(.., Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rcx.hoister(AssumeInvariants::No)
-                    .hoist_inside_mut_refs(true)
-                    .hoist(actual)
+                rcx.hoister(false).hoist_inside_mut_refs(true).hoist(actual)
             } else {
                 actual.clone()
             }

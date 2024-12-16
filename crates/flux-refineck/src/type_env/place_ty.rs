@@ -1,10 +1,7 @@
 use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
-use flux_infer::{
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    refine_tree::AssumeInvariants,
-};
+use flux_infer::infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -18,8 +15,6 @@ use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-
-use crate::CheckerConfig;
 
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
@@ -94,7 +89,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = InferErr;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.0.hoister(AssumeInvariants::No).shallow().hoist(ty)
+        self.0.hoister(false).shallow().hoist(ty)
     }
 
     fn downcast_struct(
@@ -120,17 +115,12 @@ impl LookupMode for NoUnfold {
 }
 
 impl PlacesTree {
-    pub(crate) fn unfold(
-        &mut self,
-        infcx: &mut InferCtxt,
-        key: &impl LookupKey,
-        checker_conf: CheckerConfig,
-    ) -> InferResult {
+    pub(crate) fn unfold(&mut self, infcx: &mut InferCtxt, key: &impl LookupKey) -> InferResult {
         let cursor = self.cursor_for(key);
-        Unfolder::new(infcx, cursor, checker_conf).run(self)
+        Unfolder::new(infcx, cursor).run(self)
     }
 
-    pub fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place, check_overflow: bool) {
+    pub fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
         let mut cursor = self.cursor_for(place);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         while let Some(elem) = cursor.next() {
@@ -161,9 +151,7 @@ impl PlacesTree {
         cursor.reset();
         Updater::update(self, cursor, |_, ty| {
             let unblocked = ty.unblocked();
-            infcx
-                .hoister(AssumeInvariants::yes(check_overflow))
-                .hoist(&unblocked)
+            infcx.hoister(true).hoist(&unblocked)
         });
     }
 
@@ -393,7 +381,6 @@ struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
     insertions: Vec<(Loc, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
-    checker_conf: CheckerConfig,
     has_work: bool,
 }
 
@@ -418,12 +405,8 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
 }
 
 impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
-    fn new(
-        infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
-        cursor: Cursor,
-        checker_conf: CheckerConfig,
-    ) -> Self {
-        Unfolder { infcx, cursor, insertions: vec![], in_ref: None, checker_conf, has_work: true }
+    fn new(infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>, cursor: Cursor) -> Self {
+        Unfolder { infcx, cursor, insertions: vec![], in_ref: None, has_work: true }
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> InferResult {
@@ -503,10 +486,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
             Loc::Local(_) => LocKind::Local,
             Loc::Var(_) => LocKind::Universal,
         };
-        let ty = self
-            .infcx
-            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
-            .hoist(ty);
+        let ty = self.infcx.hoister(true).hoist(ty);
         self.insertions.push((loc, Binding { kind, ty }));
     }
 
@@ -588,20 +568,16 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.infcx
-            .hoister(AssumeInvariants::yes(self.checker_conf.check_overflow))
-            .shallow()
-            .hoist(ty)
+        self.infcx.hoister(true).shallow().hoist(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
         let ty = self
             .infcx
-            .hoister(AssumeInvariants::No)
+            .hoister(false)
             .hoist_existentials(self.in_ref != Some(Mutability::Mut))
             .hoist(ty);
-        self.infcx
-            .assume_invariants(&ty, self.checker_conf.check_overflow);
+        self.infcx.assume_invariants(&ty);
         ty
     }
 
