@@ -3,8 +3,9 @@ use std::{collections::hash_map::Entry, iter};
 use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason},
+    infer::{
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
+    },
     refine_tree::{AssumeInvariants, RefineCtxtTrace, Snapshot},
 };
 use flux_middle::{
@@ -159,8 +160,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
             // In shape mode we don't care about kvars
-            let kvars = KVarGen::dummy();
-            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
+            let mut root_ctxt = genv
+                .infcx_root(def_id)
+                .with_dummy_kvars()
+                .build()
+                .with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
@@ -189,10 +193,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
-        let mut kvars = fixpoint_encoding::KVarGen::new();
-        let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
-
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
+        let mut root_ctxt = genv.infcx_root(def_id).build().with_span(span)?;
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
@@ -329,9 +331,11 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
         return Ok(None);
     }
-    let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
-    let mut root_ctxt = InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args))?;
+    let mut root_ctxt = genv
+        .infcx_root(trait_method_id)
+        .with_generic_args(&trait_ref.args)
+        .build()?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv
@@ -1915,14 +1919,14 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
 impl ShapeResult {
     fn into_bb_envs(
         self,
-        kvar_gen: &mut KVarGen,
+        infcx: &mut InferCtxtRoot,
     ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(def_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_gen)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
                     .collect();
                 (def_id, bb_envs)
             })

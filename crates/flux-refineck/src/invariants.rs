@@ -1,8 +1,8 @@
 use flux_common::{iter::IterExt, result::ResultExt};
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, KVarGen},
-    infer::{ConstrReason, InferCtxtRoot, Tag},
+    fixpoint_encoding::FixQueryCache,
+    infer::{ConstrReason, GlobalEnvExt, Tag},
 };
 use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 use rustc_infer::infer::TyCtxtInferExt;
@@ -39,8 +39,7 @@ fn check_invariant(
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
-    let mut infcx_root =
-        InferCtxtRoot::new(genv, resolved_id, KVarGen::dummy(), None).emit(&genv)?;
+    let mut infcx_root = genv.infcx_root(resolved_id).build().emit(&genv)?;
 
     let region_infercx = genv
         .tcx()

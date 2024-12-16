@@ -214,7 +214,7 @@ impl RefineTree {
             &mut |param, index| {
                 let index = (index - offset) as u32;
                 let param: RefineParam = if let Some(args) = args {
-                    param.instantiate(genv.tcx(), args, &[])
+                    param.instantiate(genv.tcx(), &args, &[])
                 } else {
                     param.instantiate_identity()
                 };

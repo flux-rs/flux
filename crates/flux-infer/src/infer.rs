@@ -18,6 +18,7 @@ use flux_middle::{
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_macros::extension;
 use rustc_middle::{
     mir::BasicBlock,
     ty::{TyCtxt, Variance},
@@ -78,20 +79,53 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     refine_tree: RefineTree,
 }
 
-impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
-    pub fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        root_id: DefId,
-        kvar_gen: KVarGen,
-        args: Option<&GenericArgs>,
-    ) -> QueryResult<Self> {
-        Ok(Self {
-            genv,
-            inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
-            refine_tree: RefineTree::new(genv, root_id, args)?,
-        })
+pub struct InferCtxtRootBuilder<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    root_id: DefId,
+    generic_args: Option<GenericArgs>,
+    check_overflow: bool,
+    dummy_kvars: bool,
+}
+
+#[extension(pub trait GlobalEnvExt<'genv, 'tcx>)]
+impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
+    fn infcx_root(self, root_id: DefId) -> InferCtxtRootBuilder<'genv, 'tcx> {
+        InferCtxtRootBuilder {
+            genv: self,
+            root_id,
+            generic_args: None,
+            check_overflow: false,
+            dummy_kvars: false,
+        }
+    }
+}
+
+impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
+    pub fn check_overflow(mut self, check_overflow: bool) -> Self {
+        self.check_overflow = check_overflow;
+        self
     }
 
+    pub fn with_dummy_kvars(mut self) -> Self {
+        self.dummy_kvars = true;
+        self
+    }
+
+    pub fn with_generic_args(mut self, generic_args: &GenericArgs) -> Self {
+        self.generic_args = Some(generic_args.clone());
+        self
+    }
+
+    pub fn build(self) -> QueryResult<InferCtxtRoot<'genv, 'tcx>> {
+        Ok(InferCtxtRoot {
+            genv: self.genv,
+            inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
+            refine_tree: RefineTree::new(self.genv, self.root_id, self.generic_args.as_ref())?,
+        })
+    }
+}
+
+impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn infcx<'a>(
         &'a mut self,
         def_id: DefId,
@@ -104,6 +138,16 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             self.refine_tree.refine_ctxt_at_root(),
             &self.inner,
         )
+    }
+
+    pub fn fresh_kvar_in_scope(
+        &self,
+        binders: &[BoundVariableKinds],
+        scope: &Scope,
+        encoding: KVarEncoding,
+    ) -> Expr {
+        let inner = &mut *self.inner.borrow_mut();
+        inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
@@ -125,8 +169,8 @@ struct InferCtxtInner {
 }
 
 impl InferCtxtInner {
-    fn new(kvars: KVarGen) -> Self {
-        Self { kvars, evars: Default::default() }
+    fn new(dummy_kvars: bool) -> Self {
+        Self { kvars: KVarGen::new(dummy_kvars), evars: Default::default() }
     }
 }
 

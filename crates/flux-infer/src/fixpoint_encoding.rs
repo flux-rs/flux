@@ -775,12 +775,8 @@ pub struct KVarGen {
 }
 
 impl KVarGen {
-    pub fn new() -> Self {
-        Self { kvars: IndexVec::new(), dummy: false }
-    }
-
-    pub fn dummy() -> Self {
-        Self { kvars: IndexVec::new(), dummy: true }
+    pub(crate) fn new(dummy: bool) -> Self {
+        Self { kvars: IndexVec::new(), dummy }
     }
 
     fn get(&self, kvid: rty::KVid) -> &KVarDecl {
