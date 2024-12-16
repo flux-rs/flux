@@ -147,7 +147,7 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     };
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
-            // for these constants we use the expression
+            // for these constants we must check and use the expression
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
             conv::conv_constant_expr(genv, local_def_id.to_def_id(), expr, sort, &wfckresults)
         }
