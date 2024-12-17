@@ -765,7 +765,7 @@ impl RefineCtxtTrace {
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
-                    let e = e.nested_string(&cx);
+                    let e = e.nested_string(cx);
                     exprs.push(e);
                 }
                 NodeKind::Root(binds) => {

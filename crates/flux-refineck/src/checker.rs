@@ -220,7 +220,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
-#[expect(clippy::too_many_arguments)]
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,

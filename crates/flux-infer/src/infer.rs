@@ -133,7 +133,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
             &mut |param, index| {
                 let index = (index - offset) as u32;
                 let param = if let Some(args) = &self.generic_args {
-                    param.instantiate(genv.tcx(), &args, &[])
+                    param.instantiate(genv.tcx(), args, &[])
                 } else {
                     param.instantiate_identity()
                 };
@@ -366,7 +366,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 }
 
 /// Delegate methods to [`RefineCtxt`]
-impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
+impl<'infcx> InferCtxt<'infcx, '_, '_> {
     pub fn define_vars(&mut self, sort: &Sort) -> Expr {
         self.rcx.define_vars(sort)
     }
@@ -376,7 +376,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
-        self.rcx.check_pred(pred, tag)
+        self.rcx.check_pred(pred, tag);
     }
 
     pub fn replace_evars(&mut self, evars: &EVarSol) {
@@ -412,7 +412,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
-        self.rcx.check_impl(pred1, pred2, tag)
+        self.rcx.check_impl(pred1, pred2, tag);
     }
 }
 
