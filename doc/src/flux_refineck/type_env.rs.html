@@ -967,7 +967,27 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -995,12 +1015,12 @@
 };
 <span class="kw">use </span>flux_rustc_bridge::{
     <span class="self">self</span>,
-    mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
+    mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_index::IndexSlice;
+<span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
 <span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::BoundVar;
@@ -1863,6 +1883,7 @@
     name: <span class="prelude-ty">Option</span>&lt;String&gt;,
     kind: String,
     ty: String,
+    span: <span class="prelude-ty">Option</span>&lt;SpanTrace&gt;,
 }
 
 <span class="attr">#[derive(Serialize)]
@@ -1886,8 +1907,26 @@
     <span class="prelude-val">None
 </span>}
 
+<span class="kw">fn </span>loc_span(
+    genv: GlobalEnv,
+    local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
+    loc: <span class="kw-2">&amp;</span>Loc,
+) -&gt; <span class="prelude-ty">Option</span>&lt;SpanTrace&gt; {
+    <span class="kw">if let </span>Loc::Local(local) = loc {
+        <span class="kw">return </span>local_decls
+            .get(<span class="kw-2">*</span>local)
+            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+    }
+    <span class="prelude-val">None
+</span>}
+
 <span class="kw">impl </span>TypeEnvTrace {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv, local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;, env: <span class="kw-2">&amp;</span>TypeEnv) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(
+        genv: GlobalEnv,
+        local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;,
+        local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
+        env: <span class="kw-2">&amp;</span>TypeEnv,
+    ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv).hide_regions(<span class="bool-val">true</span>);
         env.bindings
@@ -1899,7 +1938,8 @@
                 <span class="kw">let </span>local = loc_info(loc);
                 <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
                 <span class="kw">let </span>ty = binding.ty.nested_string(<span class="kw-2">&amp;</span>cx);
-                bindings.push(TypeEnvBind { name, local, kind, ty });
+                <span class="kw">let </span>span = loc_span(genv, local_decls, loc);
+                bindings.push(TypeEnvBind { name, local, kind, ty, span });
             });
 
         TypeEnvTrace(bindings)
