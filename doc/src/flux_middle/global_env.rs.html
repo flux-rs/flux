@@ -602,17 +602,7 @@
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#604" id="604">604</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -1030,25 +1020,15 @@
     <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
     /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
     /// explicitly annotation and whether it requires an overflow check or not.
-    /// If no explicit annotation is found, return None
-    ///
-    /// Note:
-    ///
-    /// This uses Option since we want to be explicit about whether or not the
-    /// check_overflow attribute was actually on an item
-    ///
-    /// This is relevant in cases where Flux is configured to check overflows globally
-    /// but an item is marked `check_overflow(no)` explicitly.
-    ///
-    /// i.e. in these cases we need to know that
-    /// 1. `check_overflow` was explicitly marked on an item
-    /// 2. `check_overflow` boolean representation is false (`check_overflow(no)`)
-    ///
-    </span><span class="kw">pub fn </span>check_overflow(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
-        <span class="prelude-val">Some</span>(
-            <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().check_overflows.get(<span class="kw-2">&amp;</span>did))<span class="question-mark">?
-                </span>.to_bool(),
-        )
+    /// If no explicit annotation is found, return the default for the crate
+    </span><span class="kw">pub fn </span>check_overflow(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().check_overflows.get(<span class="kw-2">&amp;</span>did))
+            .map_or_else(|| <span class="self">self</span>.crate_config().check_overflow, |x| x.to_bool())
+    }
+
+    <span class="comment">// TODO(nilehmann) allow this to be overridden per function
+    </span><span class="kw">pub fn </span>scrape_quals(<span class="self">self</span>, _def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.crate_config().scrape_quals
     }
 
     <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
@@ -1111,8 +1091,8 @@
         }
     }
 
-    <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CrateConfig&gt; {
-        <span class="self">self</span>.collect_specs().crate_config
+    <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; CrateConfig {
+        <span class="self">self</span>.collect_specs().crate_config.unwrap_or_default()
     }
 }
 

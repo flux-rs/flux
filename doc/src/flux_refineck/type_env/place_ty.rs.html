@@ -959,36 +959,10 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#961" id="961">961</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
-<span class="kw">use </span>flux_infer::{
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
-    refine_tree::{AssumeInvariants, RefineCtxt},
-};
+<span class="kw">use </span>flux_infer::infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -1002,8 +976,6 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-
-<span class="kw">use </span><span class="kw">crate</span>::CheckerConfig;
 
 <span class="attr">#[derive(Clone, Default)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>PlacesTree {
@@ -1078,7 +1050,7 @@
     <span class="kw">type </span>Error = InferErr;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.<span class="number">0</span>.hoister(AssumeInvariants::No).shallow().hoist(ty)
+        <span class="self">self</span>.<span class="number">0</span>.hoister(<span class="bool-val">false</span>).shallow().hoist(ty)
     }
 
     <span class="kw">fn </span>downcast_struct(
@@ -1104,17 +1076,12 @@
 }
 
 <span class="kw">impl </span>PlacesTree {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-        key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
-        checker_conf: CheckerConfig,
-    ) -&gt; InferResult {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; InferResult {
         <span class="kw">let </span>cursor = <span class="self">self</span>.cursor_for(key);
-        Unfolder::new(infcx, cursor, checker_conf).run(<span class="self">self</span>)
+        Unfolder::new(infcx, cursor).run(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
+    <span class="kw">pub fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, place: <span class="kw-2">&amp;</span>Place) {
         <span class="kw">let </span><span class="kw-2">mut </span>cursor = <span class="self">self</span>.cursor_for(place);
         <span class="kw">let </span><span class="kw-2">mut </span>ty = <span class="self">self</span>.get_loc(<span class="kw-2">&amp;</span>cursor.loc).ty.clone();
         <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = cursor.next() {
@@ -1145,8 +1112,7 @@
         cursor.reset();
         Updater::update(<span class="self">self</span>, cursor, |<span class="kw">_</span>, ty| {
             <span class="kw">let </span>unblocked = ty.unblocked();
-            rcx.hoister(AssumeInvariants::yes(check_overflow))
-                .hoist(<span class="kw-2">&amp;</span>unblocked)
+            infcx.hoister(<span class="bool-val">true</span>).hoist(<span class="kw-2">&amp;</span>unblocked)
         });
     }
 
@@ -1376,7 +1342,6 @@
     insertions: Vec&lt;(Loc, Binding)&gt;,
     cursor: Cursor,
     in_ref: <span class="prelude-ty">Option</span>&lt;Mutability&gt;,
-    checker_conf: CheckerConfig,
     has_work: bool,
 }
 
@@ -1401,12 +1366,8 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        cursor: Cursor,
-        checker_conf: CheckerConfig,
-    ) -&gt; <span class="self">Self </span>{
-        Unfolder { infcx, cursor, insertions: <span class="macro">vec!</span>[], in_ref: <span class="prelude-val">None</span>, checker_conf, has_work: <span class="bool-val">true </span>}
+    <span class="kw">fn </span>new(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, cursor: Cursor) -&gt; <span class="self">Self </span>{
+        Unfolder { infcx, cursor, insertions: <span class="macro">vec!</span>[], in_ref: <span class="prelude-val">None</span>, has_work: <span class="bool-val">true </span>}
     }
 
     <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, bindings: <span class="kw-2">&amp;mut </span>PlacesTree) -&gt; InferResult {
@@ -1486,10 +1447,7 @@
             Loc::Local(<span class="kw">_</span>) =&gt; LocKind::Local,
             Loc::Var(<span class="kw">_</span>) =&gt; LocKind::Universal,
         };
-        <span class="kw">let </span>ty = <span class="self">self
-            </span>.infcx
-            .hoister(AssumeInvariants::yes(<span class="self">self</span>.checker_conf.check_overflow))
-            .hoist(ty);
+        <span class="kw">let </span>ty = <span class="self">self</span>.infcx.hoister(<span class="bool-val">true</span>).hoist(ty);
         <span class="self">self</span>.insertions.push((loc, Binding { kind, ty }));
     }
 
@@ -1571,20 +1529,16 @@
     }
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.infcx
-            .hoister(AssumeInvariants::yes(<span class="self">self</span>.checker_conf.check_overflow))
-            .shallow()
-            .hoist(ty)
+        <span class="self">self</span>.infcx.hoister(<span class="bool-val">true</span>).shallow().hoist(ty)
     }
 
     <span class="kw">fn </span>unpack_for_downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">let </span>ty = <span class="self">self
             </span>.infcx
-            .hoister(AssumeInvariants::No)
+            .hoister(<span class="bool-val">false</span>)
             .hoist_existentials(<span class="self">self</span>.in_ref != <span class="prelude-val">Some</span>(Mutability::Mut))
             .hoist(ty);
-        <span class="self">self</span>.infcx
-            .assume_invariants(<span class="kw-2">&amp;</span>ty, <span class="self">self</span>.checker_conf.check_overflow);
+        <span class="self">self</span>.infcx.assume_invariants(<span class="kw-2">&amp;</span>ty);
         ty
     }
 

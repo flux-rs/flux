@@ -607,22 +607,22 @@
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {{
         <span class="attr">#[allow(unused_variables)]
         </span><span class="kw">let </span>cx = <span class="macro-nonterminal">$cx</span>;
-        <span class="macro">format_args_cx!</span>(@go (cx, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">go </span>(cx, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
     }};
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
         <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>)
     };
     (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">go </span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
     };
     (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr, $(<span class="macro-nonterminal">$tail</span>:tt)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">go </span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$tail</span>)<span class="kw-2">*</span>) -&gt; ($(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
     };
     (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; ^<span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@as_expr <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">as_expr </span><span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$head</span>,))
     };
     (@go (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal; <span class="macro-nonterminal">$head</span>:expr) -&gt; ($(<span class="macro-nonterminal">$accum</span>:tt)<span class="kw-2">*</span>)) =&gt; {
-        <span class="macro">format_args_cx!</span>(@as_expr <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">as_expr </span><span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$accum</span>)* <span class="macro-nonterminal">$</span><span class="macro">crate::pretty::with_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$head</span>),))
     };
     (@as_expr <span class="macro-nonterminal">$e</span>:expr) =&gt; { <span class="macro-nonterminal">$e </span>};
 }

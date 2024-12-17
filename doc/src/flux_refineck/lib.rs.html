@@ -330,39 +330,7 @@
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#332" id="332">332</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -395,14 +363,11 @@
 <span class="kw">mod </span>queue;
 <span class="kw">mod </span>type_env;
 
-<span class="kw">pub use </span>checker::CheckerConfig;
 <span class="kw">use </span>checker::{trait_impl_subtyping, Checker};
 <span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
-<span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
-    infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::RefineTree,
+    fixpoint_encoding::FixQueryCache,
+    infer::{ConstrReason, InferOpts, SubtypeReason, Tag},
 };
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
@@ -441,34 +406,10 @@
     }
 }
 
-<span class="kw">fn </span>invoke_fixpoint(
-    genv: GlobalEnv,
-    cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
-    def_id: MaybeExternId,
-    <span class="kw-2">mut </span>refine_tree: RefineTree,
-    kvars: KVarGen,
-    config: CheckerConfig,
-    ext: <span class="kw-2">&amp;</span>str,
-) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
-    <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
-    }
-    refine_tree.simplify(genv.spec_func_defns()<span class="question-mark">?</span>);
-    <span class="kw">let </span>simp_ext = <span class="macro">format!</span>(<span class="string">"simp.{}"</span>, ext);
-    <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), simp_ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, kvars);
-    <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx)<span class="question-mark">?</span>;
-    fcx.check(cache, cstr, config.scrape_quals)
-}
-
 <span class="kw">pub fn </span>check_fn(
     genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     def_id: MaybeExternId,
-    <span class="kw-2">mut </span>config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">let </span>span = genv.tcx().def_span(def_id);
 
@@ -498,15 +439,10 @@
     }
 
     <span class="comment">// Since we still want the global check overflow, just override it here if it's set
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(check_overflow) = genv.check_overflow(local_id) {
-        <span class="kw">if </span>check_overflow {
-            config.check_overflow = <span class="bool-val">true</span>;
-        } <span class="kw">else if </span>config.check_overflow {
-            <span class="comment">// In this case, an item was explicitly marked as check_overflow(no)
-            // but the cfg attribute is set so we need to override it
-            </span>config.check_overflow = <span class="bool-val">false</span>;
-        }
-    }
+    </span><span class="kw">let </span>opts = InferOpts {
+        check_overflow: genv.check_overflow(local_id),
+        scrape_quals: genv.scrape_quals(local_id),
+    };
 
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| {
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)
@@ -514,32 +450,32 @@
             .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, config)
+        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, opts)
             .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
-        </span><span class="kw">let </span>(refine_tree, kvars) =
-            Checker::run_in_refine_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, config)
+        </span><span class="kw">let </span>infcx_root =
+            Checker::run_in_refine_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, opts)
                 .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
-        </span><span class="kw">let </span>errors = invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, <span class="string">"fluxc"</span>)
+        </span><span class="kw">let </span>errors = infcx_root
+            .execute_fixpoint_query(cache, def_id, <span class="string">"fluxc"</span>)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 4: subtyping check for trait-method implementations
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, config.check_overflow, span)
-                .with_span(span)
-                .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
         </span>{
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
-            <span class="kw">let </span>errors =
-                invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, <span class="string">"sub.fluxc"</span>)
-                    .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>errors = infcx_root
+                .execute_fixpoint_query(cache, def_id, <span class="string">"sub.fluxc"</span>)
+                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
             <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
             report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
         }
