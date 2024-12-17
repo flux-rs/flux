@@ -31,14 +31,11 @@ mod primops;
 mod queue;
 mod type_env;
 
-pub use checker::CheckerConfig;
 use checker::{trait_impl_subtyping, Checker};
 use flux_common::{dbg, result::ResultExt as _};
-use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarGen},
-    infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::RefineTree,
+    fixpoint_encoding::FixQueryCache,
+    infer::{ConstrReason, InferOpts, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -77,34 +74,10 @@ fn report_fixpoint_errors(
     }
 }
 
-fn invoke_fixpoint(
-    genv: GlobalEnv,
-    cache: &mut FixQueryCache,
-    def_id: MaybeExternId,
-    mut refine_tree: RefineTree,
-    kvars: KVarGen,
-    config: CheckerConfig,
-    ext: &str,
-) -> QueryResult<Vec<Tag>> {
-    if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
-    }
-    refine_tree.simplify(genv.spec_func_defns()?);
-    let simp_ext = format!("simp.{}", ext);
-    if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), simp_ext, &refine_tree).unwrap();
-    }
-
-    let mut fcx = FixpointCtxt::new(genv, def_id, kvars);
-    let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-    fcx.check(cache, cstr, config.scrape_quals)
-}
-
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
     def_id: MaybeExternId,
-    mut config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -134,15 +107,10 @@ pub fn check_fn(
     }
 
     // Since we still want the global check overflow, just override it here if it's set
-    if let Some(check_overflow) = genv.check_overflow(local_id) {
-        if check_overflow {
-            config.check_overflow = true;
-        } else if config.check_overflow {
-            // In this case, an item was explicitly marked as check_overflow(no)
-            // but the cfg attribute is set so we need to override it
-            config.check_overflow = false;
-        }
-    }
+    let opts = InferOpts {
+        check_overflow: genv.check_overflow(local_id),
+        scrape_quals: genv.scrape_quals(local_id),
+    };
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
@@ -150,32 +118,32 @@ pub fn check_fn(
             .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, config)
+        let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, opts)
             .map_err(|err| err.emit(genv, def_id))?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
-        let (refine_tree, kvars) =
-            Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, config)
+        let infcx_root =
+            Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, opts)
                 .map_err(|err| err.emit(genv, def_id))?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
-        let errors = invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "fluxc")
+        let errors = infcx_root
+            .execute_fixpoint_query(cache, def_id, "fluxc")
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint");
         report_fixpoint_errors(genv, local_id, errors)?;
 
         // PHASE 4: subtyping check for trait-method implementations
-        if let Some((refine_tree, kvars)) =
-            trait_impl_subtyping(genv, local_id, config.check_overflow, span)
-                .with_span(span)
-                .map_err(|err| err.emit(genv, def_id))?
+        if let Some(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))?
         {
             tracing::info!("check_fn::refine-subtyping");
-            let errors =
-                invoke_fixpoint(genv, cache, def_id, refine_tree, kvars, config, "sub.fluxc")
-                    .emit(&genv)?;
+            let errors = infcx_root
+                .execute_fixpoint_query(cache, def_id, "sub.fluxc")
+                .emit(&genv)?;
             tracing::info!("check_fn::fixpoint-subtyping");
             report_fixpoint_errors(genv, local_id, errors)?;
         }

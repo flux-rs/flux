@@ -25,22 +25,22 @@ macro_rules! _format_args_cx {
     ($cx:expr, $fmt:literal, $($args:tt)*) => {{
         #[allow(unused_variables)]
         let cx = $cx;
-        format_args_cx!(@go (cx, $fmt; $($args)*) -> ())
+        $crate::_format_args_cx!(@go (cx, $fmt; $($args)*) -> ())
     }};
     ($cx:expr, $fmt:literal) => {
         format_args!($fmt)
     };
     (@go ($cx:ident, $fmt:literal; ^$head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $head,))
+        $crate::_format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $head,))
     };
     (@go ($cx:ident, $fmt:literal; $head:expr, $($tail:tt)*) -> ($($accum:tt)*)) => {
-        format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $crate::pretty::with_cx!($cx, $head),))
+        $crate::_format_args_cx!(@go ($cx, $fmt; $($tail)*) -> ($($accum)* $crate::pretty::with_cx!($cx, $head),))
     };
     (@go ($cx:ident, $fmt:literal; ^$head:expr) -> ($($accum:tt)*)) => {
-        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $head,))
+        $crate::_format_args_cx!(@as_expr format_args!($fmt, $($accum)* $head,))
     };
     (@go ($cx:ident, $fmt:literal; $head:expr) -> ($($accum:tt)*)) => {
-        format_args_cx!(@as_expr format_args!($fmt, $($accum)* $crate::pretty::with_cx!($cx, $head),))
+        $crate::_format_args_cx!(@as_expr format_args!($fmt, $($accum)* $crate::pretty::with_cx!($cx, $head),))
     };
     (@as_expr $e:expr) => { $e };
 }

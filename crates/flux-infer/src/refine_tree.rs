@@ -8,18 +8,16 @@ use flux_common::{index::IndexVec, iter::IterExt};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{PrettyCx, PrettyNested},
+    pretty::{format_cx, PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyReftParam, Expr, GenericArgs, Name, RefineParam, Sort, SpecFuncDefns, Ty,
-        TyCtor, TyKind, Var,
+        BaseTy, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
 use serde::Serialize;
 
 use crate::{
@@ -195,38 +193,11 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(
-        genv: GlobalEnv,
-        def_id: DefId,
-        args: Option<&GenericArgs>,
-    ) -> QueryResult<RefineTree> {
-        let generics = genv.generics_of(def_id)?;
-
-        let mut params = generics
-            .const_params(genv)?
-            .into_iter()
-            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
-            .collect_vec();
-        let offset = params.len();
-        genv.refinement_generics_of(def_id)?.fill_item(
-            genv,
-            &mut params,
-            &mut |param, index| {
-                let index = (index - offset) as u32;
-                let param: RefineParam = if let Some(args) = args {
-                    param.instantiate(genv.tcx(), args, &[])
-                } else {
-                    param.instantiate_identity()
-                };
-                let var = Var::EarlyParam(EarlyReftParam { index, name: param.name });
-                (var, param.sort)
-            },
-        )?;
-
+    pub fn new(params: Vec<(Var, Sort)>) -> RefineTree {
         let root =
             Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
-        Ok(RefineTree { root })
+        RefineTree { root }
     }
 
     pub fn simplify(&mut self, defns: &SpecFuncDefns) {
@@ -259,16 +230,16 @@ impl<'rcx> RefineCtxt<'rcx> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
-    pub fn snapshot(&self) -> Snapshot {
+    pub(crate) fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
     #[must_use]
-    pub fn branch(&mut self) -> RefineCtxt {
+    pub(crate) fn branch(&mut self) -> RefineCtxt {
         RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn scope(&self) -> Scope {
+    pub(crate) fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
     }
 
@@ -300,14 +271,14 @@ impl<'rcx> RefineCtxt<'rcx> {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
         }
     }
 
-    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
@@ -320,11 +291,10 @@ impl<'rcx> RefineCtxt<'rcx> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.hoister(AssumeInvariants::No).hoist(ty)
-    }
-
-    pub fn hoister(&mut self, assume_invariants: AssumeInvariants) -> Hoister<Unpacker<'_, 'rcx>> {
+    pub(crate) fn hoister(
+        &mut self,
+        assume_invariants: AssumeInvariants,
+    ) -> Hoister<Unpacker<'_, 'rcx>> {
         Hoister::with_delegate(Unpacker { rcx: self, assume_invariants }).transparent()
     }
 
@@ -358,7 +328,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
 
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
+    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
 }
@@ -776,27 +746,34 @@ struct RcxBind {
     name: String,
     sort: String,
 }
+
 impl RefineCtxtTrace {
     pub fn new(genv: GlobalEnv, rcx: &RefineCtxt) -> Self {
         let parents = ParentsIter::new(NodePtr::clone(&rcx.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
-        let cx = PrettyCx::default_with_genv(genv);
+        let cx = &PrettyCx::default_with_genv(genv);
 
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort) => {
-                    let bind = RcxBind { name: format!("{name:?}"), sort: format!("{sort:?}") };
+                    let bind = RcxBind {
+                        name: format_cx!(cx, "{:?}", ^name),
+                        sort: format_cx!(cx, "{:?}", sort),
+                    };
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
-                    let e = e.nested_string(&cx);
+                    let e = e.nested_string(cx);
                     exprs.push(e);
                 }
                 NodeKind::Root(binds) => {
                     for (name, sort) in binds {
-                        let bind = RcxBind { name: format!("{name:?}"), sort: format!("{sort:?}") };
+                        let bind = RcxBind {
+                            name: format_cx!(cx, "{:?}", name),
+                            sort: format_cx!(cx, "{:?}", sort),
+                        };
                         bindings.push(bind);
                     }
                 }

@@ -4,9 +4,9 @@ use std::{iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_infer::{
-    fixpoint_encoding::{KVarEncoding, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferResult},
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
+    fixpoint_encoding::KVarEncoding,
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
+    refine_tree::Scope,
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -39,7 +39,6 @@ use serde::Serialize;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
-use crate::CheckerConfig;
 
 #[derive(Clone, Default)]
 pub struct TypeEnv<'a> {
@@ -64,12 +63,7 @@ struct BasicBlockEnvData {
 }
 
 impl<'a> TypeEnv<'a> {
-    pub fn new(
-        infcx: &mut InferCtxt,
-        body: &'a Body,
-        fn_sig: &FnSig,
-        check_overflow: bool,
-    ) -> TypeEnv<'a> {
+    pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
         let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
@@ -78,7 +72,7 @@ impl<'a> TypeEnv<'a> {
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
             let ty = infcx.unpack(ty);
-            infcx.assume_invariants(&ty, check_overflow);
+            infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
 
@@ -285,16 +279,12 @@ impl<'a> TypeEnv<'a> {
         }
     }
 
-    pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt, check_overflow: bool) {
-        self.bindings.fmap_mut(|ty| {
-            infcx
-                .hoister(AssumeInvariants::yes(check_overflow))
-                .hoist(ty)
-        });
+    pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) {
+        self.bindings.fmap_mut(|ty| infcx.hoister(true).hoist(ty));
     }
 
-    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
-        self.bindings.unblock(rcx, place, check_overflow);
+    pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
+        self.bindings.unblock(infcx, place);
     }
 
     pub(crate) fn check_goto(
@@ -363,13 +353,8 @@ impl<'a> TypeEnv<'a> {
         }
     }
 
-    pub(crate) fn unfold(
-        &mut self,
-        infcx: &mut InferCtxt,
-        place: &Place,
-        checker_conf: CheckerConfig,
-    ) -> InferResult {
-        self.bindings.unfold(infcx, place, checker_conf)
+    pub(crate) fn unfold(&mut self, infcx: &mut InferCtxt, place: &Place) -> InferResult {
+        self.bindings.unfold(infcx, place)
     }
 
     pub(crate) fn downcast(
@@ -377,13 +362,12 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxtAt,
         place: &Place,
         variant_idx: VariantIdx,
-        checker_config: CheckerConfig,
     ) -> InferResult {
         let mut down_place = place.clone();
         down_place
             .projection
             .push(PlaceElem::Downcast(None, variant_idx));
-        self.bindings.unfold(infcx, &down_place, checker_config)?;
+        self.bindings.unfold(infcx, &down_place)?;
         Ok(())
     }
 
@@ -392,17 +376,12 @@ impl<'a> TypeEnv<'a> {
             .fmap_mut(|binding| binding.replace_evars(evars));
     }
 
-    pub(crate) fn update_ensures(
-        &mut self,
-        infcx: &mut InferCtxt,
-        output: &FnOutput,
-        overflow_checking: bool,
-    ) {
+    pub(crate) fn update_ensures(&mut self, infcx: &mut InferCtxt, output: &FnOutput) {
         for ensure in &output.ensures {
             match ensure {
                 Ensures::Type(path, updated_ty) => {
                     let updated_ty = infcx.unpack(updated_ty);
-                    infcx.assume_invariants(&updated_ty, overflow_checking);
+                    infcx.assume_invariants(&updated_ty);
                     self.update_path(path, updated_ty);
                 }
                 Ensures::Pred(e) => infcx.assume_pred(e),
@@ -749,7 +728,7 @@ impl BasicBlockEnvShape {
         }
     }
 
-    pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
+    pub fn into_bb_env(self, infcx: &mut InferCtxtRoot) -> BasicBlockEnv {
         let mut delegate = LocalHoister::default();
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
@@ -765,7 +744,8 @@ impl BasicBlockEnvShape {
                     .into_iter()
                     .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
                     .collect_vec();
-                let kvar = kvar_gen.fresh(&[vars.clone()], self.scope.iter(), KVarEncoding::Conj);
+                let kvar =
+                    infcx.fresh_kvar_in_scope(&[vars.clone()], &self.scope, KVarEncoding::Conj);
                 constrs.push(kvar);
 
                 // Replace remaining holes by fresh kvars
@@ -774,7 +754,7 @@ impl BasicBlockEnvShape {
                     let binders = std::iter::once(vars.clone())
                         .chain(binders.iter().cloned())
                         .collect_vec();
-                    kvar_gen.fresh(&binders, self.scope.iter(), KVarEncoding::Conj)
+                    infcx.fresh_kvar_in_scope(&binders, &self.scope, KVarEncoding::Conj)
                 };
                 bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
@@ -806,14 +786,14 @@ impl TypeFoldable for BasicBlockEnvData {
 impl BasicBlockEnv {
     pub(crate) fn enter<'a>(
         &self,
-        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxt,
         local_decls: &'a LocalDecls,
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
         for constr in &data.constrs {
-            rcx.assume_pred(constr);
+            infcx.assume_pred(constr);
         }
         TypeEnv { bindings: data.bindings, local_decls }
     }

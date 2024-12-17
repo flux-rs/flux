@@ -3,9 +3,11 @@ use std::{collections::hash_map::Entry, iter};
 use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{self, KVarGen},
-    infer::{ConstrReason, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason},
-    refine_tree::{AssumeInvariants, RefineCtxtTrace, RefineTree, Snapshot},
+    infer::{
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferOpts, InferResult,
+        SubtypeReason,
+    },
+    refine_tree::{RefineCtxtTrace, Snapshot},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -58,12 +60,6 @@ use crate::{
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
 
-#[derive(Clone, Copy, Debug)]
-pub struct CheckerConfig {
-    pub check_overflow: bool,
-    pub scrape_quals: bool,
-}
-
 pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     /// [`LocalDefId`] of the function-like item being checked.
@@ -87,20 +83,18 @@ struct Inherited<'ck, M> {
     /// signature
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
-    config: CheckerConfig,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        config: CheckerConfig,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, config })
+        Ok(Self { ghost_stmts, mode })
     }
 
     fn reborrow(&mut self) -> Inherited<M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, config: self.config }
+        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode }
     }
 }
 
@@ -151,7 +145,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        config: CheckerConfig,
+        opts: InferOpts,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -159,10 +153,13 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
             // In shape mode we don't care about kvars
-            let kvars = KVarGen::dummy();
-            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
+            let mut root_ctxt = genv
+                .infcx_root(def_id, opts)
+                .with_dummy_kvars()
+                .build()
+                .with_span(span)?;
 
-            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
             let body = genv.mir(local_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
@@ -185,19 +182,17 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
-        config: CheckerConfig,
-    ) -> Result<(RefineTree, KVarGen)> {
+        opts: InferOpts,
+    ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
-        let mut kvars = fixpoint_encoding::KVarGen::new();
-        let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
-
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars, None).with_span(span)?;
+        let mut root_ctxt = genv.infcx_root(def_id, opts).build().with_span(span)?;
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
-            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
             let body = genv.mir(local_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
@@ -208,7 +203,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
                 .with_span(span)?;
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
-            Ok(root_ctxt.split())
+            Ok(root_ctxt)
         })
     }
 }
@@ -225,7 +220,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
-#[expect(clippy::too_many_arguments)]
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
@@ -233,7 +227,6 @@ fn check_fn_subtyping(
     sub_args: &[GenericArg],
     super_sig: EarlyBinder<rty::PolyFnSig>,
     super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
-    overflow_checking: bool,
     span: Span,
 ) -> InferResult {
     let mut infcx = infcx.branch();
@@ -304,7 +297,7 @@ fn check_fn_subtyping(
 
     // 6. Update state with Output "ensures" and check super ensures
     infcx.push_scope();
-    env.update_ensures(&mut infcx, &output, overflow_checking);
+    env.update_ensures(&mut infcx, &output);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
     env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))?;
     let evars_sol = infcx.pop_scope()?;
@@ -315,12 +308,12 @@ fn check_fn_subtyping(
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
 /// is a subtype of the corresponding trait method.
-pub(crate) fn trait_impl_subtyping(
-    genv: GlobalEnv,
+pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
+    genv: GlobalEnv<'genv, 'tcx>,
     def_id: LocalDefId,
-    overflow_checking: bool,
+    opts: InferOpts,
     span: Span,
-) -> InferResult<Option<(RefineTree, KVarGen)>> {
+) -> InferResult<Option<InferCtxtRoot<'genv, 'tcx>>> {
     // Skip the check if this is not an impl method
     let Some((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
@@ -329,9 +322,11 @@ pub(crate) fn trait_impl_subtyping(
     if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
         return Ok(None);
     }
-    let kvars = KVarGen::new();
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
-    let mut root_ctxt = InferCtxtRoot::new(genv, trait_method_id, kvars, Some(&trait_ref.args))?;
+    let mut root_ctxt = genv
+        .infcx_root(trait_method_id, opts)
+        .with_generic_args(&trait_ref.args)
+        .build()?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
         let rustc_infcx = genv
@@ -353,11 +348,10 @@ pub(crate) fn trait_impl_subtyping(
             &impl_args,
             trait_fn_sig,
             Some((&trait_args, &trait_refine_args)),
-            overflow_checking,
             span,
         )
     })?;
-    Ok(Some(root_ctxt.split()))
+    Ok(Some(root_ctxt))
 }
 
 fn find_trait_item(
@@ -442,7 +436,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
             .with_span(span)?;
 
-        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig, inherited.config.check_overflow);
+        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -478,7 +472,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut infcx = infcx.change_root(snapshot);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
-            env.unpack(&mut infcx, ck.config().check_overflow);
+            env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
         }
 
@@ -549,9 +543,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         span: Span,
     ) -> InferResult {
-        let ty = infcx
-            .hoister(AssumeInvariants::yes(self.check_overflow()))
-            .hoist(&ty);
+        let ty = infcx.hoister(true).hoist(&ty);
         env.assign(&mut infcx.at(span), place, ty)
     }
 
@@ -693,7 +685,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 };
 
                 let ret = infcx.unpack(&ret);
-                infcx.assume_invariants(&ret, self.check_overflow());
+                infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
                     .with_span(terminator_span)?;
@@ -830,7 +822,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
         infcx.push_scope();
-        env.update_ensures(infcx, &output, self.check_overflow());
+        env.update_ensures(infcx, &output);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
         let evars_sol = infcx.pop_scope().with_span(span)?;
         infcx.replace_evars(&evars_sol);
@@ -887,17 +879,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(
-                    infcx,
-                    def_id,
-                    sub_sig,
-                    args,
-                    oblig_sig,
-                    None,
-                    self.check_overflow(),
-                    span,
-                )
-                .with_span(span)?;
+                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)
+                    .with_span(span)?;
             }
             _ => {
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
@@ -1027,13 +1010,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx.assume_pred(&expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(
-                        &mut infcx.at(terminator_span),
-                        &place,
-                        variant_idx,
-                        self.config(),
-                    )
-                    .with_span(terminator_span)?;
+                    env.downcast(&mut infcx.at(terminator_span), &place, variant_idx)
+                        .with_span(terminator_span)?;
                 }
             }
             self.check_ghost_statements_at(
@@ -1235,13 +1213,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> InferResult<Ty> {
-        let check_overflow = self.check_overflow();
         let ty1 = self.check_operand(infcx, env, stmt_span, op1)?;
         let ty2 = self.check_operand(infcx, env, stmt_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
+                let rule =
+                    primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, infcx.check_overflow);
                 if let Some(pre) = rule.precondition {
                     infcx.at(stmt_span).check_pred(pre.pred, pre.reason);
                 }
@@ -1273,7 +1251,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty = self.check_operand(infcx, env, stmt_span, op)?;
         match ty.kind() {
             TyKind::Indexed(bty, idx) => {
-                let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
+                let rule = primops::match_un_op(un_op, bty, idx, infcx.check_overflow);
                 if let Some(pre) = rule.precondition {
                     infcx.at(stmt_span).check_pred(pre.pred, pre.reason);
                 }
@@ -1389,7 +1367,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         args,
                         super_sig,
                         None,
-                        self.check_overflow(),
                         stmt_span,
                     )?;
                     to
@@ -1487,9 +1464,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(c)?,
         };
-        Ok(infcx
-            .hoister(AssumeInvariants::yes(self.check_overflow()))
-            .hoist(&ty))
+        Ok(infcx.hoister(true).hoist(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> QueryResult<Ty> {
@@ -1566,9 +1541,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.fold(&mut infcx.at(span), place)?;
             }
             GhostStatement::Unfold(place) => {
-                env.unfold(&mut infcx.at(span), place, self.config())?;
+                env.unfold(&mut infcx.at(span), place)?;
             }
-            GhostStatement::Unblock(place) => env.unblock(infcx, place, self.check_overflow()),
+            GhostStatement::Unblock(place) => env.unblock(infcx, place),
             GhostStatement::PtrToRef(place) => {
                 env.ptr_to_ref_at_place(&mut infcx.at(span), place)?;
             }
@@ -1588,14 +1563,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn ghost_stmts(&self) -> &'ck GhostStatements {
         &self.inherited.ghost_stmts[&self.def_id]
-    }
-
-    fn config(&self) -> CheckerConfig {
-        self.inherited.config
-    }
-
-    fn check_overflow(&self) -> bool {
-        self.config().check_overflow
     }
 
     fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
@@ -1766,9 +1733,7 @@ fn infer_under_mut_ref_hack(
             if let rty::Ref!(.., Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rcx.hoister(AssumeInvariants::No)
-                    .hoist_inside_mut_refs(true)
-                    .hoist(actual)
+                rcx.hoister(false).hoist_inside_mut_refs(true).hoist(actual)
             } else {
                 actual.clone()
             }
@@ -1915,14 +1880,14 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
 impl ShapeResult {
     fn into_bb_envs(
         self,
-        kvar_gen: &mut KVarGen,
+        infcx: &mut InferCtxtRoot,
     ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(def_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_gen)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
                     .collect();
                 (def_id, bb_envs)
             })
