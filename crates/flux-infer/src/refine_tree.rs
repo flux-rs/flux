@@ -14,12 +14,10 @@ use flux_middle::{
         canonicalize::{Hoister, HoisterDelegate},
         evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EarlyReftParam, Expr, GenericArgs, Name, RefineParam, Sort, SpecFuncDefns, Ty,
-        TyCtor, TyKind, Var,
+        BaseTy, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
 use serde::Serialize;
 
 use crate::{
@@ -195,38 +193,11 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(
-        genv: GlobalEnv,
-        def_id: DefId,
-        args: Option<&GenericArgs>,
-    ) -> QueryResult<RefineTree> {
-        let generics = genv.generics_of(def_id)?;
-
-        let mut params = generics
-            .const_params(genv)?
-            .into_iter()
-            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
-            .collect_vec();
-        let offset = params.len();
-        genv.refinement_generics_of(def_id)?.fill_item(
-            genv,
-            &mut params,
-            &mut |param, index| {
-                let index = (index - offset) as u32;
-                let param: RefineParam = if let Some(args) = args {
-                    param.instantiate(genv.tcx(), &args, &[])
-                } else {
-                    param.instantiate_identity()
-                };
-                let var = Var::EarlyParam(EarlyReftParam { index, name: param.name });
-                (var, param.sort)
-            },
-        )?;
-
+    pub fn new(params: Vec<(Var, Sort)>) -> RefineTree {
         let root =
             Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
-        Ok(RefineTree { root })
+        RefineTree { root }
     }
 
     pub fn simplify(&mut self, defns: &SpecFuncDefns) {

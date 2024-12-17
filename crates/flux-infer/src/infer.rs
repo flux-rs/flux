@@ -1,6 +1,7 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
+use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
+use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -15,6 +16,7 @@ use flux_middle::{
         Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
         Region, Sort, Ty, TyKind, Var,
     },
+    MaybeExternId,
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -26,7 +28,7 @@ use rustc_middle::{
 use rustc_span::Span;
 
 use crate::{
-    fixpoint_encoding::{KVarEncoding, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
 };
 
@@ -78,6 +80,7 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
     check_overflow: bool,
+    scrape_quals: bool,
 }
 
 pub struct InferCtxtRootBuilder<'genv, 'tcx> {
@@ -85,6 +88,7 @@ pub struct InferCtxtRootBuilder<'genv, 'tcx> {
     root_id: DefId,
     generic_args: Option<GenericArgs>,
     check_overflow: bool,
+    scrape_quals: bool,
     dummy_kvars: bool,
 }
 
@@ -96,6 +100,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             root_id,
             generic_args: None,
             check_overflow: false,
+            scrape_quals: false,
             dummy_kvars: false,
         }
     }
@@ -104,6 +109,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
     pub fn check_overflow(mut self, check_overflow: bool) -> Self {
         self.check_overflow = check_overflow;
+        self
+    }
+
+    pub fn scrape_quals(mut self, scrape_quals: bool) -> Self {
+        self.scrape_quals = scrape_quals;
         self
     }
 
@@ -118,11 +128,35 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
     }
 
     pub fn build(self) -> QueryResult<InferCtxtRoot<'genv, 'tcx>> {
+        let genv = self.genv;
+        let mut params = genv
+            .generics_of(self.root_id)?
+            .const_params(genv)?
+            .into_iter()
+            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
+            .collect_vec();
+        let offset = params.len();
+        self.genv.refinement_generics_of(self.root_id)?.fill_item(
+            self.genv,
+            &mut params,
+            &mut |param, index| {
+                let index = (index - offset) as u32;
+                let param = if let Some(args) = &self.generic_args {
+                    param.instantiate(genv.tcx(), &args, &[])
+                } else {
+                    param.instantiate_identity()
+                };
+                let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
+                (var, param.sort)
+            },
+        )?;
+
         Ok(InferCtxtRoot {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
-            refine_tree: RefineTree::new(self.genv, self.root_id, self.generic_args.as_ref())?,
+            refine_tree: RefineTree::new(params),
             check_overflow: self.check_overflow,
+            scrape_quals: self.scrape_quals,
         })
     }
 }
@@ -153,6 +187,29 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
+    pub fn execute_fixpoint_query(
+        self,
+        cache: &mut FixQueryCache,
+        def_id: MaybeExternId,
+        ext: &'static str,
+    ) -> QueryResult<Vec<Tag>> {
+        let mut refine_tree = self.refine_tree;
+        let kvars = self.inner.into_inner().kvars;
+        if config::dump_constraint() {
+            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
+        }
+        refine_tree.simplify(self.genv.spec_func_defns()?);
+        if config::dump_constraint() {
+            let simp_ext = format!("simp.{}", ext);
+            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), simp_ext, &refine_tree)
+                .unwrap();
+        }
+
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        fcx.check(cache, cstr, self.scrape_quals)
+    }
+
     pub fn split(self) -> (RefineTree, KVarGen) {
         (self.refine_tree, self.inner.into_inner().kvars)
     }
@@ -164,7 +221,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub def_id: DefId,
     rcx: RefineCtxt<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
-    check_overflow: bool,
+    pub check_overflow: bool,
 }
 
 struct InferCtxtInner {

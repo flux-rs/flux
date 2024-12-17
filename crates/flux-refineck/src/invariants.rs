@@ -9,7 +9,7 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, DUMMY_SP};
 
-use crate::{invoke_fixpoint, CheckerConfig};
+use crate::CheckerConfig;
 
 pub fn check_invariants(
     genv: GlobalEnv,
@@ -42,6 +42,7 @@ fn check_invariant(
     let mut infcx_root = genv
         .infcx_root(resolved_id)
         .check_overflow(checker_config.check_overflow)
+        .scrape_quals(checker_config.scrape_quals)
         .build()
         .emit(&genv)?;
 
@@ -66,8 +67,9 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let errors =
-        invoke_fixpoint(genv, cache, def_id, infcx_root, checker_config, "fluxc").emit(&genv)?;
+    let errors = infcx_root
+        .execute_fixpoint_query(cache, def_id, "fluxc")
+        .emit(&genv)?;
 
     if errors.is_empty() {
         Ok(())

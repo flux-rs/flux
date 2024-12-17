@@ -88,20 +88,18 @@ struct Inherited<'ck, M> {
     /// signature
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
-    config: CheckerConfig,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        config: CheckerConfig,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, config })
+        Ok(Self { ghost_stmts, mode })
     }
 
     fn reborrow(&mut self) -> Inherited<M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, config: self.config }
+        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode }
     }
 }
 
@@ -163,11 +161,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let mut root_ctxt = genv
                 .infcx_root(def_id)
                 .check_overflow(config.check_overflow)
+                .scrape_quals(config.scrape_quals)
                 .with_dummy_kvars()
                 .build()
                 .with_span(span)?;
 
-            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
             let body = genv.mir(local_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
@@ -197,6 +196,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let mut root_ctxt = genv
             .infcx_root(def_id)
             .check_overflow(config.check_overflow)
+            .scrape_quals(config.scrape_quals)
             .build()
             .with_span(span)?;
         let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
@@ -204,7 +204,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
-            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
             let body = genv.mir(local_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
@@ -324,7 +324,7 @@ fn check_fn_subtyping(
 pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: LocalDefId,
-    overflow_checking: bool,
+    checker_config: CheckerConfig,
     span: Span,
 ) -> InferResult<Option<InferCtxtRoot<'genv, 'tcx>>> {
     // Skip the check if this is not an impl method
@@ -339,7 +339,8 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let mut root_ctxt = genv
         .infcx_root(trait_method_id)
         .with_generic_args(&trait_ref.args)
-        .check_overflow(overflow_checking)
+        .check_overflow(checker_config.check_overflow)
+        .scrape_quals(checker_config.scrape_quals)
         .build()?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -1227,13 +1228,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> InferResult<Ty> {
-        let check_overflow = self.check_overflow();
         let ty1 = self.check_operand(infcx, env, stmt_span, op1)?;
         let ty2 = self.check_operand(infcx, env, stmt_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
+                let rule =
+                    primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, infcx.check_overflow);
                 if let Some(pre) = rule.precondition {
                     infcx.at(stmt_span).check_pred(pre.pred, pre.reason);
                 }
@@ -1265,7 +1266,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty = self.check_operand(infcx, env, stmt_span, op)?;
         match ty.kind() {
             TyKind::Indexed(bty, idx) => {
-                let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
+                let rule = primops::match_un_op(un_op, bty, idx, infcx.check_overflow);
                 if let Some(pre) = rule.precondition {
                     infcx.at(stmt_span).check_pred(pre.pred, pre.reason);
                 }
@@ -1577,14 +1578,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn ghost_stmts(&self) -> &'ck GhostStatements {
         &self.inherited.ghost_stmts[&self.def_id]
-    }
-
-    fn config(&self) -> CheckerConfig {
-        self.inherited.config
-    }
-
-    fn check_overflow(&self) -> bool {
-        self.config().check_overflow
     }
 
     fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
