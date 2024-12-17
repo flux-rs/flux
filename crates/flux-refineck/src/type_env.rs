@@ -26,12 +26,12 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self,
-    mir::{BasicBlock, Body, Local, LocalDecls, Place, PlaceElem},
+    mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::unord::UnordMap;
-use rustc_index::IndexSlice;
+use rustc_index::{IndexSlice, IndexVec};
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::BoundVar;
@@ -894,6 +894,7 @@ struct TypeEnvBind {
     name: Option<String>,
     kind: String,
     ty: String,
+    span: Option<SpanTrace>,
 }
 
 #[derive(Serialize)]
@@ -917,8 +918,26 @@ fn loc_name(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> 
     None
 }
 
+fn loc_span(
+    genv: GlobalEnv,
+    local_decls: &IndexVec<Local, LocalDecl>,
+    loc: &Loc,
+) -> Option<SpanTrace> {
+    if let Loc::Local(local) = loc {
+        return local_decls
+            .get(*local)
+            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+    }
+    None
+}
+
 impl TypeEnvTrace {
-    pub fn new(genv: GlobalEnv, local_names: &UnordMap<Local, Symbol>, env: &TypeEnv) -> Self {
+    pub fn new(
+        genv: GlobalEnv,
+        local_names: &UnordMap<Local, Symbol>,
+        local_decls: &IndexVec<Local, LocalDecl>,
+        env: &TypeEnv,
+    ) -> Self {
         let mut bindings = vec![];
         let cx = PrettyCx::default_with_genv(genv).hide_regions(true);
         env.bindings
@@ -930,7 +949,8 @@ impl TypeEnvTrace {
                 let local = loc_info(loc);
                 let kind = format!("{:?}", binding.kind);
                 let ty = binding.ty.nested_string(&cx);
-                bindings.push(TypeEnvBind { name, local, kind, ty });
+                let span = loc_span(genv, local_decls, loc);
+                bindings.push(TypeEnvBind { name, local, kind, ty, span });
             });
 
         TypeEnvTrace(bindings)
