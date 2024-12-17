@@ -2,14 +2,12 @@ use flux_common::{iter::IterExt, result::ResultExt};
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, Tag},
+    infer::{ConstrReason, GlobalEnvExt, InferOpts, Tag},
 };
 use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, DUMMY_SP};
-
-use crate::CheckerConfig;
 
 pub fn check_invariants(
     genv: GlobalEnv,
@@ -17,15 +15,24 @@ pub fn check_invariants(
     def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
-    checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
+    // FIXME(nilehmann) maybe we should record whether the invariants were generated with overflow
+    // checking enabled and only assume them in code that also overflow checking enabled.
+    // Although, enable overflow checking locally is unsound in general.
+    //
+    // The good way would be to make overflow checking a property of a type that can be turned on
+    // and off locally. Then we consider an overflow-checked `T` distinct from a non-checked one and
+    // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
+    // the other way around.
+    let opts =
+        InferOpts { check_overflow: genv.check_overflow(def_id.local_id()), scrape_quals: false };
     adt_def
         .invariants()
         .iter()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
-            check_invariant(genv, cache, def_id, adt_def, span, invariant, checker_config)
+            check_invariant(genv, cache, def_id, adt_def, span, invariant, opts)
         })
 }
 
@@ -36,15 +43,10 @@ fn check_invariant(
     adt_def: &rty::AdtDef,
     span: Span,
     invariant: &rty::Invariant,
-    checker_config: CheckerConfig,
+    opts: InferOpts,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
-    let mut infcx_root = genv
-        .infcx_root(resolved_id)
-        .check_overflow(checker_config.check_overflow)
-        .scrape_quals(checker_config.scrape_quals)
-        .build()
-        .emit(&genv)?;
+    let mut infcx_root = genv.infcx_root(resolved_id, opts).build().emit(&genv)?;
 
     let region_infercx = genv
         .tcx()

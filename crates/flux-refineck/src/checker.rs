@@ -4,7 +4,8 @@ use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferOpts, InferResult,
+        SubtypeReason,
     },
     refine_tree::{RefineCtxtTrace, Snapshot},
 };
@@ -58,12 +59,6 @@ use crate::{
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
-
-#[derive(Clone, Copy, Debug)]
-pub struct CheckerConfig {
-    pub check_overflow: bool,
-    pub scrape_quals: bool,
-}
 
 pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
@@ -150,7 +145,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        config: CheckerConfig,
+        opts: InferOpts,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -159,9 +154,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             // In shape mode we don't care about kvars
             let mut root_ctxt = genv
-                .infcx_root(def_id)
-                .check_overflow(config.check_overflow)
-                .scrape_quals(config.scrape_quals)
+                .infcx_root(def_id, opts)
                 .with_dummy_kvars()
                 .build()
                 .with_span(span)?;
@@ -189,16 +182,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
-        config: CheckerConfig,
+        opts: InferOpts,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
-        let mut root_ctxt = genv
-            .infcx_root(def_id)
-            .check_overflow(config.check_overflow)
-            .scrape_quals(config.scrape_quals)
-            .build()
-            .with_span(span)?;
+        let mut root_ctxt = genv.infcx_root(def_id, opts).build().with_span(span)?;
         let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -324,7 +312,7 @@ fn check_fn_subtyping(
 pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: LocalDefId,
-    checker_config: CheckerConfig,
+    opts: InferOpts,
     span: Span,
 ) -> InferResult<Option<InferCtxtRoot<'genv, 'tcx>>> {
     // Skip the check if this is not an impl method
@@ -337,10 +325,8 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     }
     let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
     let mut root_ctxt = genv
-        .infcx_root(trait_method_id)
+        .infcx_root(trait_method_id, opts)
         .with_generic_args(&trait_ref.args)
-        .check_overflow(checker_config.check_overflow)
-        .scrape_quals(checker_config.scrape_quals)
         .build()?;
 
     dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {

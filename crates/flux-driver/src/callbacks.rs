@@ -7,7 +7,6 @@ use flux_metadata::CStore;
 use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_refineck as refineck;
 use itertools::Itertools;
-use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
@@ -137,17 +136,11 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
-    checker_config: CheckerConfig,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        let crate_config = genv.crate_config().unwrap_or_default();
-        let checker_config = CheckerConfig {
-            check_overflow: crate_config.check_overflow,
-            scrape_quals: crate_config.scrape_quals,
-        };
-        CrateChecker { genv, cache: QueryCache::load(), checker_config }
+        CrateChecker { genv, cache: QueryCache::load() }
     }
 
     fn matches_check_def(&self, def_id: DefId) -> bool {
@@ -195,7 +188,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
+                refineck::check_fn(self.genv, &mut self.cache, def_id)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
@@ -212,7 +205,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     def_id,
                     enum_def.invariants,
                     &adt_def,
-                    self.checker_config,
                 )
             }
             DefKind::Struct => {
@@ -233,7 +225,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     def_id,
                     struct_def.invariants,
                     &adt_def,
-                    self.checker_config,
                 )
             }
             DefKind::Impl { of_trait } => {

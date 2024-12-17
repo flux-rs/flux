@@ -75,48 +75,39 @@ pub enum ConstrReason {
     Other,
 }
 
+/// Options that change the behavior of refinement type inference locally
+#[derive(Clone, Copy)]
+pub struct InferOpts {
+    /// Enable overflow checking. This affects the signature of primitive operations and the
+    /// invariants assumed for primitive types.
+    pub check_overflow: bool,
+    /// Whether qualifiers should be scraped from the constraint.
+    pub scrape_quals: bool,
+}
+
 pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
-    check_overflow: bool,
-    scrape_quals: bool,
+    opts: InferOpts,
 }
 
 pub struct InferCtxtRootBuilder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
+    opts: InferOpts,
     root_id: DefId,
     generic_args: Option<GenericArgs>,
-    check_overflow: bool,
-    scrape_quals: bool,
     dummy_kvars: bool,
 }
 
 #[extension(pub trait GlobalEnvExt<'genv, 'tcx>)]
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    fn infcx_root(self, root_id: DefId) -> InferCtxtRootBuilder<'genv, 'tcx> {
-        InferCtxtRootBuilder {
-            genv: self,
-            root_id,
-            generic_args: None,
-            check_overflow: false,
-            scrape_quals: false,
-            dummy_kvars: false,
-        }
+    fn infcx_root(self, root_id: DefId, opts: InferOpts) -> InferCtxtRootBuilder<'genv, 'tcx> {
+        InferCtxtRootBuilder { genv: self, root_id, opts, generic_args: None, dummy_kvars: false }
     }
 }
 
 impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
-    pub fn check_overflow(mut self, check_overflow: bool) -> Self {
-        self.check_overflow = check_overflow;
-        self
-    }
-
-    pub fn scrape_quals(mut self, scrape_quals: bool) -> Self {
-        self.scrape_quals = scrape_quals;
-        self
-    }
-
     pub fn with_dummy_kvars(mut self) -> Self {
         self.dummy_kvars = true;
         self
@@ -155,8 +146,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
             refine_tree: RefineTree::new(params),
-            check_overflow: self.check_overflow,
-            scrape_quals: self.scrape_quals,
+            opts: self.opts,
         })
     }
 }
@@ -173,7 +163,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             def_id,
             rcx: self.refine_tree.refine_ctxt_at_root(),
             inner: &self.inner,
-            check_overflow: self.check_overflow,
+            check_overflow: self.opts.check_overflow,
         }
     }
 
@@ -207,7 +197,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.check(cache, cstr, self.scrape_quals)
+        fcx.check(cache, cstr, self.opts.scrape_quals)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
