@@ -429,12 +429,25 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
+    <span class="kw">let </span>opts = genv.infer_opts(local_id);
+
+    <span class="comment">// FIXME(nilehmann) we should move this check to `compare_impl_item`
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+        .with_span(span)
+        .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
+    </span>{
+        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
+        <span class="kw">let </span>errors = infcx_root
+            .execute_fixpoint_query(cache, def_id, <span class="string">"sub.fluxc"</span>)
+            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
+        report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
+    }
+
     <span class="comment">// Skip trusted functions
     </span><span class="kw">if </span>genv.trusted(local_id) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-
-    <span class="kw">let </span>opts = genv.infer_opts(local_id);
 
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| {
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)
@@ -458,19 +471,6 @@
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
-
-        <span class="comment">// PHASE 4: subtyping check for trait-method implementations
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
-            .with_span(span)
-            .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
-        </span>{
-            <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
-            <span class="kw">let </span>errors = infcx_root
-                .execute_fixpoint_query(cache, def_id, <span class="string">"sub.fluxc"</span>)
-                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-            <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
-            report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
-        }
         <span class="prelude-val">Ok</span>(())
     })<span class="question-mark">?</span>;
 
