@@ -590,7 +590,7 @@ impl PrettyNested for GenericArg {
             GenericArg::Base(ctor) => {
                 nested_with_bound_vars(cx, "λ", ctor.vars(), |prefix| {
                     let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
-                    let text = format!("{}{:?}", prefix, ctor_d.text);
+                    let text = format!("{}{}", prefix, ctor_d.text);
                     Ok(NestedString { text, children: ctor_d.children, key: None })
                 })
             }
@@ -689,10 +689,12 @@ pub fn nested_with_bound_vars(
     f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
 ) -> Result<NestedString, fmt::Error> {
     let mut buffer = String::new();
-    if !vars.is_empty() {
-        cx.fmt_bound_vars(false, left, vars, ". ", &mut buffer)?;
-    }
-    f(buffer)
+    cx.with_bound_vars(vars, || {
+        if !vars.is_empty() {
+            cx.fmt_bound_vars(false, left, vars, ". ", &mut buffer)?;
+        }
+        f(buffer)
+    })
 }
 
 impl PrettyNested for Ty {
