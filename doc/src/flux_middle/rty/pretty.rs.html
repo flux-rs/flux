@@ -767,7 +767,9 @@
 <a href="#766" id="766">766</a>
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{pretty::aggregate_nested, FieldBind};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -1359,7 +1361,7 @@
             GenericArg::Base(ctor) =&gt; {
                 nested_with_bound_vars(cx, <span class="string">"λ"</span>, ctor.vars(), |prefix| {
                     <span class="kw">let </span>ctor_d = ctor.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{:?}"</span>, prefix, ctor_d.text);
+                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, ctor_d.text);
                     <span class="prelude-val">Ok</span>(NestedString { text, children: ctor_d.children, key: <span class="prelude-val">None </span>})
                 })
             }
@@ -1458,10 +1460,12 @@
     f: <span class="kw">impl </span>FnOnce(String) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>buffer = String::new();
-    <span class="kw">if </span>!vars.is_empty() {
-        cx.fmt_bound_vars(<span class="bool-val">false</span>, left, vars, <span class="string">". "</span>, <span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
-    }
-    f(buffer)
+    cx.with_bound_vars(vars, || {
+        <span class="kw">if </span>!vars.is_empty() {
+            cx.fmt_bound_vars(<span class="bool-val">false</span>, left, vars, <span class="string">". "</span>, <span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
+        }
+        f(buffer)
+    })
 }
 
 <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Ty {
