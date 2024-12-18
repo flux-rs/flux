@@ -444,12 +444,43 @@
 <a href="#443" id="443">443</a>
 <a href="#444" id="444">444</a>
 <a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
 
-</span><span class="kw">use </span>flux_arc_interner::List;
+</span><span class="kw">use </span>flux_arc_interner::{List, SliceInternable};
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_rustc_bridge::{ty, ty::GenericArgsExt <span class="kw">as _</span>};
 <span class="kw">use </span>itertools::Itertools;
@@ -547,100 +578,11 @@
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generic_predicates(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>ty::GenericPredicates,
-    ) -&gt; QueryResult&lt;rty::GenericPredicates&gt; {
-        <span class="prelude-val">Ok</span>(rty::GenericPredicates {
-            parent: generics.parent,
-            predicates: <span class="self">self</span>.refine_clauses(<span class="kw-2">&amp;</span>generics.predicates)<span class="question-mark">?</span>,
-        })
+    <span class="kw">pub fn </span>refine&lt;T: Refine + <span class="question-mark">?</span>Sized&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; QueryResult&lt;T::Output&gt; {
+        t.refine(<span class="self">self</span>)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_clauses(<span class="kw-2">&amp;</span><span class="self">self</span>, clauses: <span class="kw-2">&amp;</span>[ty::Clause]) -&gt; QueryResult&lt;List&lt;rty::Clause&gt;&gt; {
-        <span class="kw">let </span>clauses = clauses
-            .iter()
-            .flat_map(|clause| <span class="self">self</span>.refine_clause(clause).transpose())
-            .try_collect()<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(clauses)
-    }
-
-    <span class="kw">fn </span>refine_clause(<span class="kw-2">&amp;</span><span class="self">self</span>, clause: <span class="kw-2">&amp;</span>ty::Clause) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Clause&gt;&gt; {
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>clause.kind.as_ref().skip_binder() {
-            ty::ClauseKind::Trait(trait_pred) =&gt; {
-                <span class="kw">let </span>pred = rty::TraitPredicate {
-                    trait_ref: <span class="self">self</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_pred.trait_ref)<span class="question-mark">?</span>,
-                };
-                rty::ClauseKind::Trait(pred)
-            }
-            ty::ClauseKind::Projection(proj_pred) =&gt; {
-                <span class="kw">let </span>rty::TyOrBase::Base(term) = <span class="self">self</span>.refine_ty_or_base(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">? </span><span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-                        <span class="self">self</span>.def_id,
-                        <span class="string">"sorry, we can't handle non-base associated types"
-                    </span>));
-                };
-                <span class="kw">let </span>pred = rty::ProjectionPredicate {
-                    projection_ty: <span class="self">self
-                        </span>.refine_alias_ty(ty::AliasKind::Projection, <span class="kw-2">&amp;</span>proj_pred.projection_ty)<span class="question-mark">?</span>,
-                    term,
-                };
-                rty::ClauseKind::Projection(pred)
-            }
-            ty::ClauseKind::TypeOutlives(pred) =&gt; {
-                <span class="kw">let </span>pred = rty::OutlivesPredicate(<span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>pred.<span class="number">0</span>)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
-                rty::ClauseKind::TypeOutlives(pred)
-            }
-            ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
-                rty::ClauseKind::ConstArgHasType(const_.clone(), <span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>)
-            }
-        };
-        <span class="kw">let </span>kind = rty::Binder::bind_with_vars(kind, List::empty());
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Clause { kind }))
-    }
-
-    <span class="kw">pub fn </span>refine_existential_predicate(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        poly_pred: <span class="kw-2">&amp;</span>ty::PolyExistentialPredicate,
-    ) -&gt; QueryResult&lt;rty::PolyExistentialPredicate&gt; {
-        <span class="self">self</span>.refine_binders(poly_pred, |pred| {
-            <span class="kw">let </span>pred = <span class="kw">match </span>pred {
-                ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
-                    rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
-                        def_id: trait_ref.def_id,
-                        args: <span class="self">self</span>.refine_existential_predicate_generic_args(
-                            trait_ref.def_id,
-                            <span class="kw-2">&amp;</span>trait_ref.args,
-                        )<span class="question-mark">?</span>,
-                    })
-                }
-                ty::ExistentialPredicate::Projection(projection) =&gt; {
-                    <span class="kw">let </span>rty::TyOrBase::Base(term) = <span class="self">self</span>.refine_ty_or_base(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">?
-                    </span><span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-                            <span class="self">self</span>.def_id,
-                            <span class="string">"sorry, we can't handle non-base associated types"
-                        </span>));
-                    };
-                    rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                        def_id: projection.def_id,
-                        args: <span class="self">self</span>.refine_existential_predicate_generic_args(
-                            projection.def_id,
-                            <span class="kw-2">&amp;</span>projection.args,
-                        )<span class="question-mark">?</span>,
-                        term,
-                    })
-                }
-                ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
-                    rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
-                }
-            };
-            <span class="prelude-val">Ok</span>(pred)
-        })
-    }
-
-    <span class="kw">pub fn </span>refine_existential_predicate_generic_args(
+    <span class="kw">fn </span>refine_existential_predicate_generic_args(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
         args: <span class="kw-2">&amp;</span>ty::GenericArgs,
@@ -656,14 +598,6 @@
             .try_collect()
     }
 
-    <span class="kw">pub fn </span>refine_trait_ref(<span class="kw-2">&amp;</span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>ty::TraitRef) -&gt; QueryResult&lt;rty::TraitRef&gt; {
-        <span class="kw">let </span>trait_ref = rty::TraitRef {
-            def_id: trait_ref.def_id,
-            args: <span class="self">self</span>.refine_generic_args(trait_ref.def_id, <span class="kw-2">&amp;</span>trait_ref.args)<span class="question-mark">?</span>,
-        };
-        <span class="prelude-val">Ok</span>(trait_ref)
-    }
-
     <span class="kw">pub fn </span>refine_variant_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         adt_def_id: DefId,
@@ -676,7 +610,7 @@
             .iter()
             .map(|fld| {
                 <span class="kw">let </span>ty = <span class="self">self</span>.genv.lower_type_of(fld.did)<span class="question-mark">?</span>.instantiate_identity();
-                <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>ty)
+                ty.refine(<span class="self">self</span>)
             })
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>value = rty::VariantSig::new(
@@ -686,34 +620,6 @@
             rty::Expr::unit_adt(adt_def_id),
         );
         <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(value, List::empty()))
-    }
-
-    <span class="kw">pub fn </span>refine_binders&lt;S, T, F&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        t: <span class="kw-2">&amp;</span>ty::Binder&lt;S&gt;,
-        <span class="kw-2">mut </span>f: F,
-    ) -&gt; QueryResult&lt;rty::Binder&lt;T&gt;&gt;
-    <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>S) -&gt; QueryResult&lt;T&gt;,
-    {
-        <span class="kw">let </span>vars = refine_bound_variables(t.vars());
-        <span class="kw">let </span>inner = t.as_ref().skip_binder();
-        <span class="kw">let </span>inner = f(inner)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(inner, vars))
-    }
-
-    <span class="kw">pub fn </span>refine_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>ty::PolyFnSig) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
-        <span class="self">self</span>.refine_binders(fn_sig, |fn_sig| {
-            <span class="kw">let </span>inputs = fn_sig
-                .inputs()
-                .iter()
-                .map(|ty| <span class="self">self</span>.refine_ty(ty))
-                .try_collect()<span class="question-mark">?</span>;
-            <span class="kw">let </span>ret = <span class="self">self</span>.refine_ty(fn_sig.output())<span class="question-mark">?</span>.shift_in_escaping(<span class="number">1</span>);
-            <span class="kw">let </span>output =
-                rty::Binder::bind_with_vars(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-            <span class="prelude-val">Ok</span>(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
-        })
     }
 
     <span class="kw">fn </span>refine_generic_args(
@@ -738,7 +644,7 @@
     ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
         <span class="kw">match </span>(<span class="kw-2">&amp;</span>param.kind, arg) {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) =&gt; {
-                <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>))
+                <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(ty.refine(<span class="self">self</span>)<span class="question-mark">?</span>))
             }
             (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) =&gt; {
                 <span class="kw">let </span>rty::TyOrBase::Base(contr) = <span class="self">self</span>.refine_ty_or_base(ty)<span class="question-mark">? </span><span class="kw">else </span>{
@@ -776,10 +682,6 @@
         <span class="prelude-val">Ok</span>(rty::AliasTy::new(def_id, args, refine_args))
     }
 
-    <span class="kw">pub fn </span>refine_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.refine_ty_or_base(ty)<span class="question-mark">?</span>.into_ty())
-    }
-
     <span class="kw">pub fn </span>refine_ty_or_base(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;rty::TyOrBase&gt; {
         <span class="kw">let </span>bty = <span class="kw">match </span>ty.kind() {
             ty::TyKind::Closure(did, args) =&gt; {
@@ -787,30 +689,27 @@
                 <span class="kw">let </span>upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
-                    .map(|ty| <span class="self">self</span>.refine_ty(ty))
+                    .map(|ty| ty.refine(<span class="self">self</span>))
                     .try_collect()<span class="question-mark">?</span>;
                 rty::BaseTy::Closure(<span class="kw-2">*</span>did, upvar_tys, args.clone())
             }
             ty::TyKind::Coroutine(did, args) =&gt; {
                 <span class="kw">let </span>args = args.as_coroutine();
-                <span class="kw">let </span>resume_ty = <span class="self">self</span>.refine_ty(args.resume_ty())<span class="question-mark">?</span>;
-                <span class="kw">let </span>upvar_tys = args
-                    .upvar_tys()
-                    .map(|ty| <span class="self">self</span>.refine_ty(ty))
-                    .try_collect()<span class="question-mark">?</span>;
+                <span class="kw">let </span>resume_ty = args.resume_ty().refine(<span class="self">self</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>upvar_tys = args.upvar_tys().map(|ty| ty.refine(<span class="self">self</span>)).try_collect()<span class="question-mark">?</span>;
                 rty::BaseTy::Coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys)
             }
             ty::TyKind::CoroutineWitness(..) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"implement when we know what this is"</span>);
             }
             ty::TyKind::Never =&gt; rty::BaseTy::Never,
-            ty::TyKind::Ref(r, ty, mutbl) =&gt; rty::BaseTy::Ref(<span class="kw-2">*</span>r, <span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl),
+            ty::TyKind::Ref(r, ty, mutbl) =&gt; rty::BaseTy::Ref(<span class="kw-2">*</span>r, ty.refine(<span class="self">self</span>)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl),
             ty::TyKind::Float(float_ty) =&gt; rty::BaseTy::Float(<span class="kw-2">*</span>float_ty),
             ty::TyKind::Tuple(tys) =&gt; {
-                <span class="kw">let </span>tys = tys.iter().map(|ty| <span class="self">self</span>.refine_ty(ty)).try_collect()<span class="question-mark">?</span>;
+                <span class="kw">let </span>tys = tys.iter().map(|ty| ty.refine(<span class="self">self</span>)).try_collect()<span class="question-mark">?</span>;
                 rty::BaseTy::Tuple(tys)
             }
-            ty::TyKind::Array(ty, len) =&gt; rty::BaseTy::Array(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>, len.clone()),
+            ty::TyKind::Array(ty, len) =&gt; rty::BaseTy::Array(ty.refine(<span class="self">self</span>)<span class="question-mark">?</span>, len.clone()),
             ty::TyKind::Param(param_ty) =&gt; {
                 <span class="kw">match </span><span class="self">self</span>.param(<span class="kw-2">*</span>param_ty)<span class="question-mark">?</span>.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
@@ -839,18 +738,16 @@
             ty::TyKind::Int(int_ty) =&gt; rty::BaseTy::Int(<span class="kw-2">*</span>int_ty),
             ty::TyKind::Uint(uint_ty) =&gt; rty::BaseTy::Uint(<span class="kw-2">*</span>uint_ty),
             ty::TyKind::Str =&gt; rty::BaseTy::Str,
-            ty::TyKind::Slice(ty) =&gt; rty::BaseTy::Slice(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>),
+            ty::TyKind::Slice(ty) =&gt; rty::BaseTy::Slice(ty.refine(<span class="self">self</span>)<span class="question-mark">?</span>),
             ty::TyKind::Char =&gt; rty::BaseTy::Char,
             ty::TyKind::FnPtr(poly_fn_sig) =&gt; {
-                rty::BaseTy::FnPtr(<span class="self">self</span>.as_default().refine_poly_fn_sig(poly_fn_sig)<span class="question-mark">?</span>)
+                rty::BaseTy::FnPtr(poly_fn_sig.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.as_default())<span class="question-mark">?</span>)
             }
-            ty::TyKind::RawPtr(ty, mu) =&gt; {
-                rty::BaseTy::RawPtr(<span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>, <span class="kw-2">*</span>mu)
-            }
+            ty::TyKind::RawPtr(ty, mu) =&gt; rty::BaseTy::RawPtr(ty.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.as_default())<span class="question-mark">?</span>, <span class="kw-2">*</span>mu),
             ty::TyKind::Dynamic(exi_preds, r) =&gt; {
                 <span class="kw">let </span>exi_preds = exi_preds
                     .iter()
-                    .map(|ty| <span class="self">self</span>.refine_existential_predicate(ty))
+                    .map(|pred| pred.refine(<span class="self">self</span>))
                     .try_collect()<span class="question-mark">?</span>;
                 rty::BaseTy::Dynamic(exi_preds, <span class="kw-2">*</span>r)
             }
@@ -872,6 +769,171 @@
 
     <span class="kw">fn </span>param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy) -&gt; QueryResult&lt;rty::GenericParamDef&gt; {
         <span class="self">self</span>.generics.param_at(param_ty.index <span class="kw">as </span>usize, <span class="self">self</span>.genv)
+    }
+}
+
+<span class="kw">pub trait </span>Refine {
+    <span class="kw">type </span>Output;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;<span class="self">Self</span>::Output&gt;;
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::Ty {
+    <span class="kw">type </span>Output = rty::Ty;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::Ty&gt; {
+        <span class="prelude-val">Ok</span>(refiner.refine_ty_or_base(<span class="self">self</span>)<span class="question-mark">?</span>.into_ty())
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Refine&gt; Refine <span class="kw">for </span>ty::Binder&lt;T&gt; {
+    <span class="kw">type </span>Output = rty::Binder&lt;T::Output&gt;;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::Binder&lt;T::Output&gt;&gt; {
+        <span class="kw">let </span>vars = refine_bound_variables(<span class="self">self</span>.vars());
+        <span class="kw">let </span>inner = <span class="self">self</span>.skip_binder_ref().refine(refiner)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(inner, vars))
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::FnSig {
+    <span class="kw">type </span>Output = rty::FnSig;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::FnSig&gt; {
+        <span class="kw">let </span>inputs = <span class="self">self
+            </span>.inputs()
+            .iter()
+            .map(|ty| ty.refine(refiner))
+            .try_collect()<span class="question-mark">?</span>;
+        <span class="kw">let </span>ret = <span class="self">self</span>.output().refine(refiner)<span class="question-mark">?</span>.shift_in_escaping(<span class="number">1</span>);
+        <span class="kw">let </span>output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
+        <span class="prelude-val">Ok</span>(rty::FnSig::new(<span class="self">self</span>.safety, <span class="self">self</span>.abi, List::empty(), inputs, output))
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::Clause {
+    <span class="kw">type </span>Output = rty::Clause;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::Clause&gt; {
+        <span class="prelude-val">Ok</span>(rty::Clause { kind: <span class="self">self</span>.kind.refine(refiner)<span class="question-mark">? </span>})
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::TraitRef {
+    <span class="kw">type </span>Output = rty::TraitRef;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::TraitRef&gt; {
+        <span class="prelude-val">Ok</span>(rty::TraitRef {
+            def_id: <span class="self">self</span>.def_id,
+            args: refiner.refine_generic_args(<span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.args)<span class="question-mark">?</span>,
+        })
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::ClauseKind {
+    <span class="kw">type </span>Output = rty::ClauseKind;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::ClauseKind&gt; {
+        <span class="kw">let </span>kind = <span class="kw">match </span><span class="self">self </span>{
+            ty::ClauseKind::Trait(trait_pred) =&gt; {
+                <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: trait_pred.trait_ref.refine(refiner)<span class="question-mark">? </span>};
+                rty::ClauseKind::Trait(pred)
+            }
+            ty::ClauseKind::Projection(proj_pred) =&gt; {
+                <span class="kw">let </span>rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                        refiner.def_id,
+                        <span class="string">"sorry, we can't handle non-base associated types"
+                    </span>));
+                };
+                <span class="kw">let </span>pred = rty::ProjectionPredicate {
+                    projection_ty: refiner
+                        .refine_alias_ty(ty::AliasKind::Projection, <span class="kw-2">&amp;</span>proj_pred.projection_ty)<span class="question-mark">?</span>,
+                    term,
+                };
+                rty::ClauseKind::Projection(pred)
+            }
+            ty::ClauseKind::TypeOutlives(pred) =&gt; {
+                <span class="kw">let </span>pred = rty::OutlivesPredicate(pred.<span class="number">0</span>.refine(refiner)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
+                rty::ClauseKind::TypeOutlives(pred)
+            }
+            ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
+                rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(<span class="kw-2">&amp;</span>refiner.as_default())<span class="question-mark">?</span>)
+            }
+        };
+        <span class="prelude-val">Ok</span>(kind)
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::ExistentialPredicate {
+    <span class="kw">type </span>Output = rty::ExistentialPredicate;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;<span class="self">Self</span>::Output&gt; {
+        <span class="kw">let </span>pred = <span class="kw">match </span><span class="self">self </span>{
+            ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: refiner.refine_existential_predicate_generic_args(
+                        trait_ref.def_id,
+                        <span class="kw-2">&amp;</span>trait_ref.args,
+                    )<span class="question-mark">?</span>,
+                })
+            }
+            ty::ExistentialPredicate::Projection(projection) =&gt; {
+                <span class="kw">let </span>rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                        refiner.def_id,
+                        <span class="string">"sorry, we can't handle non-base associated types"
+                    </span>));
+                };
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: projection.def_id,
+                    args: refiner.refine_existential_predicate_generic_args(
+                        projection.def_id,
+                        <span class="kw-2">&amp;</span>projection.args,
+                    )<span class="question-mark">?</span>,
+                    term,
+                })
+            }
+            ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
+            }
+        };
+        <span class="prelude-val">Ok</span>(pred)
+    }
+}
+
+<span class="kw">impl </span>Refine <span class="kw">for </span>ty::GenericPredicates {
+    <span class="kw">type </span>Output = rty::GenericPredicates;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::GenericPredicates&gt; {
+        <span class="prelude-val">Ok</span>(rty::GenericPredicates {
+            parent: <span class="self">self</span>.parent,
+            predicates: refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.predicates)<span class="question-mark">?</span>,
+        })
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>List&lt;T&gt;
+<span class="kw">where
+    </span>T: SliceInternable,
+    T: Refine&lt;Output: SliceInternable&gt;,
+{
+    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
+        refiner.refine(<span class="kw-2">&amp;</span><span class="self">self</span>[..])
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; Refine <span class="kw">for </span>[T]
+<span class="kw">where
+    </span>T: Refine&lt;Output: SliceInternable&gt;,
+{
+    <span class="kw">type </span>Output = rty::List&lt;T::Output&gt;;
+
+    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::List&lt;T::Output&gt;&gt; {
+        <span class="self">self</span>.iter().map(|t| refiner.refine(t)).try_collect()
     }
 }
 

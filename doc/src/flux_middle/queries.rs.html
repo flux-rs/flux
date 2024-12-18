@@ -888,8 +888,7 @@
 <a href="#887" id="887">887</a>
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#890" id="890">890</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -916,7 +915,7 @@
     global_env::GlobalEnv,
     rty::{
         <span class="self">self</span>,
-        refining::{<span class="self">self</span>, Refiner},
+        refining::{<span class="self">self</span>, Refine, Refiner},
     },
     MaybeExternId, ResolvedDefId,
 };
@@ -1417,10 +1416,8 @@
                         .item_bounds(def_id)
                         .skip_binder()
                         .lower(genv.tcx())
-                        .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>;
-
-                    <span class="kw">let </span>clauses =
-                        Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>.refine_clauses(<span class="kw-2">&amp;</span>clauses)<span class="question-mark">?</span>;
+                        .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?
+                        </span>.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
 
                     <span class="prelude-val">Ok</span>(rty::EarlyBinder(clauses))
                 },
@@ -1440,9 +1437,9 @@
                 |def_id| (<span class="self">self</span>.providers.predicates_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
-                    <span class="kw">let </span>predicates = genv.lower_predicates_of(def_id)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>predicates = Refiner::default_for_item(genv, def_id)<span class="question-mark">?
-                        </span>.refine_generic_predicates(<span class="kw-2">&amp;</span>predicates)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>predicates = genv
+                        .lower_predicates_of(def_id)<span class="question-mark">?
+                        </span>.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
                     <span class="prelude-val">Ok</span>(rty::EarlyBinder(predicates))
                 },
             )
@@ -1604,9 +1601,10 @@
                 |def_id| (<span class="self">self</span>.providers.fn_sig)(genv, def_id.local_id()),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    <span class="kw">let </span>fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
-                    <span class="kw">let </span>fn_sig =
-                        Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>.refine_poly_fn_sig(<span class="kw-2">&amp;</span>fn_sig)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>fn_sig = genv
+                        .lower_fn_sig(def_id)<span class="question-mark">?
+                        </span>.skip_binder()
+                        .refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
                     <span class="prelude-val">Ok</span>(rty::EarlyBinder(fn_sig))
                 },
             )

@@ -596,7 +596,11 @@
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -618,7 +622,11 @@
     cstore::CrateStoreDyn,
     fhir::{<span class="self">self</span>, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
-    rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
+    rty::{
+        <span class="self">self</span>,
+        normalize::SpecFuncDefns,
+        refining::{Refine <span class="kw">as _</span>, Refiner},
+    },
     MaybeExternId, ResolvedDefId,
 };
 
@@ -830,8 +838,8 @@
         <span class="kw">let </span>trait_ref = trait_ref.skip_binder();
         <span class="kw">let </span>trait_ref = trait_ref
             .lower(<span class="self">self</span>.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?</span>;
-        <span class="kw">let </span>trait_ref = Refiner::default_for_item(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>.refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?
+            </span>.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
     }
 

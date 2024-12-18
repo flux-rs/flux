@@ -1986,7 +1986,7 @@
     rty::{
         <span class="self">self</span>,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::Refiner,
+        refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability,
         Path, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt,
@@ -3536,11 +3536,11 @@
     }
 
     <span class="kw">fn </span>refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;Ty&gt; {
-        <span class="self">self</span>.default_refiner.refine_ty(ty)
+        ty.refine(<span class="kw-2">&amp;</span><span class="self">self</span>.default_refiner)
     }
 
     <span class="kw">fn </span>refine_with_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult&lt;Ty&gt; {
-        Refiner::with_holes(<span class="self">self</span>.genv, <span class="self">self</span>.def_id.to_def_id())<span class="question-mark">?</span>.refine_ty(ty)
+        ty.refine(<span class="kw-2">&amp;</span>Refiner::with_holes(<span class="self">self</span>.genv, <span class="self">self</span>.def_id.to_def_id())<span class="question-mark">?</span>)
     }
 }
 
