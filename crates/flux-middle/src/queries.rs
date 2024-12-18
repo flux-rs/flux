@@ -25,7 +25,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         self,
-        refining::{self, Refiner},
+        refining::{self, Refine, Refiner},
     },
     MaybeExternId, ResolvedDefId,
 };
@@ -526,10 +526,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .item_bounds(def_id)
                         .skip_binder()
                         .lower(genv.tcx())
-                        .map_err(|err| QueryErr::unsupported(def_id, err))?;
-
-                    let clauses =
-                        Refiner::default_for_item(genv, def_id)?.refine_clauses(&clauses)?;
+                        .map_err(|err| QueryErr::unsupported(def_id, err))?
+                        .refine(&Refiner::default_for_item(genv, def_id)?)?;
 
                     Ok(rty::EarlyBinder(clauses))
                 },
@@ -549,9 +547,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.predicates_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
-                    let predicates = genv.lower_predicates_of(def_id)?;
-                    let predicates = Refiner::default_for_item(genv, def_id)?
-                        .refine_generic_predicates(&predicates)?;
+                    let predicates = genv
+                        .lower_predicates_of(def_id)?
+                        .refine(&Refiner::default_for_item(genv, def_id)?)?;
                     Ok(rty::EarlyBinder(predicates))
                 },
             )
@@ -713,9 +711,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.fn_sig)(genv, def_id.local_id()),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
-                    let fn_sig =
-                        Refiner::default_for_item(genv, def_id)?.refine_poly_fn_sig(&fn_sig)?;
+                    let fn_sig = genv
+                        .lower_fn_sig(def_id)?
+                        .skip_binder()
+                        .refine(&Refiner::default_for_item(genv, def_id)?)?;
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )

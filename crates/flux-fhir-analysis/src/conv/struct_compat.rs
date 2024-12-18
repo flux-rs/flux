@@ -54,8 +54,8 @@ pub(crate) fn fn_sig(
     def_id: MaybeExternId,
 ) -> QueryResult<rty::PolyFnSig> {
     let rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())?.skip_binder();
-    let expected =
-        Refiner::default_for_item(genv, def_id.resolved_id())?.refine_poly_fn_sig(&rust_fn_sig)?;
+
+    let expected = Refiner::default_for_item(genv, def_id.resolved_id())?.refine(&rust_fn_sig)?;
 
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {

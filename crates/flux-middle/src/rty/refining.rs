@@ -3,7 +3,7 @@
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
 
-use flux_arc_interner::List;
+use flux_arc_interner::{List, SliceInternable};
 use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
@@ -101,100 +101,11 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn refine_generic_predicates(
-        &self,
-        generics: &ty::GenericPredicates,
-    ) -> QueryResult<rty::GenericPredicates> {
-        Ok(rty::GenericPredicates {
-            parent: generics.parent,
-            predicates: self.refine_clauses(&generics.predicates)?,
-        })
+    pub fn refine<T: Refine + ?Sized>(&self, t: &T) -> QueryResult<T::Output> {
+        t.refine(self)
     }
 
-    pub(crate) fn refine_clauses(&self, clauses: &[ty::Clause]) -> QueryResult<List<rty::Clause>> {
-        let clauses = clauses
-            .iter()
-            .flat_map(|clause| self.refine_clause(clause).transpose())
-            .try_collect()?;
-
-        Ok(clauses)
-    }
-
-    fn refine_clause(&self, clause: &ty::Clause) -> QueryResult<Option<rty::Clause>> {
-        let kind = match &clause.kind.as_ref().skip_binder() {
-            ty::ClauseKind::Trait(trait_pred) => {
-                let pred = rty::TraitPredicate {
-                    trait_ref: self.refine_trait_ref(&trait_pred.trait_ref)?,
-                };
-                rty::ClauseKind::Trait(pred)
-            }
-            ty::ClauseKind::Projection(proj_pred) => {
-                let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&proj_pred.term)? else {
-                    return Err(query_bug!(
-                        self.def_id,
-                        "sorry, we can't handle non-base associated types"
-                    ));
-                };
-                let pred = rty::ProjectionPredicate {
-                    projection_ty: self
-                        .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
-                    term,
-                };
-                rty::ClauseKind::Projection(pred)
-            }
-            ty::ClauseKind::TypeOutlives(pred) => {
-                let pred = rty::OutlivesPredicate(pred.0.refine(self)?, pred.1);
-                rty::ClauseKind::TypeOutlives(pred)
-            }
-            ty::ClauseKind::ConstArgHasType(const_, ty) => {
-                rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(&self.as_default())?)
-            }
-        };
-        let kind = rty::Binder::bind_with_vars(kind, List::empty());
-        Ok(Some(rty::Clause { kind }))
-    }
-
-    pub fn refine_existential_predicate(
-        &self,
-        poly_pred: &ty::PolyExistentialPredicate,
-    ) -> QueryResult<rty::PolyExistentialPredicate> {
-        self.refine_binders(poly_pred, |pred| {
-            let pred = match pred {
-                ty::ExistentialPredicate::Trait(trait_ref) => {
-                    rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
-                        def_id: trait_ref.def_id,
-                        args: self.refine_existential_predicate_generic_args(
-                            trait_ref.def_id,
-                            &trait_ref.args,
-                        )?,
-                    })
-                }
-                ty::ExistentialPredicate::Projection(projection) => {
-                    let rty::TyOrBase::Base(term) = self.refine_ty_or_base(&projection.term)?
-                    else {
-                        return Err(query_bug!(
-                            self.def_id,
-                            "sorry, we can't handle non-base associated types"
-                        ));
-                    };
-                    rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
-                        def_id: projection.def_id,
-                        args: self.refine_existential_predicate_generic_args(
-                            projection.def_id,
-                            &projection.args,
-                        )?,
-                        term,
-                    })
-                }
-                ty::ExistentialPredicate::AutoTrait(def_id) => {
-                    rty::ExistentialPredicate::AutoTrait(*def_id)
-                }
-            };
-            Ok(pred)
-        })
-    }
-
-    pub fn refine_existential_predicate_generic_args(
+    fn refine_existential_predicate_generic_args(
         &self,
         def_id: DefId,
         args: &ty::GenericArgs,
@@ -208,14 +119,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 self.refine_generic_arg(&param, arg)
             })
             .try_collect()
-    }
-
-    pub fn refine_trait_ref(&self, trait_ref: &ty::TraitRef) -> QueryResult<rty::TraitRef> {
-        let trait_ref = rty::TraitRef {
-            def_id: trait_ref.def_id,
-            args: self.refine_generic_args(trait_ref.def_id, &trait_ref.args)?,
-        };
-        Ok(trait_ref)
     }
 
     pub fn refine_variant_def(
@@ -240,34 +143,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rty::Expr::unit_adt(adt_def_id),
         );
         Ok(rty::Binder::bind_with_vars(value, List::empty()))
-    }
-
-    pub fn refine_binders<S, T, F>(
-        &self,
-        t: &ty::Binder<S>,
-        mut f: F,
-    ) -> QueryResult<rty::Binder<T>>
-    where
-        F: FnMut(&S) -> QueryResult<T>,
-    {
-        let vars = refine_bound_variables(t.vars());
-        let inner = t.as_ref().skip_binder();
-        let inner = f(inner)?;
-        Ok(rty::Binder::bind_with_vars(inner, vars))
-    }
-
-    pub fn refine_poly_fn_sig(&self, fn_sig: &ty::PolyFnSig) -> QueryResult<rty::PolyFnSig> {
-        self.refine_binders(fn_sig, |fn_sig| {
-            let inputs = fn_sig
-                .inputs()
-                .iter()
-                .map(|ty| ty.refine(self))
-                .try_collect()?;
-            let ret = fn_sig.output().refine(self)?.shift_in_escaping(1);
-            let output =
-                rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
-            Ok(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
-        })
     }
 
     fn refine_generic_args(
@@ -389,13 +264,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Slice(ty) => rty::BaseTy::Slice(ty.refine(self)?),
             ty::TyKind::Char => rty::BaseTy::Char,
             ty::TyKind::FnPtr(poly_fn_sig) => {
-                rty::BaseTy::FnPtr(self.as_default().refine_poly_fn_sig(poly_fn_sig)?)
+                rty::BaseTy::FnPtr(poly_fn_sig.refine(&self.as_default())?)
             }
             ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(ty.refine(&self.as_default())?, *mu),
             ty::TyKind::Dynamic(exi_preds, r) => {
                 let exi_preds = exi_preds
                     .iter()
-                    .map(|ty| self.refine_existential_predicate(ty))
+                    .map(|pred| pred.refine(self))
                     .try_collect()?;
                 rty::BaseTy::Dynamic(exi_preds, *r)
             }
@@ -421,16 +296,167 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 }
 
 pub trait Refine {
-    type T;
+    type Output;
 
-    fn refine(&self, refiner: &Refiner) -> QueryResult<Self::T>;
+    fn refine(&self, refiner: &Refiner) -> QueryResult<Self::Output>;
 }
 
 impl Refine for ty::Ty {
-    type T = rty::Ty;
+    type Output = rty::Ty;
 
     fn refine(&self, refiner: &Refiner) -> QueryResult<rty::Ty> {
         Ok(refiner.refine_ty_or_base(self)?.into_ty())
+    }
+}
+
+impl<T: Refine> Refine for ty::Binder<T> {
+    type Output = rty::Binder<T::Output>;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::Binder<T::Output>> {
+        let vars = refine_bound_variables(self.vars());
+        let inner = self.skip_binder_ref().refine(refiner)?;
+        Ok(rty::Binder::bind_with_vars(inner, vars))
+    }
+}
+
+impl Refine for ty::FnSig {
+    type Output = rty::FnSig;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::FnSig> {
+        let inputs = self
+            .inputs()
+            .iter()
+            .map(|ty| ty.refine(refiner))
+            .try_collect()?;
+        let ret = self.output().refine(refiner)?.shift_in_escaping(1);
+        let output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
+        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output))
+    }
+}
+
+impl Refine for ty::Clause {
+    type Output = rty::Clause;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::Clause> {
+        Ok(rty::Clause { kind: self.kind.refine(refiner)? })
+    }
+}
+
+impl Refine for ty::TraitRef {
+    type Output = rty::TraitRef;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::TraitRef> {
+        Ok(rty::TraitRef {
+            def_id: self.def_id,
+            args: refiner.refine_generic_args(self.def_id, &self.args)?,
+        })
+    }
+}
+
+impl Refine for ty::ClauseKind {
+    type Output = rty::ClauseKind;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::ClauseKind> {
+        let kind = match self {
+            ty::ClauseKind::Trait(trait_pred) => {
+                let pred = rty::TraitPredicate { trait_ref: trait_pred.trait_ref.refine(refiner)? };
+                rty::ClauseKind::Trait(pred)
+            }
+            ty::ClauseKind::Projection(proj_pred) => {
+                let rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(&proj_pred.term)? else {
+                    return Err(query_bug!(
+                        refiner.def_id,
+                        "sorry, we can't handle non-base associated types"
+                    ));
+                };
+                let pred = rty::ProjectionPredicate {
+                    projection_ty: refiner
+                        .refine_alias_ty(ty::AliasKind::Projection, &proj_pred.projection_ty)?,
+                    term,
+                };
+                rty::ClauseKind::Projection(pred)
+            }
+            ty::ClauseKind::TypeOutlives(pred) => {
+                let pred = rty::OutlivesPredicate(pred.0.refine(refiner)?, pred.1);
+                rty::ClauseKind::TypeOutlives(pred)
+            }
+            ty::ClauseKind::ConstArgHasType(const_, ty) => {
+                rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(&refiner.as_default())?)
+            }
+        };
+        Ok(kind)
+    }
+}
+
+impl Refine for ty::ExistentialPredicate {
+    type Output = rty::ExistentialPredicate;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<Self::Output> {
+        let pred = match self {
+            ty::ExistentialPredicate::Trait(trait_ref) => {
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: refiner.refine_existential_predicate_generic_args(
+                        trait_ref.def_id,
+                        &trait_ref.args,
+                    )?,
+                })
+            }
+            ty::ExistentialPredicate::Projection(projection) => {
+                let rty::TyOrBase::Base(term) = refiner.refine_ty_or_base(&projection.term)? else {
+                    return Err(query_bug!(
+                        refiner.def_id,
+                        "sorry, we can't handle non-base associated types"
+                    ));
+                };
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: projection.def_id,
+                    args: refiner.refine_existential_predicate_generic_args(
+                        projection.def_id,
+                        &projection.args,
+                    )?,
+                    term,
+                })
+            }
+            ty::ExistentialPredicate::AutoTrait(def_id) => {
+                rty::ExistentialPredicate::AutoTrait(*def_id)
+            }
+        };
+        Ok(pred)
+    }
+}
+
+impl Refine for ty::GenericPredicates {
+    type Output = rty::GenericPredicates;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::GenericPredicates> {
+        Ok(rty::GenericPredicates {
+            parent: self.parent,
+            predicates: refiner.refine(&self.predicates)?,
+        })
+    }
+}
+
+impl<T> Refine for List<T>
+where
+    T: SliceInternable,
+    T: Refine<Output: SliceInternable>,
+{
+    type Output = rty::List<T::Output>;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::List<T::Output>> {
+        refiner.refine(&self[..])
+    }
+}
+
+impl<T> Refine for [T]
+where
+    T: Refine<Output: SliceInternable>,
+{
+    type Output = rty::List<T::Output>;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::List<T::Output>> {
+        self.iter().map(|t| refiner.refine(t)).try_collect()
     }
 }
 
