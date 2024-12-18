@@ -1,4 +1,4 @@
-use std::{io::Read, path::PathBuf, sync::LazyLock};
+use std::{io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 use config::{Environment, File};
 use serde::Deserialize;
@@ -55,22 +55,20 @@ pub fn cache_path() -> PathBuf {
     log_dir().join(&CONFIG.cache_file)
 }
 
-pub fn check_overflow() -> bool {
+fn check_overflow() -> bool {
     CONFIG.check_overflow
 }
 
-pub fn scrape_quals() -> bool {
+fn scrape_quals() -> bool {
     CONFIG.scrape_quals
+}
+
+fn solver() -> SmtSolver {
+    CONFIG.solver
 }
 
 pub fn catch_bugs() -> bool {
     CONFIG.catch_bugs
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CrateConfig {
-    pub check_overflow: bool,
-    pub scrape_quals: bool,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +88,7 @@ struct Config {
     cache_file: String,
     check_overflow: bool,
     scrape_quals: bool,
+    solver: SmtSolver,
 }
 
 #[derive(Default)]
@@ -151,6 +150,71 @@ impl TryFrom<u8> for PointerWidth {
     }
 }
 
+/// Options that change the behavior of refinement type inference locally
+#[derive(Clone, Copy, Debug)]
+pub struct InferOpts {
+    /// Enable overflow checking. This affects the signature of primitive operations and the
+    /// invariants assumed for primitive types.
+    pub check_overflow: bool,
+    /// Whether qualifiers should be scraped from the constraint.
+    pub scrape_quals: bool,
+    pub solver: SmtSolver,
+}
+
+impl From<PartialInferOpts> for InferOpts {
+    fn from(opts: PartialInferOpts) -> Self {
+        InferOpts {
+            check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
+            scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
+            solver: opts.solver.unwrap_or_else(solver),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default, Deserialize, Debug)]
+pub struct PartialInferOpts {
+    pub check_overflow: Option<bool>,
+    pub scrape_quals: Option<bool>,
+    pub solver: Option<SmtSolver>,
+}
+
+impl PartialInferOpts {
+    pub fn merge(&mut self, other: &Self) {
+        self.check_overflow = self.check_overflow.or(other.check_overflow);
+        self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
+        self.solver = self.solver.or(other.solver);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = "String")]
+pub enum SmtSolver {
+    #[default]
+    Z3,
+    CVC5,
+}
+
+impl FromStr for SmtSolver {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "z3" => Ok(SmtSolver::Z3),
+            "cvc5" => Ok(SmtSolver::CVC5),
+            _ => Err("backend must be one of `z3` or `cvc5`"),
+        }
+    }
+}
+
+impl TryFrom<String> for SmtSolver {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
         let mut config_builder = config::Config::builder()
@@ -163,14 +227,15 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("dump_fhir", false)?
             .set_default("dump_rty", false)?
             .set_default("catch_bugs", false)?
-            .set_default("check_asserts", "assume")?
             .set_default("pointer_width", "64")?
             .set_default("check_def", "")?
             .set_default("check_files", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?
             .set_default("check_overflow", false)?
-            .set_default("scrape_quals", false)?;
+            .set_default("scrape_quals", false)?
+            .set_default("solver", "z3")?;
+
         // Config comes first, environment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.clone()));
@@ -213,9 +278,3 @@ pub static CONFIG_FILE: LazyLock<Value> = LazyLock::new(|| {
         toml::from_str("").unwrap()
     }
 });
-
-impl Default for CrateConfig {
-    fn default() -> Self {
-        Self { check_overflow: check_overflow(), scrape_quals: scrape_quals() }
-    }
-}

@@ -1,4 +1,4 @@
-#![flux::cfg(scrape_quals = "true")]
+#![flux::opts(scrape_quals = "true")]
 
 #[path = "../../lib/rvec.rs"]
 mod rvec;

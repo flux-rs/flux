@@ -1,8 +1,9 @@
 use flux_common::{iter::IterExt, result::ResultExt};
+use flux_config::InferOpts;
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, InferOpts, Tag},
+    infer::{ConstrReason, GlobalEnvExt, Tag},
 };
 use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 use rustc_infer::infer::TyCtxtInferExt;
@@ -24,8 +25,7 @@ pub fn check_invariants(
     // and off locally. Then we consider an overflow-checked `T` distinct from a non-checked one and
     // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
     // the other way around.
-    let opts =
-        InferOpts { check_overflow: genv.check_overflow(def_id.local_id()), scrape_quals: false };
+    let opts = genv.infer_opts(def_id.local_id());
     adt_def
         .invariants()
         .iter()

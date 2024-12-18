@@ -1,4 +1,4 @@
-#![flux::cfg(scrape_quals = true)] // TODO: needed due to odd cyclic constraint?
+#![flux::opts(scrape_quals = true)] // TODO: needed due to odd cyclic constraint?
 
 use std::vec::IntoIter;
 

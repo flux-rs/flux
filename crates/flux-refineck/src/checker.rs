@@ -1,11 +1,10 @@
 use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
-use flux_config as config;
+use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferOpts, InferResult,
-        SubtypeReason,
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     refine_tree::{RefineCtxtTrace, Snapshot},
 };

@@ -160,6 +160,22 @@ pub struct Task<T: Types> {
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
+    pub solver: SmtSolver,
+}
+
+#[derive(Clone, Copy, Hash)]
+pub enum SmtSolver {
+    Z3,
+    CVC5,
+}
+
+impl fmt::Display for SmtSolver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SmtSolver::Z3 => write!(f, "z3"),
+            SmtSolver::CVC5 => write!(f, "cvc5"),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -214,6 +230,7 @@ impl<T: Types> Task<T> {
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")
+            .arg(format!("--solver={}", self.solver))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

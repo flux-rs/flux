@@ -1,6 +1,6 @@
 //! Test we assume invariants when unfolding
 
-#![flux::cfg(check_overflow = true)]
+#![flux::opts(check_overflow = true)]
 
 #[flux::sig(fn(bool[true]))]
 fn assert(_: bool) {}

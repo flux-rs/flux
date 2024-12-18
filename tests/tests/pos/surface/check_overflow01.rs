@@ -1,4 +1,4 @@
-#[flux::check_overflow]
+#[flux::opts(check_overflow = true)]
 mod my_mod {
     const MAX: u32 = std::u32::MAX;
 

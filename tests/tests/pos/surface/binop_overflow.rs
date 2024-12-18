@@ -1,4 +1,4 @@
-#![flux::cfg(check_overflow = true)]
+#![flux::opts(check_overflow = true)]
 
 // Arithmetic BinOps
 //

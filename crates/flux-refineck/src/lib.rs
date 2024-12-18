@@ -35,7 +35,7 @@ use checker::{trait_impl_subtyping, Checker};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, InferOpts, SubtypeReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -106,11 +106,7 @@ pub fn check_fn(
         return Ok(());
     }
 
-    // Since we still want the global check overflow, just override it here if it's set
-    let opts = InferOpts {
-        check_overflow: genv.check_overflow(local_id),
-        scrape_quals: genv.scrape_quals(local_id),
-    };
+    let opts = genv.infer_opts(local_id);
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
