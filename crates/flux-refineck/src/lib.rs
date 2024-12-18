@@ -101,12 +101,25 @@ pub fn check_fn(
         return Ok(());
     }
 
+    let opts = genv.infer_opts(local_id);
+
+    // FIXME(nilehmann) we should move this check to `compare_impl_item`
+    if let Some(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+        .with_span(span)
+        .map_err(|err| err.emit(genv, def_id))?
+    {
+        tracing::info!("check_fn::refine-subtyping");
+        let errors = infcx_root
+            .execute_fixpoint_query(cache, def_id, "sub.fluxc")
+            .emit(&genv)?;
+        tracing::info!("check_fn::fixpoint-subtyping");
+        report_fixpoint_errors(genv, local_id, errors)?;
+    }
+
     // Skip trusted functions
     if genv.trusted(local_id) {
         return Ok(());
     }
-
-    let opts = genv.infer_opts(local_id);
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
@@ -130,19 +143,6 @@ pub fn check_fn(
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint");
         report_fixpoint_errors(genv, local_id, errors)?;
-
-        // PHASE 4: subtyping check for trait-method implementations
-        if let Some(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
-            .with_span(span)
-            .map_err(|err| err.emit(genv, def_id))?
-        {
-            tracing::info!("check_fn::refine-subtyping");
-            let errors = infcx_root
-                .execute_fixpoint_query(cache, def_id, "sub.fluxc")
-                .emit(&genv)?;
-            tracing::info!("check_fn::fixpoint-subtyping");
-            report_fixpoint_errors(genv, local_id, errors)?;
-        }
         Ok(())
     })?;
 
