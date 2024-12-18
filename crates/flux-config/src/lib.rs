@@ -63,8 +63,8 @@ fn scrape_quals() -> bool {
     CONFIG.scrape_quals
 }
 
-fn smt_backend() -> SmtBackend {
-    CONFIG.smt_backend
+fn solver() -> SmtSolver {
+    CONFIG.solver
 }
 
 pub fn catch_bugs() -> bool {
@@ -88,7 +88,7 @@ struct Config {
     cache_file: String,
     check_overflow: bool,
     scrape_quals: bool,
-    smt_backend: SmtBackend,
+    solver: SmtSolver,
 }
 
 #[derive(Default)]
@@ -158,7 +158,7 @@ pub struct InferOpts {
     pub check_overflow: bool,
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
-    pub smt_backend: SmtBackend,
+    pub solver: SmtSolver,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -166,7 +166,7 @@ impl From<PartialInferOpts> for InferOpts {
         InferOpts {
             check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
             scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
-            smt_backend: opts.smt_backend.unwrap_or_else(smt_backend),
+            solver: opts.solver.unwrap_or_else(solver),
         }
     }
 }
@@ -175,39 +175,39 @@ impl From<PartialInferOpts> for InferOpts {
 pub struct PartialInferOpts {
     pub check_overflow: Option<bool>,
     pub scrape_quals: Option<bool>,
-    pub smt_backend: Option<SmtBackend>,
+    pub solver: Option<SmtSolver>,
 }
 
 impl PartialInferOpts {
     pub fn merge(&mut self, other: &Self) {
         self.check_overflow = self.check_overflow.or(other.check_overflow);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
-        self.smt_backend = self.smt_backend.or(other.smt_backend);
+        self.solver = self.solver.or(other.solver);
     }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
-pub enum SmtBackend {
+pub enum SmtSolver {
     #[default]
     Z3,
     CVC5,
 }
 
-impl FromStr for SmtBackend {
+impl FromStr for SmtSolver {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_ascii_lowercase();
         match s.as_str() {
-            "z3" => Ok(SmtBackend::Z3),
-            "cvc5" => Ok(SmtBackend::CVC5),
+            "z3" => Ok(SmtSolver::Z3),
+            "cvc5" => Ok(SmtSolver::CVC5),
             _ => Err("backend must be one of `z3` or `cvc5`"),
         }
     }
 }
 
-impl TryFrom<String> for SmtBackend {
+impl TryFrom<String> for SmtSolver {
     type Error = &'static str;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -234,7 +234,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("cache_file", "cache.json")?
             .set_default("check_overflow", false)?
             .set_default("scrape_quals", false)?
-            .set_default("smt_backend", "z3")?;
+            .set_default("solver", "z3")?;
 
         // Config comes first, environment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {

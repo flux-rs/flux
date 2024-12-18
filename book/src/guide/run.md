@@ -159,7 +159,7 @@ You can set various `env` variables to customize the behavior of `flux`.
 - `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
   operations, default `0`. When set to `0`, it still checks for underflow on
   unsigned integer subtraction.
-- `FLUX_SMT_BACKEND=z3` Can be either `z3` or `cvc5`.
+- `FLUX_SOLVER=z3` Can be either `z3` or `cvc5`.
 
 ### Config file
 

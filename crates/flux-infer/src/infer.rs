@@ -188,9 +188,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
-        let backend = match self.opts.smt_backend {
-            flux_config::SmtBackend::Z3 => liquid_fixpoint::SmtBackend::Z3,
-            flux_config::SmtBackend::CVC5 => liquid_fixpoint::SmtBackend::CVC5,
+        let backend = match self.opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
         fcx.check(cache, cstr, self.opts.scrape_quals, backend)

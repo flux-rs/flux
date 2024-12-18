@@ -8,7 +8,7 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
 };
-use flux_config::{self as config, PartialInferOpts, SmtBackend};
+use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{Ignored, Trusted},
@@ -846,7 +846,7 @@ impl AttrMap {
         let mut infer_opts = PartialInferOpts::default();
         try_read_setting!(self, check_overflow, bool, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
-        try_read_setting!(self, smt_backend, SmtBackend, infer_opts);
+        try_read_setting!(self, solver, SmtSolver, infer_opts);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::AttrMapErr {
