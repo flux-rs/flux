@@ -25,7 +25,7 @@ impl Barn for HorseBarn {
     type Animal = Horse;
 
     #[trusted]
-    #[sig(fn(self: &mut Self[@barn], horse: Horse { horse.size < barn.max_size}))]
+    #[sig(fn(self: &mut Self[@barn], horse: Horse { horse.size <= barn.max_size}))]
     fn put_animal_in_house(&mut self, horse: Horse) {}
 }
 

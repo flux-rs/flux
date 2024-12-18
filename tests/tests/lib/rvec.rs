@@ -79,13 +79,10 @@ impl<T> RVec<T> {
         self.inner.as_mut_slice()
     }
 
-
     #[flux::trusted]
     #[flux::sig(fn(arr:_) -> RVec<T>[N])]
     pub fn from_array<const N: usize>(arr: [T; N]) -> Self {
-        Self {
-            inner: Vec::from(arr),
-        }
+        Self { inner: Vec::from(arr) }
     }
 
     #[flux::trusted]
@@ -94,9 +91,7 @@ impl<T> RVec<T> {
     where
         T: Clone,
     {
-        Self {
-            inner: Vec::from(xs),
-        }
+        Self { inner: Vec::from(xs) }
     }
 
     #[flux::trusted]
@@ -182,7 +177,7 @@ impl<T> Iterator for RVecIter<T> {
 impl<T> std::ops::Index<usize> for RVec<T> {
     type Output = T;
 
-    #[flux::trusted]
+    #[flux::trusted_impl]
     #[flux::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
     fn index(&self, index: usize) -> &T {
         self.get(index)
@@ -190,7 +185,7 @@ impl<T> std::ops::Index<usize> for RVec<T> {
 }
 
 impl<T> std::ops::IndexMut<usize> for RVec<T> {
-    #[flux::trusted]
+    #[flux::trusted_impl]
     #[flux::sig(fn(&mut RVec<T>[@n], usize{v : v < n}) -> &mut T)]
     fn index_mut(&mut self, index: usize) -> &mut T {
         self.get_mut(index)
