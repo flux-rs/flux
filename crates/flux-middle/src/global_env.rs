@@ -20,7 +20,11 @@ use crate::{
     cstore::CrateStoreDyn,
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
-    rty::{self, normalize::SpecFuncDefns, refining::Refiner},
+    rty::{
+        self,
+        normalize::SpecFuncDefns,
+        refining::{Refine as _, Refiner},
+    },
     MaybeExternId, ResolvedDefId,
 };
 
@@ -232,8 +236,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
             .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
-        let trait_ref = Refiner::default_for_item(self, impl_id)?.refine_trait_ref(&trait_ref)?;
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .refine(&Refiner::default_for_item(self, impl_id)?)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 

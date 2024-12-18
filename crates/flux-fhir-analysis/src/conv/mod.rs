@@ -20,7 +20,7 @@ use flux_middle::{
     rty::{
         self,
         fold::TypeFoldable,
-        refining::{self, Refiner},
+        refining::{self, Refine, Refiner},
         ESpan, List, RefineArgsExt, WfckResults, INNERMOST,
     },
     MaybeExternId,
@@ -1347,12 +1347,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             ))?
         };
 
-        let trait_ref = {
-            let trait_ref = trait_ref
-                .lower(tcx)
-                .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?;
-            self.refiner()?.refine_trait_ref(&trait_ref)?
-        };
+        let trait_ref = trait_ref
+            .lower(tcx)
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .refine(&self.refiner()?)?;
 
         let assoc_item = self
             .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
