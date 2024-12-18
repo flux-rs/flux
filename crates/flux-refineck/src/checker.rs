@@ -15,7 +15,7 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::Refiner,
+        refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability,
         Path, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt,
@@ -1565,11 +1565,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
-        self.default_refiner.refine_ty(ty)
+        ty.refine(&self.default_refiner)
     }
 
     fn refine_with_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
-        Refiner::with_holes(self.genv, self.def_id.to_def_id())?.refine_ty(ty)
+        ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
     }
 }
 

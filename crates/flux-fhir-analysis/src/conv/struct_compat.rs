@@ -14,7 +14,7 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::Refiner,
+        refining::{Refine as _, Refiner},
     },
     MaybeExternId,
 };
@@ -30,7 +30,7 @@ pub(crate) fn type_alias(
     def_id: MaybeExternId,
 ) -> QueryResult<rty::TyCtor> {
     let rust_ty = genv.lower_type_of(def_id.resolved_id())?.skip_binder();
-    let expected = Refiner::default_for_item(genv, def_id.resolved_id())?.refine_ty(&rust_ty)?;
+    let expected = rust_ty.refine(&Refiner::default_for_item(genv, def_id.resolved_id())?)?;
     let mut zipper = Zipper::new(genv, def_id);
 
     if zipper

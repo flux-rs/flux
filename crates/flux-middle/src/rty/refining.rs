@@ -143,11 +143,11 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::ClauseKind::Projection(pred)
             }
             ty::ClauseKind::TypeOutlives(pred) => {
-                let pred = rty::OutlivesPredicate(self.refine_ty(&pred.0)?, pred.1);
+                let pred = rty::OutlivesPredicate(pred.0.refine(self)?, pred.1);
                 rty::ClauseKind::TypeOutlives(pred)
             }
             ty::ClauseKind::ConstArgHasType(const_, ty) => {
-                rty::ClauseKind::ConstArgHasType(const_.clone(), self.as_default().refine_ty(ty)?)
+                rty::ClauseKind::ConstArgHasType(const_.clone(), ty.refine(&self.as_default())?)
             }
         };
         let kind = rty::Binder::bind_with_vars(kind, List::empty());
@@ -230,7 +230,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             .iter()
             .map(|fld| {
                 let ty = self.genv.lower_type_of(fld.did)?.instantiate_identity();
-                self.refine_ty(&ty)
+                ty.refine(self)
             })
             .try_collect()?;
         let value = rty::VariantSig::new(
@@ -261,9 +261,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             let inputs = fn_sig
                 .inputs()
                 .iter()
-                .map(|ty| self.refine_ty(ty))
+                .map(|ty| ty.refine(self))
                 .try_collect()?;
-            let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
+            let ret = fn_sig.output().refine(self)?.shift_in_escaping(1);
             let output =
                 rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
             Ok(rty::FnSig::new(fn_sig.safety, fn_sig.abi, List::empty(), inputs, output))
@@ -292,7 +292,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     ) -> QueryResult<rty::GenericArg> {
         match (&param.kind, arg) {
             (rty::GenericParamDefKind::Type { .. }, ty::GenericArg::Ty(ty)) => {
-                Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
+                Ok(rty::GenericArg::Ty(ty.refine(self)?))
             }
             (rty::GenericParamDefKind::Base { .. }, ty::GenericArg::Ty(ty)) => {
                 let rty::TyOrBase::Base(contr) = self.refine_ty_or_base(ty)? else {
@@ -330,10 +330,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::AliasTy::new(def_id, args, refine_args))
     }
 
-    pub fn refine_ty(&self, ty: &ty::Ty) -> QueryResult<rty::Ty> {
-        Ok(self.refine_ty_or_base(ty)?.into_ty())
-    }
-
     pub fn refine_ty_or_base(&self, ty: &ty::Ty) -> QueryResult<rty::TyOrBase> {
         let bty = match ty.kind() {
             ty::TyKind::Closure(did, args) => {
@@ -341,30 +337,27 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
-                    .map(|ty| self.refine_ty(ty))
+                    .map(|ty| ty.refine(self))
                     .try_collect()?;
                 rty::BaseTy::Closure(*did, upvar_tys, args.clone())
             }
             ty::TyKind::Coroutine(did, args) => {
                 let args = args.as_coroutine();
-                let resume_ty = self.refine_ty(args.resume_ty())?;
-                let upvar_tys = args
-                    .upvar_tys()
-                    .map(|ty| self.refine_ty(ty))
-                    .try_collect()?;
+                let resume_ty = args.resume_ty().refine(self)?;
+                let upvar_tys = args.upvar_tys().map(|ty| ty.refine(self)).try_collect()?;
                 rty::BaseTy::Coroutine(*did, resume_ty, upvar_tys)
             }
             ty::TyKind::CoroutineWitness(..) => {
                 bug!("implement when we know what this is");
             }
             ty::TyKind::Never => rty::BaseTy::Never,
-            ty::TyKind::Ref(r, ty, mutbl) => rty::BaseTy::Ref(*r, self.refine_ty(ty)?, *mutbl),
+            ty::TyKind::Ref(r, ty, mutbl) => rty::BaseTy::Ref(*r, ty.refine(self)?, *mutbl),
             ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             ty::TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+                let tys = tys.iter().map(|ty| ty.refine(self)).try_collect()?;
                 rty::BaseTy::Tuple(tys)
             }
-            ty::TyKind::Array(ty, len) => rty::BaseTy::Array(self.refine_ty(ty)?, len.clone()),
+            ty::TyKind::Array(ty, len) => rty::BaseTy::Array(ty.refine(self)?, len.clone()),
             ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
@@ -393,14 +386,12 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             ty::TyKind::Str => rty::BaseTy::Str,
-            ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
+            ty::TyKind::Slice(ty) => rty::BaseTy::Slice(ty.refine(self)?),
             ty::TyKind::Char => rty::BaseTy::Char,
             ty::TyKind::FnPtr(poly_fn_sig) => {
                 rty::BaseTy::FnPtr(self.as_default().refine_poly_fn_sig(poly_fn_sig)?)
             }
-            ty::TyKind::RawPtr(ty, mu) => {
-                rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
-            }
+            ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(ty.refine(&self.as_default())?, *mu),
             ty::TyKind::Dynamic(exi_preds, r) => {
                 let exi_preds = exi_preds
                     .iter()
@@ -426,6 +417,20 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {
         self.generics.param_at(param_ty.index as usize, self.genv)
+    }
+}
+
+pub trait Refine {
+    type T;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<Self::T>;
+}
+
+impl Refine for ty::Ty {
+    type T = rty::Ty;
+
+    fn refine(&self, refiner: &Refiner) -> QueryResult<rty::Ty> {
+        Ok(refiner.refine_ty_or_base(self)?.into_ty())
     }
 }
 
