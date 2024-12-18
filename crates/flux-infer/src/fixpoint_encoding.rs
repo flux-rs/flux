@@ -22,7 +22,7 @@ use flux_middle::{
     MaybeExternId,
 };
 use itertools::Itertools;
-use liquid_fixpoint::FixpointResult;
+use liquid_fixpoint::{FixpointResult, SmtBackend};
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -350,6 +350,7 @@ where
         cache: &mut FixQueryCache,
         constraint: fixpoint::Constraint,
         scrape_quals: bool,
+        smt_backend: SmtBackend,
     ) -> QueryResult<Vec<Tag>> {
         // skip checking trivial constraints
         if !constraint.is_concrete() {
@@ -397,6 +398,7 @@ where
             constraint,
             qualifiers,
             scrape_quals,
+            smt_backend,
             data_decls: self.scx.into_data_decls(),
         };
         if config::dump_constraint() {
@@ -431,7 +433,7 @@ where
         }
         let result = task
             .run()
-            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint {err:?}"));
+            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"));
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());

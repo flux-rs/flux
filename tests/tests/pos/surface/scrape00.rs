@@ -1,4 +1,4 @@
-#![flux::cfg(scrape_quals = true)]
+#![flux::opts(scrape_quals = true)]
 
 // test that the (fixpoint) `--scrape` mechanism suffices to get
 // the qualifier needed for the loop invariant below.

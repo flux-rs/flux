@@ -1,4 +1,4 @@
-#![flux::cfg(scrape_quals = true)]
+#![flux::opts(scrape_quals = true)]
 #![flux::defs {
     qualifier MyQ1(k: int, i: int, j: int, n: int) {
         (0 <= k && k < i) || (j <= k && k < n)

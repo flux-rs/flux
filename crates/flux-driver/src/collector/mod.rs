@@ -8,10 +8,10 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
 };
-use flux_config::{self as config, CrateConfig};
+use flux_config::{self as config, PartialInferOpts, SmtBackend};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{CheckOverflow, Ignored, Trusted},
+    fhir::{Ignored, Trusted},
     Specs,
 };
 use flux_syntax::{surface, ParseResult, ParseSess};
@@ -85,13 +85,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
-        self.collect_check_overflow(&mut attrs, CRATE_DEF_ID);
+        self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
         self.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
             .or_default()
             .extend(attrs.items());
-        self.specs.crate_config = attrs.crate_config();
         Ok(())
     }
 
@@ -100,7 +99,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_check_overflow(&mut attrs, owner_id.def_id);
+        self.collect_infer_opts(&mut attrs, owner_id.def_id);
 
         match &item.kind {
             ItemKind::Fn(..) => {
@@ -147,7 +146,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_check_overflow(&mut attrs, owner_id.def_id);
+        self.collect_infer_opts(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
         }
@@ -160,7 +159,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_check_overflow(&mut attrs, owner_id.def_id);
+        self.collect_infer_opts(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
@@ -442,12 +441,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("constant", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
-            ("cfg", AttrArgs::Delimited(..)) => {
-                let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
+            ("opts", AttrArgs::Delimited(..)) => {
+                let opts = AttrMap::parse(attr_item)
                     .emit(&self.errors)?
-                    .try_into_crate_cfg()
+                    .try_into_infer_opts()
                     .emit(&self.errors)?;
-                FluxAttrKind::CrateConfig(crate_cfg)
+                FluxAttrKind::InferOpts(opts)
             }
             ("ignore", _) => {
                 FluxAttrKind::Ignore(
@@ -465,13 +464,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("trusted_impl", _) => {
                 FluxAttrKind::TrustedImpl(
-                    parse_yes_no_with_reason(attr_item)
-                        .map_err(|_| invalid_attr_err(self))?
-                        .into(),
-                )
-            }
-            ("check_overflow", _) => {
-                FluxAttrKind::CheckOverflow(
                     parse_yes_no_with_reason(attr_item)
                         .map_err(|_| invalid_attr_err(self))?
                         .into(),
@@ -526,9 +518,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
     }
 
-    fn collect_check_overflow(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
-        if let Some(check_overflow) = attrs.check_overflow() {
-            self.specs.check_overflows.insert(def_id, check_overflow);
+    fn collect_infer_opts(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
+        if let Some(check_overflow) = attrs.infer_opts() {
+            self.specs.infer_opts.insert(def_id, check_overflow);
         }
     }
 }
@@ -602,12 +594,11 @@ enum FluxAttrKind {
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
-    CrateConfig(config::CrateConfig),
+    InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
-    CheckOverflow(CheckOverflow),
 }
 
 macro_rules! read_flag {
@@ -717,8 +708,8 @@ impl FluxAttrs {
         read_attr!(self, Variant)
     }
 
-    fn crate_config(&mut self) -> Option<config::CrateConfig> {
-        read_attr!(self, CrateConfig)
+    fn infer_opts(&mut self) -> Option<config::PartialInferOpts> {
+        read_attr!(self, InferOpts)
     }
 
     fn invariants(&mut self) -> Vec<surface::Expr> {
@@ -731,10 +722,6 @@ impl FluxAttrs {
 
     fn should_fail(&self) -> bool {
         read_flag!(self, ShouldFail)
-    }
-
-    fn check_overflow(&mut self) -> Option<CheckOverflow> {
-        read_attr!(self, CheckOverflow)
     }
 }
 
@@ -755,96 +742,99 @@ impl FluxAttrKind {
             FluxAttrKind::Constant(_) => attr_name!(Constant),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
-            FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
+            FluxAttrKind::InferOpts(_) => attr_name!(InferOpts),
             FluxAttrKind::Ignore(_) => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
-            FluxAttrKind::CheckOverflow(_) => attr_name!(CheckOverflow),
         }
     }
 }
 
 #[derive(Debug)]
-struct CFGSetting {
+struct AttrMapValue {
     setting: Symbol,
     span: Span,
 }
 
 #[derive(Debug)]
-struct FluxAttrCFG {
-    map: HashMap<String, CFGSetting>,
+struct AttrMap {
+    map: HashMap<String, AttrMapValue>,
 }
 
 macro_rules! try_read_setting {
-    ($self:expr, $setting:ident, $type:ident, $cfg:expr) => {
-        if let Some(CFGSetting { setting, span }) = $self.map.remove(stringify!($setting)) {
-            let parse_result = setting.as_str().parse::<$type>();
-            if let Ok(val) = parse_result {
-                $cfg.$setting = val;
+    ($self:expr, $setting:ident, $type:ident, $cfg:expr) => {{
+        let val =
+            if let Some(AttrMapValue { setting, span }) = $self.map.remove(stringify!($setting)) {
+                let parse_result = setting.as_str().parse::<$type>();
+                if let Ok(val) = parse_result {
+                    Some(val)
+                } else {
+                    return Err(errors::AttrMapErr {
+                        span,
+                        message: format!(
+                            "incorrect type in value for setting `{}`, expected {}",
+                            stringify!($setting),
+                            stringify!($type)
+                        ),
+                    });
+                }
             } else {
-                return Err(errors::CFGError {
-                    span,
-                    message: format!(
-                        "incorrect type in value for setting `{}`, expected {}",
-                        stringify!($setting),
-                        stringify!($type)
-                    ),
-                });
-            }
-        }
-    };
+                None
+            };
+        $cfg.$setting = val;
+    }};
 }
 
-type CFGResult<T = ()> = std::result::Result<T, errors::CFGError>;
+type AttrMapErr<T = ()> = std::result::Result<T, errors::AttrMapErr>;
 
-impl FluxAttrCFG {
+impl AttrMap {
     // TODO: Ugly that we have to access the collector for error reporting
-    fn parse_cfg(attr_item: &AttrItem) -> CFGResult<Self> {
-        let mut cfg = Self { map: HashMap::new() };
+    fn parse(attr_item: &AttrItem) -> AttrMapErr<Self> {
+        let mut map = Self { map: HashMap::new() };
         let meta_item_kind = attr_item.meta_kind();
         match meta_item_kind {
             Some(MetaItemKind::List(items)) => {
                 for item in items {
-                    cfg.parse_cfg_item(&item)?;
+                    map.parse_entry(&item)?;
                 }
             }
             _ => {
-                return Err(errors::CFGError {
+                return Err(errors::AttrMapErr {
                     span: attr_item.span(),
                     message: "bad syntax".to_string(),
                 })
             }
         };
-        Ok(cfg)
+        Ok(map)
     }
 
-    fn parse_cfg_item(&mut self, nested_item: &MetaItemInner) -> CFGResult {
+    fn parse_entry(&mut self, nested_item: &MetaItemInner) -> AttrMapErr {
         match nested_item {
             MetaItemInner::MetaItem(item) => {
                 let name = item.name_or_empty().to_ident_string();
                 let span = item.span;
                 if !name.is_empty() {
                     if self.map.contains_key(&name) {
-                        return Err(errors::CFGError {
+                        return Err(errors::AttrMapErr {
                             span,
-                            message: format!("duplicated setting `{name}`"),
+                            message: format!("duplicated key `{name}`"),
                         });
                     }
 
                     // TODO: support types of values other than strings
                     let value = item.name_value_literal().ok_or_else(|| {
-                        errors::CFGError { span, message: "unsupported value".to_string() }
+                        errors::AttrMapErr { span, message: "unsupported value".to_string() }
                     })?;
 
-                    let setting = CFGSetting { setting: value.symbol, span: item.span };
+                    let setting = AttrMapValue { setting: value.symbol, span: item.span };
                     self.map.insert(name, setting);
                     return Ok(());
                 }
-                Err(errors::CFGError { span, message: "bad setting name".to_string() })
+                Err(errors::AttrMapErr { span, message: "bad setting name".to_string() })
             }
             MetaItemInner::Lit(_) => {
-                Err(errors::CFGError {
+                Err(errors::AttrMapErr {
                     span: nested_item.span(),
                     message: "unsupported item".to_string(),
                 })
@@ -852,19 +842,20 @@ impl FluxAttrCFG {
         }
     }
 
-    fn try_into_crate_cfg(&mut self) -> CFGResult<config::CrateConfig> {
-        let mut crate_config = CrateConfig::default();
-        try_read_setting!(self, check_overflow, bool, crate_config);
-        try_read_setting!(self, scrape_quals, bool, crate_config);
+    fn try_into_infer_opts(&mut self) -> AttrMapErr<PartialInferOpts> {
+        let mut infer_opts = PartialInferOpts::default();
+        try_read_setting!(self, check_overflow, bool, infer_opts);
+        try_read_setting!(self, scrape_quals, bool, infer_opts);
+        try_read_setting!(self, smt_backend, SmtBackend, infer_opts);
 
         if let Some((name, setting)) = self.map.iter().next() {
-            return Err(errors::CFGError {
+            return Err(errors::AttrMapErr {
                 span: setting.span,
                 message: format!("invalid crate cfg keyword `{name}`"),
             });
         }
 
-        Ok(crate_config)
+        Ok(infer_opts)
     }
 }
 
@@ -891,8 +882,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_cfg_error, code = E0999)]
-    pub(super) struct CFGError {
+    #[diag(driver_invalid_attr_map, code = E0999)]
+    pub(super) struct AttrMapErr {
         #[primary_span]
         pub span: Span,
         pub message: String,

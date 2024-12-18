@@ -1,6 +1,6 @@
 // Implementation of kmp with overflow checks enabled
 
-#![flux::cfg(check_overflow = true)]
+#![flux::opts(check_overflow = true)]
 
 #[path = "../../lib/rvec.rs"]
 mod rvec;

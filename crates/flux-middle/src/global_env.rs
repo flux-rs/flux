@@ -2,7 +2,7 @@ use std::{alloc, ptr, rc::Rc, slice};
 
 use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
-use flux_config::CrateConfig;
+use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_hash::FxHashSet;
@@ -413,18 +413,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
-    /// explicit `#[flux::check_overflow(..)]` annotation and return whether that item has an
-    /// explicitly annotation and whether it requires an overflow check or not.
-    /// If no explicit annotation is found, return the default for the crate
-    pub fn check_overflow(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().check_overflows.get(&did))
-            .map_or_else(|| self.crate_config().check_overflow, |x| x.to_bool())
-    }
-
-    // TODO(nilehmann) allow this to be overridden per function
-    pub fn scrape_quals(self, _def_id: LocalDefId) -> bool {
-        self.crate_config().scrape_quals
+    pub fn infer_opts(self, def_id: LocalDefId) -> config::InferOpts {
+        let mut opts = config::PartialInferOpts::default();
+        let specs = self.collect_specs();
+        self.traverse_parents(def_id, |did| {
+            if let Some(o) = specs.infer_opts.get(&did) {
+                opts.merge(o);
+            }
+            None::<!>
+        });
+        opts.into()
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
@@ -472,7 +470,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn traverse_parents<T>(
         self,
         mut def_id: LocalDefId,
-        f: impl Fn(LocalDefId) -> Option<T>,
+        mut f: impl FnMut(LocalDefId) -> Option<T>,
     ) -> Option<T> {
         loop {
             if let Some(v) = f(def_id) {
@@ -485,10 +483,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                 break None;
             }
         }
-    }
-
-    pub fn crate_config(self) -> CrateConfig {
-        self.collect_specs().crate_config.unwrap_or_default()
     }
 }
 

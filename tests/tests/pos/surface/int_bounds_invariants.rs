@@ -1,6 +1,6 @@
 // Check that integer bound invariants are assumed when overflow checking is enabled
 
-#![flux::cfg(check_overflow = true)]
+#![flux::opts(check_overflow = true)]
 
 #[flux::sig(fn(bool[true]))]
 fn assert(_: bool) {}

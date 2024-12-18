@@ -4,8 +4,8 @@ driver_duplicated_attr =
 driver_invalid_attr =
     invalid flux attribute
 
-driver_cfg_error =
-    invalid flux configuration: {$message}
+driver_invalid_attr_map =
+    invalid attribute: {$message}
 
 driver_syntax_err =
     syntax error: {$msg}

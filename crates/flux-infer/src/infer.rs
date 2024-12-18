@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
-use flux_config as config;
+use flux_config::{self as config, InferOpts};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -73,16 +73,6 @@ pub enum ConstrReason {
     Overflow,
     Subtype(SubtypeReason),
     Other,
-}
-
-/// Options that change the behavior of refinement type inference locally
-#[derive(Clone, Copy)]
-pub struct InferOpts {
-    /// Enable overflow checking. This affects the signature of primitive operations and the
-    /// invariants assumed for primitive types.
-    pub check_overflow: bool,
-    /// Whether qualifiers should be scraped from the constraint.
-    pub scrape_quals: bool,
 }
 
 pub struct InferCtxtRoot<'genv, 'tcx> {
@@ -197,7 +187,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.check(cache, cstr, self.opts.scrape_quals)
+
+        let backend = match self.opts.smt_backend {
+            flux_config::SmtBackend::Z3 => liquid_fixpoint::SmtBackend::Z3,
+            flux_config::SmtBackend::CVC5 => liquid_fixpoint::SmtBackend::CVC5,
+        };
+
+        fcx.check(cache, cstr, self.opts.scrape_quals, backend)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
