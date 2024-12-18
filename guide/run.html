@@ -274,6 +274,7 @@ hassle you should never execute it directly. Instead, use <code>rustc-flux</code
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
 operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
 unsigned integer subtraction.</li>
+<li><code>FLUX_SOLVER=z3</code> Can be either <code>z3</code> or <code>cvc5</code>.</li>
 </ul>
 <h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
 <p>The config file is a <code>.toml</code> file that contains on each line the lowercase name

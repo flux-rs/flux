@@ -961,16 +961,7 @@
 <a href="#960" id="960">960</a>
 <a href="#961" id="961">961</a>
 <a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#963" id="963">963</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -980,10 +971,10 @@
     result::{ErrorCollector, ResultExt},
     tracked_span_assert_eq,
 };
-<span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, CrateConfig};
+<span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, PartialInferOpts, SmtSolver};
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
-    fhir::{CheckOverflow, Ignored, Trusted},
+    fhir::{Ignored, Trusted},
     Specs,
 };
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
@@ -1057,13 +1048,12 @@
     <span class="kw">fn </span>collect_crate(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(CRATE_DEF_ID)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
-        <span class="self">self</span>.collect_check_overflow(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
+        <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
         <span class="self">self</span>.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
             .or_default()
             .extend(attrs.items());
-        <span class="self">self</span>.specs.crate_config = attrs.crate_config();
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1072,7 +1062,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
-        <span class="self">self</span>.collect_check_overflow(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
             ItemKind::Fn(..) =&gt; {
@@ -1119,7 +1109,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
-        <span class="self">self</span>.collect_check_overflow(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
         <span class="kw">if let </span>rustc_hir::TraitItemKind::Fn(<span class="kw">_</span>, <span class="kw">_</span>) = trait_item.kind {
             <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
         }
@@ -1132,7 +1122,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
-        <span class="self">self</span>.collect_check_overflow(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">if let </span>ImplItemKind::Fn(..) = <span class="kw-2">&amp;</span>impl_item.kind {
             <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
@@ -1414,12 +1404,12 @@
             (<span class="string">"constant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)<span class="question-mark">?
             </span>}
-            (<span class="string">"cfg"</span>, AttrArgs::Delimited(..)) =&gt; {
-                <span class="kw">let </span>crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
+            (<span class="string">"opts"</span>, AttrArgs::Delimited(..)) =&gt; {
+                <span class="kw">let </span>opts = AttrMap::parse(attr_item)
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?
-                    </span>.try_into_crate_cfg()
+                    </span>.try_into_infer_opts()
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?</span>;
-                FluxAttrKind::CrateConfig(crate_cfg)
+                FluxAttrKind::InferOpts(opts)
             }
             (<span class="string">"ignore"</span>, <span class="kw">_</span>) =&gt; {
                 FluxAttrKind::Ignore(
@@ -1437,13 +1427,6 @@
             }
             (<span class="string">"trusted_impl"</span>, <span class="kw">_</span>) =&gt; {
                 FluxAttrKind::TrustedImpl(
-                    parse_yes_no_with_reason(attr_item)
-                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
-                        </span>.into(),
-                )
-            }
-            (<span class="string">"check_overflow"</span>, <span class="kw">_</span>) =&gt; {
-                FluxAttrKind::CheckOverflow(
                     parse_yes_no_with_reason(attr_item)
                         .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
                         </span>.into(),
@@ -1498,9 +1481,9 @@
         }
     }
 
-    <span class="kw">fn </span>collect_check_overflow(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(check_overflow) = attrs.check_overflow() {
-            <span class="self">self</span>.specs.check_overflows.insert(def_id, check_overflow);
+    <span class="kw">fn </span>collect_infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(check_overflow) = attrs.infer_opts() {
+            <span class="self">self</span>.specs.infer_opts.insert(def_id, check_overflow);
         }
     }
 }
@@ -1574,12 +1557,11 @@
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
-    CrateConfig(config::CrateConfig),
+    InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
-    CheckOverflow(CheckOverflow),
 }
 
 <span class="macro">macro_rules!</span> read_flag {
@@ -1689,8 +1671,8 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Variant)
     }
 
-    <span class="kw">fn </span>crate_config(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;config::CrateConfig&gt; {
-        <span class="macro">read_attr!</span>(<span class="self">self</span>, CrateConfig)
+    <span class="kw">fn </span>infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;config::PartialInferOpts&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, InferOpts)
     }
 
     <span class="kw">fn </span>invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;surface::Expr&gt; {
@@ -1703,10 +1685,6 @@
 
     <span class="kw">fn </span>should_fail(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">read_flag!</span>(<span class="self">self</span>, ShouldFail)
-    }
-
-    <span class="kw">fn </span>check_overflow(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CheckOverflow&gt; {
-        <span class="macro">read_attr!</span>(<span class="self">self</span>, CheckOverflow)
     }
 }
 
@@ -1727,96 +1705,99 @@
             FluxAttrKind::Constant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Constant),
             FluxAttrKind::Variant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Variant),
             FluxAttrKind::TypeAlias(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TypeAlias),
-            FluxAttrKind::CrateConfig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(CrateConfig),
+            FluxAttrKind::InferOpts(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(InferOpts),
             FluxAttrKind::Ignore(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Ignore),
             FluxAttrKind::Invariant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Invariant),
             FluxAttrKind::ShouldFail =&gt; <span class="macro">attr_name!</span>(ShouldFail),
             FluxAttrKind::ExternSpec =&gt; <span class="macro">attr_name!</span>(ExternSpec),
-            FluxAttrKind::CheckOverflow(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(CheckOverflow),
         }
     }
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>CFGSetting {
+</span><span class="kw">struct </span>AttrMapValue {
     setting: Symbol,
     span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>FluxAttrCFG {
-    map: HashMap&lt;String, CFGSetting&gt;,
+</span><span class="kw">struct </span>AttrMap {
+    map: HashMap&lt;String, AttrMapValue&gt;,
 }
 
 <span class="macro">macro_rules!</span> try_read_setting {
-    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$setting</span>:ident, <span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$cfg</span>:expr) =&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(CFGSetting { setting, span }) = <span class="macro-nonterminal">$self</span>.map.remove(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$setting</span>)) {
-            <span class="kw">let </span>parse_result = setting.as_str().parse::&lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;();
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="macro-nonterminal">val</span>) = parse_result {
-                <span class="macro-nonterminal">$cfg</span>.<span class="macro-nonterminal">$setting </span>= val;
+    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$setting</span>:ident, <span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$cfg</span>:expr) =&gt; {{
+        <span class="kw">let </span>val =
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(AttrMapValue { setting, span }) = <span class="macro-nonterminal">$self</span>.map.remove(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$setting</span>)) {
+                <span class="kw">let </span>parse_result = setting.as_str().parse::&lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;();
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="macro-nonterminal">val</span>) = parse_result {
+                    <span class="prelude-val">Some</span>(val)
+                } <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
+                        span,
+                        message: <span class="macro">format!</span>(
+                            <span class="string">"incorrect type in value for setting `{}`, expected {}"</span>,
+                            <span class="macro">stringify!</span>(<span class="macro-nonterminal">$setting</span>),
+                            <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
+                        ),
+                    });
+                }
             } <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">Err</span>(errors::CFGError {
-                    span,
-                    message: <span class="macro">format!</span>(
-                        <span class="string">"incorrect type in value for setting `{}`, expected {}"</span>,
-                        <span class="macro">stringify!</span>(<span class="macro-nonterminal">$setting</span>),
-                        <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
-                    ),
-                });
-            }
-        }
-    };
+                <span class="prelude-val">None
+            </span>};
+        <span class="macro-nonterminal">$cfg</span>.<span class="macro-nonterminal">$setting </span>= val;
+    }};
 }
 
-<span class="kw">type </span><span class="macro-nonterminal">CFGResult</span>&lt;T = ()&gt; = std::result::Result&lt;T, errors::CFGError&gt;;
+<span class="kw">type </span>AttrMapErr&lt;T = ()&gt; = std::result::Result&lt;T, errors::AttrMapErr&gt;;
 
-<span class="kw">impl </span>FluxAttrCFG {
+<span class="kw">impl </span>AttrMap {
     <span class="comment">// TODO: Ugly that we have to access the collector for error reporting
-    </span><span class="kw">fn </span>parse_cfg(attr_item: <span class="kw-2">&amp;</span>AttrItem) -&gt; CFGResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>cfg = <span class="self">Self </span>{ map: HashMap::new() };
+    </span><span class="kw">fn </span>parse(attr_item: <span class="kw-2">&amp;</span>AttrItem) -&gt; AttrMapErr&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>map = <span class="self">Self </span>{ map: HashMap::new() };
         <span class="kw">let </span>meta_item_kind = attr_item.meta_kind();
         <span class="kw">match </span>meta_item_kind {
             <span class="prelude-val">Some</span>(MetaItemKind::List(items)) =&gt; {
                 <span class="kw">for </span>item <span class="kw">in </span>items {
-                    cfg.parse_cfg_item(<span class="kw-2">&amp;</span>item)<span class="question-mark">?</span>;
+                    map.parse_entry(<span class="kw-2">&amp;</span>item)<span class="question-mark">?</span>;
                 }
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(errors::CFGError {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
                     span: attr_item.span(),
                     message: <span class="string">"bad syntax"</span>.to_string(),
                 })
             }
         };
-        <span class="prelude-val">Ok</span>(cfg)
+        <span class="prelude-val">Ok</span>(map)
     }
 
-    <span class="kw">fn </span>parse_cfg_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, nested_item: <span class="kw-2">&amp;</span>MetaItemInner) -&gt; CFGResult {
+    <span class="kw">fn </span>parse_entry(<span class="kw-2">&amp;mut </span><span class="self">self</span>, nested_item: <span class="kw-2">&amp;</span>MetaItemInner) -&gt; AttrMapErr {
         <span class="kw">match </span>nested_item {
             MetaItemInner::MetaItem(item) =&gt; {
                 <span class="kw">let </span>name = item.name_or_empty().to_ident_string();
                 <span class="kw">let </span>span = item.span;
                 <span class="kw">if </span>!name.is_empty() {
                     <span class="kw">if </span><span class="self">self</span>.map.contains_key(<span class="kw-2">&amp;</span>name) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(errors::CFGError {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
                             span,
-                            message: <span class="macro">format!</span>(<span class="string">"duplicated setting `{name}`"</span>),
+                            message: <span class="macro">format!</span>(<span class="string">"duplicated key `{name}`"</span>),
                         });
                     }
 
                     <span class="comment">// TODO: support types of values other than strings
                     </span><span class="kw">let </span>value = item.name_value_literal().ok_or_else(|| {
-                        errors::CFGError { span, message: <span class="string">"unsupported value"</span>.to_string() }
+                        errors::AttrMapErr { span, message: <span class="string">"unsupported value"</span>.to_string() }
                     })<span class="question-mark">?</span>;
 
-                    <span class="kw">let </span>setting = CFGSetting { setting: value.symbol, span: item.span };
+                    <span class="kw">let </span>setting = AttrMapValue { setting: value.symbol, span: item.span };
                     <span class="self">self</span>.map.insert(name, setting);
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
-                <span class="prelude-val">Err</span>(errors::CFGError { span, message: <span class="string">"bad setting name"</span>.to_string() })
+                <span class="prelude-val">Err</span>(errors::AttrMapErr { span, message: <span class="string">"bad setting name"</span>.to_string() })
             }
             MetaItemInner::Lit(<span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Err</span>(errors::CFGError {
+                <span class="prelude-val">Err</span>(errors::AttrMapErr {
                     span: nested_item.span(),
                     message: <span class="string">"unsupported item"</span>.to_string(),
                 })
@@ -1824,19 +1805,20 @@
         }
     }
 
-    <span class="kw">fn </span>try_into_crate_cfg(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; CFGResult&lt;config::CrateConfig&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>crate_config = CrateConfig::default();
-        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, bool, crate_config);
-        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, scrape_quals, bool, crate_config);
+    <span class="kw">fn </span>try_into_infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; AttrMapErr&lt;PartialInferOpts&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>infer_opts = PartialInferOpts::default();
+        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, bool, infer_opts);
+        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, scrape_quals, bool, infer_opts);
+        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, solver, SmtSolver, infer_opts);
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>((name, setting)) = <span class="self">self</span>.map.iter().next() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(errors::CFGError {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
                 span: setting.span,
                 message: <span class="macro">format!</span>(<span class="string">"invalid crate cfg keyword `{name}`"</span>),
             });
         }
 
-        <span class="prelude-val">Ok</span>(crate_config)
+        <span class="prelude-val">Ok</span>(infer_opts)
     }
 }
 
@@ -1863,8 +1845,8 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(driver_cfg_error, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>CFGError {
+    #[diag(driver_invalid_attr_map, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AttrMapErr {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
         <span class="kw">pub </span>message: String,

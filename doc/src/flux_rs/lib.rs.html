@@ -228,8 +228,8 @@
 }
 
 <span class="attr">#[proc_macro_attribute]
-</span><span class="kw">pub fn </span>check_overflow(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
-    attr_impl::check_overflow(attr, tokens)
+</span><span class="kw">pub fn </span>opts(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::opts(attr, tokens)
 }
 
 <span class="attr">#[proc_macro_attribute]
@@ -311,7 +311,7 @@
         constant,
         invariant,
         opaque,
-        check_overflow,
+        opts,
         trusted,
         trusted_impl,
         generics,
@@ -355,7 +355,7 @@
         invariant,
         constant,
         opaque,
-        check_overflow,
+        opts,
         trusted,
         trusted_impl,
         generics,

@@ -1569,33 +1569,7 @@
 <a href="#1568" id="1568">1568</a>
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1571" id="1571">1571</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1687,32 +1661,6 @@
             Trusted::Yes
         } <span class="kw">else </span>{
             Trusted::No
-        }
-    }
-}
-
-<span class="doccomment">/// A boolean-like enum used to mark whether some code should be checked for overflows
-</span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-</span><span class="kw">pub enum </span>CheckOverflow {
-    Yes,
-    No,
-}
-
-<span class="kw">impl </span>CheckOverflow {
-    <span class="kw">pub fn </span>to_bool(<span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self </span>{
-            CheckOverflow::Yes =&gt; <span class="bool-val">true</span>,
-            CheckOverflow::No =&gt; <span class="bool-val">false</span>,
-        }
-    }
-}
-
-<span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>CheckOverflow {
-    <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>value {
-            CheckOverflow::Yes
-        } <span class="kw">else </span>{
-            CheckOverflow::No
         }
     }
 }

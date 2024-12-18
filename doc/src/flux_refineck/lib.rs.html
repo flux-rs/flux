@@ -326,11 +326,7 @@
 <a href="#325" id="325">325</a>
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#328" id="328">328</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -367,7 +363,7 @@
 <span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, InferOpts, SubtypeReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag},
 };
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
@@ -438,11 +434,7 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="comment">// Since we still want the global check overflow, just override it here if it's set
-    </span><span class="kw">let </span>opts = InferOpts {
-        check_overflow: genv.check_overflow(local_id),
-        scrape_quals: genv.scrape_quals(local_id),
-    };
+    <span class="kw">let </span>opts = genv.infer_opts(local_id);
 
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| {
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)

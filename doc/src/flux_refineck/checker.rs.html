@@ -1969,15 +1969,13 @@
 <a href="#1968" id="1968">1968</a>
 <a href="#1969" id="1969">1969</a>
 <a href="#1970" id="1970">1970</a>
-<a href="#1971" id="1971">1971</a>
-<a href="#1972" id="1972">1972</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1971" id="1971">1971</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
-<span class="kw">use </span>flux_config <span class="kw">as </span>config;
+<span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
 <span class="kw">use </span>flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt <span class="kw">as _</span>, InferCtxt, InferCtxtRoot, InferOpts, InferResult,
-        SubtypeReason,
+        ConstrReason, GlobalEnvExt <span class="kw">as _</span>, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     refine_tree::{RefineCtxtTrace, Snapshot},
 };

@@ -1011,14 +1011,10 @@
 <a href="#1010" id="1010">1010</a>
 <a href="#1011" id="1011">1011</a>
 <a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
-<a href="#1016" id="1016">1016</a>
-<a href="#1017" id="1017">1017</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1013" id="1013">1013</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
-<span class="kw">use </span>flux_config <span class="kw">as </span>config;
+<span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -1090,16 +1086,6 @@
     Overflow,
     Subtype(SubtypeReason),
     Other,
-}
-
-<span class="doccomment">/// Options that change the behavior of refinement type inference locally
-</span><span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub struct </span>InferOpts {
-    <span class="doccomment">/// Enable overflow checking. This affects the signature of primitive operations and the
-    /// invariants assumed for primitive types.
-    </span><span class="kw">pub </span>check_overflow: bool,
-    <span class="doccomment">/// Whether qualifiers should be scraped from the constraint.
-    </span><span class="kw">pub </span>scrape_quals: bool,
 }
 
 <span class="kw">pub struct </span>InferCtxtRoot&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1214,7 +1200,13 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(<span class="self">self</span>.genv, def_id, kvars);
         <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx)<span class="question-mark">?</span>;
-        fcx.check(cache, cstr, <span class="self">self</span>.opts.scrape_quals)
+
+        <span class="kw">let </span>backend = <span class="kw">match </span><span class="self">self</span>.opts.solver {
+            flux_config::SmtSolver::Z3 =&gt; liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 =&gt; liquid_fixpoint::SmtSolver::CVC5,
+        };
+
+        fcx.check(cache, cstr, <span class="self">self</span>.opts.scrape_quals, backend)
     }
 
     <span class="kw">pub fn </span>split(<span class="self">self</span>) -&gt; (RefineTree, KVarGen) {

@@ -219,7 +219,66 @@
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, sync::LazyLock};
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 <span class="kw">use </span>config::{Environment, File};
 <span class="kw">use </span>serde::Deserialize;
@@ -276,22 +335,20 @@
     log_dir().join(<span class="kw-2">&amp;</span>CONFIG.cache_file)
 }
 
-<span class="kw">pub fn </span>check_overflow() -&gt; bool {
+<span class="kw">fn </span>check_overflow() -&gt; bool {
     CONFIG.check_overflow
 }
 
-<span class="kw">pub fn </span>scrape_quals() -&gt; bool {
+<span class="kw">fn </span>scrape_quals() -&gt; bool {
     CONFIG.scrape_quals
+}
+
+<span class="kw">fn </span>solver() -&gt; SmtSolver {
+    CONFIG.solver
 }
 
 <span class="kw">pub fn </span>catch_bugs() -&gt; bool {
     CONFIG.catch_bugs
-}
-
-<span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">pub struct </span>CrateConfig {
-    <span class="kw">pub </span>check_overflow: bool,
-    <span class="kw">pub </span>scrape_quals: bool,
 }
 
 <span class="attr">#[derive(Deserialize)]
@@ -311,6 +368,7 @@
     cache_file: String,
     check_overflow: bool,
     scrape_quals: bool,
+    solver: SmtSolver,
 }
 
 <span class="attr">#[derive(Default)]
@@ -372,6 +430,71 @@
     }
 }
 
+<span class="doccomment">/// Options that change the behavior of refinement type inference locally
+</span><span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub struct </span>InferOpts {
+    <span class="doccomment">/// Enable overflow checking. This affects the signature of primitive operations and the
+    /// invariants assumed for primitive types.
+    </span><span class="kw">pub </span>check_overflow: bool,
+    <span class="doccomment">/// Whether qualifiers should be scraped from the constraint.
+    </span><span class="kw">pub </span>scrape_quals: bool,
+    <span class="kw">pub </span>solver: SmtSolver,
+}
+
+<span class="kw">impl </span>From&lt;PartialInferOpts&gt; <span class="kw">for </span>InferOpts {
+    <span class="kw">fn </span>from(opts: PartialInferOpts) -&gt; <span class="self">Self </span>{
+        InferOpts {
+            check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
+            scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
+            solver: opts.solver.unwrap_or_else(solver),
+        }
+    }
+}
+
+<span class="attr">#[derive(Clone, Copy, Default, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>PartialInferOpts {
+    <span class="kw">pub </span>check_overflow: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    <span class="kw">pub </span>scrape_quals: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    <span class="kw">pub </span>solver: <span class="prelude-ty">Option</span>&lt;SmtSolver&gt;,
+}
+
+<span class="kw">impl </span>PartialInferOpts {
+    <span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) {
+        <span class="self">self</span>.check_overflow = <span class="self">self</span>.check_overflow.or(other.check_overflow);
+        <span class="self">self</span>.scrape_quals = <span class="self">self</span>.scrape_quals.or(other.scrape_quals);
+        <span class="self">self</span>.solver = <span class="self">self</span>.solver.or(other.solver);
+    }
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = <span class="string">"String"</span>)]
+</span><span class="kw">pub enum </span>SmtSolver {
+    <span class="attr">#[default]
+    </span>Z3,
+    CVC5,
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>SmtSolver {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>s = s.to_ascii_lowercase();
+        <span class="kw">match </span>s.as_str() {
+            <span class="string">"z3" </span>=&gt; <span class="prelude-val">Ok</span>(SmtSolver::Z3),
+            <span class="string">"cvc5" </span>=&gt; <span class="prelude-val">Ok</span>(SmtSolver::CVC5),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="string">"backend must be one of `z3` or `cvc5`"</span>),
+        }
+    }
+}
+
+<span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span>SmtSolver {
+    <span class="kw">type </span>Error = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+
+    <span class="kw">fn </span>try_from(value: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+        value.parse()
+    }
+}
+
 <span class="kw">static </span>CONFIG: LazyLock&lt;Config&gt; = LazyLock::new(|| {
     <span class="kw">fn </span>build() -&gt; <span class="prelude-ty">Result</span>&lt;Config, config::ConfigError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>config_builder = config::Config::builder()
@@ -384,14 +507,15 @@
             </span>.set_default(<span class="string">"dump_fhir"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_rty"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"catch_bugs"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
-            </span>.set_default(<span class="string">"check_asserts"</span>, <span class="string">"assume"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"pointer_width"</span>, <span class="string">"64"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_def"</span>, <span class="string">""</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_files"</span>, <span class="string">""</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"cache"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"cache_file"</span>, <span class="string">"cache.json"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"check_overflow"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
-            </span>.set_default(<span class="string">"scrape_quals"</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+            </span>.set_default(<span class="string">"scrape_quals"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
+            </span>.set_default(<span class="string">"solver"</span>, <span class="string">"z3"</span>)<span class="question-mark">?</span>;
+
         <span class="comment">// Config comes first, environment settings override it.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.clone()));
@@ -434,10 +558,4 @@
         toml::from_str(<span class="string">""</span>).unwrap()
     }
 });
-
-<span class="kw">impl </span>Default <span class="kw">for </span>CrateConfig {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ check_overflow: check_overflow(), scrape_quals: scrape_quals() }
-    }
-}
 </code></pre></div></section></main></body></html>

@@ -93,10 +93,11 @@
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
+<span class="kw">use </span>flux_config::InferOpts;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, InferOpts, Tag},
+    infer::{ConstrReason, GlobalEnvExt, Tag},
 };
 <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
@@ -118,8 +119,7 @@
     // and off locally. Then we consider an overflow-checked `T` distinct from a non-checked one and
     // error/warn in case of a mismatch: overflow-checked types can flow to non-checked code but not
     // the other way around.
-    </span><span class="kw">let </span>opts =
-        InferOpts { check_overflow: genv.check_overflow(def_id.local_id()), scrape_quals: <span class="bool-val">false </span>};
+    </span><span class="kw">let </span>opts = genv.infer_opts(def_id.local_id());
     adt_def
         .invariants()
         .iter()
