@@ -95,7 +95,7 @@ const execPromise = promisify(child_process.exec);
 
 async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
     try {
-        console.log("Running command: ", command);
+        // console.log("Running command: ", command);
         const { stdout, stderr } = await execPromise(command, {
             env: env,
             cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -107,7 +107,8 @@ async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
 
         return stdout.trim();
     } catch (error) {
-        console.log(`Command failed:`, error);
+        console.log(`Command failed!`);
+        // console.log(`Command failed:`, error);
         // vscode.window.showErrorMessage(`Command failed: ${error}`);
         // throw error;
     }
@@ -181,7 +182,6 @@ class InfoProvider {
     private updateInfo(fileName: string, fileInfo: LineInfo[]) {
         const startMap = this.positionMap(fileInfo, Position.Start);
         const endMap = this.positionMap(fileInfo, Position.End);
-        console.log("updateInfo:", fileName, startMap, endMap);
         this._StartMap.set(fileName, startMap);
         this._EndMap.set(fileName, endMap);
     }
@@ -191,13 +191,10 @@ class InfoProvider {
         const pos = this.currentPosition;
         const line = this.currentLine;
         const map = pos === Position.Start ? this._StartMap : this._EndMap;
-        console.log("getLineInfo (0):", file, pos, line, map);
         if (file) {
             const fileInfo = map.get(file);
-            console.log("getLineInfo (1):", fileInfo);
             if (fileInfo) {
                 let lineInfo = fileInfo.get(line);
-                console.log("getLineInfo (2):", lineInfo);
                 return lineInfo;
             } else {
                 return 'loading';
@@ -223,7 +220,6 @@ class InfoProvider {
         this._StartMap.delete(src);
         this._EndMap.delete(src);
         beforeLoad();
-        // console.log("Running flux on ", src);
         // run touch, cargo flux and load the new info
         await runTouch(src);
         const curAt = getFileModificationTime(file);
@@ -234,7 +230,6 @@ class InfoProvider {
 
     public async loadFluxInfo() {
       try {
-          // console.log("Loading flux info");
           const lineInfos = await readFluxCheckerTrace();
           lineInfos.forEach((lineInfo, fileName) => {
               this.updateInfo(fileName, lineInfo);
@@ -354,7 +349,6 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._currentState = DisplayState.Info;
             this._currentRcx = parseRcx(info.rcx);
             this._currentEnv = parseEnv(info.env);
-            console.log("UpdateView", this._currentEnv);
         } else {
             this._currentState = DisplayState.None;
         }
@@ -456,7 +450,6 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         } else {
             body = this._getHtmlForMessage('No info available');
         }
-        const sampleNestedHtml = nestedStringHtml(sampleData);
 
         return `
             <!DOCTYPE html>
@@ -673,7 +666,7 @@ function parseStatementSpanJSON(span: string): StmtSpan | undefined {
 function parseEvent(event: any): [string, LineInfo] | undefined {
     try {
     const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
-    if (position !== undefined) {
+    if (position !== undefined && event.span.name === 'refine') {
         const stmt_span = parseStatementSpanJSON(event.fields.stmt_span_json);
         if (stmt_span && stmt_span.file) {
             const info = {line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json};
