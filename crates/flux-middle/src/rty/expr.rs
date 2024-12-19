@@ -1394,25 +1394,35 @@ pub(crate) mod pretty {
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
-        let keys = if let Some(genv) = cx.genv
-            && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
-        {
-            adt_sort_def
-                .field_names()
-                .iter()
-                .map(|name| format!("{}", name))
-                .collect_vec()
+        let mut text = if is_named { format_cx!(cx, "{:?}", def_id) } else { format_cx!(cx, "") };
+        if flds.is_empty() {
+            // No fields, no index
+            Ok(NestedString { text, children: None, key: None })
+        } else if flds.len() == 1 {
+            // Single field, inline index
+            text += &format_cx!(cx, "{:?} ", flds[0].clone());
+            Ok(NestedString { text, children: None, key: None })
         } else {
-            (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
-        };
-        let text =
-            if is_named { format_cx!(cx, "{:?}{{..}}", def_id) } else { format_cx!(cx, "{{..}}") };
-        let mut children = vec![];
-        for (key, fld) in iter::zip(keys, flds) {
-            let fld_d = fld.fmt_nested(cx)?;
-            children.push(NestedString { key: Some(key), ..fld_d });
+            let keys = if let Some(genv) = cx.genv
+                && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+            {
+                adt_sort_def
+                    .field_names()
+                    .iter()
+                    .map(|name| format!("{}", name))
+                    .collect_vec()
+            } else {
+                (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
+            };
+            // Multiple fields, nested index
+            text += "{..}";
+            let mut children = vec![];
+            for (key, fld) in iter::zip(keys, flds) {
+                let fld_d = fld.fmt_nested(cx)?;
+                children.push(NestedString { key: Some(key), ..fld_d });
+            }
+            Ok(NestedString { text, children: Some(children), key: None })
         }
-        Ok(NestedString { text, children: Some(children), key: None })
     }
 
     impl PrettyNested for Expr {

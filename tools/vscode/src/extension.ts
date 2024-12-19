@@ -287,7 +287,7 @@ function parseEnv(env: string): TypeEnv {
     return JSON.parse(env)
             .filter((bind: TypeEnvBind) => bind.name)
             .map((b:any) => {
-                return {name: b.name, kind: b.kind, ty: parseNestedString(b.ty) }
+                return {name: b.name, kind: b.kind, ty: parseNestedString(b.ty), span: b.span};
             });
 }
 
@@ -611,8 +611,14 @@ type TypeEnvBind = {
   name: string | null,
   kind: string,
   ty: NestedString,
+  span: StmtSpan,
 }
 type TypeEnv = TypeEnvBind[];
+
+/*
+
+*/
+
 
 type RcxBind = {
     name: string | string[],
