@@ -267,7 +267,7 @@ fn check_fn_subtyping(
     }
     for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
         let reason = ConstrReason::Subtype(SubtypeReason::Input);
-        infcx.fun_arg_subtyping(&mut env, &actual, formal, reason)?;
+        infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
     }
     // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
     for requires in sub_sig.requires() {
@@ -807,7 +807,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Check arguments
         for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
-            at.fun_arg_subtyping(env, &actual, formal, ConstrReason::Call)
+            at.subtyping_with_env(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
         }
         // Replace evars
