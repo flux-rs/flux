@@ -1011,7 +1011,22 @@
 <a href="#1010" id="1010">1010</a>
 <a href="#1011" id="1011">1011</a>
 <a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1475,27 +1490,31 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Relate types via subtyping for a function call. This is the same as [`InferCtxtAt::subtyping`]
-    /// except that we also consider strong references.
-    </span><span class="kw">pub fn </span>fun_arg_subtyping(
+    <span class="doccomment">/// Relate types via subtyping. This is the same as [`InferCtxtAt::subtyping`] except that we
+    /// also require a [`LocEnv`] to handle pointers and strong references
+    </span><span class="kw">pub fn </span>subtyping_with_env(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>LocEnv,
         a: <span class="kw-2">&amp;</span>Ty,
         b: <span class="kw-2">&amp;</span>Ty,
         reason: ConstrReason,
     ) -&gt; InferResult {
-        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(reason, <span class="self">self</span>.span);
-        sub.fun_args(<span class="self">self</span>.infcx, env, a, b)
+        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(env, reason, <span class="self">self</span>.span);
+        sub.tys(<span class="self">self</span>.infcx, a, b)
     }
 
-    <span class="doccomment">/// Relate types via subtyping and returns coroutine obligations. See comment for [`Sub::obligations`].
+    <span class="doccomment">/// Relate types via subtyping and returns coroutine obligations. This doesn't handle subtyping
+    /// when strong references are involved.
+    ///
+    /// See comment for [`Sub::obligations`].
     </span><span class="kw">pub fn </span>subtyping(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         a: <span class="kw-2">&amp;</span>Ty,
         b: <span class="kw-2">&amp;</span>Ty,
         reason: ConstrReason,
     ) -&gt; InferResult&lt;Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(reason, <span class="self">self</span>.span);
+        <span class="kw">let </span><span class="kw-2">mut </span>env = DummyEnv;
+        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(<span class="kw-2">&amp;mut </span>env, reason, <span class="self">self</span>.span);
         sub.tys(<span class="self">self</span>.infcx, a, b)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(sub.obligations)
     }
@@ -1600,8 +1619,33 @@
     <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty;
 }
 
+<span class="kw">struct </span>DummyEnv;
+
+<span class="kw">impl </span>LocEnv <span class="kw">for </span>DummyEnv {
+    <span class="kw">fn </span>ptr_to_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+        <span class="kw">_</span>: ConstrReason,
+        <span class="kw">_</span>: Region,
+        <span class="kw">_</span>: <span class="kw-2">&amp;</span>Path,
+        <span class="kw">_</span>: Ty,
+    ) -&gt; InferResult&lt;Ty&gt; {
+        <span class="macro">bug!</span>(<span class="string">"call to `ptr_to_ref` on `DummyEnv`"</span>)
+    }
+
+    <span class="kw">fn </span>unfold_strg_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>InferCtxt, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Path, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult&lt;Loc&gt; {
+        <span class="macro">bug!</span>(<span class="string">"call to `unfold_str_ref` on `DummyEnv`"</span>)
+    }
+
+    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
+        <span class="macro">bug!</span>(<span class="string">"call to `get` on `DummyEnv`"</span>)
+    }
+}
+
 <span class="doccomment">/// Context used to relate two types `a` and `b` via subtyping
-</span><span class="kw">struct </span>Sub {
+</span><span class="kw">struct </span>Sub&lt;<span class="lifetime">'a</span>, E&gt; {
+    <span class="doccomment">/// The environment to lookup locations pointed to by [`TyKind::Ptr`].
+    </span>env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>E,
     reason: ConstrReason,
     span: Span,
     <span class="doccomment">/// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
@@ -1610,72 +1654,13 @@
     </span>obligations: Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;,
 }
 
-<span class="kw">impl </span>Sub {
-    <span class="kw">fn </span>new(reason: ConstrReason, span: Span) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ reason, span, obligations: <span class="macro">vec!</span>[] }
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, E: LocEnv&gt; Sub&lt;<span class="lifetime">'a</span>, E&gt; {
+    <span class="kw">fn </span>new(env: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>E, reason: ConstrReason, span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ env, reason, span, obligations: <span class="macro">vec!</span>[] }
     }
 
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Tag {
         Tag::new(<span class="self">self</span>.reason, <span class="self">self</span>.span)
-    }
-
-    <span class="kw">fn </span>fun_args(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-        env: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>LocEnv,
-        a: <span class="kw-2">&amp;</span>Ty,
-        b: <span class="kw-2">&amp;</span>Ty,
-    ) -&gt; InferResult {
-        <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
-        <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
-
-        </span><span class="kw">match </span>(a.kind(), b.kind()) {
-            (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
-                infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.fun_args(infcx, env, a, <span class="kw-2">&amp;</span>ty_b))
-            }
-            (<span class="kw">_</span>, TyKind::Constr(pred_b, ty_b)) =&gt; {
-                infcx.check_pred(pred_b, <span class="self">self</span>.tag());
-                <span class="self">self</span>.fun_args(infcx, env, a, ty_b)
-            }
-            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
-                <span class="comment">// We should technically remove `path1` from `env`, but we are assuming that functions
-                // always give back ownership of the location so `path1` is going to be overwritten
-                // after the call anyways.
-                </span><span class="kw">let </span>ty1 = env.get(path1);
-                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
-            }
-            (TyKind::StrgRef(<span class="kw">_</span>, path1, ty1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
-                <span class="comment">// We has to unfold strong references prior to a subtyping check. Normally, when
-                // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&amp;strg T`
-                // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
-                // need the below to do a similar unfolding in `check_fn_subtyping` where we just
-                // have the super-type signature that needs to be unfolded. We also add the binding
-                // to the environment so that we can:
-                // (1) UPDATE the location after the call, and
-                // (2) CHECK the relevant `ensures` clauses of the super-sig.
-                // Same as the `Ptr` case above we should remove the location from the environment
-                // after unfolding to consume it, but we are assuming functions always give back
-                // ownership.
-                </span>env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>;
-                <span class="kw">let </span>ty1 = env.get(path1);
-                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
-            }
-            (
-                TyKind::Ptr(PtrKind::Mut(re), path),
-                TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, bound, Mutability::Mut), idx),
-            ) =&gt; {
-                <span class="comment">// We sometimes generate evars for the index of references so we need to make sure
-                // we solve them.
-                </span><span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>Expr::unit(), idx);
-
-                <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(<span class="self">self</span>.span);
-                env.ptr_to_ref(<span class="kw-2">&amp;mut </span>at, <span class="self">self</span>.reason, <span class="kw-2">*</span>re, path, bound.clone())<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(())
-            }
-            <span class="kw">_ </span>=&gt; <span class="self">self</span>.tys(infcx, a, b),
-        }
     }
 
     <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
@@ -1694,6 +1679,7 @@
             (TyKind::Constr(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"constraint types should removed by the unpacking"</span>);
             }
+
             (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>ty_b))
             }
@@ -1701,6 +1687,50 @@
                 infcx.check_pred(pred_b, <span class="self">self</span>.tag());
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, ty_b)
             }
+
+            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+                <span class="comment">// We should technically remove `path1` from `env`, but we are assuming that functions
+                // always give back ownership of the location so `path1` is going to be overwritten
+                // after the call anyways.
+                </span><span class="kw">let </span>ty1 = <span class="self">self</span>.env.get(path1);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            }
+            (TyKind::StrgRef(<span class="kw">_</span>, path1, ty1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+                <span class="comment">// We have to unfold strong references prior to a subtyping check. Normally, when
+                // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&amp;strg T`
+                // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
+                // need the below to do a similar unfolding during function subtyping where we just
+                // have the super-type signature that needs to be unfolded. We also add the binding
+                // to the environment so that we can:
+                // (1) UPDATE the location after the call, and
+                // (2) CHECK the relevant `ensures` clauses of the super-sig.
+                // Same as the `Ptr` case above we should remove the location from the environment
+                // after unfolding to consume it, but we are assuming functions always give back
+                // ownership.
+                </span><span class="self">self</span>.env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty1 = <span class="self">self</span>.env.get(path1);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            }
+            (
+                TyKind::Ptr(PtrKind::Mut(re), path),
+                TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, bound, Mutability::Mut), idx),
+            ) =&gt; {
+                <span class="comment">// We sometimes generate evars for the index of references so we need to make sure
+                // we solve them.
+                </span><span class="self">self</span>.idxs_eq(infcx, <span class="kw-2">&amp;</span>Expr::unit(), idx);
+
+                <span class="self">self</span>.env.ptr_to_ref(
+                    <span class="kw-2">&amp;mut </span>infcx.at(<span class="self">self</span>.span),
+                    <span class="self">self</span>.reason,
+                    <span class="kw-2">*</span>re,
+                    path,
+                    bound.clone(),
+                )<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(())
+            }
+
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) =&gt; {
                 <span class="self">self</span>.btys(infcx, bty_a, bty_b)<span class="question-mark">?</span>;
                 <span class="self">self</span>.idxs_eq(infcx, idx_a, idx_b);

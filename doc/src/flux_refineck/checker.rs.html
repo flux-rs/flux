@@ -2238,7 +2238,7 @@
     }
     <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, sub_sig.inputs()) {
         <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Input);
-        infcx.fun_arg_subtyping(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>actual, formal, reason)<span class="question-mark">?</span>;
+        infcx.subtyping_with_env(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>actual, formal, reason)<span class="question-mark">?</span>;
     }
     <span class="comment">// we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
     </span><span class="kw">for </span>requires <span class="kw">in </span>sub_sig.requires() {
@@ -2778,7 +2778,7 @@
 
         <span class="comment">// Check arguments
         </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, fn_sig.inputs()) {
-            at.fun_arg_subtyping(env, <span class="kw-2">&amp;</span>actual, formal, ConstrReason::Call)
+            at.subtyping_with_env(env, <span class="kw-2">&amp;</span>actual, formal, ConstrReason::Call)
                 .with_span(span)<span class="question-mark">?</span>;
         }
         <span class="comment">// Replace evars
