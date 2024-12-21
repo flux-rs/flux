@@ -1565,10 +1565,6 @@ impl BaseTy {
         matches!(self, BaseTy::Slice(..))
     }
 
-    fn is_adt(&self) -> bool {
-        matches!(self, BaseTy::Adt(..))
-    }
-
     pub fn is_box(&self) -> bool {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
     }
