@@ -783,7 +783,12 @@
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -899,7 +904,7 @@
 }
 
 <span class="kw">impl </span>Scope {
-    <span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Var, Sort)&gt; + <span class="lifetime">'_ </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Var, Sort)&gt; + <span class="lifetime">'_ </span>{
         itertools::chain(
             <span class="self">self</span>.params.iter().cloned(),
             <span class="self">self</span>.bindings
@@ -978,18 +983,21 @@
 }
 
 <span class="kw">impl </span>RefineTree {
-    <span class="kw">pub fn </span>new(params: Vec&lt;(Var, Sort)&gt;) -&gt; RefineTree {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(params: Vec&lt;(Var, Sort)&gt;) -&gt; RefineTree {
         <span class="kw">let </span>root =
             Node { kind: NodeKind::Root(params), nbindings: <span class="number">0</span>, parent: <span class="prelude-val">None</span>, children: <span class="macro">vec!</span>[] };
         <span class="kw">let </span>root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
 
-    <span class="kw">pub fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
         <span class="self">self</span>.root.borrow_mut().simplify(defns);
     }
 
-    <span class="kw">pub fn </span>into_fixpoint(<span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_fixpoint(
+        <span class="self">self</span>,
+        cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;,
+    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self
             </span>.root
             .borrow()
@@ -997,14 +1005,16 @@
             </span>.unwrap_or(fixpoint::Constraint::TRUE))
     }
 
-    <span class="kw">pub fn </span>refine_ctxt_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_ctxt_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.root)), tree: <span class="self">self </span>}
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt; {
-    <span class="attr">#[expect(clippy::unused_self, reason = <span class="string">"we want to explicit borrow self mutably"</span>)]
-    </span><span class="comment">// We take a mutable reference to the subtree to prove statically that there's only one writer.
+    <span class="attr">#[expect(
+        clippy::unused_self,
+        reason = <span class="string">"we want to explicitly borrow `self` mutably to prove there's only one writer"
+    </span>)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>clear_children(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
@@ -1035,7 +1045,7 @@
 
     <span class="doccomment">/// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
     /// name for the variable.
-    </span><span class="kw">pub fn </span>define_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
         <span class="kw">let </span>fresh = Name::from_usize(<span class="self">self</span>.ptr.next_name_idx());
         <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
@@ -1052,7 +1062,7 @@
     /// [`sort`]: Sort
     /// [tuple]: Sort::Tuple
     /// [adt]: flux_middle::rty::SortCtor::Adt
-    </span><span class="kw">pub fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(<span class="self">self</span>.define_var(sort)))
     }
 
@@ -1083,7 +1093,7 @@
         Hoister::with_delegate(Unpacker { rcx: <span class="self">self</span>, assume_invariants }).transparent()
     }
 
-    <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
         <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
             rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
             overflow_checking: bool,
@@ -1118,13 +1128,13 @@
     }
 }
 
-<span class="kw">pub enum </span>AssumeInvariants {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>AssumeInvariants {
     Yes { check_overflow: bool },
     No,
 }
 
 <span class="kw">impl </span>AssumeInvariants {
-    <span class="kw">pub fn </span>yes(check_overflow: bool) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>yes(check_overflow: bool) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Yes { check_overflow }
     }
 }

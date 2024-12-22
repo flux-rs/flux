@@ -1250,26 +1250,6 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub fn </span>clean_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
-        <span class="self">self</span>.rcx.clear_children(snapshot);
-    }
-
-    <span class="kw">pub fn </span>change_item&lt;<span class="lifetime">'a</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
-        region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { def_id: def_id.to_def_id(), rcx: <span class="self">self</span>.rcx.branch(), region_infcx, ..<span class="kw-2">*</span><span class="self">self </span>}
-    }
-
-    <span class="kw">pub fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { rcx: <span class="self">self</span>.rcx.change_root(snapshot).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
-    }
-
-    <span class="kw">pub fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { rcx: <span class="self">self</span>.rcx.branch(), ..<span class="kw-2">*</span><span class="self">self </span>}
-    }
-
     <span class="kw">pub fn </span>at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, span: Span) -&gt; InferCtxtAt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         InferCtxtAt { infcx: <span class="self">self</span>, span }
     }
@@ -1389,8 +1369,28 @@
     }
 }
 
-<span class="doccomment">/// Delegate methods to [`RefineCtxt`]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>&gt; InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="doccomment">/// Methods that modify or advance the [`RefineTree`] cursor
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub fn </span>clean_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
+        <span class="self">self</span>.rcx.clear_children(snapshot);
+    }
+
+    <span class="kw">pub fn </span>change_item&lt;<span class="lifetime">'a</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
+        def_id: LocalDefId,
+        region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        InferCtxt { def_id: def_id.to_def_id(), rcx: <span class="self">self</span>.rcx.branch(), region_infcx, ..<span class="kw-2">*</span><span class="self">self </span>}
+    }
+
+    <span class="kw">pub fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        InferCtxt { rcx: <span class="self">self</span>.rcx.change_root(snapshot).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
+    }
+
+    <span class="kw">pub fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        InferCtxt { rcx: <span class="self">self</span>.rcx.branch(), ..<span class="kw-2">*</span><span class="self">self </span>}
+    }
+
     <span class="kw">pub fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
         <span class="self">self</span>.rcx.define_vars(sort)
     }
