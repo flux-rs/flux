@@ -540,7 +540,7 @@ pub struct FnTraitPredicate {
 }
 
 impl FnTraitPredicate {
-    pub fn fndef_poly_sig(&self) -> EarlyBinder<PolyFnSig> {
+    pub fn fndef_poly_sig(&self) -> PolyFnSig {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
 
         let fn_sig = FnSig::new(
@@ -551,10 +551,10 @@ impl FnTraitPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        EarlyBinder(PolyFnSig::bind_with_vars(fn_sig, List::empty()))
+        PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
-    pub fn to_poly_fn_sig(
+    pub fn to_closure_sig(
         &self,
         closure_id: DefId,
         tys: List<Ty>,

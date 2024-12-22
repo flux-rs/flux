@@ -17,8 +17,8 @@ use flux_middle::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgs, GenericArgsExt as _, Int, IntTy, Mutability,
-        Path, PolyFnSig, PtrKind, Ref, RefineArgs, RefineArgsExt,
+        FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, Ref, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -224,19 +224,13 @@ fn check_fn_subtyping(
     def_id: &DefId,
     sub_sig: EarlyBinder<rty::PolyFnSig>,
     sub_args: &[GenericArg],
-    super_sig: EarlyBinder<rty::PolyFnSig>,
-    super_args: Option<(&GenericArgs, &rty::RefineArgs)>,
+    super_sig: &rty::PolyFnSig,
     span: Span,
 ) -> InferResult {
     let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
-    let super_sig = if let Some((oblig_args, refine_args)) = super_args {
-        super_sig.instantiate(tcx, oblig_args, refine_args)
-    } else {
-        super_sig.instantiate_identity()
-    };
     let super_sig =
         super_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
 
@@ -313,6 +307,8 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     opts: InferOpts,
     span: Span,
 ) -> InferResult<Option<InferCtxtRoot<'genv, 'tcx>>> {
+    let tcx = genv.tcx();
+
     // Skip the check if this is not an impl method
     let Some((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
@@ -321,35 +317,31 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
         return Ok(None);
     }
-    let bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> = FxHashMap::default();
     let mut root_ctxt = genv
         .infcx_root(trait_method_id, opts)
         .with_generic_args(&trait_ref.args)
         .build()?;
 
-    dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-        let rustc_infcx = genv
-            .tcx()
-            .infer_ctxt()
-            .build(TypingMode::non_body_analysis());
-        let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
-        let trait_fn_sig = genv.fn_sig(trait_method_id)?;
-        let tcx = genv.tcx();
-        let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-        let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
-        let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
-        let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
-        let impl_sig = genv.fn_sig(def_id)?;
-        check_fn_subtyping(
-            &mut infcx,
-            &def_id.to_def_id(),
-            impl_sig,
-            &impl_args,
-            trait_fn_sig,
-            Some((&trait_args, &trait_refine_args)),
-            span,
-        )
-    })?;
+    let rustc_infcx = genv
+        .tcx()
+        .infer_ctxt()
+        .build(TypingMode::non_body_analysis());
+
+    let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
+    let trait_fn_sig = genv.fn_sig(trait_method_id)?;
+    let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+    let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
+    let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
+    let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
+    let impl_sig = genv.fn_sig(def_id)?;
+    check_fn_subtyping(
+        &mut infcx,
+        &def_id.to_def_id(),
+        impl_sig,
+        &impl_args,
+        &trait_fn_sig.instantiate(tcx, &trait_args, &trait_refine_args),
+        span,
+    )?;
     Ok(Some(root_ctxt))
 }
 
@@ -363,7 +355,7 @@ fn find_trait_item(
         && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
     {
         let impl_trait_ref = impl_trait_ref.instantiate_identity();
-        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap(); // this is always some because we've checked `impl_trait_ref` is `Some`
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
     Ok(None)
@@ -869,7 +861,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx.change_item(local_closure_id, &body.infcx),
                     local_closure_id,
                     self.inherited.reborrow(),
-                    fn_trait_pred.to_poly_fn_sig(*closure_id, tys.clone(), args),
+                    fn_trait_pred.to_closure_sig(*closure_id, tys.clone(), args),
                 )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
@@ -878,7 +870,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, oblig_sig, None, span)
+                check_fn_subtyping(infcx, def_id, sub_sig, args, &oblig_sig, span)
                     .with_span(span)?;
             }
             _ => {
@@ -1358,16 +1350,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     let current_did = infcx.def_id;
                     let sub_sig = infcx.genv.fn_sig(*def_id)?;
                     // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-                    let super_sig = EarlyBinder(super_sig.clone());
-                    check_fn_subtyping(
-                        infcx,
-                        &current_did,
-                        sub_sig,
-                        args,
-                        super_sig,
-                        None,
-                        stmt_span,
-                    )?;
+                    check_fn_subtyping(infcx, &current_did, sub_sig, args, super_sig, stmt_span)?;
                     to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
