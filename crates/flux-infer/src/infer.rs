@@ -222,26 +222,6 @@ impl InferCtxtInner {
 }
 
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
-    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
-        self.rcx.clear_children(snapshot);
-    }
-
-    pub fn change_item<'a>(
-        &'a mut self,
-        def_id: LocalDefId,
-        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-    ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
-    }
-
-    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
-    }
-
-    pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.branch(), ..*self }
-    }
-
     pub fn at(&mut self, span: Span) -> InferCtxtAt<'_, 'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
     }
@@ -361,8 +341,28 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 }
 
-/// Delegate methods to [`RefineCtxt`]
-impl<'infcx> InferCtxt<'infcx, '_, '_> {
+/// Methods that modify or advance the [`RefineTree`] cursor
+impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
+    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
+        self.rcx.clear_children(snapshot);
+    }
+
+    pub fn change_item<'a>(
+        &'a mut self,
+        def_id: LocalDefId,
+        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> InferCtxt<'a, 'genv, 'tcx> {
+        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
+    }
+
+    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
+    }
+
+    pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.branch(), ..*self }
+    }
+
     pub fn define_vars(&mut self, sort: &Sort) -> Expr {
         self.rcx.define_vars(sort)
     }
