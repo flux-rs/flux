@@ -3212,7 +3212,7 @@
 }
 
 <span class="kw">impl </span>FnTraitPredicate {
-    <span class="kw">pub fn </span>fndef_poly_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;PolyFnSig&gt; {
+    <span class="kw">pub fn </span>fndef_poly_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PolyFnSig {
         <span class="kw">let </span>inputs = <span class="self">self</span>.tupled_args.expect_tuple().iter().cloned().collect();
 
         <span class="kw">let </span>fn_sig = FnSig::new(
@@ -3223,10 +3223,10 @@
             Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
         );
 
-        EarlyBinder(PolyFnSig::bind_with_vars(fn_sig, List::empty()))
+        PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
 
-    <span class="kw">pub fn </span>to_poly_fn_sig(
+    <span class="kw">pub fn </span>to_closure_sig(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         closure_id: DefId,
         tys: List&lt;Ty&gt;,
