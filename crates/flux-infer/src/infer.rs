@@ -660,15 +660,15 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 self.tys(infcx, &a, ty_b)
             }
 
-            (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+            (TyKind::Ptr(PtrKind::Mut(_), path_a), TyKind::StrgRef(_, path_b, ty_b)) => {
                 // We should technically remove `path1` from `env`, but we are assuming that functions
                 // always give back ownership of the location so `path1` is going to be overwritten
                 // after the call anyways.
-                let ty1 = self.env.get(path1);
-                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                self.tys(infcx, &ty1, ty2)
+                let ty_a = self.env.get(path_a);
+                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                self.tys(infcx, &ty_a, ty_b)
             }
-            (TyKind::StrgRef(_, path1, ty1), TyKind::StrgRef(_, path2, ty2)) => {
+            (TyKind::StrgRef(_, path_a, ty_a), TyKind::StrgRef(_, path_b, ty_b)) => {
                 // We have to unfold strong references prior to a subtyping check. Normally, when
                 // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&strg T`
                 // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
@@ -680,10 +680,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 // Same as the `Ptr` case above we should remove the location from the environment
                 // after unfolding to consume it, but we are assuming functions always give back
                 // ownership.
-                self.env.unfold_strg_ref(infcx, path1, ty1)?;
-                let ty1 = self.env.get(path1);
-                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                self.tys(infcx, &ty1, ty2)
+                self.env.unfold_strg_ref(infcx, path_a, ty_a)?;
+                let ty_a = self.env.get(path_a);
+                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                self.tys(infcx, &ty_a, ty_b)
             }
             (
                 TyKind::Ptr(PtrKind::Mut(re), path),
@@ -713,8 +713,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 debug_assert_eq!(path_a, path_b);
                 Ok(())
             }
-            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
-                debug_assert_eq!(param_ty1, param_ty2);
+            (TyKind::Param(param_ty_a), TyKind::Param(param_ty_b)) => {
+                debug_assert_eq!(param_ty_a, param_ty_b);
                 Ok(())
             }
             (_, TyKind::Uninit) => Ok(()),
@@ -777,8 +777,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-            (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
+            (BaseTy::Float(float_ty_a), BaseTy::Float(float_ty_b)) => {
+                debug_assert_eq!(float_ty_a, float_ty_b);
                 Ok(())
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
