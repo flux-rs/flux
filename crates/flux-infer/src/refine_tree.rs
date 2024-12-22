@@ -114,7 +114,7 @@ pub struct Scope {
 }
 
 impl Scope {
-    pub fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
         itertools::chain(
             self.params.iter().cloned(),
             self.bindings
@@ -193,18 +193,21 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new(params: Vec<(Var, Sort)>) -> RefineTree {
+    pub(crate) fn new(params: Vec<(Var, Sort)>) -> RefineTree {
         let root =
             Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
 
-    pub fn simplify(&mut self, defns: &SpecFuncDefns) {
+    pub(crate) fn simplify(&mut self, defns: &SpecFuncDefns) {
         self.root.borrow_mut().simplify(defns);
     }
 
-    pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {
+    pub(crate) fn into_fixpoint(
+        self,
+        cx: &mut FixpointCtxt<Tag>,
+    ) -> QueryResult<fixpoint::Constraint> {
         Ok(self
             .root
             .borrow()
@@ -212,14 +215,16 @@ impl RefineTree {
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
-    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
-    #[expect(clippy::unused_self, reason = "we want to explicit borrow self mutably")]
-    // We take a mutable reference to the subtree to prove statically that there's only one writer.
+    #[expect(
+        clippy::unused_self,
+        reason = "we want to explicitly borrow `self` mutably to prove there's only one writer"
+    )]
     pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
@@ -250,7 +255,7 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
     /// name for the variable.
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
+    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
@@ -267,7 +272,7 @@ impl<'rcx> RefineCtxt<'rcx> {
     /// [`sort`]: Sort
     /// [tuple]: Sort::Tuple
     /// [adt]: flux_middle::rty::SortCtor::Adt
-    pub fn define_vars(&mut self, sort: &Sort) -> Expr {
+    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
@@ -298,7 +303,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         Hoister::with_delegate(Unpacker { rcx: self, assume_invariants }).transparent()
     }
 
-    pub fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
         struct Visitor<'a, 'rcx> {
             rcx: &'a mut RefineCtxt<'rcx>,
             overflow_checking: bool,
@@ -333,13 +338,13 @@ impl<'rcx> RefineCtxt<'rcx> {
     }
 }
 
-pub enum AssumeInvariants {
+pub(crate) enum AssumeInvariants {
     Yes { check_overflow: bool },
     No,
 }
 
 impl AssumeInvariants {
-    pub fn yes(check_overflow: bool) -> Self {
+    pub(crate) fn yes(check_overflow: bool) -> Self {
         Self::Yes { check_overflow }
     }
 }
