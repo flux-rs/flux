@@ -1888,7 +1888,7 @@
         env: <span class="kw-2">&amp;</span>TypeEnv,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>cx = PrettyCx::default_with_genv(genv).hide_regions(<span class="bool-val">true</span>);
+        <span class="kw">let </span>cx = PrettyCx::default(genv).hide_regions(<span class="bool-val">true</span>);
         env.bindings
             .iter()
             .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())

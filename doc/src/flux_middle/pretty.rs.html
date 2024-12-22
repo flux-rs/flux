@@ -580,7 +580,42 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -728,9 +763,42 @@
     Hide,
 }
 
+<span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub enum </span>GenvOrTcx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    Genv(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;),
+    Tcx(TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;),
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; GenvOrTcx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>tcx(<span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            GenvOrTcx::Genv(genv) =&gt; genv.tcx(),
+            GenvOrTcx::Tcx(tcx) =&gt; tcx,
+        }
+    }
+
+    <span class="kw">fn </span>genv(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            GenvOrTcx::Genv(genv) =&gt; <span class="prelude-val">Some</span>(genv),
+            GenvOrTcx::Tcx(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; From&lt;TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>GenvOrTcx&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>from(v: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Tcx(v)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; From&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>GenvOrTcx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>from(v: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Genv(v)
+    }
+}
+
 <span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    <span class="kw">pub </span>genv: <span class="prelude-ty">Option</span>&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt;,
+    <span class="kw">pub </span>cx: GenvOrTcx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>kvar_args: KVarArgs,
     <span class="kw">pub </span>fully_qualified_paths: bool,
     <span class="kw">pub </span>simplify_exprs: bool,
@@ -745,83 +813,6 @@
     env: BoundVarEnv,
 }
 
-<span class="macro">newtype_index!</span> {
-    <span class="doccomment">/// Name used during pretty printing to format anonymous bound variables
-    </span><span class="attr">#[debug_format = <span class="string">"b{}"</span>]
-    </span><span class="kw">struct </span>BoundVarName {}
-}
-
-<span class="attr">#[derive(Default)]
-</span><span class="kw">struct </span>BoundVarEnv {
-    name_gen: IndexGen&lt;BoundVarName&gt;,
-    layers: RefCell&lt;Vec&lt;UnordMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
-}
-
-<span class="kw">impl </span>BoundVarEnv {
-    <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
-        <span class="kw">let </span>layers = <span class="self">self</span>.layers.borrow();
-        layers
-            .get(layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
-            </span>.get(<span class="kw-2">&amp;</span>var)
-            .copied()
-    }
-
-    <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
-        <span class="kw">let </span><span class="kw-2">mut </span>layer = UnordMap::default();
-        <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
-            <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
-                layer.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
-            }
-        }
-        <span class="self">self</span>.layers.borrow_mut().push(layer);
-    }
-
-    <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="self">self</span>.layers.borrow_mut().pop();
-    }
-}
-
-<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; {
-    data: T,
-    cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-}
-
-<span class="kw">pub struct </span>Join&lt;<span class="lifetime">'a</span>, I&gt; {
-    sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-    iter: RefCell&lt;<span class="prelude-ty">Option</span>&lt;I&gt;&gt;,
-}
-
-<span class="kw">pub struct </span>Parens&lt;<span class="lifetime">'a</span>, T&gt; {
-    val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T,
-    parenthesize: bool,
-}
-
-<span class="kw">pub trait </span>Pretty {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result;
-
-    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-        PrettyCx::default(tcx)
-    }
-}
-
-<span class="kw">impl </span>Pretty <span class="kw">for </span>String {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, I&gt; Join&lt;<span class="lifetime">'a</span>, I&gt; {
-    <span class="kw">pub fn </span>new&lt;T: IntoIterator&lt;IntoIter = I&gt;&gt;(sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, iter: T) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ sep, iter: RefCell::new(<span class="prelude-val">Some</span>(iter.into_iter())) }
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Parens&lt;<span class="lifetime">'a</span>, T&gt; {
-    <span class="kw">pub fn </span>new(val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T, parenthesize: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ val, parenthesize }
-    }
-}
-
 <span class="macro">macro_rules!</span> set_opts {
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$opts</span>:expr, [$(<span class="macro-nonterminal">$opt</span>:ident),+ $(,)<span class="question-mark">?</span>]) =&gt; {
         $(
@@ -833,10 +824,9 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub fn </span>default(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>default(cx: <span class="kw">impl </span>Into&lt;GenvOrTcx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
         PrettyCx {
-            tcx,
-            genv: <span class="prelude-val">None</span>,
+            cx: cx.into(),
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: <span class="bool-val">false</span>,
             simplify_exprs: <span class="bool-val">true</span>,
@@ -852,9 +842,12 @@
         }
     }
 
-    <span class="kw">pub fn </span>default_with_genv(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>def = <span class="self">Self</span>::default(genv.tcx());
-        <span class="self">Self </span>{ genv: <span class="prelude-val">Some</span>(genv), ..def }
+    <span class="kw">pub fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.cx.tcx()
+    }
+
+    <span class="kw">pub fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
+        <span class="self">self</span>.cx.genv()
     }
 
     <span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opts: <span class="kw-2">&amp;</span>config::Value) {
@@ -961,6 +954,83 @@
     }
 }
 
+<span class="macro">newtype_index!</span> {
+    <span class="doccomment">/// Name used during pretty printing to format anonymous bound variables
+    </span><span class="attr">#[debug_format = <span class="string">"b{}"</span>]
+    </span><span class="kw">struct </span>BoundVarName {}
+}
+
+<span class="attr">#[derive(Default)]
+</span><span class="kw">struct </span>BoundVarEnv {
+    name_gen: IndexGen&lt;BoundVarName&gt;,
+    layers: RefCell&lt;Vec&lt;UnordMap&lt;BoundVar, BoundVarName&gt;&gt;&gt;,
+}
+
+<span class="kw">impl </span>BoundVarEnv {
+    <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
+        <span class="kw">let </span>layers = <span class="self">self</span>.layers.borrow();
+        layers
+            .get(layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
+            </span>.get(<span class="kw-2">&amp;</span>var)
+            .copied()
+    }
+
+    <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
+        <span class="kw">let </span><span class="kw-2">mut </span>layer = UnordMap::default();
+        <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
+            <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
+                layer.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
+            }
+        }
+        <span class="self">self</span>.layers.borrow_mut().push(layer);
+    }
+
+    <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="self">self</span>.layers.borrow_mut().pop();
+    }
+}
+
+<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; {
+    data: T,
+    cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+}
+
+<span class="kw">pub struct </span>Join&lt;<span class="lifetime">'a</span>, I&gt; {
+    sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+    iter: RefCell&lt;<span class="prelude-ty">Option</span>&lt;I&gt;&gt;,
+}
+
+<span class="kw">pub struct </span>Parens&lt;<span class="lifetime">'a</span>, T&gt; {
+    val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T,
+    parenthesize: bool,
+}
+
+<span class="kw">pub trait </span>Pretty {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result;
+
+    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+        PrettyCx::default(tcx)
+    }
+}
+
+<span class="kw">impl </span>Pretty <span class="kw">for </span>String {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, I&gt; Join&lt;<span class="lifetime">'a</span>, I&gt; {
+    <span class="kw">pub fn </span>new&lt;T: IntoIterator&lt;IntoIter = I&gt;&gt;(sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, iter: T) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ sep, iter: RefCell::new(<span class="prelude-val">Some</span>(iter.into_iter())) }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Parens&lt;<span class="lifetime">'a</span>, T&gt; {
+    <span class="kw">pub fn </span>new(val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T, parenthesize: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ val, parenthesize }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T&gt; {
     <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ data, cx }
@@ -1040,9 +1110,9 @@
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>DefId {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>path = cx.tcx.def_path(<span class="kw-2">*</span><span class="self">self</span>);
+        <span class="kw">let </span>path = cx.tcx().def_path(<span class="kw-2">*</span><span class="self">self</span>);
         <span class="kw">if </span>cx.fully_qualified_paths {
-            <span class="kw">let </span>krate = cx.tcx.crate_name(<span class="self">self</span>.krate);
+            <span class="kw">let </span>krate = cx.tcx().crate_name(<span class="self">self</span>.krate);
             <span class="macro">w!</span>(cx, f, <span class="string">"{}{}"</span>, ^krate, ^path.to_string_no_crate_verbose())
         } <span class="kw">else </span>{
             <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^path.data.last().unwrap())
@@ -1061,7 +1131,7 @@
         <span class="kw">if </span>cx.full_spans {
             <span class="macro">write!</span>(f, <span class="string">"{self:?}"</span>)
         } <span class="kw">else </span>{
-            <span class="kw">let </span>src_map = cx.tcx.sess.source_map();
+            <span class="kw">let </span>src_map = cx.tcx().sess.source_map();
             <span class="kw">let </span>lo = src_map.lookup_char_pos(<span class="self">self</span>.lo());
             <span class="kw">let </span>hi = src_map.lookup_char_pos(<span class="self">self</span>.hi());
             <span class="comment">// use rustc_span::FileName;

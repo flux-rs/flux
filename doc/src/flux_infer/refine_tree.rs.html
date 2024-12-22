@@ -1537,7 +1537,7 @@
         <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span>rcx.ptr)).collect_vec();
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>cx = <span class="kw-2">&amp;</span>PrettyCx::default_with_genv(genv);
+        <span class="kw">let </span>cx = <span class="kw-2">&amp;</span>PrettyCx::default(genv);
 
         parents.into_iter().rev().for_each(|ptr| {
             <span class="kw">let </span>node = ptr.borrow();

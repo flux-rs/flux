@@ -2745,7 +2745,7 @@
                         <span class="macro">w!</span>(cx, f, <span class="string">"({:?})"</span>, e)<span class="question-mark">?</span>;
                     };
                     <span class="comment">// proj
-                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
                         &amp;&amp; <span class="kw">let </span>FieldProj::Adt { def_id, field } = proj
                         &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
@@ -2762,7 +2762,7 @@
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
                         &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
                         <span class="kw">let </span>field_binds = adt_sort_def
@@ -2953,7 +2953,7 @@
         flds: <span class="kw-2">&amp;</span>[Expr],
         is_named: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-        <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+        <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
         {
             adt_sort_def
@@ -3030,7 +3030,7 @@
                 ExprKind::FieldProj(e, proj) =&gt; {
                     <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
                     <span class="kw">let </span>proj_text =   <span class="comment">// proj
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
                     &amp;&amp; <span class="kw">let </span>FieldProj::Adt { def_id, field } = proj
                     &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
                 {
