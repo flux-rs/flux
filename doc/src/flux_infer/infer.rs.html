@@ -1688,15 +1688,15 @@
                 <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>a, ty_b)
             }
 
-            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+            (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path_a), TyKind::StrgRef(<span class="kw">_</span>, path_b, ty_b)) =&gt; {
                 <span class="comment">// We should technically remove `path1` from `env`, but we are assuming that functions
                 // always give back ownership of the location so `path1` is going to be overwritten
                 // after the call anyways.
-                </span><span class="kw">let </span>ty1 = <span class="self">self</span>.env.get(path1);
-                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+                </span><span class="kw">let </span>ty_a = <span class="self">self</span>.env.get(path_a);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path_a.to_expr(), <span class="kw-2">&amp;</span>path_b.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_a, ty_b)
             }
-            (TyKind::StrgRef(<span class="kw">_</span>, path1, ty1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+            (TyKind::StrgRef(<span class="kw">_</span>, path_a, ty_a), TyKind::StrgRef(<span class="kw">_</span>, path_b, ty_b)) =&gt; {
                 <span class="comment">// We have to unfold strong references prior to a subtyping check. Normally, when
                 // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&amp;strg T`
                 // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
@@ -1708,10 +1708,10 @@
                 // Same as the `Ptr` case above we should remove the location from the environment
                 // after unfolding to consume it, but we are assuming functions always give back
                 // ownership.
-                </span><span class="self">self</span>.env.unfold_strg_ref(infcx, path1, ty1)<span class="question-mark">?</span>;
-                <span class="kw">let </span>ty1 = <span class="self">self</span>.env.get(path1);
-                infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
-                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, ty2)
+                </span><span class="self">self</span>.env.unfold_strg_ref(infcx, path_a, ty_a)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty_a = <span class="self">self</span>.env.get(path_a);
+                infcx.unify_exprs(<span class="kw-2">&amp;</span>path_a.to_expr(), <span class="kw-2">&amp;</span>path_b.to_expr());
+                <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty_a, ty_b)
             }
             (
                 TyKind::Ptr(PtrKind::Mut(re), path),
@@ -1741,8 +1741,8 @@
                 <span class="macro">debug_assert_eq!</span>(path_a, path_b);
                 <span class="prelude-val">Ok</span>(())
             }
-            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(param_ty1, param_ty2);
+            (TyKind::Param(param_ty_a), TyKind::Param(param_ty_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(param_ty_a, param_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (<span class="kw">_</span>, TyKind::Uninit) =&gt; <span class="prelude-val">Ok</span>(()),
@@ -1805,8 +1805,8 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(float_ty1, float_ty2);
+            (BaseTy::Float(float_ty_a), BaseTy::Float(float_ty_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(float_ty_a, float_ty_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) =&gt; <span class="self">self</span>.tys(infcx, ty_a, ty_b),
