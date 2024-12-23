@@ -146,9 +146,42 @@ pub enum KVarArgs {
     Hide,
 }
 
+#[derive(Clone, Copy)]
+pub enum GenvOrTcx<'genv, 'tcx> {
+    Genv(GlobalEnv<'genv, 'tcx>),
+    Tcx(TyCtxt<'tcx>),
+}
+
+impl<'genv, 'tcx> GenvOrTcx<'genv, 'tcx> {
+    fn tcx(self) -> TyCtxt<'tcx> {
+        match self {
+            GenvOrTcx::Genv(genv) => genv.tcx(),
+            GenvOrTcx::Tcx(tcx) => tcx,
+        }
+    }
+
+    fn genv(self) -> Option<GlobalEnv<'genv, 'tcx>> {
+        match self {
+            GenvOrTcx::Genv(genv) => Some(genv),
+            GenvOrTcx::Tcx(_) => None,
+        }
+    }
+}
+
+impl<'tcx> From<TyCtxt<'tcx>> for GenvOrTcx<'_, 'tcx> {
+    fn from(v: TyCtxt<'tcx>) -> Self {
+        Self::Tcx(v)
+    }
+}
+
+impl<'genv, 'tcx> From<GlobalEnv<'genv, 'tcx>> for GenvOrTcx<'genv, 'tcx> {
+    fn from(v: GlobalEnv<'genv, 'tcx>) -> Self {
+        Self::Genv(v)
+    }
+}
+
 pub struct PrettyCx<'genv, 'tcx> {
-    pub tcx: TyCtxt<'tcx>,
-    pub genv: Option<GlobalEnv<'genv, 'tcx>>,
+    pub cx: GenvOrTcx<'genv, 'tcx>,
     pub kvar_args: KVarArgs,
     pub fully_qualified_paths: bool,
     pub simplify_exprs: bool,
@@ -163,83 +196,6 @@ pub struct PrettyCx<'genv, 'tcx> {
     env: BoundVarEnv,
 }
 
-newtype_index! {
-    /// Name used during pretty printing to format anonymous bound variables
-    #[debug_format = "b{}"]
-    struct BoundVarName {}
-}
-
-#[derive(Default)]
-struct BoundVarEnv {
-    name_gen: IndexGen<BoundVarName>,
-    layers: RefCell<Vec<UnordMap<BoundVar, BoundVarName>>>,
-}
-
-impl BoundVarEnv {
-    fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
-        let layers = self.layers.borrow();
-        layers
-            .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
-            .get(&var)
-            .copied()
-    }
-
-    fn push_layer(&self, vars: &[BoundVariableKind]) {
-        let mut layer = UnordMap::default();
-        for (idx, var) in vars.iter().enumerate() {
-            if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
-                layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
-            }
-        }
-        self.layers.borrow_mut().push(layer);
-    }
-
-    fn pop_layer(&self) {
-        self.layers.borrow_mut().pop();
-    }
-}
-
-pub struct WithCx<'a, 'genv, 'tcx, T> {
-    data: T,
-    cx: &'a PrettyCx<'genv, 'tcx>,
-}
-
-pub struct Join<'a, I> {
-    sep: &'a str,
-    iter: RefCell<Option<I>>,
-}
-
-pub struct Parens<'a, T> {
-    val: &'a T,
-    parenthesize: bool,
-}
-
-pub trait Pretty {
-    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-
-    fn default_cx(tcx: TyCtxt) -> PrettyCx {
-        PrettyCx::default(tcx)
-    }
-}
-
-impl Pretty for String {
-    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl<'a, I> Join<'a, I> {
-    pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
-        Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
-    }
-}
-
-impl<'a, T> Parens<'a, T> {
-    pub fn new(val: &'a T, parenthesize: bool) -> Self {
-        Self { val, parenthesize }
-    }
-}
-
 macro_rules! set_opts {
     ($cx:expr, $opts:expr, [$($opt:ident),+ $(,)?]) => {
         $(
@@ -251,10 +207,9 @@ macro_rules! set_opts {
 }
 
 impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
-    pub fn default(tcx: TyCtxt<'tcx>) -> Self {
+    pub fn default(cx: impl Into<GenvOrTcx<'genv, 'tcx>>) -> Self {
         PrettyCx {
-            tcx,
-            genv: None,
+            cx: cx.into(),
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: false,
             simplify_exprs: true,
@@ -270,9 +225,12 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         }
     }
 
-    pub fn default_with_genv(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        let def = Self::default(genv.tcx());
-        Self { genv: Some(genv), ..def }
+    pub fn tcx(&self) -> TyCtxt<'tcx> {
+        self.cx.tcx()
+    }
+
+    pub fn genv(&self) -> Option<GlobalEnv<'genv, 'tcx>> {
+        self.cx.genv()
     }
 
     pub fn merge(&mut self, opts: &config::Value) {
@@ -379,6 +337,83 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 }
 
+newtype_index! {
+    /// Name used during pretty printing to format anonymous bound variables
+    #[debug_format = "b{}"]
+    struct BoundVarName {}
+}
+
+#[derive(Default)]
+struct BoundVarEnv {
+    name_gen: IndexGen<BoundVarName>,
+    layers: RefCell<Vec<UnordMap<BoundVar, BoundVarName>>>,
+}
+
+impl BoundVarEnv {
+    fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
+        let layers = self.layers.borrow();
+        layers
+            .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+            .get(&var)
+            .copied()
+    }
+
+    fn push_layer(&self, vars: &[BoundVariableKind]) {
+        let mut layer = UnordMap::default();
+        for (idx, var) in vars.iter().enumerate() {
+            if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
+                layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
+            }
+        }
+        self.layers.borrow_mut().push(layer);
+    }
+
+    fn pop_layer(&self) {
+        self.layers.borrow_mut().pop();
+    }
+}
+
+pub struct WithCx<'a, 'genv, 'tcx, T> {
+    data: T,
+    cx: &'a PrettyCx<'genv, 'tcx>,
+}
+
+pub struct Join<'a, I> {
+    sep: &'a str,
+    iter: RefCell<Option<I>>,
+}
+
+pub struct Parens<'a, T> {
+    val: &'a T,
+    parenthesize: bool,
+}
+
+pub trait Pretty {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+
+    fn default_cx(tcx: TyCtxt) -> PrettyCx {
+        PrettyCx::default(tcx)
+    }
+}
+
+impl Pretty for String {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl<'a, I> Join<'a, I> {
+    pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
+        Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
+    }
+}
+
+impl<'a, T> Parens<'a, T> {
+    pub fn new(val: &'a T, parenthesize: bool) -> Self {
+        Self { val, parenthesize }
+    }
+}
+
 impl<'a, 'genv, 'tcx, T> WithCx<'a, 'genv, 'tcx, T> {
     pub fn new(cx: &'a PrettyCx<'genv, 'tcx>, data: T) -> Self {
         Self { data, cx }
@@ -458,9 +493,9 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let path = cx.tcx.def_path(*self);
+        let path = cx.tcx().def_path(*self);
         if cx.fully_qualified_paths {
-            let krate = cx.tcx.crate_name(self.krate);
+            let krate = cx.tcx().crate_name(self.krate);
             w!(cx, f, "{}{}", ^krate, ^path.to_string_no_crate_verbose())
         } else {
             w!(cx, f, "{}", ^path.data.last().unwrap())
@@ -479,7 +514,7 @@ impl Pretty for Span {
         if cx.full_spans {
             write!(f, "{self:?}")
         } else {
-            let src_map = cx.tcx.sess.source_map();
+            let src_map = cx.tcx().sess.source_map();
             let lo = src_map.lookup_char_pos(self.lo());
             let hi = src_map.lookup_char_pos(self.hi());
             // use rustc_span::FileName;

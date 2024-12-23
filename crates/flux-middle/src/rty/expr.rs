@@ -1186,7 +1186,7 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?})", e)?;
                     };
                     // proj
-                    if let Some(genv) = cx.genv
+                    if let Some(genv) = cx.genv()
                         && let FieldProj::Adt { def_id, field } = proj
                         && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
@@ -1203,7 +1203,7 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
-                    if let Some(genv) = cx.genv
+                    if let Some(genv) = cx.genv()
                         && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
                         let field_binds = adt_sort_def
@@ -1481,7 +1481,7 @@ pub(crate) mod pretty {
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
                     let proj_text =   // proj
-                if let Some(genv) = cx.genv
+                if let Some(genv) = cx.genv()
                     && let FieldProj::Adt { def_id, field } = proj
                     && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                 {

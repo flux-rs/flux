@@ -222,26 +222,6 @@ impl InferCtxtInner {
 }
 
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
-    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
-        self.rcx.clear_children(snapshot);
-    }
-
-    pub fn change_item<'a>(
-        &'a mut self,
-        def_id: LocalDefId,
-        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-    ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
-    }
-
-    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
-    }
-
-    pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.branch(), ..*self }
-    }
-
     pub fn at(&mut self, span: Span) -> InferCtxtAt<'_, 'infcx, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, span }
     }
@@ -361,8 +341,28 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 }
 
-/// Delegate methods to [`RefineCtxt`]
-impl<'infcx> InferCtxt<'infcx, '_, '_> {
+/// Methods that modify or advance the [`RefineTree`] cursor
+impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
+    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
+        self.rcx.clear_children(snapshot);
+    }
+
+    pub fn change_item<'a>(
+        &'a mut self,
+        def_id: LocalDefId,
+        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> InferCtxt<'a, 'genv, 'tcx> {
+        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
+    }
+
+    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
+    }
+
+    pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.branch(), ..*self }
+    }
+
     pub fn define_vars(&mut self, sort: &Sort) -> Expr {
         self.rcx.define_vars(sort)
     }
@@ -462,27 +462,31 @@ impl InferCtxtAt<'_, '_, '_, '_> {
         Ok(())
     }
 
-    /// Relate types via subtyping for a function call. This is the same as [`InferCtxtAt::subtyping`]
-    /// except that we also consider strong references.
-    pub fn fun_arg_subtyping(
+    /// Relate types via subtyping. This is the same as [`InferCtxtAt::subtyping`] except that we
+    /// also require a [`LocEnv`] to handle pointers and strong references
+    pub fn subtyping_with_env(
         &mut self,
         env: &mut impl LocEnv,
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
     ) -> InferResult {
-        let mut sub = Sub::new(reason, self.span);
-        sub.fun_args(self.infcx, env, a, b)
+        let mut sub = Sub::new(env, reason, self.span);
+        sub.tys(self.infcx, a, b)
     }
 
-    /// Relate types via subtyping and returns coroutine obligations. See comment for [`Sub::obligations`].
+    /// Relate types via subtyping and returns coroutine obligations. This doesn't handle subtyping
+    /// when strong references are involved.
+    ///
+    /// See comment for [`Sub::obligations`].
     pub fn subtyping(
         &mut self,
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
     ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
-        let mut sub = Sub::new(reason, self.span);
+        let mut env = DummyEnv;
+        let mut sub = Sub::new(&mut env, reason, self.span);
         sub.tys(self.infcx, a, b)?;
         Ok(sub.obligations)
     }
@@ -587,8 +591,33 @@ pub trait LocEnv {
     fn get(&self, path: &Path) -> Ty;
 }
 
+struct DummyEnv;
+
+impl LocEnv for DummyEnv {
+    fn ptr_to_ref(
+        &mut self,
+        _: &mut InferCtxtAt,
+        _: ConstrReason,
+        _: Region,
+        _: &Path,
+        _: Ty,
+    ) -> InferResult<Ty> {
+        bug!("call to `ptr_to_ref` on `DummyEnv`")
+    }
+
+    fn unfold_strg_ref(&mut self, _: &mut InferCtxt, _: &Path, _: &Ty) -> InferResult<Loc> {
+        bug!("call to `unfold_str_ref` on `DummyEnv`")
+    }
+
+    fn get(&self, _: &Path) -> Ty {
+        bug!("call to `get` on `DummyEnv`")
+    }
+}
+
 /// Context used to relate two types `a` and `b` via subtyping
-struct Sub {
+struct Sub<'a, E> {
+    /// The environment to lookup locations pointed to by [`TyKind::Ptr`].
+    env: &'a mut E,
     reason: ConstrReason,
     span: Span,
     /// FIXME(nilehmann) This is used to store coroutine obligations generated during subtyping when
@@ -597,72 +626,13 @@ struct Sub {
     obligations: Vec<Binder<rty::CoroutineObligPredicate>>,
 }
 
-impl Sub {
-    fn new(reason: ConstrReason, span: Span) -> Self {
-        Self { reason, span, obligations: vec![] }
+impl<'a, E: LocEnv> Sub<'a, E> {
+    fn new(env: &'a mut E, reason: ConstrReason, span: Span) -> Self {
+        Self { env, reason, span, obligations: vec![] }
     }
 
     fn tag(&self) -> Tag {
         Tag::new(self.reason, self.span)
-    }
-
-    fn fun_args(
-        &mut self,
-        infcx: &mut InferCtxt,
-        env: &mut impl LocEnv,
-        a: &Ty,
-        b: &Ty,
-    ) -> InferResult {
-        let infcx = &mut infcx.branch();
-        // infcx.push_trace(TypeTrace::tys(a, b));
-
-        match (a.kind(), b.kind()) {
-            (_, TyKind::Exists(ctor_b)) => {
-                infcx.enter_exists(ctor_b, |infcx, ty_b| self.fun_args(infcx, env, a, &ty_b))
-            }
-            (_, TyKind::Constr(pred_b, ty_b)) => {
-                infcx.check_pred(pred_b, self.tag());
-                self.fun_args(infcx, env, a, ty_b)
-            }
-            (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
-                // We should technically remove `path1` from `env`, but we are assuming that functions
-                // always give back ownership of the location so `path1` is going to be overwritten
-                // after the call anyways.
-                let ty1 = env.get(path1);
-                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                self.tys(infcx, &ty1, ty2)
-            }
-            (TyKind::StrgRef(_, path1, ty1), TyKind::StrgRef(_, path2, ty2)) => {
-                // We has to unfold strong references prior to a subtyping check. Normally, when
-                // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&strg T`
-                // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
-                // need the below to do a similar unfolding in `check_fn_subtyping` where we just
-                // have the super-type signature that needs to be unfolded. We also add the binding
-                // to the environment so that we can:
-                // (1) UPDATE the location after the call, and
-                // (2) CHECK the relevant `ensures` clauses of the super-sig.
-                // Same as the `Ptr` case above we should remove the location from the environment
-                // after unfolding to consume it, but we are assuming functions always give back
-                // ownership.
-                env.unfold_strg_ref(infcx, path1, ty1)?;
-                let ty1 = env.get(path1);
-                infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                self.tys(infcx, &ty1, ty2)
-            }
-            (
-                TyKind::Ptr(PtrKind::Mut(re), path),
-                TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), idx),
-            ) => {
-                // We sometimes generate evars for the index of references so we need to make sure
-                // we solve them.
-                self.idxs_eq(infcx, &Expr::unit(), idx);
-
-                let mut at = infcx.at(self.span);
-                env.ptr_to_ref(&mut at, self.reason, *re, path, bound.clone())?;
-                Ok(())
-            }
-            _ => self.tys(infcx, a, b),
-        }
     }
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
@@ -681,6 +651,7 @@ impl Sub {
             (TyKind::Constr(..), _) => {
                 bug!("constraint types should removed by the unpacking");
             }
+
             (_, TyKind::Exists(ctor_b)) => {
                 infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))
             }
@@ -688,6 +659,50 @@ impl Sub {
                 infcx.check_pred(pred_b, self.tag());
                 self.tys(infcx, &a, ty_b)
             }
+
+            (TyKind::Ptr(PtrKind::Mut(_), path_a), TyKind::StrgRef(_, path_b, ty_b)) => {
+                // We should technically remove `path1` from `env`, but we are assuming that functions
+                // always give back ownership of the location so `path1` is going to be overwritten
+                // after the call anyways.
+                let ty_a = self.env.get(path_a);
+                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                self.tys(infcx, &ty_a, ty_b)
+            }
+            (TyKind::StrgRef(_, path_a, ty_a), TyKind::StrgRef(_, path_b, ty_b)) => {
+                // We have to unfold strong references prior to a subtyping check. Normally, when
+                // checking a function body, a `StrgRef` is automatically unfolded i.e. `x:&strg T`
+                // is turned into a `x:ptr(l); l: T` where `l` is some fresh location. However, we
+                // need the below to do a similar unfolding during function subtyping where we just
+                // have the super-type signature that needs to be unfolded. We also add the binding
+                // to the environment so that we can:
+                // (1) UPDATE the location after the call, and
+                // (2) CHECK the relevant `ensures` clauses of the super-sig.
+                // Same as the `Ptr` case above we should remove the location from the environment
+                // after unfolding to consume it, but we are assuming functions always give back
+                // ownership.
+                self.env.unfold_strg_ref(infcx, path_a, ty_a)?;
+                let ty_a = self.env.get(path_a);
+                infcx.unify_exprs(&path_a.to_expr(), &path_b.to_expr());
+                self.tys(infcx, &ty_a, ty_b)
+            }
+            (
+                TyKind::Ptr(PtrKind::Mut(re), path),
+                TyKind::Indexed(BaseTy::Ref(_, bound, Mutability::Mut), idx),
+            ) => {
+                // We sometimes generate evars for the index of references so we need to make sure
+                // we solve them.
+                self.idxs_eq(infcx, &Expr::unit(), idx);
+
+                self.env.ptr_to_ref(
+                    &mut infcx.at(self.span),
+                    self.reason,
+                    *re,
+                    path,
+                    bound.clone(),
+                )?;
+                Ok(())
+            }
+
             (TyKind::Indexed(bty_a, idx_a), TyKind::Indexed(bty_b, idx_b)) => {
                 self.btys(infcx, bty_a, bty_b)?;
                 self.idxs_eq(infcx, idx_a, idx_b);
@@ -698,8 +713,8 @@ impl Sub {
                 debug_assert_eq!(path_a, path_b);
                 Ok(())
             }
-            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
-                debug_assert_eq!(param_ty1, param_ty2);
+            (TyKind::Param(param_ty_a), TyKind::Param(param_ty_b)) => {
+                debug_assert_eq!(param_ty_a, param_ty_b);
                 Ok(())
             }
             (_, TyKind::Uninit) => Ok(()),
@@ -762,8 +777,8 @@ impl Sub {
                 }
                 Ok(())
             }
-            (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
+            (BaseTy::Float(float_ty_a), BaseTy::Float(float_ty_b)) => {
+                debug_assert_eq!(float_ty_a, float_ty_b);
                 Ok(())
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),

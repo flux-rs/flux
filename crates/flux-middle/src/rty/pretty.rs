@@ -240,10 +240,9 @@ impl PrettyNested for IdxFmt {
 
 impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = &self.0;
-        let e = if cx.simplify_exprs { e.simplify() } else { e.clone() };
+        let e = if cx.simplify_exprs { self.0.simplify() } else { self.0.clone() };
         if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
-            && let Some(genv) = cx.genv
+            && let Some(genv) = cx.genv()
             && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
         {
             let field_binds = iter::zip(adt_sort_def.field_names(), flds)
@@ -259,16 +258,14 @@ impl Pretty for Ty {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Indexed(bty, idx) => {
-                w!(cx, f, "{:?}", parens!(bty, !bty.is_atom()))?;
                 if cx.hide_refinements {
+                    w!(cx, f, "{:?}", bty)?;
                     return Ok(());
                 }
                 if idx.is_unit() {
-                    if bty.is_adt() {
-                        w!(cx, f, "[]")?;
-                    }
+                    w!(cx, f, "{:?}", bty)?;
                 } else {
-                    w!(cx, f, "[{:?}]", IdxFmt(idx.clone()))?;
+                    w!(cx, f, "{:?}[{:?}]", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -460,9 +457,9 @@ fn fmt_alias_ty(
             }
         }
         AliasKind::Projection => {
-            let assoc_name = cx.tcx.item_name(alias_ty.def_id);
-            let trait_ref = cx.tcx.parent(alias_ty.def_id);
-            let trait_generic_count = cx.tcx.generics_of(trait_ref).count() - 1;
+            let assoc_name = cx.tcx().item_name(alias_ty.def_id);
+            let trait_ref = cx.tcx().parent(alias_ty.def_id);
+            let trait_generic_count = cx.tcx().generics_of(trait_ref).count() - 1;
 
             let [self_ty, args @ ..] = &alias_ty.args[..] else {
                 return w!(cx, f, "<alias_ty>");
