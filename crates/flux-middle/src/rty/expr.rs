@@ -1403,7 +1403,7 @@ pub(crate) mod pretty {
             text += &format_cx!(cx, "{:?} ", flds[0].clone());
             Ok(NestedString { text, children: None, key: None })
         } else {
-            let keys = if let Some(genv) = cx.genv
+            let keys = if let Some(genv) = cx.genv()
                 && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
             {
                 adt_sort_def
