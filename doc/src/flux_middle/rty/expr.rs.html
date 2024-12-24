@@ -1557,7 +1557,17 @@
 <a href="#1556" id="1556">1556</a>
 <a href="#1557" id="1557">1557</a>
 <a href="#1558" id="1558">1558</a>
-<a href="#1559" id="1559">1559</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
@@ -2953,25 +2963,35 @@
         flds: <span class="kw-2">&amp;</span>[Expr],
         is_named: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-        <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
-        {
-            adt_sort_def
-                .field_names()
-                .iter()
-                .map(|name| <span class="macro">format!</span>(<span class="string">"{}"</span>, name))
-                .collect_vec()
+        <span class="kw">let </span><span class="kw-2">mut </span>text = <span class="kw">if </span>is_named { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, def_id) } <span class="kw">else </span>{ <span class="macro">format_cx!</span>(cx, <span class="string">""</span>) };
+        <span class="kw">if </span>flds.is_empty() {
+            <span class="comment">// No fields, no index
+            </span><span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
+        } <span class="kw">else if </span>flds.len() == <span class="number">1 </span>{
+            <span class="comment">// Single field, inline index
+            </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?} "</span>, flds[<span class="number">0</span>].clone());
+            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
         } <span class="kw">else </span>{
-            (<span class="number">0</span>..flds.len()).map(|i| <span class="macro">format!</span>(<span class="string">"arg{}"</span>, i)).collect_vec()
-        };
-        <span class="kw">let </span>text =
-            <span class="kw">if </span>is_named { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}{{..}}"</span>, def_id) } <span class="kw">else </span>{ <span class="macro">format_cx!</span>(cx, <span class="string">"{{..}}"</span>) };
-        <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>(key, fld) <span class="kw">in </span>iter::zip(keys, flds) {
-            <span class="kw">let </span>fld_d = fld.fmt_nested(cx)<span class="question-mark">?</span>;
-            children.push(NestedString { key: <span class="prelude-val">Some</span>(key), ..fld_d });
+            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
+            {
+                adt_sort_def
+                    .field_names()
+                    .iter()
+                    .map(|name| <span class="macro">format!</span>(<span class="string">"{}"</span>, name))
+                    .collect_vec()
+            } <span class="kw">else </span>{
+                (<span class="number">0</span>..flds.len()).map(|i| <span class="macro">format!</span>(<span class="string">"arg{}"</span>, i)).collect_vec()
+            };
+            <span class="comment">// Multiple fields, nested index
+            </span>text += <span class="string">"{..}"</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
+            <span class="kw">for </span>(key, fld) <span class="kw">in </span>iter::zip(keys, flds) {
+                <span class="kw">let </span>fld_d = fld.fmt_nested(cx)<span class="question-mark">?</span>;
+                children.push(NestedString { key: <span class="prelude-val">Some</span>(key), ..fld_d });
+            }
+            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">Some</span>(children), key: <span class="prelude-val">None </span>})
         }
-        <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">Some</span>(children), key: <span class="prelude-val">None </span>})
     }
 
     <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Expr {
