@@ -225,10 +225,15 @@ struct IdxFmt(Expr);
 
 impl PrettyNested for IdxFmt {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = self.0.kind() {
-            aggregate_nested(cx, *def_id, flds, false)
-        } else {
-            self.0.fmt_nested(cx)
+        let kind = self.0.kind();
+        match kind {
+            ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
+                aggregate_nested(cx, *def_id, flds, false)
+            }
+            ExprKind::Aggregate(AggregateKind::Tuple(0), _) => {
+                Ok(NestedString { text: String::new(), key: None, children: None })
+            }
+            _ => self.0.fmt_nested(cx),
         }
     }
 }
@@ -700,7 +705,11 @@ impl PrettyNested for Ty {
             TyKind::Indexed(bty, idx) => {
                 let bty_d = bty.fmt_nested(cx)?;
                 let idx_d = IdxFmt(idx.clone()).fmt_nested(cx)?;
-                let text = format!("{}[{}]", bty_d.text, idx_d.text);
+                let text = if idx_d.text.is_empty() {
+                    bty_d.text
+                } else {
+                    format!("{}[{}]", bty_d.text, idx_d.text)
+                };
                 let children = float_children(vec![bty_d.children, idx_d.children]);
                 Ok(NestedString { text, children, key: None })
             }
