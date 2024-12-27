@@ -12,8 +12,6 @@ use crate::refine_tree::{RefineCtxt, Snapshot};
 pub(crate) struct EVarStore {
     evars: IndexVec<EVid, EVarState>,
     scopes: Vec<Vec<EVid>>,
-    // document
-    a: usize,
 }
 
 pub(crate) enum EVarState {
