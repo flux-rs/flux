@@ -6,7 +6,7 @@ use flux_middle::{
     rty::{fold::TypeFoldable, EVid, Expr},
 };
 
-use crate::refine_tree::{RefineCtxt, Snapshot};
+use crate::refine_tree::Marker;
 
 #[derive(Default, Debug)]
 pub(crate) struct EVarStore {
@@ -16,12 +16,12 @@ pub(crate) struct EVarStore {
 
 pub(crate) enum EVarState {
     Solved(Expr),
-    Unsolved(Snapshot),
+    Unsolved(Marker),
 }
 
 impl EVarStore {
-    pub(crate) fn fresh(&mut self, rcx: &RefineCtxt) -> EVid {
-        let evid = self.evars.push(EVarState::Unsolved(rcx.snapshot()));
+    pub(crate) fn fresh(&mut self, marker: Marker) -> EVid {
+        let evid = self.evars.push(EVarState::Unsolved(marker));
         if let Some(scope) = self.scopes.last_mut() {
             scope.push(evid);
         }

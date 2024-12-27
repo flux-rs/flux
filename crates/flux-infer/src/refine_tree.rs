@@ -30,10 +30,10 @@ use crate::{
 /// whose satisfiability implies the safety of a function.
 ///
 /// We try to hide the representation of the tree as much as possible and only a couple of operations
-/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
-/// implicitly via a restricted api provided by [`RefineCtxt`]. Some methods operate on *nodes* of
-/// the tree which we try to keep abstract, but it is important to remember that there's an underlying
-/// tree.
+/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly
+/// constructed implicitly via a restricted api provided by [`Cursor`]. Some methods operate on *nodes*
+/// of the tree which we try to keep abstract, but it is important to remember that there's an
+/// underlying tree.
 ///
 /// The current implementation uses [`Rc`] and [`RefCell`] to represent the tree, but we ensure
 /// statically that the [`RefineTree`] is the single owner of the data and require a mutable reference
@@ -46,41 +46,182 @@ pub struct RefineTree {
     root: NodePtr,
 }
 
-/// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
-/// available in a particular path during type-checking. For example, consider the following
-/// program:
-///
-/// ```ignore
-/// #[flux::sig(fn(i32[@a0], i32{v : v > a0})) -> i32]
-/// fn add(x: i32, y: i32) -> i32 {
-///     x + y
-/// }
-/// ```
-///
-/// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 > a0}`,
-/// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
-///
-/// More specifically, a [`RefineCtxt`] represents a path from the root to some internal node in a
-/// [refinement tree].
+impl RefineTree {
+    pub(crate) fn new(params: Vec<(Var, Sort)>) -> RefineTree {
+        let root =
+            Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
+        let root = NodePtr(Rc::new(RefCell::new(root)));
+        RefineTree { root }
+    }
+
+    pub(crate) fn simplify(&mut self, defns: &SpecFuncDefns) {
+        self.root.borrow_mut().simplify(defns);
+    }
+
+    pub(crate) fn into_fixpoint(
+        self,
+        cx: &mut FixpointCtxt<Tag>,
+    ) -> QueryResult<fixpoint::Constraint> {
+        Ok(self
+            .root
+            .borrow()
+            .to_fixpoint(cx)?
+            .unwrap_or(fixpoint::Constraint::TRUE))
+    }
+
+    pub(crate) fn cursor_at_root(&mut self) -> Cursor {
+        Cursor { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
+    }
+
+    pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+        self.root.borrow_mut().replace_evars(evars)
+    }
+}
+
+/// A cursor into the [refinement tree]. More specifically, a [`Cursor`] represents a path from the
+/// root to some internal node in a [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-pub struct RefineCtxt<'a> {
+pub struct Cursor<'a> {
     tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
 
-/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
-/// snapshot corresponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
-/// if the underlying node is [`cleared`].
+impl<'a> Cursor<'a> {
+    /// Moves the cursor to the specified [marker]. If `clear_children` is `true`, all children of
+    /// the node are removed after moving the cursor, invalidating any markers pointing to a node
+    /// within those children.
+    ///
+    /// [marker]: Marker
+    pub(crate) fn move_to(&mut self, marker: &Marker, clear_children: bool) -> Option<Cursor> {
+        let ptr = marker.ptr.upgrade()?;
+        if clear_children {
+            ptr.borrow_mut().children.clear();
+        }
+        Some(Cursor { ptr, tree: self.tree })
+    }
+
+    /// Returns a marker to the current node
+    #[must_use]
+    pub(crate) fn marker(&self) -> Marker {
+        Marker { ptr: NodePtr::downgrade(&self.ptr) }
+    }
+
+    #[must_use]
+    pub(crate) fn branch(&mut self) -> Cursor {
+        Cursor { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
+    }
+
+    pub(crate) fn vars(&self) -> impl Iterator<Item = (Var, Sort)> {
+        // TODO(nilehmann) we could incrementally cache the scope
+        self.ptr.scope().into_iter()
+    }
+
+    #[expect(dead_code, reason = "used for debugging")]
+    pub(crate) fn push_trace(&mut self, trace: TypeTrace) {
+        self.ptr = self.ptr.push_node(NodeKind::Trace(trace));
+    }
+
+    /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
+    /// node. It returns the freshly generated name for the variable.
+    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+        let fresh = Name::from_usize(self.ptr.next_name_idx());
+        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        fresh
+    }
+
+    /// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
+    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
+    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
+    /// sort.
+    ///
+    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
+    /// `a0: int`, `a1: bool`, and `a2: int`.
+    ///
+    /// [`sort`]: Sort
+    /// [tuple]: Sort::Tuple
+    /// [adt]: flux_middle::rty::SortCtor::Adt
+    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
+        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
+    }
+
+    /// Pushes an [assumption] and moves the cursor into the new node.
+    ///
+    /// [assumption]: NodeKind::Assumption
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
+        }
+    }
+
+    /// Pushes a predicate that must be true assuming variables and predicates in the current branch
+    /// of the tree (i.e., it pushes a [`NodeKind::Head`]). This methods does not advance the cursor.
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            self.ptr.push_node(NodeKind::Head(pred, tag));
+        }
+    }
+
+    /// Convenience method to push an assumption followed by a predicate that needs to be checked.
+    /// This method does not advance the cursor.
+    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+        self.ptr
+            .push_node(NodeKind::Assumption(pred1.into()))
+            .push_node(NodeKind::Head(pred2.into(), tag));
+    }
+
+    pub(crate) fn hoister(
+        &mut self,
+        assume_invariants: AssumeInvariants,
+    ) -> Hoister<Unpacker<'_, 'a>> {
+        Hoister::with_delegate(Unpacker { cursor: self, assume_invariants }).transparent()
+    }
+
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
+        struct Visitor<'a, 'b> {
+            cursor: &'a mut Cursor<'b>,
+            overflow_checking: bool,
+        }
+        impl TypeVisitor for Visitor<'_, '_> {
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
+                match bty {
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
+                    BaseTy::Ref(_, ty, _) => ty.visit_with(self),
+                    BaseTy::Tuple(tys) => tys.visit_with(self),
+                    _ => ControlFlow::Continue(()),
+                }
+            }
+
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!> {
+                if let TyKind::Indexed(bty, idx) = ty.kind()
+                    && !idx.has_escaping_bvars()
+                {
+                    for invariant in bty.invariants(self.overflow_checking) {
+                        let invariant = invariant.apply(idx);
+                        self.cursor.assume_pred(&invariant);
+                    }
+                }
+                ty.super_visit_with(self)
+            }
+        }
+        ty.visit_with(&mut Visitor { cursor: self, overflow_checking });
+    }
+}
+
+/// A marker is a pointer to a node in the [refinement tree] that can be used to query information
+/// about that node or to move the cursor. A marker may become invalid if the underlying node is
+/// [cleared].
 ///
-/// [`cleared`]: RefineCtxt::clear_children
+/// [cleared]: Cursor::move_to
 /// [refinement tree]: RefineTree
-pub struct Snapshot {
+pub struct Marker {
     ptr: WeakNodePtr,
 }
 
-impl Snapshot {
-    /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
+impl Marker {
+    /// Returns the [`scope`] at the marker if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
@@ -91,7 +232,7 @@ impl Snapshot {
         let ptr = self
             .ptr
             .upgrade()
-            .unwrap_or_else(|| tracked_span_bug!("`has_free_vars` called on invalid `Snapshot`"));
+            .unwrap_or_else(|| tracked_span_bug!("`has_free_vars` called on invalid `Marker`"));
 
         let nbindings = ptr.next_name_idx();
 
@@ -102,8 +243,8 @@ impl Snapshot {
 /// A list of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
 pub struct Scope {
-    bindings: IndexVec<Name, Sort>,
     params: Vec<(Var, Sort)>,
+    bindings: IndexVec<Name, Sort>,
 }
 
 impl Scope {
@@ -208,158 +349,12 @@ impl WeakNodePtr {
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    /// Used for debugging. See [`TypeTrace`]
-    Trace(TypeTrace),
     ForAll(Name, Sort),
     Assumption(Expr),
     Head(Expr, Tag),
     True,
-}
-
-impl RefineTree {
-    pub(crate) fn new(params: Vec<(Var, Sort)>) -> RefineTree {
-        let root =
-            Node { kind: NodeKind::Root(params), nbindings: 0, parent: None, children: vec![] };
-        let root = NodePtr(Rc::new(RefCell::new(root)));
-        RefineTree { root }
-    }
-
-    pub(crate) fn simplify(&mut self, defns: &SpecFuncDefns) {
-        self.root.borrow_mut().simplify(defns);
-    }
-
-    pub(crate) fn into_fixpoint(
-        self,
-        cx: &mut FixpointCtxt<Tag>,
-    ) -> QueryResult<fixpoint::Constraint> {
-        Ok(self
-            .root
-            .borrow()
-            .to_fixpoint(cx)?
-            .unwrap_or(fixpoint::Constraint::TRUE))
-    }
-
-    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
-    }
-
-    pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
-        self.root.borrow_mut().replace_evars(evars)
-    }
-}
-
-impl<'rcx> RefineCtxt<'rcx> {
-    pub(crate) fn change_root(
-        &mut self,
-        snapshot: &Snapshot,
-        clear_children: bool,
-    ) -> Option<RefineCtxt> {
-        let ptr = snapshot.ptr.upgrade()?;
-        if clear_children {
-            ptr.borrow_mut().children.clear();
-        }
-        Some(RefineCtxt { ptr, tree: self.tree })
-    }
-
-    pub(crate) fn snapshot(&self) -> Snapshot {
-        Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
-    }
-
-    #[must_use]
-    pub(crate) fn branch(&mut self) -> RefineCtxt {
-        RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
-    }
-
-    pub(crate) fn vars(&self) -> impl Iterator<Item = (Var, Sort)> {
-        // TODO(nilehmann) we could incrementally cache the scope by only iterating over the nodes
-        // we haven't yet visited
-        self.ptr.scope().into_iter()
-    }
-
-    #[expect(dead_code, reason = "used for debugging")]
-    pub(crate) fn push_trace(&mut self, trace: TypeTrace) {
-        self.ptr = self.ptr.push_node(NodeKind::Trace(trace));
-    }
-
-    /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
-    /// name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
-        let fresh = Name::from_usize(self.ptr.next_name_idx());
-        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
-        fresh
-    }
-
-    /// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
-    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
-    /// sort.
-    ///
-    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
-    /// `a0: int`, `a1: bool`, and `a2: int`.
-    ///
-    /// [`sort`]: Sort
-    /// [tuple]: Sort::Tuple
-    /// [adt]: flux_middle::rty::SortCtor::Adt
-    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
-    }
-
-    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
-    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            self.ptr.push_node(NodeKind::Head(pred, tag));
-        }
-    }
-
-    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
-        self.ptr
-            .push_node(NodeKind::Assumption(pred1.into()))
-            .push_node(NodeKind::Head(pred2.into(), tag));
-    }
-
-    pub(crate) fn hoister(
-        &mut self,
-        assume_invariants: AssumeInvariants,
-    ) -> Hoister<Unpacker<'_, 'rcx>> {
-        Hoister::with_delegate(Unpacker { rcx: self, assume_invariants }).transparent()
-    }
-
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
-        struct Visitor<'a, 'rcx> {
-            rcx: &'a mut RefineCtxt<'rcx>,
-            overflow_checking: bool,
-        }
-        impl TypeVisitor for Visitor<'_, '_> {
-            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
-                match bty {
-                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
-                    BaseTy::Ref(_, ty, _) => ty.visit_with(self),
-                    BaseTy::Tuple(tys) => tys.visit_with(self),
-                    _ => ControlFlow::Continue(()),
-                }
-            }
-
-            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!> {
-                if let TyKind::Indexed(bty, idx) = ty.kind()
-                    && !idx.has_escaping_bvars()
-                {
-                    for invariant in bty.invariants(self.overflow_checking) {
-                        let invariant = invariant.apply(idx);
-                        self.rcx.assume_pred(&invariant);
-                    }
-                }
-                ty.super_visit_with(self)
-            }
-        }
-        ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
-    }
+    /// Used for debugging. See [`TypeTrace`]
+    Trace(TypeTrace),
 }
 
 pub(crate) enum AssumeInvariants {
@@ -373,22 +368,22 @@ impl AssumeInvariants {
     }
 }
 
-pub struct Unpacker<'a, 'rcx> {
-    rcx: &'a mut RefineCtxt<'rcx>,
+pub struct Unpacker<'a, 'b> {
+    cursor: &'a mut Cursor<'b>,
     assume_invariants: AssumeInvariants,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| self.rcx.define_vars(sort));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| self.cursor.define_vars(sort));
         if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
-            self.rcx.assume_invariants(&ty, check_overflow);
+            self.cursor.assume_invariants(&ty, check_overflow);
         }
         ty
     }
 
     fn hoist_constr(&mut self, pred: Expr) {
-        self.rcx.assume_pred(pred);
+        self.cursor.assume_pred(pred);
     }
 }
 
@@ -709,7 +704,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineCtxt<'_> {
+    impl Pretty for Cursor<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let mut elements = vec![];
             for node in ParentsIter::new(NodePtr::clone(&self.ptr)) {
@@ -759,7 +754,7 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         RefineTree => "refine_tree",
-        RefineCtxt<'_> => "refine_ctxt",
+        Cursor<'_> => "cursor",
         Scope,
     );
 }
@@ -778,8 +773,8 @@ struct RcxBind {
 }
 
 impl RefineCtxtTrace {
-    pub fn new(genv: GlobalEnv, rcx: &RefineCtxt) -> Self {
-        let parents = ParentsIter::new(NodePtr::clone(&rcx.ptr)).collect_vec();
+    pub fn new(genv: GlobalEnv, cursor: &Cursor) -> Self {
+        let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
         let cx = &PrettyCx::default(genv);
