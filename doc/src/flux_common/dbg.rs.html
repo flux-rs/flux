@@ -209,7 +209,7 @@
 </span><span class="macro">macro_rules!</span> _statement{
     (<span class="macro-nonterminal">$pos</span>:literal, <span class="macro-nonterminal">$stmt</span>:expr, <span class="macro-nonterminal">$infcx</span>:expr, <span class="macro-nonterminal">$env</span>:expr, <span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$checker</span>:expr) =&gt; {{
         <span class="kw">if </span>config::dump_checker_trace() {
-            <span class="kw">let </span>rcx = <span class="macro-nonterminal">$infcx</span>.rcx();
+            <span class="kw">let </span>rcx = <span class="macro-nonterminal">$infcx</span>.cursor();
             <span class="kw">let </span>ck = <span class="macro-nonterminal">$checker</span>;
             <span class="kw">let </span>genv = ck.genv;
             <span class="kw">let </span>local_names = <span class="kw-2">&amp;</span>ck.body.local_names;

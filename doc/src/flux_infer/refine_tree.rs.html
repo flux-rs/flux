@@ -808,12 +808,7 @@
 <a href="#807" id="807">807</a>
 <a href="#808" id="808">808</a>
 <a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a>
-<a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#810" id="810">810</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -845,10 +840,10 @@
 /// whose satisfiability implies the safety of a function.
 ///
 /// We try to hide the representation of the tree as much as possible and only a couple of operations
-/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
-/// implicitly via a restricted api provided by [`RefineCtxt`]. Some methods operate on *nodes* of
-/// the tree which we try to keep abstract, but it is important to remember that there's an underlying
-/// tree.
+/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly
+/// constructed implicitly via a restricted api provided by [`Cursor`]. Some methods operate on *nodes*
+/// of the tree which we try to keep abstract, but it is important to remember that there's an
+/// underlying tree.
 ///
 /// The current implementation uses [`Rc`] and [`RefCell`] to represent the tree, but we ensure
 /// statically that the [`RefineTree`] is the single owner of the data and require a mutable reference
@@ -861,41 +856,182 @@
     root: NodePtr,
 }
 
-<span class="doccomment">/// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
-/// available in a particular path during type-checking. For example, consider the following
-/// program:
-///
-/// ```ignore
-/// #[flux::sig(fn(i32[@a0], i32{v : v &gt; a0})) -&gt; i32]
-/// fn add(x: i32, y: i32) -&gt; i32 {
-///     x + y
-/// }
-/// ```
-///
-/// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 &gt; a0}`,
-/// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
-///
-/// More specifically, a [`RefineCtxt`] represents a path from the root to some internal node in a
-/// [refinement tree].
+<span class="kw">impl </span>RefineTree {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(params: Vec&lt;(Var, Sort)&gt;) -&gt; RefineTree {
+        <span class="kw">let </span>root =
+            Node { kind: NodeKind::Root(params), nbindings: <span class="number">0</span>, parent: <span class="prelude-val">None</span>, children: <span class="macro">vec!</span>[] };
+        <span class="kw">let </span>root = NodePtr(Rc::new(RefCell::new(root)));
+        RefineTree { root }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
+        <span class="self">self</span>.root.borrow_mut().simplify(defns);
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_fixpoint(
+        <span class="self">self</span>,
+        cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;,
+    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.root
+            .borrow()
+            .to_fixpoint(cx)<span class="question-mark">?
+            </span>.unwrap_or(fixpoint::Constraint::TRUE))
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cursor_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Cursor {
+        Cursor { ptr: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.root)), tree: <span class="self">self </span>}
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarStore) -&gt; <span class="prelude-ty">Result</span>&lt;(), EVid&gt; {
+        <span class="self">self</span>.root.borrow_mut().replace_evars(evars)
+    }
+}
+
+<span class="doccomment">/// A cursor into the [refinement tree]. More specifically, a [`Cursor`] represents a path from the
+/// root to some internal node in a [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-</span><span class="kw">pub struct </span>RefineCtxt&lt;<span class="lifetime">'a</span>&gt; {
+</span><span class="kw">pub struct </span>Cursor&lt;<span class="lifetime">'a</span>&gt; {
     tree: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineTree,
     ptr: NodePtr,
 }
 
-<span class="doccomment">/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
-/// snapshot corresponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
-/// if the underlying node is [`cleared`].
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Cursor&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// Moves the cursor to the specified [marker]. If `clear_children` is `true`, all children of
+    /// the node are removed after moving the cursor, invalidating any markers pointing to a node
+    /// within those children.
+    ///
+    /// [marker]: Marker
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>, marker: <span class="kw-2">&amp;</span>Marker, clear_children: bool) -&gt; <span class="prelude-ty">Option</span>&lt;Cursor&gt; {
+        <span class="kw">let </span>ptr = marker.ptr.upgrade()<span class="question-mark">?</span>;
+        <span class="kw">if </span>clear_children {
+            ptr.borrow_mut().children.clear();
+        }
+        <span class="prelude-val">Some</span>(Cursor { ptr, tree: <span class="self">self</span>.tree })
+    }
+
+    <span class="doccomment">/// Returns a marker to the current node
+    </span><span class="attr">#[must_use]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>marker(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Marker {
+        Marker { ptr: NodePtr::downgrade(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr) }
+    }
+
+    <span class="attr">#[must_use]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Cursor {
+        Cursor { tree: <span class="self">self</span>.tree, ptr: NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr) }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Var, Sort)&gt; {
+        <span class="comment">// TODO(nilehmann) we could incrementally cache the scope
+        </span><span class="self">self</span>.ptr.scope().into_iter()
+    }
+
+    <span class="attr">#[expect(dead_code, reason = <span class="string">"used for debugging"</span>)]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_trace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trace: TypeTrace) {
+        <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Trace(trace));
+    }
+
+    <span class="doccomment">/// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
+    /// node. It returns the freshly generated name for the variable.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
+        <span class="kw">let </span>fresh = Name::from_usize(<span class="self">self</span>.ptr.next_name_idx());
+        <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        fresh
+    }
+
+    <span class="doccomment">/// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
+    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
+    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
+    /// sort.
+    ///
+    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
+    /// `a0: int`, `a1: bool`, and `a2: int`.
+    ///
+    /// [`sort`]: Sort
+    /// [tuple]: Sort::Tuple
+    /// [adt]: flux_middle::rty::SortCtor::Adt
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
+        Expr::fold_sort(sort, |sort| Expr::fvar(<span class="self">self</span>.define_var(sort)))
+    }
+
+    <span class="doccomment">/// Pushes an [assumption] and moves the cursor into the new node.
+    ///
+    /// [assumption]: NodeKind::Assumption
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
+        <span class="kw">let </span>pred = pred.into();
+        <span class="kw">if </span>!pred.is_trivially_true() {
+            <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Assumption(pred));
+        }
+    }
+
+    <span class="doccomment">/// Pushes a predicate that must be true assuming variables and predicates in the current branch
+    /// of the tree (i.e., it pushes a [`NodeKind::Head`]). This methods does not advance the cursor.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
+        <span class="kw">let </span>pred = pred.into();
+        <span class="kw">if </span>!pred.is_trivially_true() {
+            <span class="self">self</span>.ptr.push_node(NodeKind::Head(pred, tag));
+        }
+    }
+
+    <span class="doccomment">/// Convenience method to push an assumption followed by a predicate that needs to be checked.
+    /// This method does not advance the cursor.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
+        <span class="self">self</span>.ptr
+            .push_node(NodeKind::Assumption(pred1.into()))
+            .push_node(NodeKind::Head(pred2.into(), tag));
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hoister(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        assume_invariants: AssumeInvariants,
+    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'a</span>&gt;&gt; {
+        Hoister::with_delegate(Unpacker { cursor: <span class="self">self</span>, assume_invariants }).transparent()
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
+        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
+            cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor&lt;<span class="lifetime">'b</span>&gt;,
+            overflow_checking: bool,
+        }
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+            <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!&gt; {
+                <span class="kw">match </span>bty {
+                    BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; substs.visit_with(<span class="self">self</span>),
+                    BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(<span class="self">self</span>),
+                    BaseTy::Tuple(tys) =&gt; tys.visit_with(<span class="self">self</span>),
+                    <span class="kw">_ </span>=&gt; ControlFlow::Continue(()),
+                }
+            }
+
+            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;!&gt; {
+                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind()
+                    &amp;&amp; !idx.has_escaping_bvars()
+                {
+                    <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.overflow_checking) {
+                        <span class="kw">let </span>invariant = invariant.apply(idx);
+                        <span class="self">self</span>.cursor.assume_pred(<span class="kw-2">&amp;</span>invariant);
+                    }
+                }
+                ty.super_visit_with(<span class="self">self</span>)
+            }
+        }
+        ty.visit_with(<span class="kw-2">&amp;mut </span>Visitor { cursor: <span class="self">self</span>, overflow_checking });
+    }
+}
+
+<span class="doccomment">/// A marker is a pointer to a node in the [refinement tree] that can be used to query information
+/// about that node or to move the cursor. A marker may become invalid if the underlying node is
+/// [cleared].
 ///
-/// [`cleared`]: RefineCtxt::clear_children
+/// [cleared]: Cursor::move_to
 /// [refinement tree]: RefineTree
-</span><span class="kw">pub struct </span>Snapshot {
+</span><span class="kw">pub struct </span>Marker {
     ptr: WeakNodePtr,
 }
 
-<span class="kw">impl </span>Snapshot {
-    <span class="doccomment">/// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
+<span class="kw">impl </span>Marker {
+    <span class="doccomment">/// Returns the [`scope`] at the marker if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
     </span><span class="kw">pub fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Scope&gt; {
@@ -906,7 +1042,7 @@
         <span class="kw">let </span>ptr = <span class="self">self
             </span>.ptr
             .upgrade()
-            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"`has_free_vars` called on invalid `Snapshot`"</span>));
+            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"`has_free_vars` called on invalid `Marker`"</span>));
 
         <span class="kw">let </span>nbindings = ptr.next_name_idx();
 
@@ -917,8 +1053,8 @@
 <span class="doccomment">/// A list of refinement variables and their sorts.
 </span><span class="attr">#[derive(PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Scope {
-    bindings: IndexVec&lt;Name, Sort&gt;,
     params: Vec&lt;(Var, Sort)&gt;,
+    bindings: IndexVec&lt;Name, Sort&gt;,
 }
 
 <span class="kw">impl </span>Scope {
@@ -1023,158 +1159,12 @@
 <span class="kw">enum </span>NodeKind {
     <span class="doccomment">/// List of const and refinement generics
     </span>Root(Vec&lt;(Var, Sort)&gt;),
-    <span class="doccomment">/// Used for debugging. See [`TypeTrace`]
-    </span>Trace(TypeTrace),
     ForAll(Name, Sort),
     Assumption(Expr),
     Head(Expr, Tag),
     True,
-}
-
-<span class="kw">impl </span>RefineTree {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(params: Vec&lt;(Var, Sort)&gt;) -&gt; RefineTree {
-        <span class="kw">let </span>root =
-            Node { kind: NodeKind::Root(params), nbindings: <span class="number">0</span>, parent: <span class="prelude-val">None</span>, children: <span class="macro">vec!</span>[] };
-        <span class="kw">let </span>root = NodePtr(Rc::new(RefCell::new(root)));
-        RefineTree { root }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) {
-        <span class="self">self</span>.root.borrow_mut().simplify(defns);
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_fixpoint(
-        <span class="self">self</span>,
-        cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;,
-    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.root
-            .borrow()
-            .to_fixpoint(cx)<span class="question-mark">?
-            </span>.unwrap_or(fixpoint::Constraint::TRUE))
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_ctxt_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.root)), tree: <span class="self">self </span>}
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarStore) -&gt; <span class="prelude-ty">Result</span>&lt;(), EVid&gt; {
-        <span class="self">self</span>.root.borrow_mut().replace_evars(evars)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>change_root(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        snapshot: <span class="kw-2">&amp;</span>Snapshot,
-        clear_children: bool,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;RefineCtxt&gt; {
-        <span class="kw">let </span>ptr = snapshot.ptr.upgrade()<span class="question-mark">?</span>;
-        <span class="kw">if </span>clear_children {
-            ptr.borrow_mut().children.clear();
-        }
-        <span class="prelude-val">Some</span>(RefineCtxt { ptr, tree: <span class="self">self</span>.tree })
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>snapshot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Snapshot {
-        Snapshot { ptr: NodePtr::downgrade(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr) }
-    }
-
-    <span class="attr">#[must_use]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
-        RefineCtxt { tree: <span class="self">self</span>.tree, ptr: NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr) }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Var, Sort)&gt; {
-        <span class="comment">// TODO(nilehmann) we could incrementally cache the scope by only iterating over the nodes
-        // we haven't yet visited
-        </span><span class="self">self</span>.ptr.scope().into_iter()
-    }
-
-    <span class="attr">#[expect(dead_code, reason = <span class="string">"used for debugging"</span>)]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_trace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trace: TypeTrace) {
-        <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Trace(trace));
-    }
-
-    <span class="doccomment">/// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
-    /// name for the variable.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
-        <span class="kw">let </span>fresh = Name::from_usize(<span class="self">self</span>.ptr.next_name_idx());
-        <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
-        fresh
-    }
-
-    <span class="doccomment">/// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
-    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
-    /// sort.
-    ///
-    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
-    /// `a0: int`, `a1: bool`, and `a2: int`.
-    ///
-    /// [`sort`]: Sort
-    /// [tuple]: Sort::Tuple
-    /// [adt]: flux_middle::rty::SortCtor::Adt
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(<span class="self">self</span>.define_var(sort)))
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
-        <span class="kw">let </span>pred = pred.into();
-        <span class="kw">if </span>!pred.is_trivially_true() {
-            <span class="self">self</span>.ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
-        <span class="kw">let </span>pred = pred.into();
-        <span class="kw">if </span>!pred.is_trivially_true() {
-            <span class="self">self</span>.ptr.push_node(NodeKind::Head(pred, tag));
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
-        <span class="self">self</span>.ptr
-            .push_node(NodeKind::Assumption(pred1.into()))
-            .push_node(NodeKind::Head(pred2.into(), tag));
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hoister(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        assume_invariants: AssumeInvariants,
-    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'rcx</span>&gt;&gt; {
-        Hoister::with_delegate(Unpacker { rcx: <span class="self">self</span>, assume_invariants }).transparent()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
-        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
-            rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
-            overflow_checking: bool,
-        }
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-            <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!&gt; {
-                <span class="kw">match </span>bty {
-                    BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; substs.visit_with(<span class="self">self</span>),
-                    BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(<span class="self">self</span>),
-                    BaseTy::Tuple(tys) =&gt; tys.visit_with(<span class="self">self</span>),
-                    <span class="kw">_ </span>=&gt; ControlFlow::Continue(()),
-                }
-            }
-
-            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;!&gt; {
-                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind()
-                    &amp;&amp; !idx.has_escaping_bvars()
-                {
-                    <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.overflow_checking) {
-                        <span class="kw">let </span>invariant = invariant.apply(idx);
-                        <span class="self">self</span>.rcx.assume_pred(<span class="kw-2">&amp;</span>invariant);
-                    }
-                }
-                ty.super_visit_with(<span class="self">self</span>)
-            }
-        }
-        ty.visit_with(<span class="kw-2">&amp;mut </span>Visitor { rcx: <span class="self">self</span>, overflow_checking });
-    }
+    <span class="doccomment">/// Used for debugging. See [`TypeTrace`]
+    </span>Trace(TypeTrace),
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>AssumeInvariants {
@@ -1188,22 +1178,22 @@
     }
 }
 
-<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
-    rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
+<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
+    cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor&lt;<span class="lifetime">'b</span>&gt;,
     assume_invariants: AssumeInvariants,
 }
 
 <span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
-        <span class="kw">let </span>ty = ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| <span class="self">self</span>.rcx.define_vars(sort));
+        <span class="kw">let </span>ty = ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| <span class="self">self</span>.cursor.define_vars(sort));
         <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
-            <span class="self">self</span>.rcx.assume_invariants(<span class="kw-2">&amp;</span>ty, check_overflow);
+            <span class="self">self</span>.cursor.assume_invariants(<span class="kw-2">&amp;</span>ty, check_overflow);
         }
         ty
     }
 
     <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
-        <span class="self">self</span>.rcx.assume_pred(pred);
+        <span class="self">self</span>.cursor.assume_pred(pred);
     }
 }
 
@@ -1524,7 +1514,7 @@
         }
     }
 
-    <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>Cursor&lt;<span class="lifetime">'_</span>&gt; {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">let </span><span class="kw-2">mut </span>elements = <span class="macro">vec!</span>[];
             <span class="kw">for </span>node <span class="kw">in </span>ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)) {
@@ -1574,7 +1564,7 @@
 
     <span class="macro">impl_debug_with_default_cx!</span>(
         RefineTree =&gt; <span class="string">"refine_tree"</span>,
-        RefineCtxt&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"refine_ctxt"</span>,
+        Cursor&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"cursor"</span>,
         Scope,
     );
 }
@@ -1593,8 +1583,8 @@
 }
 
 <span class="kw">impl </span>RefineCtxtTrace {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv, rcx: <span class="kw-2">&amp;</span>RefineCtxt) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span>rcx.ptr)).collect_vec();
+    <span class="kw">pub fn </span>new(genv: GlobalEnv, cursor: <span class="kw-2">&amp;</span>Cursor) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span>cursor.ptr)).collect_vec();
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
         <span class="kw">let </span>cx = <span class="kw-2">&amp;</span>PrettyCx::default(genv);

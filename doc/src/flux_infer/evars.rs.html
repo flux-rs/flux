@@ -79,7 +79,7 @@
     rty::{fold::TypeFoldable, EVid, Expr},
 };
 
-<span class="kw">use </span><span class="kw">crate</span>::refine_tree::{RefineCtxt, Snapshot};
+<span class="kw">use </span><span class="kw">crate</span>::refine_tree::Marker;
 
 <span class="attr">#[derive(Default, Debug)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>EVarStore {
@@ -89,12 +89,12 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>EVarState {
     Solved(Expr),
-    Unsolved(Snapshot),
+    Unsolved(Marker),
 }
 
 <span class="kw">impl </span>EVarStore {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt) -&gt; EVid {
-        <span class="kw">let </span>evid = <span class="self">self</span>.evars.push(EVarState::Unsolved(rcx.snapshot()));
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, marker: Marker) -&gt; EVid {
+        <span class="kw">let </span>evid = <span class="self">self</span>.evars.push(EVarState::Unsolved(marker));
         <span class="kw">if let </span><span class="prelude-val">Some</span>(scope) = <span class="self">self</span>.scopes.last_mut() {
             scope.push(evid);
         }

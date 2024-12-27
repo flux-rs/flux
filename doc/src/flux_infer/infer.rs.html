@@ -1023,7 +1023,8 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1052,7 +1053,7 @@
 <span class="kw">use crate</span>::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
+    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
 };
 
 <span class="kw">pub type </span>InferResult&lt;T = ()&gt; = std::result::Result&lt;T, InferErr&gt;;
@@ -1174,7 +1175,7 @@
             genv: <span class="self">self</span>.genv,
             region_infcx,
             def_id,
-            rcx: <span class="self">self</span>.refine_tree.refine_ctxt_at_root(),
+            cursor: <span class="self">self</span>.refine_tree.cursor_at_root(),
             inner: <span class="kw-2">&amp;</span><span class="self">self</span>.inner,
             check_overflow: <span class="self">self</span>.opts.check_overflow,
         }
@@ -1234,9 +1235,9 @@
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>def_id: DefId,
-    rcx: RefineCtxt&lt;<span class="lifetime">'infcx</span>&gt;,
-    inner: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>RefCell&lt;InferCtxtInner&gt;,
     <span class="kw">pub </span>check_overflow: bool,
+    cursor: Cursor&lt;<span class="lifetime">'infcx</span>&gt;,
+    inner: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>RefCell&lt;InferCtxtInner&gt;,
 }
 
 <span class="kw">struct </span>InferCtxtInner {
@@ -1303,12 +1304,12 @@
     <span class="doccomment">/// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[BoundVariableKinds], encoding: KVarEncoding) -&gt; Expr {
         <span class="kw">let </span>inner = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.inner.borrow_mut();
-        inner.kvars.fresh(binders, <span class="self">self</span>.rcx.vars(), encoding)
+        inner.kvars.fresh(binders, <span class="self">self</span>.cursor.vars(), encoding)
     }
 
     <span class="kw">fn </span>fresh_evar(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
         <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
-        Expr::evar(evars.fresh(<span class="kw-2">&amp;</span><span class="self">self</span>.rcx))
+        Expr::evar(evars.fresh(<span class="self">self</span>.cursor.marker()))
     }
 
     <span class="kw">pub fn </span>unify_exprs(<span class="kw-2">&amp;</span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Expr, b: <span class="kw-2">&amp;</span>Expr) {
@@ -1317,8 +1318,8 @@
         }
         <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
         <span class="kw">if let </span>ExprKind::Var(Var::EVar(evid)) = b.kind()
-            &amp;&amp; <span class="kw">let </span>EVarState::Unsolved(snapshot) = evars.get(<span class="kw-2">*</span>evid)
-            &amp;&amp; !snapshot.has_free_vars(a)
+            &amp;&amp; <span class="kw">let </span>EVarState::Unsolved(marker) = evars.get(<span class="kw-2">*</span>evid)
+            &amp;&amp; !marker.has_free_vars(a)
         {
             evars.solve(<span class="kw-2">*</span>evid, a.clone());
         }
@@ -1376,59 +1377,60 @@
         <span class="self">self</span>.genv.tcx()
     }
 
-    <span class="kw">pub fn </span>rcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RefineCtxt&lt;<span class="lifetime">'infcx</span>&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.rcx
+    <span class="kw">pub fn </span>cursor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Cursor&lt;<span class="lifetime">'infcx</span>&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.cursor
     }
 }
 
-<span class="doccomment">/// Methods that modify or advance the [`RefineTree`] cursor
+<span class="doccomment">/// Methods that interact with the underlying [`Cursor`]
 </span><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>change_item&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
         def_id: LocalDefId,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { def_id: def_id.to_def_id(), rcx: <span class="self">self</span>.rcx.branch(), region_infcx, ..<span class="kw-2">*</span><span class="self">self </span>}
+        InferCtxt {
+            def_id: def_id.to_def_id(),
+            cursor: <span class="self">self</span>.cursor.branch(),
+            region_infcx,
+            ..<span class="kw-2">*</span><span class="self">self
+        </span>}
     }
 
-    <span class="kw">pub fn </span>change_root(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        snapshot: <span class="kw-2">&amp;</span>Snapshot,
-        clear_children: bool,
-    ) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { rcx: <span class="self">self</span>.rcx.change_root(snapshot, clear_children).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
+    <span class="kw">pub fn </span>move_to(<span class="kw-2">&amp;mut </span><span class="self">self</span>, marker: <span class="kw-2">&amp;</span>Marker, clear_children: bool) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        InferCtxt { cursor: <span class="self">self</span>.cursor.move_to(marker, clear_children).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
     <span class="kw">pub fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { rcx: <span class="self">self</span>.rcx.branch(), ..<span class="kw-2">*</span><span class="self">self </span>}
+        InferCtxt { cursor: <span class="self">self</span>.cursor.branch(), ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
     <span class="kw">pub fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
-        <span class="self">self</span>.rcx.define_vars(sort)
+        <span class="self">self</span>.cursor.define_vars(sort)
     }
 
     <span class="kw">pub fn </span>define_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
-        <span class="self">self</span>.rcx.define_var(sort)
+        <span class="self">self</span>.cursor.define_var(sort)
     }
 
     <span class="kw">pub fn </span>check_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
-        <span class="self">self</span>.rcx.check_pred(pred, tag);
+        <span class="self">self</span>.cursor.check_pred(pred, tag);
     }
 
     <span class="kw">pub fn </span>assume_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
-        <span class="self">self</span>.rcx.assume_pred(pred);
+        <span class="self">self</span>.cursor.assume_pred(pred);
     }
 
     <span class="kw">pub fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="self">self</span>.hoister(<span class="bool-val">false</span>).hoist(ty)
     }
 
-    <span class="kw">pub fn </span>snapshot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Snapshot {
-        <span class="self">self</span>.rcx.snapshot()
+    <span class="kw">pub fn </span>marker(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Marker {
+        <span class="self">self</span>.cursor.marker()
     }
 
     <span class="kw">pub fn </span>hoister(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: bool) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>&gt;&gt; {
-        <span class="self">self</span>.rcx.hoister(<span class="kw">if </span>assume_invariants {
+        <span class="self">self</span>.cursor.hoister(<span class="kw">if </span>assume_invariants {
             AssumeInvariants::yes(<span class="self">self</span>.check_overflow)
         } <span class="kw">else </span>{
             AssumeInvariants::No
@@ -1436,17 +1438,17 @@
     }
 
     <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
-        <span class="self">self</span>.rcx.assume_invariants(ty, <span class="self">self</span>.check_overflow);
+        <span class="self">self</span>.cursor.assume_invariants(ty, <span class="self">self</span>.check_overflow);
     }
 
     <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
-        <span class="self">self</span>.rcx.check_impl(pred1, pred2, tag);
+        <span class="self">self</span>.cursor.check_impl(pred1, pred2, tag);
     }
 }
 
 <span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-        std::fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.rcx, f)
+        std::fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.cursor, f)
     }
 }
 
