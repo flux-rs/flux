@@ -4,7 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use flux_common::{index::IndexVec, iter::IterExt};
+use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -84,6 +84,17 @@ impl Snapshot {
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
         Some(self.ptr.upgrade()?.scope())
+    }
+
+    pub fn has_free_vars<T: TypeVisitable>(&self, t: &T) -> bool {
+        let ptr = self
+            .ptr
+            .upgrade()
+            .unwrap_or_else(|| tracked_span_bug!("`has_free_vars` called on invalid `Snapshot`"));
+
+        let nbindings = ptr.borrow().nbindings;
+
+        !t.fvars().into_iter().all(|name| name.index() < nbindings)
     }
 }
 

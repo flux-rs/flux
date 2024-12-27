@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
+use flux_common::{bug, dbg, index::IndexVec, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_middle::{
     global_env::GlobalEnv,
@@ -278,14 +278,18 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         Expr::evar(evars.fresh(&self.rcx))
     }
 
-    pub fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
-        // let evars = &mut self.inner.borrow_mut().evars;
-        // if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-        //     && let scope = &evars.data(evar.cx())
-        //     && !scope.has_free_vars(e1)
-        // {
-        //     evars.unify(*evar, e1, false);
-        // }
+    pub fn unify_exprs(&self, a: &Expr, b: &Expr) {
+        if a.has_evars() {
+            return;
+        }
+
+        let evars = &mut self.inner.borrow_mut().evars;
+        if let ExprKind::Var(Var::EVar(evid)) = b.kind()
+            && let EVarState::Unsolved(snapshot) = evars.get(*evid)
+            && snapshot.has_free_vars(a)
+        {
+            evars.solve(*evid, a.clone());
+        }
     }
 
     fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
@@ -331,7 +335,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         Ok(())
     }
 
-    fn pop_scope_without_solving_evars(&mut self) {
+    fn pop_evar_scope_without_solving_evars(&mut self) {
         let a = 0;
         todo!()
         // self.inner.borrow_mut().evars.exit_context();
@@ -419,11 +423,27 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 }
 
 #[derive(Default)]
-struct EVarStore {}
+struct EVarStore {
+    evars: IndexVec<EVid, EVarState>,
+}
+
+enum EVarState {
+    Solved(Expr),
+    Unsolved(Snapshot),
+}
 
 impl EVarStore {
-    fn fresh(&self, rcx: &RefineCtxt) -> EVid {
-        todo!()
+    fn fresh(&mut self, rcx: &RefineCtxt) -> EVid {
+        self.evars.push(EVarState::Unsolved(rcx.snapshot()))
+    }
+
+    fn solve(&mut self, evid: EVid, expr: Expr) {
+        debug_assert!(matches!(self.evars[evid], EVarState::Unsolved(_)));
+        self.evars[evid] = EVarState::Solved(expr);
+    }
+
+    fn get(&self, evid: EVid) -> &EVarState {
+        &self.evars[evid]
     }
 }
 

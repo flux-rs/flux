@@ -1,4 +1,4 @@
-use std::{fmt, iter, sync::OnceLock};
+use std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 use flux_common::bug;
@@ -31,7 +31,10 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        fold::{
+            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
+            TypeVisitor,
+        },
         BoundVariableKind, SortCtor,
     },
 };
@@ -99,230 +102,6 @@ impl AliasReft {
 pub struct Expr {
     kind: Interned<ExprKind>,
     espan: Option<ESpan>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub struct ESpan {
-    /// The top-level span information
-    pub span: Span,
-    /// The span for the (base) call-site for def-expanded spans
-    pub base: Option<Span>,
-}
-
-impl ESpan {
-    pub fn new(span: Span) -> Self {
-        Self { span, base: None }
-    }
-
-    pub fn with_base(&self, espan: ESpan) -> Self {
-        Self { span: self.span, base: Some(espan.span) }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
-pub enum BinOp {
-    Iff,
-    Imp,
-    Or,
-    And,
-    Eq,
-    Ne,
-    Gt(Sort),
-    Ge(Sort),
-    Lt(Sort),
-    Le(Sort),
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum UnOp {
-    Not,
-    Neg,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum ExprKind {
-    Var(Var),
-    Local(Local),
-    Constant(Constant),
-    ConstDefId(DefId, ConstantInfo),
-    BinaryOp(BinOp, Expr, Expr),
-    GlobalFunc(Symbol, SpecFuncKind),
-    UnaryOp(UnOp, Expr),
-    FieldProj(Expr, FieldProj),
-    Aggregate(AggregateKind, List<Expr>),
-    PathProj(Expr, FieldIdx),
-    IfThenElse(Expr, Expr, Expr),
-    KVar(KVar),
-    Alias(AliasReft, List<Expr>),
-    /// Function application. The syntax allows arbitrary expressions in function position, but in
-    /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
-    /// to make sure that expressions that can't be encoded are eliminated before we generate the
-    /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
-    /// encoding into fixpoint (except when they appear as an index at the top-level).
-    App(Expr, List<Expr>),
-    /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
-    /// they have some syntactic restrictions that we must carefully maintain:
-    ///
-    /// 1. They can appear as an index at the top level.
-    /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generally, we need to partially evaluate expressions such that all abstractions in
-    ///    non-index position are eliminated before encoding into fixpoint. Right now, the
-    ///    implementation only evaluates abstractions that are immediately applied to arguments,
-    ///    thus the restriction.
-    Abs(Lambda),
-    /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
-    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
-    /// syntactically depends on the position it appears: only holes appearing in predicate position
-    /// can be inferred with a kvar (provided it satisfies the fixpoint horn constraints) and only
-    /// holes used as an index (a position that fully determines their value) can be inferred with
-    /// an evar.
-    ///
-    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound
-    /// variables in this scope. This must be considered when generating an inference variables for
-    /// them (either evar or kvar). In fact, the main reason we have holes is that we want to
-    /// decouple the places where we generate holes (where we don't want to worry about the scope),
-    /// and the places where we generate inference variable for them (where we do need to worry
-    /// about the scope).
-    Hole(HoleKind),
-    ForAll(Binder<Expr>),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub enum AggregateKind {
-    Tuple(usize),
-    Adt(DefId),
-}
-
-impl AggregateKind {
-    pub fn to_proj(self, field: u32) -> FieldProj {
-        match self {
-            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
-            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub enum FieldProj {
-    Tuple { arity: usize, field: u32 },
-    Adt { def_id: DefId, field: u32 },
-}
-
-impl FieldProj {
-    pub fn arity(&self, genv: GlobalEnv) -> QueryResult<usize> {
-        match self {
-            FieldProj::Tuple { arity, .. } => Ok(*arity),
-            FieldProj::Adt { def_id, .. } => Ok(genv.adt_sort_def_of(*def_id)?.fields()),
-        }
-    }
-
-    pub fn field_idx(&self) -> u32 {
-        match self {
-            FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } => *field,
-        }
-    }
-}
-
-/// The position where a [hole] appears. This determines how it will be inferred. This is related
-/// to, but not the same as, an [`InferMode`].
-///
-/// [`InferMode`]: super::InferMode
-/// [hole]: ExprKind::Hole
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
-)]
-pub enum HoleKind {
-    /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be
-    /// inferred by generating a kvar.
-    ///
-    /// [`TyKind::Constr`]: super::TyKind::Constr
-    Pred,
-    /// A hole used as a refinement argument or index. It will be inferred by generating an evar.
-    /// The expression filling the hole must have the provided sort.
-    ///
-    /// NOTE(nilehmann) we used to require the `Sort` for generating the evar because we needed it
-    /// to eta-expand aggregate sorts. We've since removed this behavior but I'm keeping it here
-    /// just in case. We could remove in case it becomes too problematic.
-    Expr(Sort),
-}
-
-/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
-pub struct KVar {
-    pub kvid: KVid,
-    /// The number of arguments consider to be *self arguments*.
-    pub self_args: usize,
-    /// The list of *all* arguments with the self arguments at the beginning, i.e., the
-    /// list of self arguments followed by the scope.
-    pub args: List<Expr>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-pub struct EarlyReftParam {
-    pub index: u32,
-    pub name: Symbol,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
-pub struct BoundReft {
-    pub var: BoundVar,
-    pub kind: BoundReftKind,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
-pub enum Var {
-    Free(Name),
-    Bound(DebruijnIndex, BoundReft),
-    EarlyParam(EarlyReftParam),
-    EVar(EVid),
-    ConstGeneric(ParamConst),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
-pub struct Path {
-    pub loc: Loc,
-    projection: List<FieldIdx>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
-pub enum Loc {
-    Local(Local),
-    Var(Var),
-}
-
-newtype_index! {
-    /// *E*xistential *v*ariable *id*
-    #[debug_format = "?{}e"]
-    #[orderable]
-    #[encodable]
-    pub struct EVid {}
-}
-
-newtype_index! {
-    #[debug_format = "$k{}"]
-    #[encodable]
-    pub struct KVid {}
-}
-
-newtype_index! {
-    #[debug_format = "a{}"]
-    #[orderable]
-    #[encodable]
-    pub struct Name {}
-}
-
-impl ExprKind {
-    fn intern(self) -> Expr {
-        Expr { kind: Interned::new(self), espan: None }
-    }
 }
 
 impl Expr {
@@ -793,6 +572,247 @@ impl Expr {
         go(self, &mut vec);
         vec
     }
+
+    pub fn has_evars(&self) -> bool {
+        struct HasEvars;
+
+        impl TypeVisitor for HasEvars {
+            type BreakTy = ();
+            fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::EVar(_)) = expr.kind() {
+                    ControlFlow::Break(())
+                } else {
+                    expr.super_visit_with(self)
+                }
+            }
+        }
+
+        self.visit_with(&mut HasEvars).is_break()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub struct ESpan {
+    /// The top-level span information
+    pub span: Span,
+    /// The span for the (base) call-site for def-expanded spans
+    pub base: Option<Span>,
+}
+
+impl ESpan {
+    pub fn new(span: Span) -> Self {
+        Self { span, base: None }
+    }
+
+    pub fn with_base(&self, espan: ESpan) -> Self {
+        Self { span: self.span, base: Some(espan.span) }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
+pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Ne,
+    Gt(Sort),
+    Ge(Sort),
+    Lt(Sort),
+    Le(Sort),
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum UnOp {
+    Not,
+    Neg,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExprKind {
+    Var(Var),
+    Local(Local),
+    Constant(Constant),
+    ConstDefId(DefId, ConstantInfo),
+    BinaryOp(BinOp, Expr, Expr),
+    GlobalFunc(Symbol, SpecFuncKind),
+    UnaryOp(UnOp, Expr),
+    FieldProj(Expr, FieldProj),
+    Aggregate(AggregateKind, List<Expr>),
+    PathProj(Expr, FieldIdx),
+    IfThenElse(Expr, Expr, Expr),
+    KVar(KVar),
+    Alias(AliasReft, List<Expr>),
+    /// Function application. The syntax allows arbitrary expressions in function position, but in
+    /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
+    /// to make sure that expressions that can't be encoded are eliminated before we generate the
+    /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
+    /// encoding into fixpoint (except when they appear as an index at the top-level).
+    App(Expr, List<Expr>),
+    /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
+    /// they have some syntactic restrictions that we must carefully maintain:
+    ///
+    /// 1. They can appear as an index at the top level.
+    /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
+    ///    More generally, we need to partially evaluate expressions such that all abstractions in
+    ///    non-index position are eliminated before encoding into fixpoint. Right now, the
+    ///    implementation only evaluates abstractions that are immediately applied to arguments,
+    ///    thus the restriction.
+    Abs(Lambda),
+    /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
+    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
+    /// syntactically depends on the position it appears: only holes appearing in predicate position
+    /// can be inferred with a kvar (provided it satisfies the fixpoint horn constraints) and only
+    /// holes used as an index (a position that fully determines their value) can be inferred with
+    /// an evar.
+    ///
+    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound
+    /// variables in this scope. This must be considered when generating an inference variables for
+    /// them (either evar or kvar). In fact, the main reason we have holes is that we want to
+    /// decouple the places where we generate holes (where we don't want to worry about the scope),
+    /// and the places where we generate inference variable for them (where we do need to worry
+    /// about the scope).
+    Hole(HoleKind),
+    ForAll(Binder<Expr>),
+}
+
+impl ExprKind {
+    fn intern(self) -> Expr {
+        Expr { kind: Interned::new(self), espan: None }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum AggregateKind {
+    Tuple(usize),
+    Adt(DefId),
+}
+
+impl AggregateKind {
+    pub fn to_proj(self, field: u32) -> FieldProj {
+        match self {
+            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
+            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum FieldProj {
+    Tuple { arity: usize, field: u32 },
+    Adt { def_id: DefId, field: u32 },
+}
+
+impl FieldProj {
+    pub fn arity(&self, genv: GlobalEnv) -> QueryResult<usize> {
+        match self {
+            FieldProj::Tuple { arity, .. } => Ok(*arity),
+            FieldProj::Adt { def_id, .. } => Ok(genv.adt_sort_def_of(*def_id)?.fields()),
+        }
+    }
+
+    pub fn field_idx(&self) -> u32 {
+        match self {
+            FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } => *field,
+        }
+    }
+}
+
+/// The position where a [hole] appears. This determines how it will be inferred. This is related
+/// to, but not the same as, an [`InferMode`].
+///
+/// [`InferMode`]: super::InferMode
+/// [hole]: ExprKind::Hole
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable,
+)]
+pub enum HoleKind {
+    /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be
+    /// inferred by generating a kvar.
+    ///
+    /// [`TyKind::Constr`]: super::TyKind::Constr
+    Pred,
+    /// A hole used as a refinement argument or index. It will be inferred by generating an evar.
+    /// The expression filling the hole must have the provided sort.
+    ///
+    /// NOTE(nilehmann) we used to require the `Sort` for generating the evar because we needed it
+    /// to eta-expand aggregate sorts. We've since removed this behavior but I'm keeping it here
+    /// just in case. We could remove in case it becomes too problematic.
+    Expr(Sort),
+}
+
+/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
+/// fixpoint makes a difference between the first and the rest of the arguments, the first one being
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
+/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+pub struct KVar {
+    pub kvid: KVid,
+    /// The number of arguments consider to be *self arguments*.
+    pub self_args: usize,
+    /// The list of *all* arguments with the self arguments at the beginning, i.e., the
+    /// list of self arguments followed by the scope.
+    pub args: List<Expr>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+pub struct EarlyReftParam {
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
+pub struct BoundReft {
+    pub var: BoundVar,
+    pub kind: BoundReftKind,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
+pub enum Var {
+    Free(Name),
+    Bound(DebruijnIndex, BoundReft),
+    EarlyParam(EarlyReftParam),
+    EVar(EVid),
+    ConstGeneric(ParamConst),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
+pub struct Path {
+    pub loc: Loc,
+    projection: List<FieldIdx>,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
+pub enum Loc {
+    Local(Local),
+    Var(Var),
+}
+
+newtype_index! {
+    /// *E*xistential *v*ariable *id*
+    #[debug_format = "?{}e"]
+    #[orderable]
+    #[encodable]
+    pub struct EVid {}
+}
+
+newtype_index! {
+    #[debug_format = "$k{}"]
+    #[encodable]
+    pub struct KVid {}
+}
+
+newtype_index! {
+    #[debug_format = "a{}"]
+    #[orderable]
+    #[encodable]
+    pub struct Name {}
 }
 
 impl KVar {
