@@ -6,7 +6,7 @@ use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
-    refine_tree::{RefineCtxtTrace, Snapshot},
+    refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -68,9 +68,9 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     /// The type used for the `resume` argument if we are checking a generator.
     resume_ty: Option<Ty>,
     output: Binder<FnOutput>,
-    /// A snapshot of the refinement context at the end of the basic block after applying the effects
-    /// of the terminator.
-    snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
+    /// A marker to the node in the refinement tree at the end of the basic block after applying
+    /// the effects of the terminator.
+    markers: IndexVec<BasicBlock, Option<Marker>>,
     visited: BitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
@@ -441,7 +441,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             resume_ty,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
-            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
+            markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
         };
@@ -456,8 +456,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 M::clear(&mut ck, bb);
             }
 
-            let snapshot = ck.snapshot_at_dominator(bb);
-            let mut infcx = infcx.change_root(snapshot, visited);
+            let marker = ck.marker_at_dominator(bb);
+            let mut infcx = infcx.move_to(marker, visited);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
             env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
@@ -514,7 +514,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     self.check_terminator(&mut infcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, infcx, env);
 
-                self.snapshots[bb] = Some(infcx.snapshot());
+                self.markers[bb] = Some(infcx.marker());
                 let term_span = last_stmt_span.unwrap_or(span);
                 self.check_successors(infcx, env, bb, term_span, successors)
             })?;
@@ -1510,8 +1510,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     #[track_caller]
-    fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
-        snapshot_at_dominator(self.body, &self.snapshots, bb)
+    fn marker_at_dominator(&self, bb: BasicBlock) -> &Marker {
+        marker_at_dominator(self.body, &self.markers, bb)
     }
 
     fn dominators(&self) -> &'ck Dominators<BasicBlock> {
@@ -1723,7 +1723,7 @@ impl Mode for ShapeMode {
         let modified = match bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(env),
             Entry::Vacant(entry) => {
-                let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
+                let scope = marker_at_dominator(ck.body, &ck.markers, target)
                     .scope()
                     .unwrap_or_else(|| tracked_span_bug!());
                 entry.insert(env.into_infer(scope));
@@ -1771,7 +1771,7 @@ impl Mode for RefineMode {
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
         debug_assert_eq!(
-            &ck.snapshot_at_dominator(target)
+            &ck.marker_at_dominator(target)
                 .scope()
                 .unwrap_or_else(|| tracked_span_bug!()),
             bb_env.scope()
@@ -1852,16 +1852,16 @@ impl ShapeResult {
     }
 }
 
-fn snapshot_at_dominator<'a>(
+fn marker_at_dominator<'a>(
     body: &Body,
-    snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
+    markers: &'a IndexVec<BasicBlock, Option<Marker>>,
     bb: BasicBlock,
-) -> &'a Snapshot {
+) -> &'a Marker {
     let dominator = body
         .dominators()
         .immediate_dominator(bb)
         .unwrap_or_else(|| tracked_span_bug!());
-    snapshots[dominator]
+    markers[dominator]
         .as_ref()
         .unwrap_or_else(|| tracked_span_bug!())
 }

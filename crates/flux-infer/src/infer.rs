@@ -27,7 +27,7 @@ use rustc_span::Span;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
+    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -149,7 +149,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             genv: self.genv,
             region_infcx,
             def_id,
-            rcx: self.refine_tree.refine_ctxt_at_root(),
+            cursor: self.refine_tree.cursor_at_root(),
             inner: &self.inner,
             check_overflow: self.opts.check_overflow,
         }
@@ -209,9 +209,9 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    rcx: RefineCtxt<'infcx>,
-    inner: &'infcx RefCell<InferCtxtInner>,
     pub check_overflow: bool,
+    cursor: Cursor<'infcx>,
+    inner: &'infcx RefCell<InferCtxtInner>,
 }
 
 struct InferCtxtInner {
@@ -278,12 +278,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner.kvars.fresh(binders, self.rcx.vars(), encoding)
+        inner.kvars.fresh(binders, self.cursor.vars(), encoding)
     }
 
     fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
-        Expr::evar(evars.fresh(&self.rcx))
+        Expr::evar(evars.fresh(self.cursor.marker()))
     }
 
     pub fn unify_exprs(&self, a: &Expr, b: &Expr) {
@@ -292,8 +292,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
         let evars = &mut self.inner.borrow_mut().evars;
         if let ExprKind::Var(Var::EVar(evid)) = b.kind()
-            && let EVarState::Unsolved(snapshot) = evars.get(*evid)
-            && !snapshot.has_free_vars(a)
+            && let EVarState::Unsolved(marker) = evars.get(*evid)
+            && !marker.has_free_vars(a)
         {
             evars.solve(*evid, a.clone());
         }
@@ -351,59 +351,60 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.genv.tcx()
     }
 
-    pub fn rcx(&self) -> &RefineCtxt<'infcx> {
-        &self.rcx
+    pub fn cursor(&self) -> &Cursor<'infcx> {
+        &self.cursor
     }
 }
 
-/// Methods that modify or advance the [`RefineTree`] cursor
+/// Methods that interact with the underlying [`Cursor`]
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn change_item<'a>(
         &'a mut self,
         def_id: LocalDefId,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
+        InferCtxt {
+            def_id: def_id.to_def_id(),
+            cursor: self.cursor.branch(),
+            region_infcx,
+            ..*self
+        }
     }
 
-    pub fn change_root(
-        &mut self,
-        snapshot: &Snapshot,
-        clear_children: bool,
-    ) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.change_root(snapshot, clear_children).unwrap(), ..*self }
+    pub fn move_to(&mut self, marker: &Marker, clear_children: bool) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { cursor: self.cursor.move_to(marker, clear_children).unwrap(), ..*self }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.branch(), ..*self }
+        InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
     pub fn define_vars(&mut self, sort: &Sort) -> Expr {
-        self.rcx.define_vars(sort)
+        self.cursor.define_vars(sort)
     }
 
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.rcx.define_var(sort)
+        self.cursor.define_var(sort)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
-        self.rcx.check_pred(pred, tag);
+        self.cursor.check_pred(pred, tag);
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.rcx.assume_pred(pred);
+        self.cursor.assume_pred(pred);
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
         self.hoister(false).hoist(ty)
     }
 
-    pub fn snapshot(&self) -> Snapshot {
-        self.rcx.snapshot()
+    pub fn marker(&self) -> Marker {
+        self.cursor.marker()
     }
 
     pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx>> {
-        self.rcx.hoister(if assume_invariants {
+        self.cursor.hoister(if assume_invariants {
             AssumeInvariants::yes(self.check_overflow)
         } else {
             AssumeInvariants::No
@@ -411,17 +412,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
-        self.rcx.assume_invariants(ty, self.check_overflow);
+        self.cursor.assume_invariants(ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
-        self.rcx.check_impl(pred1, pred2, tag);
+        self.cursor.check_impl(pred1, pred2, tag);
     }
 }
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self.rcx, f)
+        std::fmt::Debug::fmt(&self.cursor, f)
     }
 }
 

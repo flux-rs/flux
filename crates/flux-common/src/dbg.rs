@@ -72,7 +72,7 @@ pub use crate::_basic_block_start as basic_block_start;
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
         if config::dump_checker_trace() {
-            let rcx = $infcx.rcx();
+            let rcx = $infcx.cursor();
             let ck = $checker;
             let genv = ck.genv;
             let local_names = &ck.body.local_names;
