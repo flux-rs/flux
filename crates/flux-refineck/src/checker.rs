@@ -452,14 +452,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
 
         while let Some(bb) = ck.queue.pop() {
-            if ck.visited.contains(bb) {
-                let snapshot = ck.snapshot_at_dominator(bb);
-                infcx.clean_subtree(snapshot);
+            let visited = ck.visited.contains(bb);
+
+            if visited {
                 M::clear(&mut ck, bb);
             }
 
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut infcx = infcx.change_root(snapshot);
+            let mut infcx = infcx.change_root(snapshot, visited);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
             env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;

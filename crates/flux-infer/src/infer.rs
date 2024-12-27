@@ -270,9 +270,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner
-            .kvars
-            .fresh(binders, self.rcx.scope().iter(), encoding)
+        inner.kvars.fresh(binders, self.rcx.vars(), encoding)
     }
 
     fn fresh_evar(&self) -> Expr {
@@ -355,10 +353,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
 /// Methods that modify or advance the [`RefineTree`] cursor
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
-    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
-        self.rcx.clear_children(snapshot);
-    }
-
     pub fn change_item<'a>(
         &'a mut self,
         def_id: LocalDefId,
@@ -367,8 +361,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
     }
 
-    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
+    pub fn change_root(
+        &mut self,
+        snapshot: &Snapshot,
+        clear_children: bool,
+    ) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.change_root(snapshot, clear_children).unwrap(), ..*self }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {

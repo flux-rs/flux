@@ -65,7 +65,6 @@ pub struct RefineTree {
 /// [refinement tree]: RefineTree
 pub struct RefineCtxt<'a> {
     tree: &'a mut RefineTree,
-    scope: Scope,
     ptr: NodePtr,
 }
 
@@ -84,25 +83,7 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
-        let mut params = None;
-        let parents = ParentsIter::new(self.ptr.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                let node = node.borrow();
-                match &node.kind {
-                    NodeKind::Root(p) => {
-                        params = Some(p.clone());
-                        None
-                    }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
-                    _ => None,
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings, params: params.unwrap_or_default() })
+        Some(self.ptr.upgrade()?.scope())
     }
 }
 
@@ -119,6 +100,15 @@ impl Scope {
             self.params.iter().cloned(),
             self.bindings
                 .iter_enumerated()
+                .map(|(name, sort)| (Var::Free(name), sort.clone())),
+        )
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (Var, Sort)> {
+        itertools::chain(
+            self.params.into_iter(),
+            self.bindings
+                .into_iter_enumerated()
                 .map(|(name, sort)| (Var::Free(name), sort.clone())),
         )
     }
@@ -171,6 +161,28 @@ impl NodePtr {
     fn next_name_idx(&self) -> usize {
         self.borrow().nbindings + usize::from(self.borrow().is_forall())
     }
+
+    fn scope(&self) -> Scope {
+        let mut params = None;
+        let parents = ParentsIter::new(self.clone());
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                match &node.kind {
+                    NodeKind::Root(p) => {
+                        params = Some(p.clone());
+                        None
+                    }
+                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    _ => None,
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Scope { bindings, params: params.unwrap_or_default() }
+    }
 }
 
 struct WeakNodePtr(Weak<RefCell<Node>>);
@@ -216,27 +228,21 @@ impl RefineTree {
     }
 
     pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        let a = 0;
-        todo!()
-        // RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
-    #[expect(
-        clippy::unused_self,
-        reason = "we want to explicitly borrow `self` mutably to prove there's only one writer"
-    )]
-    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
-        let a = 0;
-        if let Some(ptr) = snapshot.ptr.upgrade() {
+    pub(crate) fn change_root(
+        &mut self,
+        snapshot: &Snapshot,
+        clear_children: bool,
+    ) -> Option<RefineCtxt> {
+        let ptr = snapshot.ptr.upgrade()?;
+        if clear_children {
             ptr.borrow_mut().children.clear();
         }
-    }
-
-    pub(crate) fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        todo!()
-        // Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
+        Some(RefineCtxt { ptr, tree: self.tree })
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
@@ -245,13 +251,13 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     #[must_use]
     pub(crate) fn branch(&mut self) -> RefineCtxt {
-        let a = 0;
-        todo!()
-        // RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
+        RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub(crate) fn scope(&self) -> &Scope {
-        &self.scope
+    pub(crate) fn vars(&self) -> impl Iterator<Item = (Var, Sort)> {
+        // TODO(nilehmann) we could incrementally cache the scope by only iterating over the nodes
+        // we haven't yet visited
+        self.ptr.scope().into_iter()
     }
 
     #[expect(dead_code, reason = "used for debugging")]
