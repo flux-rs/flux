@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BoundVarReplacer","EVarSubstFolder","FnMutDelegate","GenericArgsDelegate","GenericsSubstFolder","GenericsSubstForSort","SortSubst"],"trait":["BoundVarReplacerDelegate","GenericsSubstDelegate","SortSubstDelegate"]};
+window.SIDEBAR_ITEMS = {"struct":["BoundVarReplacer","FnMutDelegate","GenericArgsDelegate","GenericsSubstFolder","GenericsSubstForSort","SortSubst"],"trait":["BoundVarReplacerDelegate","GenericsSubstDelegate","SortSubstDelegate"]};

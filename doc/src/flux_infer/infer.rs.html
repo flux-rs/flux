@@ -1023,26 +1023,20 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
+<span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        <span class="self">self</span>,
-        canonicalize::Hoister,
-        evars::{EVarSol, UnsolvedEvar},
-        fold::TypeFoldable,
-        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
-        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyKind, Var,
+        <span class="self">self</span>, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
+        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
+        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -1056,6 +1050,7 @@
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{
+    evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
 };
@@ -1201,8 +1196,14 @@
         def_id: MaybeExternId,
         ext: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
+        <span class="kw">let </span>inner = <span class="self">self</span>.inner.into_inner();
+        <span class="kw">let </span>kvars = inner.kvars;
+        <span class="kw">let </span>evars = inner.evars;
+
         <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = <span class="self">self</span>.refine_tree;
-        <span class="kw">let </span>kvars = <span class="self">self</span>.inner.into_inner().kvars;
+
+        refine_tree.replace_evars(<span class="kw-2">&amp;</span>evars).unwrap();
+
         <span class="kw">if </span>config::dump_constraint() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), def_id.resolved_id(), ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
         }
@@ -1240,7 +1241,7 @@
 
 <span class="kw">struct </span>InferCtxtInner {
     kvars: KVarGen,
-    evars: EVarGen&lt;Scope&gt;,
+    evars: EVarStore,
 }
 
 <span class="kw">impl </span>InferCtxtInner {
@@ -1302,62 +1303,73 @@
     <span class="doccomment">/// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[BoundVariableKinds], encoding: KVarEncoding) -&gt; Expr {
         <span class="kw">let </span>inner = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.inner.borrow_mut();
-        inner
-            .kvars
-            .fresh(binders, inner.evars.current_data().iter(), encoding)
+        inner.kvars.fresh(binders, <span class="self">self</span>.rcx.vars(), encoding)
     }
 
     <span class="kw">fn </span>fresh_evar(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Expr {
         <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
-        Expr::evar(evars.fresh_in_current())
+        Expr::evar(evars.fresh(<span class="kw-2">&amp;</span><span class="self">self</span>.rcx))
     }
 
-    <span class="kw">pub fn </span>unify_exprs(<span class="kw-2">&amp;</span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
+    <span class="kw">pub fn </span>unify_exprs(<span class="kw-2">&amp;</span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Expr, b: <span class="kw-2">&amp;</span>Expr) {
+        <span class="kw">if </span>a.has_evars() {
+            <span class="kw">return</span>;
+        }
         <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
-        <span class="kw">if let </span>ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            &amp;&amp; <span class="kw">let </span>scope = <span class="kw-2">&amp;</span>evars.data(evar.cx())
-            &amp;&amp; !scope.has_free_vars(e1)
+        <span class="kw">if let </span>ExprKind::Var(Var::EVar(evid)) = b.kind()
+            &amp;&amp; <span class="kw">let </span>EVarState::Unsolved(snapshot) = evars.get(<span class="kw-2">*</span>evid)
+            &amp;&amp; !snapshot.has_free_vars(a)
         {
-            evars.unify(<span class="kw-2">*</span>evar, e1, <span class="bool-val">false</span>);
+            evars.solve(<span class="kw-2">*</span>evid, a.clone());
         }
     }
 
-    <span class="kw">fn </span>enter_exists&lt;T, U&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, exists: <span class="kw-2">&amp;</span>Binder&lt;T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, T) -&gt; U) -&gt; U
+    <span class="kw">fn </span>enter_exists&lt;T, U&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, T) -&gt; U,
+    ) -&gt; U
     <span class="kw">where
         </span>T: TypeFoldable,
     {
-        <span class="self">self</span>.push_scope();
-        <span class="kw">let </span>t = exists.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| <span class="self">self</span>.fresh_infer_var(sort, mode));
-        <span class="kw">let </span>t = f(<span class="self">self</span>, t);
-        <span class="self">self</span>.pop_scope_without_solving_evars();
-        t
+        <span class="self">self</span>.ensure_resolved_evars(|infcx| {
+            <span class="kw">let </span>t = t.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
+            <span class="prelude-val">Ok</span>(f(infcx, t))
+        })
+        .unwrap()
     }
 
-    <span class="doccomment">/// The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
-    /// by extension `unpack` advance the cursor. For example, defining a variable pushes a node
-    /// as a child of the current node and then moves the cursor into that new node. Other functions,
-    /// like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
-    /// the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
-    /// pushed under the current node, and the cursor is returned to where it was. That's the purpose
-    /// of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
-    /// `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
-    /// is on the same node where the `push_scope` was called, because `replace_evars` only replaces
-    /// evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
-    /// `unpack`), the evars above that cursor will not be replaced.
-    /// (see &lt;https://github.com/flux-rs/flux/pull/900#discussion_r1853052650&gt;)
-    </span><span class="kw">pub fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>scope = <span class="self">self</span>.scope();
-        <span class="self">self</span>.inner.borrow_mut().evars.enter_context(scope);
+    <span class="doccomment">/// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
+    /// of some scope, for example, to ensure all evars generated during a function call are solved
+    /// after checking argument subtyping. These functions can be used in a stack-like fashion to
+    /// create nested scopes.
+    </span><span class="kw">pub fn </span>push_evar_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.inner.borrow_mut().evars.push_scope();
     }
 
-    <span class="kw">pub fn </span>pop_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferResult&lt;EVarSol&gt; {
-        <span class="kw">let </span>evars = <span class="kw-2">&amp;mut </span><span class="self">self</span>.inner.borrow_mut().evars;
-        evars.exit_context();
-        <span class="prelude-val">Ok</span>(evars.try_solve_pending()<span class="question-mark">?</span>)
+    <span class="doccomment">/// Pop a scope and check all evars have been solved. This only check evars generated from the
+    /// last call to [`InferCtxt::push_evar_scope`].
+    </span><span class="kw">pub fn </span>pop_evar_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferResult {
+        <span class="self">self</span>.inner
+            .borrow_mut()
+            .evars
+            .pop_scope()
+            .map_err(InferErr::UnsolvedEvar)
     }
 
-    <span class="kw">fn </span>pop_scope_without_solving_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.inner.borrow_mut().evars.exit_context();
+    <span class="doccomment">/// Convenience method pairing [`InferCtxt::push_evar_scope`] and [`InferCtxt::pop_evar_scope`].
+    </span><span class="kw">pub fn </span>ensure_resolved_evars&lt;R&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; InferResult&lt;R&gt;,
+    ) -&gt; InferResult&lt;R&gt; {
+        <span class="self">self</span>.push_evar_scope();
+        <span class="kw">let </span>r = f(<span class="self">self</span>)<span class="question-mark">?</span>;
+        <span class="self">self</span>.pop_evar_scope()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(r)
+    }
+
+    <span class="kw">pub fn </span>fully_resolve_evars&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
+        <span class="self">self</span>.inner.borrow().evars.replace_evars(t).unwrap()
     }
 
     <span class="kw">pub fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
@@ -1371,10 +1383,6 @@
 
 <span class="doccomment">/// Methods that modify or advance the [`RefineTree`] cursor
 </span><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub fn </span>clean_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
-        <span class="self">self</span>.rcx.clear_children(snapshot);
-    }
-
     <span class="kw">pub fn </span>change_item&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
         def_id: LocalDefId,
@@ -1383,8 +1391,12 @@
         InferCtxt { def_id: def_id.to_def_id(), rcx: <span class="self">self</span>.rcx.branch(), region_infcx, ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
-    <span class="kw">pub fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        InferCtxt { rcx: <span class="self">self</span>.rcx.change_root(snapshot).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
+    <span class="kw">pub fn </span>change_root(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        snapshot: <span class="kw-2">&amp;</span>Snapshot,
+        clear_children: bool,
+    ) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        InferCtxt { rcx: <span class="self">self</span>.rcx.change_root(snapshot, clear_children).unwrap(), ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
     <span class="kw">pub fn </span>branch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1401,10 +1413,6 @@
 
     <span class="kw">pub fn </span>check_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
         <span class="self">self</span>.rcx.check_pred(pred, tag);
-    }
-
-    <span class="kw">pub fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarSol) {
-        <span class="self">self</span>.rcx.replace_evars(evars);
     }
 
     <span class="kw">pub fn </span>assume_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
@@ -1425,10 +1433,6 @@
         } <span class="kw">else </span>{
             AssumeInvariants::No
         })
-    }
-
-    <span class="kw">pub fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scope {
-        <span class="self">self</span>.rcx.scope()
     }
 
     <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
@@ -1452,7 +1456,7 @@
     <span class="kw">pub </span>span: Span,
 }
 
-<span class="kw">impl </span>InferCtxtAt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxtAt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, reason: ConstrReason) -&gt; Tag {
         Tag::new(reason, <span class="self">self</span>.span)
     }
@@ -1529,25 +1533,30 @@
         fields: <span class="kw-2">&amp;</span>[Ty],
         reason: ConstrReason,
     ) -&gt; InferResult&lt;Ty&gt; {
-        <span class="self">self</span>.infcx.push_scope();
+        <span class="kw">let </span>ret = <span class="self">self</span>.ensure_resolved_evars(|this| {
+            <span class="comment">// Replace holes in generic arguments with fresh inference variables
+            </span><span class="kw">let </span>generic_args = this.instantiate_generic_args(generic_args);
 
-        <span class="comment">// Replace holes in generic arguments with fresh inference variables
-        </span><span class="kw">let </span>generic_args = <span class="self">self</span>.infcx.instantiate_generic_args(generic_args);
+            <span class="kw">let </span>variant = variant
+                .instantiate(this.tcx(), <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
+                .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| this.fresh_infer_var(sort, mode));
 
-        <span class="kw">let </span>variant = variant
-            .instantiate(<span class="self">self</span>.infcx.tcx(), <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
-            .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| <span class="self">self</span>.infcx.fresh_infer_var(sort, mode));
+            <span class="comment">// Check arguments
+            </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(fields, variant.fields()) {
+                this.subtyping(actual, formal, reason)<span class="question-mark">?</span>;
+            }
 
-        <span class="comment">// Check arguments
-        </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(fields, variant.fields()) {
-            <span class="self">self</span>.subtyping(actual, formal, reason)<span class="question-mark">?</span>;
-        }
+            <span class="prelude-val">Ok</span>(variant.ret())
+        })<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.fully_resolve_evars(<span class="kw-2">&amp;</span>ret))
+    }
 
-        <span class="comment">// Replace evars
-        </span><span class="kw">let </span>evars_sol = <span class="self">self</span>.infcx.pop_scope()<span class="question-mark">?</span>;
-        <span class="self">self</span>.infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-
-        <span class="prelude-val">Ok</span>(variant.ret().replace_evars(<span class="kw-2">&amp;</span>evars_sol))
+    <span class="kw">pub fn </span>ensure_resolved_evars&lt;R&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>InferCtxtAt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; InferResult&lt;R&gt;,
+    ) -&gt; InferResult&lt;R&gt; {
+        <span class="self">self</span>.infcx
+            .ensure_resolved_evars(|infcx| f(<span class="kw-2">&amp;mut </span>infcx.at(<span class="self">self</span>.span)))
     }
 }
 
@@ -1568,6 +1577,7 @@
 <span class="doccomment">/// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
+</span><span class="attr">#[derive(TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
@@ -1581,17 +1591,6 @@
 
     <span class="kw">fn </span>btys(a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::BaseTys(a.clone(), b.clone())
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarSol) {
-        <span class="kw">match </span><span class="self">self </span>{
-            TypeTrace::Types(a, b) =&gt; {
-                <span class="kw-2">*</span><span class="self">self </span>= TypeTrace::Types(a.replace_evars(evars), b.replace_evars(evars));
-            }
-            TypeTrace::BaseTys(a, b) =&gt; {
-                <span class="kw-2">*</span><span class="self">self </span>= TypeTrace::BaseTys(a.replace_evars(evars), b.replace_evars(evars));
-            }
-        }
     }
 }
 
@@ -1672,12 +1671,13 @@
         // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         </span><span class="kw">let </span>a = infcx.unpack(a);
+
         <span class="kw">match </span>(a.kind(), b.kind()) {
             (TyKind::Exists(..), <span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"existentials should be removed by the unpacking"</span>);
+                <span class="macro">bug!</span>(<span class="string">"existentials should have been removed by the unpacking above"</span>);
             }
             (TyKind::Constr(..), <span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"constraint types should removed by the unpacking"</span>);
+                <span class="macro">bug!</span>(<span class="string">"constraint types should have been removed by the unpacking above"</span>);
             }
 
             (<span class="kw">_</span>, TyKind::Exists(ctor_b)) =&gt; {
@@ -2022,15 +2022,9 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>InferErr {
-    UnsolvedEvar(EVar),
+    UnsolvedEvar(EVid),
     OpaqueStruct(DefId),
     Query(QueryErr),
-}
-
-<span class="kw">impl </span>From&lt;UnsolvedEvar&gt; <span class="kw">for </span>InferErr {
-    <span class="kw">fn </span>from(err: UnsolvedEvar) -&gt; <span class="self">Self </span>{
-        InferErr::UnsolvedEvar(err.evar)
-    }
 }
 
 <span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {

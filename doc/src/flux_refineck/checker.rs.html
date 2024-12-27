@@ -1927,32 +1927,7 @@
 <a href="#1926" id="1926">1926</a>
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
-<a href="#1929" id="1929">1929</a>
-<a href="#1930" id="1930">1930</a>
-<a href="#1931" id="1931">1931</a>
-<a href="#1932" id="1932">1932</a>
-<a href="#1933" id="1933">1933</a>
-<a href="#1934" id="1934">1934</a>
-<a href="#1935" id="1935">1935</a>
-<a href="#1936" id="1936">1936</a>
-<a href="#1937" id="1937">1937</a>
-<a href="#1938" id="1938">1938</a>
-<a href="#1939" id="1939">1939</a>
-<a href="#1940" id="1940">1940</a>
-<a href="#1941" id="1941">1941</a>
-<a href="#1942" id="1942">1942</a>
-<a href="#1943" id="1943">1943</a>
-<a href="#1944" id="1944">1944</a>
-<a href="#1945" id="1945">1945</a>
-<a href="#1946" id="1946">1946</a>
-<a href="#1947" id="1947">1947</a>
-<a href="#1948" id="1948">1948</a>
-<a href="#1949" id="1949">1949</a>
-<a href="#1950" id="1950">1950</a>
-<a href="#1951" id="1951">1951</a>
-<a href="#1952" id="1952">1952</a>
-<a href="#1953" id="1953">1953</a>
-<a href="#1954" id="1954">1954</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1929" id="1929">1929</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1972,7 +1947,7 @@
         refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt,
+        PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -2185,10 +2160,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.at(span);
     <span class="kw">let </span>tcx = infcx.genv.tcx();
 
-    <span class="kw">let </span>super_sig =
-        super_sig.replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort));
-
-    <span class="kw">let </span>super_sig = super_sig.normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>super_sig = super_sig
+        .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
+        .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
 
     <span class="comment">// 1. Unpack `T_g` input types
     </span><span class="kw">let </span>actuals = super_sig
@@ -2201,56 +2175,53 @@
     <span class="kw">let </span>actuals = unfold_local_ptrs(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>sub_sig, <span class="kw-2">&amp;</span>actuals)<span class="question-mark">?</span>;
     <span class="kw">let </span>actuals = infer_under_mut_ref_hack(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>actuals[..], sub_sig.as_ref());
 
-    <span class="comment">// 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-    </span>infcx.push_scope();
-    <span class="kw">let </span>refine_args = infcx.instantiate_refine_args(<span class="kw-2">*</span>def_id, sub_args)<span class="question-mark">?</span>;
-    <span class="kw">let </span>sub_sig = sub_sig.instantiate(tcx, sub_args, <span class="kw-2">&amp;</span>refine_args);
-    <span class="kw">let </span>sub_sig = sub_sig
-        .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>output = infcx.ensure_resolved_evars(|infcx| {
+        <span class="comment">// 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+        </span><span class="kw">let </span>refine_args = infcx.instantiate_refine_args(<span class="kw-2">*</span>def_id, sub_args)<span class="question-mark">?</span>;
+        <span class="kw">let </span>sub_sig = sub_sig.instantiate(tcx, sub_args, <span class="kw-2">&amp;</span>refine_args);
+        <span class="kw">let </span>sub_sig = sub_sig
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
 
-    <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
-    </span><span class="kw">for </span>requires <span class="kw">in </span>super_sig.requires() {
-        infcx.assume_pred(requires);
-    }
-    <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, sub_sig.inputs()) {
-        <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Input);
-        infcx.subtyping_with_env(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>actual, formal, reason)<span class="question-mark">?</span>;
-    }
-    <span class="comment">// we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
-    </span><span class="kw">for </span>requires <span class="kw">in </span>sub_sig.requires() {
-        <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Requires);
-        infcx.check_pred(requires, reason);
-    }
+        <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
+        </span><span class="kw">for </span>requires <span class="kw">in </span>super_sig.requires() {
+            infcx.assume_pred(requires);
+        }
+        <span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, sub_sig.inputs()) {
+            <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Input);
+            infcx.subtyping_with_env(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>actual, formal, reason)<span class="question-mark">?</span>;
+        }
+        <span class="comment">// we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
+        // the actuals
+        </span><span class="kw">for </span>requires <span class="kw">in </span>sub_sig.requires() {
+            <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Requires);
+            infcx.check_pred(requires, reason);
+        }
 
-    <span class="comment">// 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
-    </span><span class="kw">let </span>evars_sol = infcx.pop_scope()<span class="question-mark">?</span>;
-    infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-    <span class="kw">let </span>output = sub_sig
-        .output()
-        .replace_evars(<span class="kw-2">&amp;</span>evars_sol)
+        <span class="prelude-val">Ok</span>(sub_sig.output())
+    })<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>output = infcx
+        .fully_resolve_evars(<span class="kw-2">&amp;</span>output)
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
 
-    <span class="comment">// 5. OUTPUT subtyping (f_out &lt;: g_out)
-    // RJ: new `at` to avoid borrowing errors...!
-    </span>infcx.push_scope();
-    <span class="kw">let </span>super_output = super_sig
-        .output()
-        .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
-    <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Output);
-    infcx.subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>super_output.ret, reason)<span class="question-mark">?</span>;
-    <span class="kw">let </span>evars_sol = infcx.pop_scope()<span class="question-mark">?</span>;
-    infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
+    <span class="comment">// 4. OUTPUT subtyping (f_out &lt;: g_out)
+    </span>infcx.ensure_resolved_evars(|infcx| {
+        <span class="kw">let </span>super_output = super_sig
+            .output()
+            .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
+        <span class="kw">let </span>reason = ConstrReason::Subtype(SubtypeReason::Output);
+        infcx.subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>super_output.ret, reason)<span class="question-mark">?</span>;
 
-    <span class="comment">// 6. Update state with Output "ensures" and check super ensures
-    </span>infcx.push_scope();
-    env.update_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>output);
-    fold_local_ptrs(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>env, span)<span class="question-mark">?</span>;
-    env.check_ensures(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>super_output, ConstrReason::Subtype(SubtypeReason::Ensures))<span class="question-mark">?</span>;
-    <span class="kw">let </span>evars_sol = infcx.pop_scope()<span class="question-mark">?</span>;
-    infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-
-    <span class="prelude-val">Ok</span>(())
+        <span class="comment">// 6. Update state with Output "ensures" and check super ensures
+        </span>env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
+        fold_local_ptrs(infcx, <span class="kw-2">&amp;mut </span>env, span)<span class="question-mark">?</span>;
+        env.check_ensures(
+            infcx,
+            <span class="kw-2">&amp;</span>super_output.ensures,
+            ConstrReason::Subtype(SubtypeReason::Ensures),
+        )
+    })
 }
 
 <span class="doccomment">/// Trait subtyping check, which makes sure that the type for an impl method (def_id)
@@ -2408,14 +2379,14 @@
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)<span class="question-mark">?</span>;
 
         <span class="kw">while let </span><span class="prelude-val">Some</span>(bb) = ck.queue.pop() {
-            <span class="kw">if </span>ck.visited.contains(bb) {
-                <span class="kw">let </span>snapshot = ck.snapshot_at_dominator(bb);
-                infcx.clean_subtree(snapshot);
+            <span class="kw">let </span>visited = ck.visited.contains(bb);
+
+            <span class="kw">if </span>visited {
                 M::clear(<span class="kw-2">&amp;mut </span>ck, bb);
             }
 
             <span class="kw">let </span>snapshot = ck.snapshot_at_dominator(bb);
-            <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.change_root(snapshot);
+            <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.change_root(snapshot, visited);
             <span class="kw">let </span><span class="kw-2">mut </span>env = M::enter_basic_block(<span class="kw-2">&amp;mut </span>ck, <span class="kw-2">&amp;mut </span>infcx, bb);
             env.unpack(<span class="kw-2">&amp;mut </span>infcx);
             ck.check_basic_block(infcx, env, bb)<span class="question-mark">?</span>;
@@ -2666,25 +2637,22 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        infcx.push_scope();
+        <span class="kw">let </span>obligations = infcx
+            .at(span)
+            .ensure_resolved_evars(|infcx| {
+                <span class="kw">let </span>ret_place_ty = env.lookup_place(infcx, Place::RETURN)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);
+                <span class="kw">let </span>output = <span class="self">self
+                    </span>.output
+                    .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
-        <span class="kw">let </span>ret_place_ty = env.lookup_place(<span class="kw-2">&amp;mut </span>at, Place::RETURN).with_span(span)<span class="question-mark">?</span>;
+                <span class="kw">let </span>obligations = infcx.subtyping(<span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret, ConstrReason::Ret)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>output = <span class="self">self
-            </span>.output
-            .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| at.fresh_infer_var(sort, mode));
+                env.check_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures, ConstrReason::Ret)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>obligations = at
-            .subtyping(<span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret, ConstrReason::Ret)
+                <span class="prelude-val">Ok</span>(obligations)
+            })
             .with_span(span)<span class="question-mark">?</span>;
-
-        env.check_ensures(<span class="kw-2">&amp;mut </span>at, <span class="kw-2">&amp;</span>output, ConstrReason::Ret)
-            .with_span(span)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
-        infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
         <span class="self">self</span>.check_coroutine_obligations(infcx, obligations)
     }
@@ -2705,7 +2673,7 @@
 
         <span class="kw">let </span>actuals = unfold_local_ptrs(infcx, env, <span class="kw-2">&amp;</span>fn_sig, actuals).with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>actuals = infer_under_mut_ref_hack(infcx, <span class="kw-2">&amp;</span>actuals, fn_sig.as_ref());
-        infcx.push_scope();
+        infcx.push_evar_scope();
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
         </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
@@ -2756,21 +2724,16 @@
             at.subtyping_with_env(env, <span class="kw-2">&amp;</span>actual, formal, ConstrReason::Call)
                 .with_span(span)<span class="question-mark">?</span>;
         }
-        <span class="comment">// Replace evars
-        </span><span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
-        env.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-        infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
-        <span class="kw">let </span>output = fn_sig
-            .output()
-            .replace_evars(<span class="kw-2">&amp;</span>evars_sol)
+        infcx.pop_evar_scope().with_span(span)<span class="question-mark">?</span>;
+        env.fully_resolve_evars(infcx);
+
+        <span class="kw">let </span>output = infcx
+            .fully_resolve_evars(<span class="kw-2">&amp;</span>fn_sig.output)
             .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
 
-        infcx.push_scope();
-        env.update_ensures(infcx, <span class="kw-2">&amp;</span>output);
+        env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)<span class="question-mark">?</span>;
-        <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
-        infcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
         <span class="prelude-val">Ok</span>(output.ret)
     }
@@ -3214,32 +3177,19 @@
         args: <span class="kw-2">&amp;</span>[Ty],
         arr_ty: Ty,
     ) -&gt; InferResult&lt;Ty&gt; {
-        infcx.push_scope();
-        <span class="kw">let </span>arr_ty =
-            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+        <span class="kw">let </span>arr_ty = infcx.ensure_resolved_evars(|infcx| {
+            <span class="kw">let </span>arr_ty =
+                arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
-        <span class="kw">let </span>(arr_ty, pred) = arr_ty.unconstr();
-        <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(stmt_span);
-        at.check_pred(<span class="kw-2">&amp;</span>pred, ConstrReason::Other);
-        <span class="kw">for </span>ty <span class="kw">in </span>args {
-            <span class="comment">// TODO(nilehmann) We should share this logic with `check_call`
-            </span><span class="kw">match </span>(ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(re), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
-                    env.ptr_to_ref(
-                        <span class="kw-2">&amp;mut </span>at,
-                        ConstrReason::Other,
-                        <span class="kw-2">*</span>re,
-                        path,
-                        PtrToRefBound::Ty(bound.clone()),
-                    )<span class="question-mark">?</span>;
-                }
-                <span class="kw">_ </span>=&gt; {
-                    at.subtyping(ty, <span class="kw-2">&amp;</span>arr_ty, ConstrReason::Other)<span class="question-mark">?</span>;
-                }
+            <span class="kw">let </span>(arr_ty, pred) = arr_ty.unconstr();
+            <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(stmt_span);
+            at.check_pred(<span class="kw-2">&amp;</span>pred, ConstrReason::Other);
+            <span class="kw">for </span>ty <span class="kw">in </span>args {
+                at.subtyping_with_env(env, ty, <span class="kw-2">&amp;</span>arr_ty, ConstrReason::Other)<span class="question-mark">?</span>;
             }
-        }
-        <span class="kw">let </span>evars = <span class="kw-2">&amp;</span>infcx.pop_scope()<span class="question-mark">?</span>;
-        infcx.replace_evars(evars);
+            <span class="prelude-val">Ok</span>(arr_ty)
+        })<span class="question-mark">?</span>;
+        <span class="kw">let </span>arr_ty = infcx.fully_resolve_evars(<span class="kw-2">&amp;</span>arr_ty);
 
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
     }

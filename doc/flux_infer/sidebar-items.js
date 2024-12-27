@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["fixpoint_encoding","infer","refine_tree"]};
+window.SIDEBAR_ITEMS = {"mod":["evars","fixpoint_encoding","infer","refine_tree"]};

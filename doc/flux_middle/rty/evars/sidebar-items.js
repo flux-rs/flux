@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["EVarState"],"mod":["pretty"],"static":["NEXT_CTXT_ID"],"struct":["EVar","EVarCtxt","EVarCxId","EVarGen","EVarSol","EVid","UnsolvedEvar"]};

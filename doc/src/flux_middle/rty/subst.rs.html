@@ -374,44 +374,13 @@
 <a href="#373" id="373">373</a>
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
+<a href="#376" id="376">376</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
 <span class="kw">use </span><span class="self">self</span>::fold::FallibleTypeFolder;
-<span class="kw">use super</span>::{
-    evars::EVarSol,
-    fold::{TypeFolder, TypeSuperFoldable},
-};
+<span class="kw">use </span><span class="kw">super</span>::fold::{TypeFolder, TypeSuperFoldable};
 <span class="kw">use </span><span class="kw">crate</span>::rty::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Substitution for late bound variables
@@ -511,31 +480,6 @@
             }
         } <span class="kw">else </span>{
             <span class="kw-2">*</span>re
-        }
-    }
-}
-
-<span class="doccomment">/// Substitution for [existential variables]
-///
-/// [existential variables]: crate::rty::Var::EVar
-</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>EVarSubstFolder&lt;<span class="lifetime">'a</span>&gt; {
-    evars: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>EVarSol,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; EVarSubstFolder&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(evars: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>EVarSol) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ evars }
-    }
-}
-
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>EVarSubstFolder&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-        <span class="kw">if let </span>ExprKind::Var(Var::EVar(evar)) = e.kind()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sol) = <span class="self">self</span>.evars.get(<span class="kw-2">*</span>evar)
-        {
-            sol.clone()
-        } <span class="kw">else </span>{
-            e.super_fold_with(<span class="self">self</span>)
         }
     }
 }
