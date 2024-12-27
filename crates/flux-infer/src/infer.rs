@@ -299,21 +299,31 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
     }
 
-    fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
+    fn enter_exists<T, U>(
+        &mut self,
+        t: &Binder<T>,
+        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
+    ) -> U
     where
         T: TypeFoldable,
     {
-        self.push_evar_scope();
-        let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
-        let t = f(self, t);
-        self.pop_evar_scope().unwrap();
-        t
+        self.ensure_resolved_evars(|infcx| {
+            let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+            Ok(f(infcx, t))
+        })
+        .unwrap()
     }
 
+    /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
+    /// of some scope, for example, to ensure all evars generated during a function call are solved
+    /// after checking argument subtyping. These functions can be used in a stack-like fashion to
+    /// create nested scopes.
     pub fn push_evar_scope(&mut self) {
         self.inner.borrow_mut().evars.push_scope();
     }
 
+    /// Pop a scope and check all evars have been solved. This only check evars generated from the
+    /// last call to [`InferCtxt::push_evar_scope`].
     pub fn pop_evar_scope(&mut self) -> InferResult {
         self.inner
             .borrow_mut()
@@ -322,12 +332,19 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             .map_err(InferErr::UnsolvedEvar)
     }
 
-    pub fn expect_fully_resolved<T: TypeFoldable>(&self, t: &T) -> T {
-        self.fully_resolve_evars(t).unwrap()
+    /// Convenience method pairing [`InferCtxt::push_evar_scope`] and [`InferCtxt::pop_evar_scope`].
+    pub fn ensure_resolved_evars<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> InferResult<R>,
+    ) -> InferResult<R> {
+        self.push_evar_scope();
+        let r = f(self)?;
+        self.pop_evar_scope()?;
+        Ok(r)
     }
 
-    fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> Result<T, EVid> {
-        self.inner.borrow().evars.replace_evars(t)
+    pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
+        self.inner.borrow().evars.replace_evars(t).unwrap()
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -414,7 +431,7 @@ pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub span: Span,
 }
 
-impl InferCtxtAt<'_, '_, '_, '_> {
+impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
@@ -491,24 +508,30 @@ impl InferCtxtAt<'_, '_, '_, '_> {
         fields: &[Ty],
         reason: ConstrReason,
     ) -> InferResult<Ty> {
-        self.infcx.push_evar_scope();
+        let ret = self.ensure_resolved_evars(|this| {
+            // Replace holes in generic arguments with fresh inference variables
+            let generic_args = this.instantiate_generic_args(generic_args);
 
-        // Replace holes in generic arguments with fresh inference variables
-        let generic_args = self.infcx.instantiate_generic_args(generic_args);
+            let variant = variant
+                .instantiate(this.tcx(), &generic_args, &[])
+                .replace_bound_refts_with(|sort, mode, _| this.fresh_infer_var(sort, mode));
 
-        let variant = variant
-            .instantiate(self.infcx.tcx(), &generic_args, &[])
-            .replace_bound_refts_with(|sort, mode, _| self.infcx.fresh_infer_var(sort, mode));
+            // Check arguments
+            for (actual, formal) in iter::zip(fields, variant.fields()) {
+                this.subtyping(actual, formal, reason)?;
+            }
 
-        // Check arguments
-        for (actual, formal) in iter::zip(fields, variant.fields()) {
-            self.subtyping(actual, formal, reason)?;
-        }
+            Ok(variant.ret())
+        })?;
+        Ok(self.fully_resolve_evars(&ret))
+    }
 
-        // Ensure all evars all solved
-        self.infcx.pop_evar_scope()?;
-
-        Ok(self.infcx.expect_fully_resolved(&variant.ret()))
+    pub fn ensure_resolved_evars<R>(
+        &mut self,
+        f: impl FnOnce(&mut InferCtxtAt<'_, '_, 'genv, 'tcx>) -> InferResult<R>,
+    ) -> InferResult<R> {
+        self.infcx
+            .ensure_resolved_evars(|infcx| f(&mut infcx.at(self.span)))
     }
 }
 

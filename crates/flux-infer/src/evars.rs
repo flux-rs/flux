@@ -33,7 +33,7 @@ impl EVarStore {
     }
 
     pub(crate) fn pop_scope(&mut self) -> Result<(), EVid> {
-        let scope = self.scopes.pop().unwrap();
+        let Some(scope) = self.scopes.pop() else { return Ok(()) };
         for evid in scope {
             if let EVarState::Unsolved(..) = self.get(evid) {
                 return Err(evid);

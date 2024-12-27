@@ -228,7 +228,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         for (i, (ty_a, ty_b)) in iter::zip(a.inputs(), b.inputs()).enumerate() {
             self.zip_ty(ty_a, ty_b).map_err(|_| FnSigErr::FnInput(i))?;
         }
-        self.enter_binders(a.output(), b.output(), |this, output_a, output_b| {
+        self.enter_binders(&a.output, &b.output, |this, output_a, output_b| {
             this.zip_output(output_a, output_b)
         })
     }

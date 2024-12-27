@@ -231,10 +231,9 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
-    let super_sig =
-        super_sig.replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort));
-
-    let super_sig = super_sig.normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
+    let super_sig = super_sig
+        .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -247,54 +246,53 @@ fn check_fn_subtyping(
     let actuals = unfold_local_ptrs(&mut infcx, &mut env, &sub_sig, &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
-    // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-    infcx.push_evar_scope();
-    let refine_args = infcx.instantiate_refine_args(*def_id, sub_args)?;
-    let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
-    let sub_sig = sub_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
+    let output = infcx.ensure_resolved_evars(|infcx| {
+        // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
+        let refine_args = infcx.instantiate_refine_args(*def_id, sub_args)?;
+        let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
+        let sub_sig = sub_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
 
-    // 3. INPUT subtyping (g-input <: f-input)
-    for requires in super_sig.requires() {
-        infcx.assume_pred(requires);
-    }
-    for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-        let reason = ConstrReason::Subtype(SubtypeReason::Input);
-        infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
-    }
-    // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in the actuals
-    for requires in sub_sig.requires() {
-        let reason = ConstrReason::Subtype(SubtypeReason::Requires);
-        infcx.check_pred(requires, reason);
-    }
-    infcx.pop_evar_scope()?;
+        // 3. INPUT subtyping (g-input <: f-input)
+        for requires in super_sig.requires() {
+            infcx.assume_pred(requires);
+        }
+        for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
+            let reason = ConstrReason::Subtype(SubtypeReason::Input);
+            infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
+        }
+        // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
+        // the actuals
+        for requires in sub_sig.requires() {
+            let reason = ConstrReason::Subtype(SubtypeReason::Requires);
+            infcx.check_pred(requires, reason);
+        }
 
-    // 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
+        Ok(sub_sig.output())
+    })?;
+
     let output = infcx
-        .expect_fully_resolved(sub_sig.output())
+        .fully_resolve_evars(&output)
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-    // 5. OUTPUT subtyping (f_out <: g_out)
-    // RJ: new `at` to avoid borrowing errors...!
-    infcx.push_evar_scope();
-    let super_output = super_sig
-        .output()
-        .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-    let reason = ConstrReason::Subtype(SubtypeReason::Output);
-    infcx.subtyping(&output.ret, &super_output.ret, reason)?;
+    // 4. OUTPUT subtyping (f_out <: g_out)
+    infcx.ensure_resolved_evars(|infcx| {
+        let super_output = super_sig
+            .output()
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+        let reason = ConstrReason::Subtype(SubtypeReason::Output);
+        infcx.subtyping(&output.ret, &super_output.ret, reason)?;
 
-    // 6. Update state with Output "ensures" and check super ensures
-    env.assume_ensures(&mut infcx, &output.ensures);
-    fold_local_ptrs(&mut infcx, &mut env, span)?;
-    env.check_ensures(
-        &mut infcx,
-        &super_output.ensures,
-        ConstrReason::Subtype(SubtypeReason::Ensures),
-    )?;
-    infcx.pop_evar_scope()?;
-
-    Ok(())
+        // 6. Update state with Output "ensures" and check super ensures
+        env.assume_ensures(infcx, &output.ensures);
+        fold_local_ptrs(infcx, &mut env, span)?;
+        env.check_ensures(
+            infcx,
+            &super_output.ensures,
+            ConstrReason::Subtype(SubtypeReason::Ensures),
+        )
+    })
 }
 
 /// Trait subtyping check, which makes sure that the type for an impl method (def_id)
@@ -710,24 +708,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
     ) -> Result {
-        infcx.push_evar_scope();
+        let obligations = infcx
+            .at(span)
+            .ensure_resolved_evars(|infcx| {
+                let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
 
-        let mut at = infcx.at(span);
+                let output = self
+                    .output
+                    .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        let ret_place_ty = env.lookup_place(&mut at, Place::RETURN).with_span(span)?;
+                let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
-        let output = self
-            .output
-            .replace_bound_refts_with(|sort, mode, _| at.fresh_infer_var(sort, mode));
+                env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
-        let obligations = at
-            .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
+                Ok(obligations)
+            })
             .with_span(span)?;
-
-        env.check_ensures(&mut at, &output.ensures, ConstrReason::Ret)
-            .with_span(span)?;
-
-        infcx.pop_evar_scope().with_span(span)?;
 
         self.check_coroutine_obligations(infcx, obligations)
     }
@@ -799,17 +795,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             at.subtyping_with_env(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
         }
+
         infcx.pop_evar_scope().with_span(span)?;
         env.fully_resolve_evars(infcx);
 
         let output = infcx
-            .expect_fully_resolved(fn_sig.output())
+            .fully_resolve_evars(&fn_sig.output)
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        infcx.push_evar_scope();
         env.assume_ensures(infcx, &output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
-        infcx.pop_evar_scope().with_span(span)?;
 
         Ok(output.ret)
     }
@@ -1253,17 +1248,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &[Ty],
         arr_ty: Ty,
     ) -> InferResult<Ty> {
-        infcx.push_evar_scope();
-        let arr_ty =
-            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+        let arr_ty = infcx.ensure_resolved_evars(|infcx| {
+            let arr_ty =
+                arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
-        let (arr_ty, pred) = arr_ty.unconstr();
-        let mut at = infcx.at(stmt_span);
-        at.check_pred(&pred, ConstrReason::Other);
-        for ty in args {
-            at.subtyping_with_env(env, ty, &arr_ty, ConstrReason::Other)?;
-        }
-        infcx.pop_evar_scope().unwrap();
+            let (arr_ty, pred) = arr_ty.unconstr();
+            let mut at = infcx.at(stmt_span);
+            at.check_pred(&pred, ConstrReason::Other);
+            for ty in args {
+                at.subtyping_with_env(env, ty, &arr_ty, ConstrReason::Other)?;
+            }
+            Ok(arr_ty)
+        })?;
+        let arr_ty = infcx.fully_resolve_evars(&arr_ty);
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }

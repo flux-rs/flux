@@ -1038,11 +1038,11 @@ pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FnSig {
-    safety: Safety,
-    abi: abi::Abi,
-    requires: List<Expr>,
-    inputs: List<Ty>,
-    output: Binder<FnOutput>,
+    pub safety: Safety,
+    pub abi: abi::Abi,
+    pub requires: List<Expr>,
+    pub inputs: List<Ty>,
+    pub output: Binder<FnOutput>,
 }
 
 #[derive(
@@ -2269,8 +2269,8 @@ impl FnSig {
         &self.inputs
     }
 
-    pub fn output(&self) -> &Binder<FnOutput> {
-        &self.output
+    pub fn output(&self) -> Binder<FnOutput> {
+        self.output.clone()
     }
 }
 

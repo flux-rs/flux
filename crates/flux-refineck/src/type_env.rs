@@ -193,8 +193,6 @@ impl<'a> TypeEnv<'a> {
         path: &Path,
         bound: PtrToRefBound,
     ) -> InferResult<Ty> {
-        infcx.push_evar_scope();
-
         // ℓ: t1
         let t1 = self.bindings.lookup(path).fold(infcx)?;
 
@@ -218,9 +216,6 @@ impl<'a> TypeEnv<'a> {
 
         // ℓ: †t2
         self.bindings.lookup(path).block_with(t2.clone());
-
-        infcx.pop_evar_scope()?;
-        self.fully_resolve_evars(infcx);
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -253,14 +248,11 @@ impl<'a> TypeEnv<'a> {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
-        infcx.push_evar_scope();
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
             infcx.subtyping(&new_ty, &result.ty, ConstrReason::Assign)?;
         }
-        infcx.pop_evar_scope()?;
-
         Ok(())
     }
 
@@ -290,27 +282,24 @@ impl<'a> TypeEnv<'a> {
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> InferResult {
-        infcx.push_evar_scope();
+        infcx.ensure_resolved_evars(|infcx| {
+            let bb_env = bb_env
+                .data
+                .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        let bb_env = bb_env
-            .data
-            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+            // Check constraints
+            for constr in &bb_env.constrs {
+                infcx.check_pred(constr, ConstrReason::Goto(target));
+            }
 
-        // Check constraints
-        for constr in &bb_env.constrs {
-            infcx.check_pred(constr, ConstrReason::Goto(target));
-        }
-
-        // Check subtyping
-        let bb_env = bb_env.bindings.flatten();
-        for (path, _, ty2) in bb_env {
-            let ty1 = self.bindings.get(&path);
-            infcx.subtyping(&ty1.unblocked(), &ty2.unblocked(), ConstrReason::Goto(target))?;
-        }
-
-        infcx.pop_evar_scope().unwrap();
-
-        Ok(())
+            // Check subtyping
+            let bb_env = bb_env.bindings.flatten();
+            for (path, _, ty2) in bb_env {
+                let ty1 = self.bindings.get(&path);
+                infcx.subtyping(&ty1.unblocked(), &ty2.unblocked(), ConstrReason::Goto(target))?;
+            }
+            Ok(())
+        })
     }
 
     pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult {
@@ -368,7 +357,7 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn fully_resolve_evars(&mut self, infcx: &InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.expect_fully_resolved(ty));
+        self.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
     }
 
     pub(crate) fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[Ensures]) {
