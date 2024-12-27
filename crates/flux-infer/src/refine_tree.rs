@@ -20,6 +20,7 @@ use itertools::Itertools;
 use serde::Serialize;
 
 use crate::{
+    evars::EVarStore,
     fixpoint_encoding::{fixpoint, FixpointCtxt},
     infer::{Tag, TypeTrace},
 };
@@ -241,6 +242,10 @@ impl RefineTree {
     pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
+
+    pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+        self.root.borrow_mut().replace_evars(evars)
+    }
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
@@ -355,10 +360,6 @@ impl<'rcx> RefineCtxt<'rcx> {
         }
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
-
-    pub(crate) fn replace_evars(&mut self, mut f: impl FnMut(EVid) -> Option<Expr>) {
-        self.ptr.borrow_mut().replace_evars(&mut f);
-    }
 }
 
 pub(crate) enum AssumeInvariants {
@@ -447,17 +448,17 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, f: &mut impl FnMut(EVid) -> Option<Expr>) -> Result<(), EVid> {
+    fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(f);
+            child.borrow_mut().replace_evars(evars)?;
         }
         match &mut self.kind {
-            NodeKind::Assumption(pred) => *pred = pred.replace_evars(f)?,
+            NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
             NodeKind::Head(pred, _) => {
-                *pred = pred.replace_evars(f)?;
+                *pred = evars.replace_evars(pred)?;
             }
             NodeKind::Trace(trace) => {
-                trace.replace_evars(f)?;
+                evars.replace_evars(trace)?;
             }
             NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
         }

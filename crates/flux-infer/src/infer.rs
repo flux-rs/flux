@@ -1,16 +1,20 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
+use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
+use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
-        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
-        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
+        self,
+        canonicalize::Hoister,
+        fold::{TypeFoldable, TypeVisitable},
+        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
+        EVid, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda,
+        List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region,
+        Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -24,6 +28,7 @@ use rustc_middle::{
 use rustc_span::Span;
 
 use crate::{
+    evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
 };
@@ -169,8 +174,16 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         def_id: MaybeExternId,
         ext: &'static str,
     ) -> QueryResult<Vec<Tag>> {
+        let inner = self.inner.into_inner();
+        let kvars = inner.kvars;
+        let evars = inner.evars;
+
         let mut refine_tree = self.refine_tree;
-        let kvars = self.inner.into_inner().kvars;
+
+        // better unwrap message
+        let a = 0;
+        refine_tree.replace_evars(&evars).unwrap();
+
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
@@ -341,8 +354,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
         // document and add better unwrap message
         let a = 0;
-        let evars = &self.inner.borrow().evars;
-        t.replace_evars(&mut |evid| evars.solved(evid)).unwrap()
+        self.inner.borrow().evars.replace_evars(t).unwrap()
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -388,10 +400,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.rcx.check_pred(pred, tag);
     }
 
-    // pub fn replace_evars(&mut self, evars: &EVarSol) {
-    //     self.rcx.replace_evars(evars);
-    // }
-
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.rcx.assume_pred(pred);
     }
@@ -418,59 +426,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.rcx.check_impl(pred1, pred2, tag);
-    }
-}
-
-#[derive(Default)]
-struct EVarStore {
-    evars: IndexVec<EVid, EVarState>,
-    scopes: Vec<Vec<EVid>>,
-    // document
-    a: usize,
-}
-
-enum EVarState {
-    Solved(Expr),
-    Unsolved(Snapshot),
-}
-
-impl EVarStore {
-    fn fresh(&mut self, rcx: &RefineCtxt) -> EVid {
-        let evid = self.evars.push(EVarState::Unsolved(rcx.snapshot()));
-        if let Some(scope) = self.scopes.last_mut() {
-            scope.push(evid);
-        }
-        evid
-    }
-
-    fn push_scope(&mut self) {
-        self.scopes.push(vec![]);
-    }
-
-    fn pop_scope(&mut self) -> Result<(), EVid> {
-        let scope = self.scopes.pop().unwrap();
-        for evid in scope {
-            if let EVarState::Unsolved(..) = self.get(evid) {
-                return Err(evid);
-            }
-        }
-        Ok(())
-    }
-
-    fn solve(&mut self, evid: EVid, expr: Expr) {
-        debug_assert!(matches!(self.evars[evid], EVarState::Unsolved(_)));
-        self.evars[evid] = EVarState::Solved(expr);
-    }
-
-    fn solved(&self, evid: EVid) -> Option<Expr> {
-        match self.get(evid) {
-            EVarState::Solved(expr) => Some(expr.clone()),
-            EVarState::Unsolved(..) => None,
-        }
-    }
-
-    fn get(&self, evid: EVid) -> &EVarState {
-        &self.evars[evid]
     }
 }
 
@@ -601,6 +556,7 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
+#[derive(TypeVisitable, TypeFoldable)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
@@ -614,21 +570,6 @@ impl TypeTrace {
 
     fn btys(a: &BaseTy, b: &BaseTy) -> Self {
         Self::BaseTys(a.clone(), b.clone())
-    }
-
-    pub(crate) fn replace_evars(
-        &mut self,
-        f: &mut impl FnMut(EVid) -> Option<Expr>,
-    ) -> Result<(), EVid> {
-        match self {
-            TypeTrace::Types(a, b) => {
-                *self = TypeTrace::Types(a.replace_evars(f)?, b.replace_evars(f)?);
-            }
-            TypeTrace::BaseTys(a, b) => {
-                *self = TypeTrace::BaseTys(a.replace_evars(f)?, b.replace_evars(f)?);
-            }
-        }
-        Ok(())
     }
 }
 
