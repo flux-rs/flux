@@ -1,9 +1,14 @@
+use std::fmt;
+
 use flux_common::index::IndexVec;
-use flux_middle::rty::{fold::TypeFoldable, EVid, Expr};
+use flux_middle::{
+    pretty::{impl_debug_with_default_cx, w, Pretty, PrettyCx},
+    rty::{fold::TypeFoldable, EVid, Expr},
+};
 
 use crate::refine_tree::{RefineCtxt, Snapshot};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct EVarStore {
     evars: IndexVec<EVid, EVarState>,
     scopes: Vec<Vec<EVid>>,
@@ -57,3 +62,14 @@ impl EVarStore {
         &self.evars[evid]
     }
 }
+
+impl Pretty for EVarState {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EVarState::Solved(expr) => w!(cx, f, "Solved({:?})", expr),
+            EVarState::Unsolved(_) => w!(cx, f, "Unsolved"),
+        }
+    }
+}
+
+impl_debug_with_default_cx!(EVarState);

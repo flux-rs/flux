@@ -93,7 +93,7 @@ impl Snapshot {
             .upgrade()
             .unwrap_or_else(|| tracked_span_bug!("`has_free_vars` called on invalid `Snapshot`"));
 
-        let nbindings = ptr.borrow().nbindings;
+        let nbindings = ptr.next_name_idx();
 
         !t.fvars().into_iter().all(|name| name.index() < nbindings)
     }

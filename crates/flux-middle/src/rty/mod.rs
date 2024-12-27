@@ -1632,13 +1632,14 @@ impl BaseTy {
                 | BaseTy::Str
                 | BaseTy::Adt(..)
                 | BaseTy::Tuple(..)
-                // opaque alias are atoms the way we print them now, but they won't
-                // be if we print them as `impl Trait`
-                | BaseTy::Alias(..)
+                | BaseTy::Param(_)
                 | BaseTy::Array(..)
                 | BaseTy::Never
                 | BaseTy::Closure(..)
                 | BaseTy::Coroutine(..)
+                // opaque alias are atoms the way we print them now, but they won't
+                // be if we print them as `impl Trait`
+                | BaseTy::Alias(..)
         )
     }
 }

@@ -1262,6 +1262,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         at.check_pred(&pred, ConstrReason::Other);
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_call`
+            // use subtyping_with_env
+            let a = 0;
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
                     env.ptr_to_ref(
@@ -1277,7 +1279,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
         }
-        infcx.pop_evar_scope()?;
+        infcx.pop_evar_scope().unwrap();
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }

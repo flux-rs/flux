@@ -8,13 +8,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
-        canonicalize::Hoister,
-        fold::{TypeFoldable, TypeVisitable},
-        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
-        EVid, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda,
-        List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region,
-        Sort, Ty, TyKind, Var,
+        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
+        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
+        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -295,11 +292,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         if a.has_evars() {
             return;
         }
-
         let evars = &mut self.inner.borrow_mut().evars;
         if let ExprKind::Var(Var::EVar(evid)) = b.kind()
             && let EVarState::Unsolved(snapshot) = evars.get(*evid)
-            && snapshot.has_free_vars(a)
+            && !snapshot.has_free_vars(a)
         {
             evars.solve(*evid, a.clone());
         }
@@ -431,7 +427,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self.rcx, f)
+        let a = 0;
+        write!(f, "{:?}", self.inner.borrow().evars)
+        // std::fmt::Debug::fmt(&self.rcx, f)
     }
 }
 

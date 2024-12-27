@@ -57,10 +57,10 @@ pub use crate::_format_cx as format_cx;
 #[macro_export]
 macro_rules! _w {
     ($cx:expr, $f:expr, $fmt:literal, $($args:tt)*) => {
-        $f.write_fmt(format_args_cx!($cx, $fmt, $($args)*))
+        $f.write_fmt($crate::_format_args_cx!($cx, $fmt, $($args)*))
     };
     ($cx:expr, $f:expr, $fmt:literal) => {
-        $f.write_fmt(format_args_cx!($cx, $fmt))
+        $f.write_fmt($crate::_format_args_cx!($cx, $fmt))
     };
 }
 pub use crate::_w as w;
@@ -91,7 +91,7 @@ macro_rules! _impl_debug_with_default_cx {
                 $(
                     key = Some($key);
                 )?
-                pprint_with_default_cx(f, self, key)
+                $crate::pretty::pprint_with_default_cx(f, self, key)
             }
         }
     )*};
