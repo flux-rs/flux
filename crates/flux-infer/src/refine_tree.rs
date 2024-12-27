@@ -118,7 +118,7 @@ impl Scope {
 
     fn into_iter(self) -> impl Iterator<Item = (Var, Sort)> {
         itertools::chain(
-            self.params.into_iter(),
+            self.params,
             self.bindings
                 .into_iter_enumerated()
                 .map(|(name, sort)| (Var::Free(name), sort.clone())),

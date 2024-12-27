@@ -220,7 +220,7 @@ impl<'a> TypeEnv<'a> {
         self.bindings.lookup(path).block_with(t2.clone());
 
         infcx.pop_evar_scope()?;
-        self.fully_resolve_evars(&infcx);
+        self.fully_resolve_evars(infcx);
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -368,7 +368,7 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn fully_resolve_evars(&mut self, infcx: &InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
+        self.bindings.fmap_mut(|ty| infcx.expect_fully_resolved(ty));
     }
 
     pub(crate) fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[Ensures]) {

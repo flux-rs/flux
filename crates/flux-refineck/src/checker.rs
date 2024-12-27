@@ -18,7 +18,7 @@ use flux_middle::{
         refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, Ref, RefineArgs, RefineArgsExt,
+        PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -272,7 +272,7 @@ fn check_fn_subtyping(
 
     // 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
     let output = infcx
-        .fully_resolve_evars(sub_sig.output())
+        .expect_fully_resolved(sub_sig.output())
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
     // 5. OUTPUT subtyping (f_out <: g_out)
@@ -803,7 +803,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.fully_resolve_evars(infcx);
 
         let output = infcx
-            .fully_resolve_evars(fn_sig.output())
+            .expect_fully_resolved(fn_sig.output())
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
         infcx.push_evar_scope();
@@ -1261,23 +1261,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut at = infcx.at(stmt_span);
         at.check_pred(&pred, ConstrReason::Other);
         for ty in args {
-            // TODO(nilehmann) We should share this logic with `check_call`
-            // use subtyping_with_env
-            let a = 0;
-            match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
-                    env.ptr_to_ref(
-                        &mut at,
-                        ConstrReason::Other,
-                        *re,
-                        path,
-                        PtrToRefBound::Ty(bound.clone()),
-                    )?;
-                }
-                _ => {
-                    at.subtyping(ty, &arr_ty, ConstrReason::Other)?;
-                }
-            }
+            at.subtyping_with_env(env, ty, &arr_ty, ConstrReason::Other)?;
         }
         infcx.pop_evar_scope().unwrap();
 

@@ -177,8 +177,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         let mut refine_tree = self.refine_tree;
 
-        // better unwrap message
-        let a = 0;
         refine_tree.replace_evars(&evars).unwrap();
 
         if config::dump_constraint() {
@@ -305,35 +303,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     where
         T: TypeFoldable,
     {
-        let a = 0;
+        self.push_evar_scope();
         let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
         let t = f(self, t);
+        self.pop_evar_scope().unwrap();
         t
     }
-
-    // The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
-    // by extension `unpack` advance the cursor. For example, defining a variable pushes a node
-    // as a child of the current node and then moves the cursor into that new node. Other functions,
-    // like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
-    // the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
-    // pushed under the current node, and the cursor is returned to where it was. That's the purpose
-    // of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
-    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
-    // is on the same node where the `push_scope` was called, because `replace_evars` only replaces
-    // evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
-    // `unpack`), the evars above that cursor will not be replaced.
-    // (see <https://github.com/flux-rs/flux/pull/900#discussion_r1853052650>)
-    // pub fn push_scope(&mut self) {
-    //     let scope = self.scope();
-    //     self.inner.borrow_mut().evars.enter_context(scope);
-    // }
-
-    // pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
-    //     todo!()
-    //     // let evars = &mut self.inner.borrow_mut().evars;
-    //     // evars.exit_context();
-    //     // Ok(evars.try_solve_pending()?)
-    // }
 
     pub fn push_evar_scope(&mut self) {
         self.inner.borrow_mut().evars.push_scope();
@@ -344,13 +319,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             .borrow_mut()
             .evars
             .pop_scope()
-            .map_err(|evid| InferErr::UnsolvedEvar(evid))
+            .map_err(InferErr::UnsolvedEvar)
     }
 
-    pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
-        // document and add better unwrap message
-        let a = 0;
-        self.inner.borrow().evars.replace_evars(t).unwrap()
+    pub fn expect_fully_resolved<T: TypeFoldable>(&self, t: &T) -> T {
+        self.fully_resolve_evars(t).unwrap()
+    }
+
+    fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> Result<T, EVid> {
+        self.inner.borrow().evars.replace_evars(t)
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -427,9 +404,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let a = 0;
-        write!(f, "{:?}", self.inner.borrow().evars)
-        // std::fmt::Debug::fmt(&self.rcx, f)
+        std::fmt::Debug::fmt(&self.rcx, f)
     }
 }
 
@@ -533,7 +508,7 @@ impl InferCtxtAt<'_, '_, '_, '_> {
         // Ensure all evars all solved
         self.infcx.pop_evar_scope()?;
 
-        Ok(self.infcx.fully_resolve_evars(&variant.ret()))
+        Ok(self.infcx.expect_fully_resolved(&variant.ret()))
     }
 }
 
