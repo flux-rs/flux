@@ -11,13 +11,10 @@ use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVarSol,
     normalize::{Normalizer, SpecFuncDefns},
-    projections,
-    subst::EVarSubstFolder,
-    BaseTy, Binder, BoundVariableKinds, Const, Ensures, Expr, ExprKind, GenericArg, Name,
-    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind,
+    projections, BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind,
+    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
+    SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -313,9 +310,27 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut WithHoles)
     }
 
-    fn replace_evars(&self, evars: &EVarSol) -> Self {
-        self.fold_with(&mut EVarSubstFolder::new(evars))
-            .normalize(&Default::default())
+    fn replace_evars(&self, f: &mut impl FnMut(EVid) -> Option<Expr>) -> Result<Self, EVid> {
+        struct Folder<F>(F);
+        impl<F: FnMut(EVid) -> Option<Expr>> FallibleTypeFolder for Folder<F> {
+            type Error = EVid;
+
+            fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
+                if let ExprKind::Var(Var::EVar(evid)) = expr.kind() {
+                    if let Some(sol) = (self.0)(*evid) {
+                        Ok(sol.clone())
+                    } else {
+                        Err(*evid)
+                    }
+                } else {
+                    expr.try_super_fold_with(self)
+                }
+            }
+        }
+
+        Ok(self
+            .try_fold_with(&mut Folder(f))?
+            .normalize(&Default::default()))
     }
 
     fn shift_in_escaping(&self, amount: u32) -> Self {

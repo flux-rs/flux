@@ -15,12 +15,11 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, LocalHoister},
-        evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnOutput, FnSig, GenericArg,
-        HoleKind, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
-        TyKind, VariantIdx, INNERMOST,
+        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
+        VariantIdx, INNERMOST,
     },
     PlaceExt as _,
 };
@@ -194,7 +193,7 @@ impl<'a> TypeEnv<'a> {
         path: &Path,
         bound: PtrToRefBound,
     ) -> InferResult<Ty> {
-        infcx.push_scope();
+        infcx.push_evar_scope();
 
         // ℓ: t1
         let t1 = self.bindings.lookup(path).fold(infcx)?;
@@ -220,9 +219,8 @@ impl<'a> TypeEnv<'a> {
         // ℓ: †t2
         self.bindings.lookup(path).block_with(t2.clone());
 
-        let evar_sol = infcx.pop_scope().unwrap();
-        infcx.replace_evars(&evar_sol);
-        self.replace_evars(&evar_sol);
+        infcx.pop_evar_scope()?;
+        self.fully_resolve_evars(&infcx);
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -255,14 +253,13 @@ impl<'a> TypeEnv<'a> {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx, place)?;
-        infcx.push_scope();
+        infcx.push_evar_scope();
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
             infcx.subtyping(&new_ty, &result.ty, ConstrReason::Assign)?;
         }
-        let evars = &infcx.pop_scope()?;
-        infcx.replace_evars(evars);
+        infcx.pop_evar_scope()?;
 
         Ok(())
     }
@@ -293,7 +290,7 @@ impl<'a> TypeEnv<'a> {
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> InferResult {
-        infcx.push_scope();
+        infcx.push_evar_scope();
 
         let bb_env = bb_env
             .data
@@ -311,8 +308,7 @@ impl<'a> TypeEnv<'a> {
             infcx.subtyping(&ty1.unblocked(), &ty2.unblocked(), ConstrReason::Goto(target))?;
         }
 
-        let evars = &infcx.pop_scope().unwrap();
-        infcx.replace_evars(evars);
+        infcx.pop_evar_scope().unwrap();
 
         Ok(())
     }
@@ -371,13 +367,12 @@ impl<'a> TypeEnv<'a> {
         Ok(())
     }
 
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
-        self.bindings
-            .fmap_mut(|binding| binding.replace_evars(evars));
+    pub fn fully_resolve_evars(&mut self, infcx: &InferCtxt) {
+        self.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
     }
 
-    pub(crate) fn update_ensures(&mut self, infcx: &mut InferCtxt, output: &FnOutput) {
-        for ensure in &output.ensures {
+    pub(crate) fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[Ensures]) {
+        for ensure in ensures {
             match ensure {
                 Ensures::Type(path, updated_ty) => {
                     let updated_ty = infcx.unpack(updated_ty);
@@ -392,10 +387,10 @@ impl<'a> TypeEnv<'a> {
     pub(crate) fn check_ensures(
         &mut self,
         at: &mut InferCtxtAt,
-        output: &FnOutput,
+        ensures: &[Ensures],
         reason: ConstrReason,
     ) -> InferResult {
-        for constraint in &output.ensures {
+        for constraint in ensures {
             match constraint {
                 Ensures::Type(path, ty) => {
                     let actual_ty = self.get(path);

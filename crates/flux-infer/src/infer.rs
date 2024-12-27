@@ -7,14 +7,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
-        canonicalize::Hoister,
-        evars::{EVarSol, UnsolvedEvar},
-        fold::TypeFoldable,
-        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
-        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyKind, Var,
+        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
+        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
+        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -212,7 +208,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
 
 struct InferCtxtInner {
     kvars: KVarGen,
-    evars: EVarGen<Scope>,
+    evars: EVarStore,
 }
 
 impl InferCtxtInner {
@@ -276,60 +272,76 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         let inner = &mut *self.inner.borrow_mut();
         inner
             .kvars
-            .fresh(binders, inner.evars.current_data().iter(), encoding)
+            .fresh(binders, self.rcx.scope().iter(), encoding)
     }
 
     fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
-        Expr::evar(evars.fresh_in_current())
+        Expr::evar(evars.fresh(&self.rcx))
     }
 
     pub fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
-        let evars = &mut self.inner.borrow_mut().evars;
-        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &evars.data(evar.cx())
-            && !scope.has_free_vars(e1)
-        {
-            evars.unify(*evar, e1, false);
-        }
+        // let evars = &mut self.inner.borrow_mut().evars;
+        // if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
+        //     && let scope = &evars.data(evar.cx())
+        //     && !scope.has_free_vars(e1)
+        // {
+        //     evars.unify(*evar, e1, false);
+        // }
     }
 
     fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
     where
         T: TypeFoldable,
     {
-        self.push_scope();
+        let a = 0;
         let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
         let t = f(self, t);
-        self.pop_scope_without_solving_evars();
         t
     }
 
-    /// The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
-    /// by extension `unpack` advance the cursor. For example, defining a variable pushes a node
-    /// as a child of the current node and then moves the cursor into that new node. Other functions,
-    /// like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
-    /// the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
-    /// pushed under the current node, and the cursor is returned to where it was. That's the purpose
-    /// of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
-    /// `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
-    /// is on the same node where the `push_scope` was called, because `replace_evars` only replaces
-    /// evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
-    /// `unpack`), the evars above that cursor will not be replaced.
-    /// (see <https://github.com/flux-rs/flux/pull/900#discussion_r1853052650>)
-    pub fn push_scope(&mut self) {
-        let scope = self.scope();
-        self.inner.borrow_mut().evars.enter_context(scope);
+    // The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
+    // by extension `unpack` advance the cursor. For example, defining a variable pushes a node
+    // as a child of the current node and then moves the cursor into that new node. Other functions,
+    // like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
+    // the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
+    // pushed under the current node, and the cursor is returned to where it was. That's the purpose
+    // of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
+    // `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
+    // is on the same node where the `push_scope` was called, because `replace_evars` only replaces
+    // evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
+    // `unpack`), the evars above that cursor will not be replaced.
+    // (see <https://github.com/flux-rs/flux/pull/900#discussion_r1853052650>)
+    // pub fn push_scope(&mut self) {
+    //     let scope = self.scope();
+    //     self.inner.borrow_mut().evars.enter_context(scope);
+    // }
+
+    // pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
+    //     todo!()
+    //     // let evars = &mut self.inner.borrow_mut().evars;
+    //     // evars.exit_context();
+    //     // Ok(evars.try_solve_pending()?)
+    // }
+
+    pub fn push_evar_scope(&mut self) {
+        let a = 0;
     }
 
-    pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
-        let evars = &mut self.inner.borrow_mut().evars;
-        evars.exit_context();
-        Ok(evars.try_solve_pending()?)
+    pub fn pop_evar_scope(&mut self) -> InferResult {
+        let a = 0;
+        Ok(())
     }
 
     fn pop_scope_without_solving_evars(&mut self) {
-        self.inner.borrow_mut().evars.exit_context();
+        let a = 0;
+        todo!()
+        // self.inner.borrow_mut().evars.exit_context();
+    }
+
+    pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
+        // document and finish implementing
+        t.replace_evars(&mut |evid| None).unwrap()
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -375,9 +387,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.rcx.check_pred(pred, tag);
     }
 
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
-        self.rcx.replace_evars(evars);
-    }
+    // pub fn replace_evars(&mut self, evars: &EVarSol) {
+    //     self.rcx.replace_evars(evars);
+    // }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.rcx.assume_pred(pred);
@@ -399,16 +411,21 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         })
     }
 
-    pub fn scope(&self) -> Scope {
-        self.rcx.scope()
-    }
-
     pub fn assume_invariants(&mut self, ty: &Ty) {
         self.rcx.assume_invariants(ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.rcx.check_impl(pred1, pred2, tag);
+    }
+}
+
+#[derive(Default)]
+struct EVarStore {}
+
+impl EVarStore {
+    fn fresh(&self, rcx: &RefineCtxt) -> EVid {
+        todo!()
     }
 }
 
@@ -501,7 +518,7 @@ impl InferCtxtAt<'_, '_, '_, '_> {
         fields: &[Ty],
         reason: ConstrReason,
     ) -> InferResult<Ty> {
-        self.infcx.push_scope();
+        self.infcx.push_evar_scope();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = self.infcx.instantiate_generic_args(generic_args);
@@ -515,11 +532,10 @@ impl InferCtxtAt<'_, '_, '_, '_> {
             self.subtyping(actual, formal, reason)?;
         }
 
-        // Replace evars
-        let evars_sol = self.infcx.pop_scope()?;
-        self.infcx.replace_evars(&evars_sol);
+        // Ensure all evars all solved
+        self.infcx.pop_evar_scope()?;
 
-        Ok(variant.ret().replace_evars(&evars_sol))
+        Ok(self.infcx.fully_resolve_evars(&variant.ret()))
     }
 }
 
@@ -555,15 +571,19 @@ impl TypeTrace {
         Self::BaseTys(a.clone(), b.clone())
     }
 
-    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
+    pub(crate) fn replace_evars(
+        &mut self,
+        f: &mut impl FnMut(EVid) -> Option<Expr>,
+    ) -> Result<(), EVid> {
         match self {
             TypeTrace::Types(a, b) => {
-                *self = TypeTrace::Types(a.replace_evars(evars), b.replace_evars(evars));
+                *self = TypeTrace::Types(a.replace_evars(f)?, b.replace_evars(f)?);
             }
             TypeTrace::BaseTys(a, b) => {
-                *self = TypeTrace::BaseTys(a.replace_evars(evars), b.replace_evars(evars));
+                *self = TypeTrace::BaseTys(a.replace_evars(f)?, b.replace_evars(f)?);
             }
         }
+        Ok(())
     }
 }
 
@@ -994,15 +1014,9 @@ fn mk_coroutine_obligations(
 
 #[derive(Debug)]
 pub enum InferErr {
-    UnsolvedEvar(EVar),
+    UnsolvedEvar(EVid),
     OpaqueStruct(DefId),
     Query(QueryErr),
-}
-
-impl From<UnsolvedEvar> for InferErr {
-    fn from(err: UnsolvedEvar) -> Self {
-        InferErr::UnsolvedEvar(err.evar)
-    }
 }
 
 impl From<QueryErr> for InferErr {

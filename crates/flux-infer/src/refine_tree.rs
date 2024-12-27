@@ -12,9 +12,8 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
-        evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
+        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -66,6 +65,7 @@ pub struct RefineTree {
 /// [refinement tree]: RefineTree
 pub struct RefineCtxt<'a> {
     tree: &'a mut RefineTree,
+    scope: Scope,
     ptr: NodePtr,
 }
 
@@ -216,7 +216,9 @@ impl RefineTree {
     }
 
     pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
+        let a = 0;
+        todo!()
+        // RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 }
 
@@ -226,13 +228,15 @@ impl<'rcx> RefineCtxt<'rcx> {
         reason = "we want to explicitly borrow `self` mutably to prove there's only one writer"
     )]
     pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
+        let a = 0;
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
         }
     }
 
     pub(crate) fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
+        todo!()
+        // Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
@@ -241,11 +245,13 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     #[must_use]
     pub(crate) fn branch(&mut self) -> RefineCtxt {
-        RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
+        let a = 0;
+        todo!()
+        // RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub(crate) fn scope(&self) -> Scope {
-        self.snapshot().scope().unwrap()
+    pub(crate) fn scope(&self) -> &Scope {
+        &self.scope
     }
 
     #[expect(dead_code, reason = "used for debugging")]
@@ -333,8 +339,8 @@ impl<'rcx> RefineCtxt<'rcx> {
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
 
-    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
-        self.ptr.borrow_mut().replace_evars(evars);
+    pub(crate) fn replace_evars(&mut self, mut f: impl FnMut(EVid) -> Option<Expr>) {
+        self.ptr.borrow_mut().replace_evars(&mut f);
     }
 }
 
@@ -424,20 +430,21 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, sol: &EVarSol) {
+    fn replace_evars(&mut self, f: &mut impl FnMut(EVid) -> Option<Expr>) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(sol);
+            child.borrow_mut().replace_evars(f);
         }
         match &mut self.kind {
-            NodeKind::Assumption(pred) => *pred = pred.replace_evars(sol),
+            NodeKind::Assumption(pred) => *pred = pred.replace_evars(f)?,
             NodeKind::Head(pred, _) => {
-                *pred = pred.replace_evars(sol);
+                *pred = pred.replace_evars(f)?;
             }
             NodeKind::Trace(trace) => {
-                trace.replace_evars(sol);
+                trace.replace_evars(f)?;
             }
             NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
         }
+        Ok(())
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {

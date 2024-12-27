@@ -248,7 +248,7 @@ fn check_fn_subtyping(
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-    infcx.push_scope();
+    infcx.push_evar_scope();
     let refine_args = infcx.instantiate_refine_args(*def_id, sub_args)?;
     let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
     let sub_sig = sub_sig
@@ -268,33 +268,31 @@ fn check_fn_subtyping(
         let reason = ConstrReason::Subtype(SubtypeReason::Requires);
         infcx.check_pred(requires, reason);
     }
+    infcx.pop_evar_scope()?;
 
     // 4. Plug in the EVAR solution / replace evars -- see [`InferCtxt::push_scope`]
-    let evars_sol = infcx.pop_scope()?;
-    infcx.replace_evars(&evars_sol);
-    let output = sub_sig
-        .output()
-        .replace_evars(&evars_sol)
+    let output = infcx
+        .fully_resolve_evars(sub_sig.output())
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
     // 5. OUTPUT subtyping (f_out <: g_out)
     // RJ: new `at` to avoid borrowing errors...!
-    infcx.push_scope();
+    infcx.push_evar_scope();
     let super_output = super_sig
         .output()
         .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
     let reason = ConstrReason::Subtype(SubtypeReason::Output);
     infcx.subtyping(&output.ret, &super_output.ret, reason)?;
-    let evars_sol = infcx.pop_scope()?;
-    infcx.replace_evars(&evars_sol);
 
     // 6. Update state with Output "ensures" and check super ensures
-    infcx.push_scope();
-    env.update_ensures(&mut infcx, &output);
+    env.assume_ensures(&mut infcx, &output.ensures);
     fold_local_ptrs(&mut infcx, &mut env, span)?;
-    env.check_ensures(&mut infcx, &super_output, ConstrReason::Subtype(SubtypeReason::Ensures))?;
-    let evars_sol = infcx.pop_scope()?;
-    infcx.replace_evars(&evars_sol);
+    env.check_ensures(
+        &mut infcx,
+        &super_output.ensures,
+        ConstrReason::Subtype(SubtypeReason::Ensures),
+    )?;
+    infcx.pop_evar_scope()?;
 
     Ok(())
 }
@@ -712,7 +710,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         span: Span,
     ) -> Result {
-        infcx.push_scope();
+        infcx.push_evar_scope();
 
         let mut at = infcx.at(span);
 
@@ -726,11 +724,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)
             .with_span(span)?;
 
-        env.check_ensures(&mut at, &output, ConstrReason::Ret)
+        env.check_ensures(&mut at, &output.ensures, ConstrReason::Ret)
             .with_span(span)?;
 
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
+        infcx.pop_evar_scope().with_span(span)?;
 
         self.check_coroutine_obligations(infcx, obligations)
     }
@@ -751,7 +748,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let actuals = unfold_local_ptrs(infcx, env, &fn_sig, actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
-        infcx.push_scope();
+        infcx.push_evar_scope();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
@@ -802,21 +799,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             at.subtyping_with_env(env, &actual, formal, ConstrReason::Call)
                 .with_span(span)?;
         }
-        // Replace evars
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        env.replace_evars(&evars_sol);
-        infcx.replace_evars(&evars_sol);
+        infcx.pop_evar_scope().with_span(span)?;
+        env.fully_resolve_evars(infcx);
 
-        let output = fn_sig
-            .output()
-            .replace_evars(&evars_sol)
+        let output = infcx
+            .fully_resolve_evars(fn_sig.output())
             .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
 
-        infcx.push_scope();
-        env.update_ensures(infcx, &output);
+        infcx.push_evar_scope();
+        env.assume_ensures(infcx, &output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
-        let evars_sol = infcx.pop_scope().with_span(span)?;
-        infcx.replace_evars(&evars_sol);
+        infcx.pop_evar_scope().with_span(span)?;
 
         Ok(output.ret)
     }
@@ -1260,7 +1253,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &[Ty],
         arr_ty: Ty,
     ) -> InferResult<Ty> {
-        infcx.push_scope();
+        infcx.push_evar_scope();
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -1284,8 +1277,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
         }
-        let evars = &infcx.pop_scope()?;
-        infcx.replace_evars(evars);
+        infcx.pop_evar_scope()?;
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }

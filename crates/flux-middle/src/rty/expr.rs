@@ -21,8 +21,8 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
-    GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
+    GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
     big_int::BigInt,
@@ -282,7 +282,7 @@ pub enum Var {
     Free(Name),
     Bound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
-    EVar(EVar),
+    EVar(EVid),
     ConstGeneric(ParamConst),
 }
 
@@ -296,6 +296,14 @@ pub struct Path {
 pub enum Loc {
     Local(Local),
     Var(Var),
+}
+
+newtype_index! {
+    /// *E*xistential *v*ariable *id*
+    #[debug_format = "?{}e"]
+    #[orderable]
+    #[encodable]
+    pub struct EVid {}
 }
 
 newtype_index! {
@@ -435,8 +443,8 @@ impl Expr {
         Var::Free(name).to_expr()
     }
 
-    pub fn evar(evar: EVar) -> Expr {
-        Var::EVar(evar).to_expr()
+    pub fn evar(evid: EVid) -> Expr {
+        Var::EVar(evid).to_expr()
     }
 
     pub fn bvar(debruijn: DebruijnIndex, var: BoundVar, kind: BoundReftKind) -> Expr {
@@ -1300,7 +1308,7 @@ pub(crate) mod pretty {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
                 Var::EarlyParam(var) => w!(cx, f, "{}", ^var.name),
                 Var::Free(name) => w!(cx, f, "{:?}", ^name),
-                Var::EVar(evar) => w!(cx, f, "{:?}", evar),
+                Var::EVar(evar) => w!(cx, f, "{:?}", ^evar),
                 Var::ConstGeneric(param) => w!(cx, f, "{}", ^param.name),
             }
         }
