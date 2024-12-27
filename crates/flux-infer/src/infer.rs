@@ -327,23 +327,22 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     // }
 
     pub fn push_evar_scope(&mut self) {
-        let a = 0;
+        self.inner.borrow_mut().evars.push_scope();
     }
 
     pub fn pop_evar_scope(&mut self) -> InferResult {
-        let a = 0;
-        Ok(())
-    }
-
-    fn pop_evar_scope_without_solving_evars(&mut self) {
-        let a = 0;
-        todo!()
-        // self.inner.borrow_mut().evars.exit_context();
+        self.inner
+            .borrow_mut()
+            .evars
+            .pop_scope()
+            .map_err(|evid| InferErr::UnsolvedEvar(evid))
     }
 
     pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
-        // document and finish implementing
-        t.replace_evars(&mut |evid| None).unwrap()
+        // document and add better unwrap message
+        let a = 0;
+        let evars = &self.inner.borrow().evars;
+        t.replace_evars(&mut |evid| evars.solved(evid)).unwrap()
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -425,6 +424,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 #[derive(Default)]
 struct EVarStore {
     evars: IndexVec<EVid, EVarState>,
+    scopes: Vec<Vec<EVid>>,
+    // document
+    a: usize,
 }
 
 enum EVarState {
@@ -434,12 +436,37 @@ enum EVarState {
 
 impl EVarStore {
     fn fresh(&mut self, rcx: &RefineCtxt) -> EVid {
-        self.evars.push(EVarState::Unsolved(rcx.snapshot()))
+        let evid = self.evars.push(EVarState::Unsolved(rcx.snapshot()));
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.push(evid);
+        }
+        evid
+    }
+
+    fn push_scope(&mut self) {
+        self.scopes.push(vec![]);
+    }
+
+    fn pop_scope(&mut self) -> Result<(), EVid> {
+        let scope = self.scopes.pop().unwrap();
+        for evid in scope {
+            if let EVarState::Unsolved(..) = self.get(evid) {
+                return Err(evid);
+            }
+        }
+        Ok(())
     }
 
     fn solve(&mut self, evid: EVid, expr: Expr) {
         debug_assert!(matches!(self.evars[evid], EVarState::Unsolved(_)));
         self.evars[evid] = EVarState::Solved(expr);
+    }
+
+    fn solved(&self, evid: EVid) -> Option<Expr> {
+        match self.get(evid) {
+            EVarState::Solved(expr) => Some(expr.clone()),
+            EVarState::Unsolved(..) => None,
+        }
     }
 
     fn get(&self, evid: EVid) -> &EVarState {
