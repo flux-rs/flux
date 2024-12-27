@@ -4,7 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use flux_common::{index::IndexVec, iter::IterExt};
+use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -12,15 +12,15 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         canonicalize::{Hoister, HoisterDelegate},
-        evars::EVarSol,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
+        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
 use serde::Serialize;
 
 use crate::{
+    evars::EVarStore,
     fixpoint_encoding::{fixpoint, FixpointCtxt},
     infer::{Tag, TypeTrace},
 };
@@ -84,25 +84,18 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub fn scope(&self) -> Option<Scope> {
-        let mut params = None;
-        let parents = ParentsIter::new(self.ptr.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                let node = node.borrow();
-                match &node.kind {
-                    NodeKind::Root(p) => {
-                        params = Some(p.clone());
-                        None
-                    }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
-                    _ => None,
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings, params: params.unwrap_or_default() })
+        Some(self.ptr.upgrade()?.scope())
+    }
+
+    pub fn has_free_vars<T: TypeVisitable>(&self, t: &T) -> bool {
+        let ptr = self
+            .ptr
+            .upgrade()
+            .unwrap_or_else(|| tracked_span_bug!("`has_free_vars` called on invalid `Snapshot`"));
+
+        let nbindings = ptr.next_name_idx();
+
+        !t.fvars().into_iter().all(|name| name.index() < nbindings)
     }
 }
 
@@ -119,6 +112,15 @@ impl Scope {
             self.params.iter().cloned(),
             self.bindings
                 .iter_enumerated()
+                .map(|(name, sort)| (Var::Free(name), sort.clone())),
+        )
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (Var, Sort)> {
+        itertools::chain(
+            self.params,
+            self.bindings
+                .into_iter_enumerated()
                 .map(|(name, sort)| (Var::Free(name), sort.clone())),
         )
     }
@@ -171,6 +173,28 @@ impl NodePtr {
     fn next_name_idx(&self) -> usize {
         self.borrow().nbindings + usize::from(self.borrow().is_forall())
     }
+
+    fn scope(&self) -> Scope {
+        let mut params = None;
+        let parents = ParentsIter::new(self.clone());
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                match &node.kind {
+                    NodeKind::Root(p) => {
+                        params = Some(p.clone());
+                        None
+                    }
+                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    _ => None,
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Scope { bindings, params: params.unwrap_or_default() }
+    }
 }
 
 struct WeakNodePtr(Weak<RefCell<Node>>);
@@ -218,21 +242,23 @@ impl RefineTree {
     pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
+
+    pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+        self.root.borrow_mut().replace_evars(evars)
+    }
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
-    #[expect(
-        clippy::unused_self,
-        reason = "we want to explicitly borrow `self` mutably to prove there's only one writer"
-    )]
-    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
-        if let Some(ptr) = snapshot.ptr.upgrade() {
+    pub(crate) fn change_root(
+        &mut self,
+        snapshot: &Snapshot,
+        clear_children: bool,
+    ) -> Option<RefineCtxt> {
+        let ptr = snapshot.ptr.upgrade()?;
+        if clear_children {
             ptr.borrow_mut().children.clear();
         }
-    }
-
-    pub(crate) fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
+        Some(RefineCtxt { ptr, tree: self.tree })
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
@@ -244,8 +270,10 @@ impl<'rcx> RefineCtxt<'rcx> {
         RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub(crate) fn scope(&self) -> Scope {
-        self.snapshot().scope().unwrap()
+    pub(crate) fn vars(&self) -> impl Iterator<Item = (Var, Sort)> {
+        // TODO(nilehmann) we could incrementally cache the scope by only iterating over the nodes
+        // we haven't yet visited
+        self.ptr.scope().into_iter()
     }
 
     #[expect(dead_code, reason = "used for debugging")]
@@ -331,10 +359,6 @@ impl<'rcx> RefineCtxt<'rcx> {
             }
         }
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
-    }
-
-    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
-        self.ptr.borrow_mut().replace_evars(evars);
     }
 }
 
@@ -424,20 +448,21 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, sol: &EVarSol) {
+    fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(sol);
+            child.borrow_mut().replace_evars(evars)?;
         }
         match &mut self.kind {
-            NodeKind::Assumption(pred) => *pred = pred.replace_evars(sol),
+            NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,
             NodeKind::Head(pred, _) => {
-                *pred = pred.replace_evars(sol);
+                *pred = evars.replace_evars(pred)?;
             }
             NodeKind::Trace(trace) => {
-                trace.replace_evars(sol);
+                evars.replace_evars(trace)?;
             }
             NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
         }
+        Ok(())
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {

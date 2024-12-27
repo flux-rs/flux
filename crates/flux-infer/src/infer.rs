@@ -2,19 +2,16 @@ use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
+use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
-        canonicalize::Hoister,
-        evars::{EVarSol, UnsolvedEvar},
-        fold::TypeFoldable,
-        AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan,
-        EVar, EVarGen, EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyKind, Var,
+        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
+        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
+        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -28,6 +25,7 @@ use rustc_middle::{
 use rustc_span::Span;
 
 use crate::{
+    evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     refine_tree::{AssumeInvariants, RefineCtxt, RefineTree, Scope, Snapshot, Unpacker},
 };
@@ -173,8 +171,14 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         def_id: MaybeExternId,
         ext: &'static str,
     ) -> QueryResult<Vec<Tag>> {
+        let inner = self.inner.into_inner();
+        let kvars = inner.kvars;
+        let evars = inner.evars;
+
         let mut refine_tree = self.refine_tree;
-        let kvars = self.inner.into_inner().kvars;
+
+        refine_tree.replace_evars(&evars).unwrap();
+
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
@@ -212,7 +216,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
 
 struct InferCtxtInner {
     kvars: KVarGen,
-    evars: EVarGen<Scope>,
+    evars: EVarStore,
 }
 
 impl InferCtxtInner {
@@ -274,62 +278,73 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
-        inner
-            .kvars
-            .fresh(binders, inner.evars.current_data().iter(), encoding)
+        inner.kvars.fresh(binders, self.rcx.vars(), encoding)
     }
 
     fn fresh_evar(&self) -> Expr {
         let evars = &mut self.inner.borrow_mut().evars;
-        Expr::evar(evars.fresh_in_current())
+        Expr::evar(evars.fresh(&self.rcx))
     }
 
-    pub fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
+    pub fn unify_exprs(&self, a: &Expr, b: &Expr) {
+        if a.has_evars() {
+            return;
+        }
         let evars = &mut self.inner.borrow_mut().evars;
-        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &evars.data(evar.cx())
-            && !scope.has_free_vars(e1)
+        if let ExprKind::Var(Var::EVar(evid)) = b.kind()
+            && let EVarState::Unsolved(snapshot) = evars.get(*evid)
+            && !snapshot.has_free_vars(a)
         {
-            evars.unify(*evar, e1, false);
+            evars.solve(*evid, a.clone());
         }
     }
 
-    fn enter_exists<T, U>(&mut self, exists: &Binder<T>, f: impl FnOnce(&mut Self, T) -> U) -> U
+    fn enter_exists<T, U>(
+        &mut self,
+        t: &Binder<T>,
+        f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
+    ) -> U
     where
         T: TypeFoldable,
     {
-        self.push_scope();
-        let t = exists.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
-        let t = f(self, t);
-        self.pop_scope_without_solving_evars();
-        t
+        self.ensure_resolved_evars(|infcx| {
+            let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+            Ok(f(infcx, t))
+        })
+        .unwrap()
     }
 
-    /// The `InferCtxt` is a cursor into a tree. Some functions like `define_var`, `assume_pred` and
-    /// by extension `unpack` advance the cursor. For example, defining a variable pushes a node
-    /// as a child of the current node and then moves the cursor into that new node. Other functions,
-    /// like `subtyping` or `check_pred` (typically the ones defined in `InferCtxtAt`) do not advance
-    /// the cursor (from the caller's perspective). For example, if you call subtyping a subtree is
-    /// pushed under the current node, and the cursor is returned to where it was. That's the purpose
-    /// of infcx.branch: to "clone" the cursor such that the original one doesn't get modified.
-    /// `infcx.pop_scope()` and `infcx.replace_evars(...)` are supposed to be called when the `infcx`
-    /// is on the same node where the `push_scope` was called, because `replace_evars` only replaces
-    /// evars below that node. If `pop_scope` is called at a node further down (e.g. after calling
-    /// `unpack`), the evars above that cursor will not be replaced.
-    /// (see <https://github.com/flux-rs/flux/pull/900#discussion_r1853052650>)
-    pub fn push_scope(&mut self) {
-        let scope = self.scope();
-        self.inner.borrow_mut().evars.enter_context(scope);
+    /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
+    /// of some scope, for example, to ensure all evars generated during a function call are solved
+    /// after checking argument subtyping. These functions can be used in a stack-like fashion to
+    /// create nested scopes.
+    pub fn push_evar_scope(&mut self) {
+        self.inner.borrow_mut().evars.push_scope();
     }
 
-    pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
-        let evars = &mut self.inner.borrow_mut().evars;
-        evars.exit_context();
-        Ok(evars.try_solve_pending()?)
+    /// Pop a scope and check all evars have been solved. This only check evars generated from the
+    /// last call to [`InferCtxt::push_evar_scope`].
+    pub fn pop_evar_scope(&mut self) -> InferResult {
+        self.inner
+            .borrow_mut()
+            .evars
+            .pop_scope()
+            .map_err(InferErr::UnsolvedEvar)
     }
 
-    fn pop_scope_without_solving_evars(&mut self) {
-        self.inner.borrow_mut().evars.exit_context();
+    /// Convenience method pairing [`InferCtxt::push_evar_scope`] and [`InferCtxt::pop_evar_scope`].
+    pub fn ensure_resolved_evars<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> InferResult<R>,
+    ) -> InferResult<R> {
+        self.push_evar_scope();
+        let r = f(self)?;
+        self.pop_evar_scope()?;
+        Ok(r)
+    }
+
+    pub fn fully_resolve_evars<T: TypeFoldable>(&self, t: &T) -> T {
+        self.inner.borrow().evars.replace_evars(t).unwrap()
     }
 
     pub fn tcx(&self) -> TyCtxt<'tcx> {
@@ -343,10 +358,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
 /// Methods that modify or advance the [`RefineTree`] cursor
 impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
-    pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
-        self.rcx.clear_children(snapshot);
-    }
-
     pub fn change_item<'a>(
         &'a mut self,
         def_id: LocalDefId,
@@ -355,8 +366,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { def_id: def_id.to_def_id(), rcx: self.rcx.branch(), region_infcx, ..*self }
     }
 
-    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
+    pub fn change_root(
+        &mut self,
+        snapshot: &Snapshot,
+        clear_children: bool,
+    ) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.change_root(snapshot, clear_children).unwrap(), ..*self }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
@@ -373,10 +388,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         self.rcx.check_pred(pred, tag);
-    }
-
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
-        self.rcx.replace_evars(evars);
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
@@ -397,10 +408,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         } else {
             AssumeInvariants::No
         })
-    }
-
-    pub fn scope(&self) -> Scope {
-        self.rcx.scope()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -424,7 +431,7 @@ pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     pub span: Span,
 }
 
-impl InferCtxtAt<'_, '_, '_, '_> {
+impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
@@ -501,25 +508,30 @@ impl InferCtxtAt<'_, '_, '_, '_> {
         fields: &[Ty],
         reason: ConstrReason,
     ) -> InferResult<Ty> {
-        self.infcx.push_scope();
+        let ret = self.ensure_resolved_evars(|this| {
+            // Replace holes in generic arguments with fresh inference variables
+            let generic_args = this.instantiate_generic_args(generic_args);
 
-        // Replace holes in generic arguments with fresh inference variables
-        let generic_args = self.infcx.instantiate_generic_args(generic_args);
+            let variant = variant
+                .instantiate(this.tcx(), &generic_args, &[])
+                .replace_bound_refts_with(|sort, mode, _| this.fresh_infer_var(sort, mode));
 
-        let variant = variant
-            .instantiate(self.infcx.tcx(), &generic_args, &[])
-            .replace_bound_refts_with(|sort, mode, _| self.infcx.fresh_infer_var(sort, mode));
+            // Check arguments
+            for (actual, formal) in iter::zip(fields, variant.fields()) {
+                this.subtyping(actual, formal, reason)?;
+            }
 
-        // Check arguments
-        for (actual, formal) in iter::zip(fields, variant.fields()) {
-            self.subtyping(actual, formal, reason)?;
-        }
+            Ok(variant.ret())
+        })?;
+        Ok(self.fully_resolve_evars(&ret))
+    }
 
-        // Replace evars
-        let evars_sol = self.infcx.pop_scope()?;
-        self.infcx.replace_evars(&evars_sol);
-
-        Ok(variant.ret().replace_evars(&evars_sol))
+    pub fn ensure_resolved_evars<R>(
+        &mut self,
+        f: impl FnOnce(&mut InferCtxtAt<'_, '_, 'genv, 'tcx>) -> InferResult<R>,
+    ) -> InferResult<R> {
+        self.infcx
+            .ensure_resolved_evars(|infcx| f(&mut infcx.at(self.span)))
     }
 }
 
@@ -540,6 +552,7 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
+#[derive(TypeVisitable, TypeFoldable)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),
@@ -553,17 +566,6 @@ impl TypeTrace {
 
     fn btys(a: &BaseTy, b: &BaseTy) -> Self {
         Self::BaseTys(a.clone(), b.clone())
-    }
-
-    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
-        match self {
-            TypeTrace::Types(a, b) => {
-                *self = TypeTrace::Types(a.replace_evars(evars), b.replace_evars(evars));
-            }
-            TypeTrace::BaseTys(a, b) => {
-                *self = TypeTrace::BaseTys(a.replace_evars(evars), b.replace_evars(evars));
-            }
-        }
     }
 }
 
@@ -644,12 +646,13 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         let a = infcx.unpack(a);
+
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
-                bug!("existentials should be removed by the unpacking");
+                bug!("existentials should have been removed by the unpacking above");
             }
             (TyKind::Constr(..), _) => {
-                bug!("constraint types should removed by the unpacking");
+                bug!("constraint types should have been removed by the unpacking above");
             }
 
             (_, TyKind::Exists(ctor_b)) => {
@@ -994,15 +997,9 @@ fn mk_coroutine_obligations(
 
 #[derive(Debug)]
 pub enum InferErr {
-    UnsolvedEvar(EVar),
+    UnsolvedEvar(EVid),
     OpaqueStruct(DefId),
     Query(QueryErr),
-}
-
-impl From<UnsolvedEvar> for InferErr {
-    fn from(err: UnsolvedEvar) -> Self {
-        InferErr::UnsolvedEvar(err.evar)
-    }
 }
 
 impl From<QueryErr> for InferErr {

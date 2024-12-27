@@ -9,6 +9,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 extern crate rustc_type_ir;
 
+mod evars;
 pub mod fixpoint_encoding;
 pub mod infer;
 pub mod refine_tree;

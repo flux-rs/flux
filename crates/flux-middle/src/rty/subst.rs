@@ -4,10 +4,7 @@ use flux_common::{bug, tracked_span_bug};
 use rustc_type_ir::DebruijnIndex;
 
 use self::fold::FallibleTypeFolder;
-use super::{
-    evars::EVarSol,
-    fold::{TypeFolder, TypeSuperFoldable},
-};
+use super::fold::{TypeFolder, TypeSuperFoldable};
 use crate::rty::*;
 
 /// Substitution for late bound variables
@@ -107,31 +104,6 @@ where
             }
         } else {
             *re
-        }
-    }
-}
-
-/// Substitution for [existential variables]
-///
-/// [existential variables]: crate::rty::Var::EVar
-pub(super) struct EVarSubstFolder<'a> {
-    evars: &'a EVarSol,
-}
-
-impl<'a> EVarSubstFolder<'a> {
-    pub(super) fn new(evars: &'a EVarSol) -> Self {
-        Self { evars }
-    }
-}
-
-impl TypeFolder for EVarSubstFolder<'_> {
-    fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::EVar(evar)) = e.kind()
-            && let Some(sol) = self.evars.get(*evar)
-        {
-            sol.clone()
-        } else {
-            e.super_fold_with(self)
         }
     }
 }
