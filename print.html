@@ -818,7 +818,7 @@ python3  path/to/flux/tools/logreader.py
 <p><a href="http://goto.ucsd.edu:8091/?example=refinements.rs">Online demo</a></p>
 <p>Types bring order to code. For example, if a variable <code>i:usize</code>
 then we know <code>i</code> is a number that can be used to index a vector.
-Similarly, if <code>v:vec&lt;&amp;str&gt;</code> then we can be sure that <code>v</code> is a
+Similarly, if <code>v: vec&lt;&amp;str&gt;</code> then we can be sure that <code>v</code> is a
 collection of strings which may <em>be</em> indexed but of course,
 not used <em>as</em> an index. However, by itself <code>usize</code> doesn't
 tell us how big or small the number and hence the programmer
@@ -842,7 +842,7 @@ checker plugin that brings this technology to <code>Rust</code>.</p>
 </div>
 <h3 id="post-conditions"><a class="header" href="#post-conditions">Post-Conditions</a></h3>
 <p>We can already start using these indexed types to start writing (and checking)
-code. For example we can write the following specification which says that
+code. For example, we can write the following specification which says that
 the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
