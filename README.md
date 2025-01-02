@@ -6,7 +6,7 @@
 
 # Online Demo
 
-You can try `flux` [online at this site](https://flux.programming.systems)
+You can try `flux` [online at this site](http://goto.ucsd.edu:8091/)
 
 # Overview
 
