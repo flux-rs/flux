@@ -182,14 +182,14 @@ as unreachable arms in a match statement (that turn out not to be unreachable) o
 guard against code we don't yet support. To help identify the code that triggers these bugs, there are a few
 recommended methods for reporting them:
 
-* `QueryErr::bug`: Use this method to report a bug if the code already returns a `QueryResult`. This
-approach is preferred because we will correctly recover from the error.
-* `span_bug!`: When you have a `Span` at hand, you can use this macro in place of `panic!` to report
-the span before panicking.
-* `tracked_span_bug!`: This macro is similar to `span_bug!`, but it uses a span stored in a thread local
-variable (if one exists). To track a span in the thread local variable you can use `flux_common::bug::track_span`.
-* `bug!`: For other cases where none of the above applies, you can use the `bug!` macro. This behaves
-mostly like `panic!` but with nicer formatting.
+- `QueryErr::bug`: Use this method to report a bug if the code already returns a `QueryResult`. This
+  approach is preferred because we will correctly recover from the error.
+- `span_bug!`: When you have a `Span` at hand, you can use this macro in place of `panic!` to report
+  the span before panicking.
+- `tracked_span_bug!`: This macro is similar to `span_bug!`, but it uses a span stored in a thread local
+  variable (if one exists). To track a span in the thread local variable you can use `flux_common::bug::track_span`.
+- `bug!`: For other cases where none of the above applies, you can use the `bug!` macro. This behaves
+  mostly like `panic!` but with nicer formatting.
 
 When running Flux in a new code base, consider setting the flag `FLUX_CATCH_BUGS=1`. If this flag is set,
 Flux will try to catch and recover from panics emitted with one of the bug macros (using

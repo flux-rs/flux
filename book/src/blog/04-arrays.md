@@ -2,7 +2,7 @@
 
 [Online demo](http://goto.ucsd.edu:8091/index.html#?demo=arrays.rs)
 
-Rust has a built-in notion of *arrays* : collections of objects of
+Rust has a built-in notion of _arrays_ : collections of objects of
 the same type `T` whose size is known at compile time. The fact that
 the sizes are known allows them to be allocated contiguously in memory,
 which makes for fast access and manipulation.
@@ -21,7 +21,7 @@ let pix1: Pixel = [  0, 255, 127];
 ## Compile-time Safety...
 
 As the size of the array is known at compile time, Rust can make sure that
-we don't *create* arrays of the wrong size, or *access* them out of bounds.
+we don't _create_ arrays of the wrong size, or _access_ them out of bounds.
 
 For example, `rustc` will grumble if you try to make a `Pixel` with 4 elements:
 
@@ -87,18 +87,18 @@ Fortunately, `flux` knows about the sizes of arrays and slices. At compile time,
 
 We can fix these errors by requiring that the input
 
-* `i` be a valid color index, i.e. `i < 3` and
-* `pixels` be non-empty, i.e. have size `n` where `n > 0`
+- `i` be a valid color index, i.e. `i < 3` and
+- `pixels` be non-empty, i.e. have size `n` where `n > 0`
 
 ```rust
 #[sig(fn(pixels: &[Pixel][@n], i:usize{i < 3}) -> u64 requires n > 0)]
 ```
-<img src="../img/04-arrays-average-fix.gif" width="100%">
 
+<img src="../img/04-arrays-average-fix.gif" width="100%">
 
 ## Const Generics
 
-Rust also lets us write arrays that are *generic* over the size. For example,
+Rust also lets us write arrays that are _generic_ over the size. For example,
 suppose we want to take two input arrays `x` and `y` of the same size `N` and
 compute their dot product. We can write
 
@@ -154,7 +154,7 @@ First off, it warns us about the fact that the accesses with the index may be ou
 
 We can fix it in two ways.
 
-* The **permissive** approach is to accept any `k` but restrict the iteration to the valid elements
+- The **permissive** approach is to accept any `k` but restrict the iteration to the valid elements
 
 ```rust
 fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
@@ -169,7 +169,7 @@ fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
 
 <img src="../img/04-arrays-dotk-permissive.gif" width="100%">
 
-* The **strict** approach is to require that `k` be less than or equal to `N`
+- The **strict** approach is to require that `k` be less than or equal to `N`
 
 ```rust
 #[sig(fn(x: [f32;N], y: [f32;N], k:usize{k <= N}) -> f32)]

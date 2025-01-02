@@ -5,6 +5,7 @@ This is a WIP guide to writing specifications in `flux`.
 ## Refinement Types
 
 - **Indexed Type**: An indexed type `B[r]` is composed of a base Rust type `B` and a refinement index `r`. The meaning of the index depends on the type. Some examples are
+
   - `i32[n]`: denotes the (singleton) set of `i32` values equal to `n`.
   - `List<T>[n]`: values of type `List<T>` of length `n`.
 
@@ -15,6 +16,7 @@ This is a WIP guide to writing specifications in `flux`.
   binds `n` over the entire scope of the function to specify that it takes an `i32` equal to `n` and returns an `i32` equal to `n + 1`. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type `a -> a` in Haskell is polymorphic on the type `a` which is bound for the scope of the entire function type.
 
 - **Existential Type**: An existential type `B{v: r(v)}` is composed of a base type `B`, a refinement variable `v` and a refinement predicate `r` on `v`. Intuitively, a Rust value `x` has type `B{v: r(v)}` if there exists a refinement value `a` such that `r(a)` holds and `x` has type `B[a]`.
+
   - `i32{v: v > 0}`: set of positive `i32` values.
   - `List<T>{v: v > 0}`: set of non-empty lists.
 
@@ -29,7 +31,7 @@ This is a WIP guide to writing specifications in `flux`.
 
 ## Argument Syntax
 
-The `@n` syntax used to declare refinements parameters can be hard to read sometimes. Flux also supports a syntax that let you bind refinement parameters using colons similar to the syntax used to declare arguments in a function. We call this *argument syntax*. This syntax desugars to one of the refinements forms discussed above. For example, the following signature
+The `@n` syntax used to declare refinements parameters can be hard to read sometimes. Flux also supports a syntax that let you bind refinement parameters using colons similar to the syntax used to declare arguments in a function. We call this _argument syntax_. This syntax desugars to one of the refinements forms discussed above. For example, the following signature
 
 `fn(x: i32, y: i32) -> i32[x + y]`
 
@@ -170,7 +172,7 @@ impl String {
    subset). This is written just like a function extern spec with the caveat
    that the `self` parameter is not presently supported. So for example, instead
    of writing `fn len(&self) -> usize;`, you need to write `fn len(s: &String)
-   -> usize;`.
+-> usize;`.
 
 If you do the above, you can use the above methods of`std::string::String` as if
 they were refined.
@@ -178,6 +180,7 @@ they were refined.
 You shouldn't need to know the details, but here's how the above two macros expand.
 
 For structs:
+
 ```
 #[flux_rs::extern_spec]
 #[allow(unused, dead_code)]
@@ -186,6 +189,7 @@ struct __FluxExternSpecString(std::string::String);
 ```
 
 For impls (this was translated manually so there might be some bugs):
+
 ```
 #[allow(unused, dead_code)]
 struct __FluxExternImplStructString;
@@ -235,10 +239,10 @@ r ::= n                     // numbers 1,2,3...
 
 Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux_rs::ignore]` and `#[flux_rs::trusted]`.
 
-* `#[flux_rs::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
-* `#[flux_rs::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
+- `#[flux_rs::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
+- `#[flux_rs::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
 
-The above means that an *ignored* function can only be called from ignored or trusted code, while a *trusted* function can also be called from analyzed code.
+The above means that an _ignored_ function can only be called from ignored or trusted code, while a _trusted_ function can also be called from analyzed code.
 
 Both attributes apply recursively. For instance, if a module is marked as `#[flux_rs::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux_rs::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis. Similarly,
 the action of `#[flux_rs::trusted]` can be reverted using `#[flux_rs::trusted(no)]`.
@@ -270,7 +274,7 @@ A typical pattern when retroactively adding Flux annotations to existing code is
 
 [^ignore-shorthand]: `#[flux_rs::ignore]` (resp. `#[flux_rs::trusted]`) is shorthand for `#[flux_rs::ignore(yes)]` (resp. `#[flux_rs::trusted(yes)]`).
 
-## Opaque 
+## Opaque
 
 Flux offers an attribute `opaque` which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, `RMap` (see below) defines a refined HashMap, indexed by a `Map` - a primitive sort defined by flux.
 
@@ -284,7 +288,7 @@ pub struct RMap<K, V> {
 }
 ```
 
-__Note that opaque structs **can not** have refined fields.__
+**Note that opaque structs **can not** have refined fields.**
 
 Now, we can define `get` for our refined map as follows:
 

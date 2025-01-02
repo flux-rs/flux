@@ -11,13 +11,12 @@ panicked at 'index out of bounds: the len is ... but the index is ...'
 ```
 
 Next, lets see how flux's [refinement][blog-intro] and [ownership][blog-owners]
-mechanisms let us write a *refined vector* API whose types track vector sizes
-and ensure --- at compile time --- that vector accesses *cannot* fail at runtime.
-
+mechanisms let us write a _refined vector_ API whose types track vector sizes
+and ensure --- at compile time --- that vector accesses _cannot_ fail at runtime.
 
 ## Refining Vectors to Track their Size
 
-To begin with, we will defined a *refined* vector type which is simply a wrapper
+To begin with, we will defined a _refined_ vector type which is simply a wrapper
 around the standard `Vec` type
 
 ```rust
@@ -28,14 +27,14 @@ pub struct RVec<T> {
 ```
 
 The `#[flux_rs::refined_by(len: int)]` attribute tells flux that the type `RVec<T>` struct
-is indexed by a `len` refinement which tracks the *size* of the underlying vector, just
-like the indices for `i32` and `bool` tracked the actual *value* of the underlying
+is indexed by a `len` refinement which tracks the _size_ of the underlying vector, just
+like the indices for `i32` and `bool` tracked the actual _value_ of the underlying
 [integer or boolean][blog-intro]). The idea is that the type
 
-* `RVec<i32>[10]` represents a vector of `i32` size 10, and
-* `RVec<bool>{v:0 < v}` represents a *non-empty* vector of `bool`, and
-* `RVec<RVec<f32>[n]>[m]` represents a vector of vectors of `f32` of size `m` and
-   *each of* whose elements is a vector of size `n`.
+- `RVec<i32>[10]` represents a vector of `i32` size 10, and
+- `RVec<bool>{v:0 < v}` represents a _non-empty_ vector of `bool`, and
+- `RVec<RVec<f32>[n]>[m]` represents a vector of vectors of `f32` of size `m` and
+  _each of_ whose elements is a vector of size `n`.
 
 ### Creating Vectors
 
@@ -54,9 +53,9 @@ impl<T> RVec<T> {
 
 The above implements `RVec::new` as a wrapper around `Vec::new`.
 The `#[flux_rs::trusted]` attribute tells Flux there is nothing to
-"check" here, as we are *defining* the API itself and trusting
+"check" here, as we are _defining_ the API itself and trusting
 that the implementation (using `vec` is correct).
-However, the signature says that *callers* of the `RVec::new` get
+However, the signature says that _callers_ of the `RVec::new` get
 back a vector indexed with `0` i.e. an empty vector.
 
 ### Pushing Values
@@ -74,11 +73,10 @@ pub fn push(&mut self, item: T) {
 }
 ```
 
-The refined type for `push` says that it takes a *strong* reference (`self`)
+The refined type for `push` says that it takes a _strong_ reference (`self`)
 --- where `strg` means the refined type may be [changed by the function](blog-owners) ---
 to an `RVec<T>` of size `n` and a value `T` and upon exit, the size of `self`
 is increased by `1`.
-
 
 ### Popping Values
 
@@ -86,7 +84,7 @@ Not much point stuffing things into a vector if we can't get them out again.
 
 For that, we might implement a `pop` method that returns the last element
 of the vector. Aha, but what if the vector is empty? You could return an
-`Option<T>` *or* since we're tracking sizes, we could *require* that `pop`
+`Option<T>` _or_ since we're tracking sizes, we could _require_ that `pop`
 only be called with non-empty vectors.
 
 ```rust
@@ -123,16 +121,16 @@ note: this is the condition that cannot be proved
 78 |     #[flux_rs::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
    |                                               ^^^^^
 ```
+
 <!--
 We can use `push` to implement an `rvec!` macro for constructing vectors
 and then test that lengths are tracked correctly
 
 <img src="../img/test_macro_pop.gif" width="100%"> -->
 
-
 ### Querying the Size
 
-Perhaps we should *peek* at the size of the vector to make sure its not empty *before*
+Perhaps we should _peek_ at the size of the vector to make sure its not empty _before_
 we `pop` it. We can do that with a `len` method whose type says that the returned `usize`
 is, in fact, the size of the input vector
 
@@ -151,12 +149,12 @@ the two `pop`s, the size is `0` again
 
 ### Random Access
 
-Of course, vectors are not just *stacks*, they also allow
-*random* access to their elements which is where those
+Of course, vectors are not just _stacks_, they also allow
+_random_ access to their elements which is where those
 pesky panics occur, and where the refined vector API
 gets rather useful. Since we're tracking sizes, we can
-*require* that the method to `get` an element only be
-called with a *valid index* that is between `0` and the
+_require_ that the method to `get` an element only be
+called with a _valid index_ that is between `0` and the
 vector's size
 
 ```rust
@@ -228,7 +226,7 @@ pub fn fib(n: usize) -> i32 {
 ```
 
 Oops, flux is not happy with the call to `pop` at the end of the function
-which returns the *last* value as the result.
+which returns the _last_ value as the result.
 
 ```rust
 error[FLUX]: precondition might not hold
@@ -238,14 +236,13 @@ error[FLUX]: precondition might not hold
    |     ^^^^^^^
 ```
 
-Flux complains that the vector may be *empty* and so the `pop` call may
+Flux complains that the vector may be _empty_ and so the `pop` call may
 fail ... but why? Can you spot the problem?
 
 Indeed, we missed a "corner" case -- when `n` is `0` we skip the loop and
 so the vector is empty! Once we add a test for that, flux is happy.
 
 <img src="../img/fib.gif" width="100%">
-
 
 ## Binary Search
 
@@ -273,7 +270,7 @@ pub fn binary_search(vec: &RVec<i32>, x: i32) -> Result<usize, usize> {
 }
 ```
 
-Flux complains in *two* places
+Flux complains in _two_ places
 
 ```rust
 error[FLUX]: precondition might not hold
@@ -296,20 +293,19 @@ error[FLUX]: arithmetic operation may overflow
     |         ^^^^^^^^^^^^^^^^^^^
 ```
 
-- The vector access may be *unsafe* as `mid` could be out of bounds!
+- The vector access may be _unsafe_ as `mid` could be out of bounds!
 
-- The `size` variable may *underflow* as `left` may exceed `right`!
+- The `size` variable may _underflow_ as `left` may exceed `right`!
 
 Can you the spot off-by-one and figure out a fix?
-
 
 ## Summary
 
 So, we saw how Flux's index and constraint mechanisms combine
-with Rust's ownership to let us write a *refined vector API*
+with Rust's ownership to let us write a _refined vector API_
 that ensures the safety of all accesses at compile time.
 
-Next time, we'll see how these mechanisms are *compositional*
+Next time, we'll see how these mechanisms are _compositional_
 in that we can use standard type machinery to build up
 compound structures and APIs from simple ones.
 
