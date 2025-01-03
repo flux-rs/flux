@@ -88,7 +88,7 @@ fn main() -> anyhow::Result<()> {
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let sysroot = local_sysroot_dir()?;
     let Test { filter } = args;
-    let flux = build_binary("rustc-flux", false)?;
+    let flux = build_binary("flux", false)?;
     install_sysroot(&sh, false, &sysroot)?;
 
     let mut cmd = cmd!(sh, "cargo test -p tests -- --flux {flux} --sysroot {sysroot}");
@@ -125,7 +125,7 @@ fn run_inner(
     let sysroot = local_sysroot_dir()?;
 
     install_sysroot(sh, false, &sysroot)?;
-    let flux = build_binary("rustc-flux", false)?;
+    let flux = build_binary("flux", false)?;
 
     let _env = push_env(sh, FLUX_SYSROOT, &sysroot);
     let mut rustc_flags = tests::default_rustc_flags();
