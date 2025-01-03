@@ -1,10 +1,16 @@
 use std::{
     env,
+    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
-use tests::{find_flux_path, FLUX_SYSROOT};
-use xshell::{cmd, Shell};
+use anyhow::anyhow;
+use cargo_metadata::{
+    camino::{Utf8Path, Utf8PathBuf},
+    Artifact, Message, TargetKind,
+};
+use tests::FLUX_SYSROOT;
+use xshell::{cmd, PushEnv, Shell};
 
 xflags::xflags! {
     cmd xtask {
@@ -70,26 +76,28 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Run(args) => run(sh, args),
         XtaskCmd::Install(args) => install(&sh, &args, &extra),
         XtaskCmd::Doc(args) => doc(sh, args),
-        XtaskCmd::BuildSysroot(_) => build_sysroot(&sh),
+        XtaskCmd::BuildSysroot(_) => {
+            install_sysroot(&sh, false, &local_sysroot_dir()?)?;
+            Ok(())
+        }
         XtaskCmd::Uninstall(_) => uninstall(&sh),
         XtaskCmd::Expand(args) => expand(&sh, args),
     }
 }
 
-fn prepare(sh: &Shell) -> Result<(), anyhow::Error> {
-    build_sysroot(sh)?;
-    cmd!(sh, "cargo build").run()?;
-    Ok(())
-}
-
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
+    let sysroot = local_sysroot_dir()?;
     let Test { filter } = args;
-    prepare(&sh)?;
-    if let Some(filter) = filter {
-        cmd!(sh, "cargo test -p tests -- --test-args {filter}").run()?;
-    } else {
-        cmd!(sh, "cargo test -p tests").run()?;
+    let flux = build_binary("rustc-flux", false)?;
+    install_sysroot(&sh, false, &sysroot)?;
+
+    let mut cmd = cmd!(sh, "cargo test -p tests -- --flux {flux} --sysroot {sysroot}");
+
+    if let Some(filter) = &filter {
+        cmd = cmd.args(["--filter", filter]);
     }
+    cmd.run()?;
+
     Ok(())
 }
 
@@ -114,66 +122,34 @@ fn run_inner(
     input: PathBuf,
     flags: impl IntoIterator<Item = String>,
 ) -> Result<(), anyhow::Error> {
-    prepare(sh)?;
-    let flux_path = find_flux_path();
-    let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
+    let sysroot = local_sysroot_dir()?;
+
+    install_sysroot(sh, false, &sysroot)?;
+    let flux = build_binary("rustc-flux", false)?;
+
+    let _env = push_env(sh, FLUX_SYSROOT, &sysroot);
     let mut rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
-    cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;
+    cmd!(sh, "{flux} {rustc_flags...} {input}").run()?;
     Ok(())
 }
 
 fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
+    install_sysroot(sh, args.is_release(), &default_sysroot_dir())?;
     cmd!(sh, "cargo install --path crates/flux-bin --force {extra...}").run()?;
-    install_driver(sh, args, extra)?;
-    install_libs(sh, args, extra)?;
-
-    Ok(())
-}
-
-fn install_driver(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
-    let out_dir = default_sysroot_dir();
-    if args.is_release() {
-        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --artifact-dir {out_dir} {extra...}")
-            .run()?;
-    } else {
-        cmd!(
-            sh,
-            "cargo build -Zunstable-options --bin flux-driver --artifact-dir {out_dir} {extra...}"
-        )
-        .run()?;
-    }
-    Ok(())
-}
-
-fn install_libs(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
-    let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
-    println!("$ export FLUX_BUILD_SYSROOT=1");
-
-    let out_dir = default_sysroot_dir();
-    if args.is_release() {
-        cmd!(
-            sh,
-            "cargo build -Zunstable-options --release -p flux-rs --artifact-dir {out_dir} {extra...}"
-        )
-        .run()?;
-    } else {
-        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --artifact-dir {out_dir} {extra...}")
-            .run()?;
-    }
     Ok(())
 }
 
 fn uninstall(sh: &Shell) -> anyhow::Result<()> {
     cmd!(sh, "cargo uninstall -p flux-bin").run()?;
-    println!("$ rm -rf ~/.flux");
-    std::fs::remove_dir_all(default_sysroot_dir())?;
+    eprintln!("$ rm -rf ~/.flux");
+    sh.remove_path(default_sysroot_dir())?;
     Ok(())
 }
 
 fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
-    let _env = sh.push_env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
+    let _env = push_env(&sh, "RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
     cmd!(sh, "cargo doc --workspace --document-private-items --no-deps").run()?;
     if args.open {
         opener::open("target/doc/index.html")?;
@@ -191,11 +167,62 @@ fn project_root() -> PathBuf {
     .to_path_buf()
 }
 
-fn build_sysroot(sh: &Shell) -> anyhow::Result<()> {
-    let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
-    println!("$ export FLUX_BUILD_SYSROOT=1");
-    cmd!(sh, "cargo build -p flux-rs").run()?;
+fn build_binary(bin: &str, release: bool) -> anyhow::Result<Utf8PathBuf> {
+    run_cargo("cargo", |cmd| {
+        cmd.args(["build", "--bin", bin]);
+        if release {
+            cmd.arg("--release");
+        }
+        cmd
+    })?
+    .into_iter()
+    .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
+    .ok_or_else(|| anyhow!("cannot find binary: `{bin}`"))?
+    .executable
+    .ok_or_else(|| anyhow!("cannot find binary: `{bin}"))
+}
+
+fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<()> {
+    sh.remove_path(sysroot)?;
+    sh.create_dir(sysroot)?;
+
+    copy_file(sh, build_binary("flux-driver", release)?, sysroot)?;
+
+    let artifacts = run_cargo(build_binary("cargo-flux", release)?, |cmd| {
+        cmd.args(["flux", "-p", "flux-rs"])
+            .env(FLUX_SYSROOT, sysroot)
+    })?;
+
+    copy_artifacts(sh, &artifacts, sysroot)?;
     Ok(())
+}
+
+fn copy_artifacts(sh: &Shell, artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
+    for artifact in artifacts {
+        if !is_flux_lib(artifact) {
+            continue;
+        }
+
+        for filename in &artifact.filenames {
+            copy_artifact(sh, filename, sysroot)?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_artifact(sh: &Shell, filename: &Utf8Path, dst: &Path) -> anyhow::Result<()> {
+    copy_file(sh, filename, dst)?;
+    if filename.extension() == Some("rmeta") {
+        let fluxmeta = filename.with_extension("fluxmeta");
+        if sh.path_exists(&fluxmeta) {
+            copy_file(sh, &fluxmeta, dst)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_flux_lib(artifact: &Artifact) -> bool {
+    ["flux_rs", "flux_attrs"].contains(&&artifact.target.name[..])
 }
 
 impl Install {
@@ -208,4 +235,77 @@ fn default_sysroot_dir() -> PathBuf {
     home::home_dir()
         .expect("Couldn't find home directory")
         .join(".flux")
+}
+
+fn local_sysroot_dir() -> anyhow::Result<PathBuf> {
+    Ok(Path::new(file!())
+        .canonicalize()?
+        .ancestors()
+        .nth(3)
+        .unwrap()
+        .join("sysroot"))
+}
+
+fn run_cargo<S: AsRef<OsStr>>(
+    cargo_path: S,
+    f: impl FnOnce(&mut std::process::Command) -> &mut std::process::Command,
+) -> anyhow::Result<Vec<Artifact>> {
+    let mut cmd = std::process::Command::new(cargo_path);
+
+    f(&mut cmd);
+
+    cmd.arg("--message-format=json-render-diagnostics")
+        .stdout(std::process::Stdio::piped());
+
+    display_command(&cmd);
+
+    let mut child = cmd.spawn()?;
+
+    let mut artifacts = vec![];
+    let reader = std::io::BufReader::new(child.stdout.take().unwrap());
+    for message in cargo_metadata::Message::parse_stream(reader) {
+        match message.unwrap() {
+            Message::CompilerMessage(msg) => {
+                println!("{msg}");
+            }
+            Message::CompilerArtifact(artifact) => {
+                artifacts.push(artifact);
+            }
+            _ => (),
+        }
+    }
+
+    child.wait()?;
+
+    Ok(artifacts)
+}
+
+fn display_command(cmd: &std::process::Command) {
+    for var in cmd.get_envs() {
+        if let Some(val) = var.1 {
+            eprintln!("$ export {}={}", var.0.to_string_lossy(), val.to_string_lossy());
+        }
+    }
+
+    let prog = cmd.get_program();
+    eprint!("$ {}", prog.to_string_lossy());
+    for arg in cmd.get_args() {
+        eprint!(" {}", arg.to_string_lossy());
+    }
+    eprintln!();
+}
+
+fn push_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(sh: &Shell, key: K, val: V) -> PushEnv {
+    let key = key.as_ref();
+    let val = val.as_ref();
+    eprintln!("$ export {}={}", key.to_string_lossy(), val.to_string_lossy());
+    sh.push_env(key, val)
+}
+
+fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyhow::Result<()> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    eprintln!("$ cp {} {}", src.to_string_lossy(), dst.to_string_lossy());
+    sh.copy_file(src, dst)?;
+    Ok(())
 }
