@@ -8,7 +8,6 @@ edition = "2021"
 
 [workspace.dependencies]
 flux-arc-interner = { path = "./crates/flux-arc-interner", version = "0.1.0" }
-flux-attrs = { path = "./crates/flux-attrs", version = "0.1.0" }
 flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }

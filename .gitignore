@@ -3,3 +3,4 @@ target
 .liquid
 *.dot
 log
+sysroot/

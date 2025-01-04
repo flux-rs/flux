@@ -13,6 +13,7 @@ anyhow = "1.0.79"
 opener = "0.6.1"
 xflags = "0.3.2"
 xshell = "0.2.5"
+cargo_metadata = "0.19.1"
 
 [lints]
 workspace = true

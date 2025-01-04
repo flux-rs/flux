@@ -13,7 +13,7 @@ fn main() {
     let exit_code = match run() {
         Ok(code) => code,
         Err(e) => {
-            println!("Failed to run rustc-flux, error={e}");
+            println!("failed to run `flux`, error={e}");
             EXIT_ERR
         }
     };
@@ -27,7 +27,7 @@ fn run() -> Result<i32> {
     let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
 
     let exit_code = Command::new(flux_driver_path)
-        // Skip the invocation of rustc-flux itself
+        // Skip the invocation of `flux` itself
         .args(env::args().skip(1))
         .arg("-L")
         .arg(sysroot_dir())
