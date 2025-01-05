@@ -7,12 +7,12 @@
 # watch out for breaking changes
 
 # uses official haskell image containing cabal and stack by default
-ARG FIXPOINT_BUILDER="docker.io/library/haskell:9.10.1-slim-bullseye"
+ARG FIXPOINT_BUILDER="docker.io/library/haskell:9.10.1-bullseye"
 
 # ARG BASE_IMAGE requirements:
 # - debian-based because it uses apt-get to install z3
 # - cargo is available
-ARG BASE_IMAGE="docker.io/library/rust:1.83-slim-bullseye"
+ARG BASE_IMAGE="docker.io/library/rust:1.83-bullseye"
 
 FROM $FIXPOINT_BUILDER as fixpoint-builder
 WORKDIR /
