@@ -4,7 +4,7 @@ Flux is implemented as a compiler [driver](https://rustc-dev-guide.rust-lang.org
 
 ## Crates
 
-- `crates/flux-bin`: Contains the `cargo-flux` and `rustc-flux` binaries used to launch the `flux-driver`.
+- `crates/flux-bin`: Contains the `cargo-flux` and `flux` binaries used to launch the `flux-driver`.
 - `crates/flux-common`: Common utility definitions used across all crates.
 - `crates/flux-config`: Crate containing logic associated with global configuration flags that change the behavior of Flux, e.g, to enable or disable overflow checking.
 - `crates/flux-desugar`: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (`fhir`). This includes name resolution.

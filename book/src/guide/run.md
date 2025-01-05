@@ -2,27 +2,27 @@
 
 You can run `flux` on a single file or entire crate.
 
-## Running on a File: `rustc-flux`
+## Running on a File: `flux`
 
-You can use `rustc-flux` as you would use `rustc`.
+You can use `flux` as you would use `rustc`.
 For example, the following command checks the file `test.rs`.
 
 ```bash
-rustc-flux path/to/test.rs
+flux path/to/test.rs
 ```
 
 The flux binary accepts the same flags as `rustc`.
 You could for example check a file as a library instead of a binary like so
 
 ```bash
-rustc-flux --crate-type=lib path/to/test.rs
+flux --crate-type=lib path/to/test.rs
 ```
 
 ### Refinement Annotations on a File
 
-When running flux on a file with `rustc-flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`.
+When running flux on a file with `flux path/to/test.rs`, refinement annotations should be prefixed with `flux::`.
 
-For example, the refinement below will only work when running `rustc-flux` which is intended for use on a single file.
+For example, the refinement below will only work when running `flux` which is intended for use on a single file.
 
 ```rust
 #[flux::sig(fn(x: i32) -> i32{v: x < v})]
@@ -85,7 +85,7 @@ pub fn inc(x: i32) -> i32 {
 You can save the above snippet in say `test0.rs` and then run
 
 ```bash
-rustc-flux --crate-type=lib path/to/test0.rs
+flux --crate-type=lib path/to/test0.rs
 ```
 
 you should see in your output
@@ -113,11 +113,11 @@ driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver
 (similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of `librustc`. Thus, to avoid the
-hassle you should never execute it directly. Instead, use `rustc-flux` or `cargo-flux`.
+hassle you should never execute it directly. Instead, use `flux` or `cargo-flux`.
 
 ## Editor Support
 
-This section assumes you have installed `flux`, `cargo-flux`, and `rustc-flux`.
+This section assumes you have installed `cargo-flux`.
 
 ### Rust-Analyzer in VSCode
 
@@ -144,8 +144,6 @@ You can set various `env` variables to customize the behavior of `flux`.
 
 - `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
   - By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
-- `FLUX_SYSROOT` tells `cargo-flux` and `rustc-flux` where to find the `flux-driver` binary.
-  - Defaults to the default installation location in `~/.flux`.
 - `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
 - `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
 - `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
