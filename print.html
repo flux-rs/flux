@@ -169,7 +169,7 @@ time.</p>
 </ul>
 <p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your <code>$PATH</code>.</p>
 <h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
-<p>The only way to use <code>flux</code> is to build it from source.</p>
+<p>The only way to use Flux is to build it from source.</p>
 <p>First you need to clone the repository</p>
 <pre><code class="language-bash">git clone https://github.com/flux-rs/flux
 cd flux
@@ -180,23 +180,23 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo xtask install
 </code></pre>
-<p>This will install two binaries <code>rustc-flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
-respectively to run flux on either a single file or on a project using cargo. The installation process will
+<p>This will install two binaries <code>flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
+respectively to run Flux on either a single file or on a project using cargo. The installation process will
 also copy some files to <code>$HOME/.flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
 <p>You can run <code>flux</code> on a single file or entire crate.</p>
-<h2 id="running-on-a-file-rustc-flux"><a class="header" href="#running-on-a-file-rustc-flux">Running on a File: <code>rustc-flux</code></a></h2>
-<p>You can use <code>rustc-flux</code> as you would use <code>rustc</code>.
+<h2 id="running-on-a-file-flux"><a class="header" href="#running-on-a-file-flux">Running on a File: <code>flux</code></a></h2>
+<p>You can use <code>flux</code> as you would use <code>rustc</code>.
 For example, the following command checks the file <code>test.rs</code>.</p>
-<pre><code class="language-bash">rustc-flux path/to/test.rs
+<pre><code class="language-bash">flux path/to/test.rs
 </code></pre>
 <p>The flux binary accepts the same flags as <code>rustc</code>.
 You could for example check a file as a library instead of a binary like so</p>
-<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
+<pre><code class="language-bash">flux --crate-type=lib path/to/test.rs
 </code></pre>
 <h3 id="refinement-annotations-on-a-file"><a class="header" href="#refinement-annotations-on-a-file">Refinement Annotations on a File</a></h3>
-<p>When running flux on a file with <code>rustc-flux path/to/test.rs</code>, refinement annotations should be prefixed with <code>flux::</code>.</p>
-<p>For example, the refinement below will only work when running <code>rustc-flux</code> which is intended for use on a single file.</p>
+<p>When running flux on a file with <code>flux path/to/test.rs</code>, refinement annotations should be prefixed with <code>flux::</code>.</p>
+<p>For example, the refinement below will only work when running <code>flux</code> which is intended for use on a single file.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
@@ -242,7 +242,7 @@ pub fn inc(x: i32) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>You can save the above snippet in say <code>test0.rs</code> and then run</p>
-<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test0.rs
+<pre><code class="language-bash">flux --crate-type=lib path/to/test0.rs
 </code></pre>
 <p>you should see in your output</p>
 <pre><code class="language-text">error[FLUX]: postcondition might not hold
@@ -262,9 +262,9 @@ driver</a>
 (similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
-hassle you should never execute it directly. Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
+hassle you should never execute it directly. Instead, use <code>flux</code> or <code>cargo-flux</code>.</p>
 <h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
-<p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
+<p>This section assumes you have installed <code>cargo-flux</code>.</p>
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
@@ -284,11 +284,6 @@ hassle you should never execute it directly. Instead, use <code>rustc-flux</code
 <li><code>FLUX_CONFIG</code> tells <code>flux</code> where to find a config file for these settings.
 <ul>
 <li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
-</ul>
-</li>
-<li><code>FLUX_SYSROOT</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux-driver</code> binary.
-<ul>
-<li>Defaults to the default installation location in <code>~/.flux</code>.</li>
 </ul>
 </li>
 <li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
@@ -677,16 +672,6 @@ To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 -Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   &lt;------- this
 </code></pre>
 <p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
-<h2 id="running-outside-the-project"><a class="header" href="#running-outside-the-project">Running outside the project</a></h2>
-<p>To run Flux in a package outside the flux repo you need to install the binaries globally. You can
-do that using <code>cargo xtask install</code>. If you are continuously testing new changes it could be annoying
-to do it each time. To deal with this, you can set the <code>FLUX_SYSROOT</code> environment variable to change the
-location where <code>cargo-flux</code> and <code>rustc-flux</code> load the <code>flux-driver</code>. You can set it globally to point
-to the <code>target/debug</code> directory inside your local copy of the repo. This way you won't have to run
-<code>cargo xtask install</code> after every change, and you can be sure you'll be using the latest local debug
-build. Just be aware that the <code>rustc-flux</code> and <code>cargo-flux</code> binaries are built for a specific toolchain,
-and you will get a dynamic linking error if the <code>flux-driver</code> was compiled with a different one. This
-is to say, you should at least run <code>cargo xtask install</code> every time after the toolchain is updated.</p>
 <h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
@@ -784,7 +769,7 @@ python3  path/to/flux/tools/logreader.py
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
 <h2 id="crates"><a class="header" href="#crates">Crates</a></h2>
 <ul>
-<li><code>crates/flux-bin</code>: Contains the <code>cargo-flux</code> and <code>rustc-flux</code> binaries used to launch the <code>flux-driver</code>.</li>
+<li><code>crates/flux-bin</code>: Contains the <code>cargo-flux</code> and <code>flux</code> binaries used to launch the <code>flux-driver</code>.</li>
 <li><code>crates/flux-common</code>: Common utility definitions used across all crates.</li>
 <li><code>crates/flux-config</code>: Crate containing logic associated with global configuration flags that change the behavior of Flux, e.g, to enable or disable overflow checking.</li>
 <li><code>crates/flux-desugar</code>: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (<code>fhir</code>). This includes name resolution.</li>

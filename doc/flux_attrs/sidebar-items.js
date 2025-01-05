@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FLUX_ATTRS"],"fn":["defs","extern_spec","flux","flux_tool_attrs","flux_tool_item_attr","is_flux_attr","path_is_one_of","path_of_attr_mut","refined_by","refined_by_enum","refined_by_struct","tokens_or_default","transform_flux_attr"],"mod":["ast","extern_spec"]};
+window.SIDEBAR_ITEMS = {"attr":["alias","assoc","constant","extern_spec","generics","ignore","invariant","opaque","opts","qualifiers","refined_by","should_fail","sig","spec","trusted","trusted_impl"],"macro":["defs","flux"],"mod":["attr_dummy"]};

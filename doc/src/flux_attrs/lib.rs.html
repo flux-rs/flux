@@ -143,149 +143,225 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a></pre></div><pre class="rust"><code><span class="kw">mod </span>ast;
-<span class="kw">mod </span>extern_spec;
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
+</span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
+<span class="attr">#[cfg(flux_sysroot)]
+</span><span class="kw">use </span>attr_sysroot <span class="kw">as </span>attr_impl;
+<span class="kw">use </span>proc_macro::TokenStream;
 
-<span class="kw">use </span>proc_macro2::{Ident, TokenStream, TokenTree};
-<span class="kw">use </span>quote::{quote, quote_spanned, ToTokens};
-<span class="kw">use </span>syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
-
-<span class="kw">pub const </span>FLUX_ATTRS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
-    <span class="string">"assoc"</span>,
-    <span class="string">"field"</span>,
-    <span class="string">"generics"</span>,
-    <span class="string">"invariant"</span>,
-    <span class="string">"opaque"</span>,
-    <span class="string">"refined_by"</span>,
-    <span class="string">"sig"</span>,
-    <span class="string">"trusted"</span>,
-    <span class="string">"trusted_impl"</span>,
-    <span class="string">"variant"</span>,
-    <span class="string">"should_fail"</span>,
-    <span class="string">"opts"</span>,
-];
-
-<span class="kw">pub fn </span>extern_spec(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
-    extern_spec::transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>alias(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::alias(attr, tokens)
 }
 
-<span class="kw">pub fn </span>flux_tool_item_attr(name: <span class="kw-2">&amp;</span>str, attr: TokenStream, item: TokenStream) -&gt; TokenStream {
-    <span class="comment">// I don't really know what I'm doing here, but spanning the quote with the item's span seems
-    // to behave correctly.
-    </span><span class="kw">let </span>span = item.span();
-    <span class="kw">let </span>name = TokenTree::Ident(Ident::new(name, span));
-    <span class="kw">if </span>attr.is_empty() {
-        <span class="macro">quote_spanned!</span> {span=&gt;
-            <span class="attr">#[flux_tool::#name]
-            </span>#item
-        }
-    } <span class="kw">else </span>{
-        <span class="macro">quote_spanned!</span> {span=&gt;
-            <span class="attr">#[flux_tool::#name(#attr)]
-            </span>#item
-        }
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>sig(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::sig(attr, tokens)
 }
 
-<span class="kw">pub fn </span>refined_by(attr: TokenStream, item: TokenStream) -&gt; TokenStream {
-    <span class="kw">let </span>span = item.span();
-    <span class="kw">let </span><span class="kw-2">mut </span>item = <span class="kw">match </span>syn::parse2::&lt;syn::Item&gt;(item) {
-        <span class="prelude-val">Ok</span>(item) =&gt; item,
-        <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span>err.to_compile_error(),
-    };
-
-    <span class="kw">match </span><span class="kw-2">&amp;mut </span>item {
-        syn::Item::Enum(item_enum) =&gt; refined_by_enum(item_enum),
-        syn::Item::Struct(item_struct) =&gt; refined_by_struct(item_struct),
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span>syn::Error::new(span, <span class="string">"expected struct or enum"</span>).to_compile_error(),
-    }
-
-    <span class="kw">if </span><span class="macro">cfg!</span>(flux_sysroot) {
-        <span class="macro">quote_spanned!</span> {span=&gt;
-            <span class="attr">#[flux_tool::refined_by(#attr)]
-            </span>#item
-        }
-    } <span class="kw">else </span>{
-        item.to_token_stream()
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>spec(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::spec(attr, tokens)
 }
 
-<span class="kw">fn </span>refined_by_enum(item_enum: <span class="kw-2">&amp;mut </span>ItemEnum) {
-    <span class="kw">for </span>variant <span class="kw">in </span><span class="kw-2">&amp;mut </span>item_enum.variants {
-        flux_tool_attrs(<span class="kw-2">&amp;mut </span>variant.attrs);
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>qualifiers(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::qualifiers(attr, tokens)
 }
 
-<span class="kw">fn </span>refined_by_struct(item_struct: <span class="kw-2">&amp;mut </span>ItemStruct) {
-    <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;mut </span>item_struct.fields {
-        flux_tool_attrs(<span class="kw-2">&amp;mut </span>field.attrs);
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>refined_by(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::refined_by(attr, tokens)
 }
 
-<span class="kw">fn </span>flux_tool_attrs(attrs: <span class="kw-2">&amp;mut </span>Vec&lt;Attribute&gt;) {
-    <span class="kw">if </span><span class="macro">cfg!</span>(flux_sysroot) {
-        <span class="kw">for </span>attr <span class="kw">in </span>attrs {
-            transform_flux_attr(attr);
-        }
-    } <span class="kw">else </span>{
-        attrs.retain(|attr| !is_flux_attr(attr));
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>invariant(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::invariant(attr, tokens)
 }
 
-<span class="kw">fn </span>path_is_one_of(path: <span class="kw-2">&amp;</span>syn::Path, idents: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; bool {
-    idents.iter().any(|ident| path.is_ident(ident))
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>constant(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::constant(attr, tokens)
 }
 
-<span class="kw">fn </span>is_flux_attr(attr: <span class="kw-2">&amp;</span>syn::Attribute) -&gt; bool {
-    <span class="kw">let </span>path = attr.path();
-    <span class="kw">if </span>path.segments.len() &gt;= <span class="number">2 </span>{
-        <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>path.segments[<span class="number">0</span>].ident;
-        ident == <span class="string">"flux" </span>|| ident == <span class="string">"flux_rs"
-    </span>} <span class="kw">else </span>{
-        path_is_one_of(path, FLUX_ATTRS)
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>opaque(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::opaque(attr, tokens)
 }
 
-<span class="kw">fn </span>transform_flux_attr(attr: <span class="kw-2">&amp;mut </span>syn::Attribute) {
-    <span class="kw">let </span>path = path_of_attr_mut(attr);
-    <span class="kw">if </span>path.leading_colon.is_some() {
-        <span class="kw">return</span>;
-    }
-    <span class="kw">if </span>path.segments.len() &gt;= <span class="number">2 </span>{
-        <span class="kw">let </span>ident = <span class="kw-2">&amp;mut </span>path.segments[<span class="number">0</span>].ident;
-        <span class="kw">if </span>ident == <span class="string">"flux" </span>|| ident == <span class="string">"flux_rs" </span>{
-            <span class="kw-2">*</span>ident = Ident::new(<span class="string">"flux_tool"</span>, ident.span());
-        }
-        <span class="kw">return</span>;
-    } <span class="kw">else if </span>path_is_one_of(path, FLUX_ATTRS) {
-        <span class="kw-2">*</span>path = <span class="macro">parse_quote!</span>(flux_tool::#path);
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>opts(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::opts(attr, tokens)
 }
 
-<span class="kw">fn </span>path_of_attr_mut(attr: <span class="kw-2">&amp;mut </span>Attribute) -&gt; <span class="kw-2">&amp;mut </span>syn::Path {
-    <span class="kw">match </span><span class="kw-2">&amp;mut </span>attr.meta {
-        syn::Meta::Path(path) =&gt; path,
-        syn::Meta::List(metalist) =&gt; <span class="kw-2">&amp;mut </span>metalist.path,
-        syn::Meta::NameValue(namevalue) =&gt; <span class="kw-2">&amp;mut </span>namevalue.path,
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>trusted(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::trusted(attr, tokens)
 }
 
-<span class="kw">pub fn </span>flux(tokens: TokenStream) -&gt; TokenStream {
-    syn::parse2::&lt;ast::Items&gt;(tokens)
-        .map_or_else(|err| err.to_compile_error(), ToTokens::into_token_stream)
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>trusted_impl(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::trusted_impl(attr, tokens)
 }
 
-<span class="kw">pub fn </span>defs(tokens: TokenStream) -&gt; TokenStream {
-    <span class="macro">quote!</span> {
-        <span class="attr">#[flux::defs { #tokens }]
-        </span><span class="kw">const _</span>: () = {};
-    }
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>generics(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::generics(attr, tokens)
 }
 
-<span class="kw">pub fn </span>tokens_or_default&lt;T: ToTokens + Default&gt;(x: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;, tokens: <span class="kw-2">&amp;mut </span>TokenStream) {
-    <span class="kw">match </span>x {
-        <span class="prelude-val">Some</span>(t) =&gt; t.to_tokens(tokens),
-        <span class="prelude-val">None </span>=&gt; T::default().to_tokens(tokens),
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>assoc(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::assoc(attr, tokens)
+}
+
+<span class="attr">#[proc_macro]
+</span><span class="kw">pub fn </span>flux(tokens: TokenStream) -&gt; TokenStream {
+    flux_attrs_impl::flux(tokens.into()).into()
+}
+
+<span class="attr">#[proc_macro]
+</span><span class="kw">pub fn </span>defs(tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::defs(tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>extern_spec(attrs: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::extern_spec(attrs, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>ignore(attrs: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::ignore(attrs, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>should_fail(attrs: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::should_fail(attrs, tokens)
+}
+
+<span class="attr">#[cfg(flux_sysroot)]
+</span><span class="kw">mod </span>attr_sysroot {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">pub fn </span>extern_spec(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+        flux_attrs_impl::extern_spec(attr.into(), tokens.into()).into()
     }
+
+    <span class="kw">pub fn </span>refined_by(attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+        flux_attrs_impl::refined_by(attr.into(), item.into()).into()
+    }
+
+    <span class="kw">pub fn </span>defs(tokens: TokenStream) -&gt; TokenStream {
+        flux_attrs_impl::defs(tokens.into()).into()
+    }
+
+    <span class="macro">macro_rules!</span> flux_tool_attrs {
+        ($(<span class="macro-nonterminal">$name</span>:ident),+ $(,)<span class="question-mark">?</span>) =&gt; {
+            $(
+            <span class="kw">pub fn </span><span class="macro-nonterminal">$name</span>(attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+                flux_attrs_impl::flux_tool_item_attr(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$name</span>), attr.into(), item.into()).into()
+            }
+            )*
+        };
+    }
+
+    <span class="macro">flux_tool_attrs!</span>(
+        alias,
+        spec,
+        sig,
+        qualifiers,
+        constant,
+        invariant,
+        opaque,
+        opts,
+        trusted,
+        trusted_impl,
+        generics,
+        assoc,
+        ignore,
+        should_fail
+    );
+}
+
+<span class="attr">#[cfg(not(flux_sysroot))]
+</span><span class="kw">mod </span>attr_dummy {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">pub fn </span>refined_by(attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+        flux_attrs_impl::refined_by(attr.into(), item.into()).into()
+    }
+
+    <span class="kw">pub fn </span>defs(_tokens: TokenStream) -&gt; TokenStream {
+        TokenStream::new()
+    }
+
+    <span class="kw">pub fn </span>extern_spec(_attrs: TokenStream, _tokens: TokenStream) -&gt; TokenStream {
+        TokenStream::new()
+    }
+
+    <span class="macro">macro_rules!</span> no_op {
+        ($(<span class="macro-nonterminal">$name</span>:ident),+ $(,)<span class="question-mark">?</span>) =&gt; {
+            $(
+            <span class="kw">pub fn </span><span class="macro-nonterminal">$name</span>(_attr: TokenStream, item: TokenStream) -&gt; TokenStream {
+                item
+            }
+            )+
+        };
+    }
+
+    <span class="macro">no_op!</span>(
+        alias,
+        spec,
+        sig,
+        qualifiers,
+        invariant,
+        constant,
+        opaque,
+        opts,
+        trusted,
+        trusted_impl,
+        generics,
+        assoc,
+        ignore,
+        should_fail,
+    );
 }
 </code></pre></div></section></main></body></html>

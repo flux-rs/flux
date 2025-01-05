@@ -209,13 +209,119 @@
 <a href="#208" id="208">208</a>
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
+    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
-<span class="kw">use </span>tests::{find_flux_path, FLUX_SYSROOT};
-<span class="kw">use </span>xshell::{cmd, Shell};
+<span class="kw">use </span>anyhow::anyhow;
+<span class="kw">use </span>cargo_metadata::{
+    camino::{Utf8Path, Utf8PathBuf},
+    Artifact, Message, TargetKind,
+};
+<span class="kw">use </span>tests::FLUX_SYSROOT;
+<span class="kw">use </span>xshell::{cmd, PushEnv, Shell};
 
 <span class="macro">xflags::xflags!</span> {
     cmd xtask {
@@ -281,26 +387,28 @@
         XtaskCmd::Run(args) =&gt; run(sh, args),
         XtaskCmd::Install(args) =&gt; install(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>extra),
         XtaskCmd::Doc(args) =&gt; doc(sh, args),
-        XtaskCmd::BuildSysroot(<span class="kw">_</span>) =&gt; build_sysroot(<span class="kw-2">&amp;</span>sh),
+        XtaskCmd::BuildSysroot(<span class="kw">_</span>) =&gt; {
+            install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>local_sysroot_dir()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(())
+        }
         XtaskCmd::Uninstall(<span class="kw">_</span>) =&gt; uninstall(<span class="kw-2">&amp;</span>sh),
         XtaskCmd::Expand(args) =&gt; expand(<span class="kw-2">&amp;</span>sh, args),
     }
 }
 
-<span class="kw">fn </span>prepare(sh: <span class="kw-2">&amp;</span>Shell) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-    build_sysroot(sh)<span class="question-mark">?</span>;
-    <span class="macro">cmd!</span>(sh, <span class="string">"cargo build"</span>).run()<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(())
-}
-
 <span class="kw">fn </span>test(sh: Shell, args: Test) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">let </span>sysroot = local_sysroot_dir()<span class="question-mark">?</span>;
     <span class="kw">let </span>Test { filter } = args;
-    prepare(<span class="kw-2">&amp;</span>sh)<span class="question-mark">?</span>;
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(filter) = filter {
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p tests -- --test-args {filter}"</span>).run()<span class="question-mark">?</span>;
-    } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p tests"</span>).run()<span class="question-mark">?</span>;
+    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+    install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span><span class="kw-2">mut </span>cmd = <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p tests -- --flux {flux} --sysroot {sysroot}"</span>);
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(filter) = <span class="kw-2">&amp;</span>filter {
+        cmd = cmd.args([<span class="string">"--filter"</span>, filter]);
     }
+    cmd.run()<span class="question-mark">?</span>;
+
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -325,66 +433,34 @@
     input: PathBuf,
     flags: <span class="kw">impl </span>IntoIterator&lt;Item = String&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-    prepare(sh)<span class="question-mark">?</span>;
-    <span class="kw">let </span>flux_path = find_flux_path();
-    <span class="kw">let </span>_env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
+    <span class="kw">let </span>sysroot = local_sysroot_dir()<span class="question-mark">?</span>;
+
+    install_sysroot(sh, <span class="bool-val">false</span>, <span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
+    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>_env = push_env(sh, FLUX_SYSROOT, <span class="kw-2">&amp;</span>sysroot);
     <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
-    <span class="macro">cmd!</span>(sh, <span class="string">"{flux_path} {rustc_flags...} {input}"</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">"{flux} {rustc_flags...} {input}"</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
+    install_sysroot(sh, args.is_release(), <span class="kw-2">&amp;</span>default_sysroot_dir())<span class="question-mark">?</span>;
     <span class="macro">cmd!</span>(sh, <span class="string">"cargo install --path crates/flux-bin --force {extra...}"</span>).run()<span class="question-mark">?</span>;
-    install_driver(sh, args, extra)<span class="question-mark">?</span>;
-    install_libs(sh, args, extra)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>out_dir = default_sysroot_dir();
-    <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --release --artifact-dir {out_dir} {extra...}"</span>)
-            .run()<span class="question-mark">?</span>;
-    } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(
-            sh,
-            <span class="string">"cargo build -Zunstable-options --bin flux-driver --artifact-dir {out_dir} {extra...}"
-        </span>)
-        .run()<span class="question-mark">?</span>;
-    }
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
-    <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
-
-    <span class="kw">let </span>out_dir = default_sysroot_dir();
-    <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(
-            sh,
-            <span class="string">"cargo build -Zunstable-options --release -p flux-rs --artifact-dir {out_dir} {extra...}"
-        </span>)
-        .run()<span class="question-mark">?</span>;
-    } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options -p flux-rs --artifact-dir {out_dir} {extra...}"</span>)
-            .run()<span class="question-mark">?</span>;
-    }
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>uninstall(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
     <span class="macro">cmd!</span>(sh, <span class="string">"cargo uninstall -p flux-bin"</span>).run()<span class="question-mark">?</span>;
-    <span class="macro">println!</span>(<span class="string">"$ rm -rf ~/.flux"</span>);
-    std::fs::remove_dir_all(default_sysroot_dir())<span class="question-mark">?</span>;
+    <span class="macro">eprintln!</span>(<span class="string">"$ rm -rf ~/.flux"</span>);
+    sh.remove_path(default_sysroot_dir())<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>doc(sh: Shell, args: Doc) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>_env = sh.push_env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>);
+    <span class="kw">let </span>_env = push_env(<span class="kw-2">&amp;</span>sh, <span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>);
     <span class="macro">cmd!</span>(sh, <span class="string">"cargo doc --workspace --document-private-items --no-deps"</span>).run()<span class="question-mark">?</span>;
     <span class="kw">if </span>args.open {
         opener::open(<span class="string">"target/doc/index.html"</span>)<span class="question-mark">?</span>;
@@ -402,11 +478,62 @@
     .to_path_buf()
 }
 
-<span class="kw">fn </span>build_sysroot(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
-    <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
-    <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -p flux-rs"</span>).run()<span class="question-mark">?</span>;
+<span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, release: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
+    run_cargo(<span class="string">"cargo"</span>, |cmd| {
+        cmd.args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin]);
+        <span class="kw">if </span>release {
+            cmd.arg(<span class="string">"--release"</span>);
+        }
+        cmd
+    })<span class="question-mark">?
+    </span>.into_iter()
+    .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
+    .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}`"</span>))<span class="question-mark">?
+    </span>.executable
+    .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}"</span>))
+}
+
+<span class="kw">fn </span>install_sysroot(sh: <span class="kw-2">&amp;</span>Shell, release: bool, sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+    sh.remove_path(sysroot)<span class="question-mark">?</span>;
+    sh.create_dir(sysroot)<span class="question-mark">?</span>;
+
+    copy_file(sh, build_binary(<span class="string">"flux-driver"</span>, release)<span class="question-mark">?</span>, sysroot)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>artifacts = run_cargo(build_binary(<span class="string">"cargo-flux"</span>, release)<span class="question-mark">?</span>, |cmd| {
+        cmd.args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>])
+            .env(FLUX_SYSROOT, sysroot)
+    })<span class="question-mark">?</span>;
+
+    copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, sysroot)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>copy_artifacts(sh: <span class="kw-2">&amp;</span>Shell, artifacts: <span class="kw-2">&amp;</span>[Artifact], sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">for </span>artifact <span class="kw">in </span>artifacts {
+        <span class="kw">if </span>!is_flux_lib(artifact) {
+            <span class="kw">continue</span>;
+        }
+
+        <span class="kw">for </span>filename <span class="kw">in </span><span class="kw-2">&amp;</span>artifact.filenames {
+            copy_artifact(sh, filename, sysroot)<span class="question-mark">?</span>;
+        }
+    }
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>copy_artifact(sh: <span class="kw-2">&amp;</span>Shell, filename: <span class="kw-2">&amp;</span>Utf8Path, dst: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
+    copy_file(sh, filename, dst)<span class="question-mark">?</span>;
+    <span class="kw">if </span>filename.extension() == <span class="prelude-val">Some</span>(<span class="string">"rmeta"</span>) {
+        <span class="kw">let </span>fluxmeta = filename.with_extension(<span class="string">"fluxmeta"</span>);
+        <span class="kw">if </span>sh.path_exists(<span class="kw-2">&amp;</span>fluxmeta) {
+            copy_file(sh, <span class="kw-2">&amp;</span>fluxmeta, dst)<span class="question-mark">?</span>;
+        }
+    }
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>is_flux_lib(artifact: <span class="kw-2">&amp;</span>Artifact) -&gt; bool {
+    [<span class="string">"flux_rs"</span>, <span class="string">"flux_attrs"</span>].contains(&amp;&amp;artifact.target.name[..])
 }
 
 <span class="kw">impl </span>Install {
@@ -419,5 +546,78 @@
     home::home_dir()
         .expect(<span class="string">"Couldn't find home directory"</span>)
         .join(<span class="string">".flux"</span>)
+}
+
+<span class="kw">fn </span>local_sysroot_dir() -&gt; anyhow::Result&lt;PathBuf&gt; {
+    <span class="prelude-val">Ok</span>(Path::new(<span class="macro">file!</span>())
+        .canonicalize()<span class="question-mark">?
+        </span>.ancestors()
+        .nth(<span class="number">3</span>)
+        .unwrap()
+        .join(<span class="string">"sysroot"</span>))
+}
+
+<span class="kw">fn </span>run_cargo&lt;S: AsRef&lt;OsStr&gt;&gt;(
+    cargo_path: S,
+    f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>std::process::Command) -&gt; <span class="kw-2">&amp;mut </span>std::process::Command,
+) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>cmd = std::process::Command::new(cargo_path);
+
+    f(<span class="kw-2">&amp;mut </span>cmd);
+
+    cmd.arg(<span class="string">"--message-format=json-render-diagnostics"</span>)
+        .stdout(std::process::Stdio::piped());
+
+    display_command(<span class="kw-2">&amp;</span>cmd);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>child = cmd.spawn()<span class="question-mark">?</span>;
+
+    <span class="kw">let </span><span class="kw-2">mut </span>artifacts = <span class="macro">vec!</span>[];
+    <span class="kw">let </span>reader = std::io::BufReader::new(child.stdout.take().unwrap());
+    <span class="kw">for </span>message <span class="kw">in </span>cargo_metadata::Message::parse_stream(reader) {
+        <span class="kw">match </span>message.unwrap() {
+            Message::CompilerMessage(msg) =&gt; {
+                <span class="macro">println!</span>(<span class="string">"{msg}"</span>);
+            }
+            Message::CompilerArtifact(artifact) =&gt; {
+                artifacts.push(artifact);
+            }
+            <span class="kw">_ </span>=&gt; (),
+        }
+    }
+
+    child.wait()<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(artifacts)
+}
+
+<span class="kw">fn </span>display_command(cmd: <span class="kw-2">&amp;</span>std::process::Command) {
+    <span class="kw">for </span>var <span class="kw">in </span>cmd.get_envs() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = var.<span class="number">1 </span>{
+            <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, var.<span class="number">0</span>.to_string_lossy(), val.to_string_lossy());
+        }
+    }
+
+    <span class="kw">let </span>prog = cmd.get_program();
+    <span class="macro">eprint!</span>(<span class="string">"$ {}"</span>, prog.to_string_lossy());
+    <span class="kw">for </span>arg <span class="kw">in </span>cmd.get_args() {
+        <span class="macro">eprint!</span>(<span class="string">" {}"</span>, arg.to_string_lossy());
+    }
+    <span class="macro">eprintln!</span>();
+}
+
+<span class="kw">fn </span>push_env&lt;K: AsRef&lt;OsStr&gt;, V: AsRef&lt;OsStr&gt;&gt;(sh: <span class="kw-2">&amp;</span>Shell, key: K, val: V) -&gt; PushEnv {
+    <span class="kw">let </span>key = key.as_ref();
+    <span class="kw">let </span>val = val.as_ref();
+    <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, key.to_string_lossy(), val.to_string_lossy());
+    sh.push_env(key, val)
+}
+
+<span class="kw">fn </span>copy_file&lt;S: AsRef&lt;Path&gt;, D: AsRef&lt;Path&gt;&gt;(sh: <span class="kw-2">&amp;</span>Shell, src: S, dst: D) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">let </span>src = src.as_ref();
+    <span class="kw">let </span>dst = dst.as_ref();
+    <span class="macro">eprintln!</span>(<span class="string">"$ cp {} {}"</span>, src.to_string_lossy(), dst.to_string_lossy());
+    sh.copy_file(src, dst)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div></section></main></body></html>

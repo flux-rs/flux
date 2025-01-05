@@ -157,7 +157,7 @@
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
 <h2 id="crates"><a class="header" href="#crates">Crates</a></h2>
 <ul>
-<li><code>crates/flux-bin</code>: Contains the <code>cargo-flux</code> and <code>rustc-flux</code> binaries used to launch the <code>flux-driver</code>.</li>
+<li><code>crates/flux-bin</code>: Contains the <code>cargo-flux</code> and <code>flux</code> binaries used to launch the <code>flux-driver</code>.</li>
 <li><code>crates/flux-common</code>: Common utility definitions used across all crates.</li>
 <li><code>crates/flux-config</code>: Crate containing logic associated with global configuration flags that change the behavior of Flux, e.g, to enable or disable overflow checking.</li>
 <li><code>crates/flux-desugar</code>: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (<code>fhir</code>). This includes name resolution.</li>
