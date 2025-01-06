@@ -1,13 +1,15 @@
 use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
-use flux_infer::infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult};
+use flux_infer::{
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
+    projections::NormalizeExt as _,
+};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        projections::NormalizeExt as _,
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
         Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },

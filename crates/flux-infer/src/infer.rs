@@ -8,11 +8,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, canonicalize::Hoister, fold::TypeFoldable, projections::NormalizeExt as _, AliasKind,
-        AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid,
-        EarlyBinder, Expr, ExprKind, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List,
-        Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort,
-        Ty, TyKind, Var,
+        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
+        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
+        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
     },
     MaybeExternId,
 };
@@ -28,6 +27,7 @@ use rustc_span::Span;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    projections::NormalizeExt as _,
     refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
 };
 

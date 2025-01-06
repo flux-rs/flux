@@ -1,7 +1,18 @@
 use std::iter;
 
-use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
+use flux_middle::{
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    rty::{
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
+        refining::Refiner,
+        subst::{GenericsSubstDelegate, GenericsSubstFolder},
+        AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
+        EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
+        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
+    },
+};
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
@@ -10,19 +21,6 @@ use rustc_middle::{
     ty::TyCtxt,
 };
 use rustc_trait_selection::traits::SelectionContext;
-
-use super::{
-    fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    subst::{GenericsSubstDelegate, GenericsSubstFolder},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor,
-    Ty, TyKind,
-};
-use crate::{
-    global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult},
-    rty::{fold::TypeVisitable, refining::Refiner},
-};
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections<'tcx>(
@@ -616,7 +614,7 @@ impl TVarSubst {
     }
 
     fn consts(&mut self, a: &Const, b: &Const) {
-        if let super::ConstKind::Param(param_const) = a.kind {
+        if let ConstKind::Param(param_const) = a.kind {
             self.insert_generic_arg(param_const.index, GenericArg::Const(b.clone()));
         }
     }

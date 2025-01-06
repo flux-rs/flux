@@ -1,7 +1,6 @@
 use flux_common::result::ResultExt;
-use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, rty::projections::NormalizeExt as _, MaybeExternId,
-};
+use flux_infer::projections::NormalizeExt as _;
+use flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;

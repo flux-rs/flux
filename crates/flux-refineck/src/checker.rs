@@ -6,6 +6,7 @@ use flux_infer::{
     infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
+    projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
@@ -15,7 +16,6 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        projections::NormalizeExt as _,
         refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
