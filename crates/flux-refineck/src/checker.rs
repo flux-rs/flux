@@ -15,6 +15,7 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        projections::NormalizeExt as _,
         refining::{Refine, Refiner},
         AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
         FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,

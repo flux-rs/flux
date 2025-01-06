@@ -7,20 +7,15 @@ use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
-use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     normalize::{Normalizer, SpecFuncDefns},
-    projections, BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind,
-    GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
+    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
+    TyKind,
 };
-use crate::{
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{expr::HoleKind, Var, VariantSig},
-};
+use crate::rty::{expr::HoleKind, Var, VariantSig};
 
 pub trait TypeVisitor: Sized {
     type BreakTy = !;
@@ -235,16 +230,6 @@ pub trait TypeFoldable: TypeVisitable {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         self.try_fold_with(folder).into_ok()
-    }
-
-    fn normalize_projections<'tcx>(
-        &self,
-        genv: GlobalEnv<'_, 'tcx>,
-        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-        callsite_def_id: DefId,
-    ) -> QueryResult<Self> {
-        let mut normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)?;
-        self.erase_regions().try_fold_with(&mut normalizer)
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.

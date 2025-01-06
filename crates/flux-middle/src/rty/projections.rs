@@ -24,7 +24,28 @@ use crate::{
     rty::{fold::TypeVisitable, refining::Refiner},
 };
 
-pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
+pub trait NormalizeExt: TypeFoldable {
+    fn normalize_projections<'tcx>(
+        &self,
+        genv: GlobalEnv<'_, 'tcx>,
+        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+        callsite_def_id: DefId,
+    ) -> QueryResult<Self>;
+}
+
+impl<T: TypeFoldable> NormalizeExt for T {
+    fn normalize_projections<'tcx>(
+        &self,
+        genv: GlobalEnv<'_, 'tcx>,
+        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+        callsite_def_id: DefId,
+    ) -> QueryResult<Self> {
+        let mut normalizer = Normalizer::new(genv, infcx, callsite_def_id)?;
+        self.erase_regions().try_fold_with(&mut normalizer)
+    }
+}
+
+struct Normalizer<'genv, 'tcx, 'cx> {
     genv: GlobalEnv<'genv, 'tcx>,
     selcx: SelectionContext<'cx, 'tcx>,
     def_id: DefId,
@@ -32,7 +53,7 @@ pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
 }
 
 impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
-    pub(crate) fn new(
+    fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         infcx: &'cx InferCtxt<'tcx>,
         callsite_def_id: DefId,

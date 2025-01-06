@@ -1,6 +1,6 @@
 use flux_common::result::ResultExt;
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, rty::fold::TypeFoldable, MaybeExternId,
+    def_id_to_string, global_env::GlobalEnv, rty::projections::NormalizeExt as _, MaybeExternId,
 };
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
