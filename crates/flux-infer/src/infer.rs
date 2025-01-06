@@ -453,16 +453,11 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(
-                        self.infcx.genv,
-                        self.infcx.region_infcx,
-                        self.infcx.def_id,
-                    )?;
-                let term = projection_pred.term.to_ty().normalize_projections(
-                    self.infcx.genv,
-                    self.infcx.region_infcx,
-                    self.infcx.def_id,
-                )?;
+                    .normalize_projections(self.infcx)?;
+                let term = projection_pred
+                    .term
+                    .to_ty()
+                    .normalize_projections(self.infcx)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;
@@ -964,7 +959,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
+                        .normalize_projections(infcx)?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }

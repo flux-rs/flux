@@ -162,12 +162,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
             let body = genv.mir(local_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)?
                 .instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .normalize_projections(&mut infcx)
                 .with_span(span)?;
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
@@ -194,12 +194,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
             let body = genv.mir(local_id).with_span(span)?;
-            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)?
                 .instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .normalize_projections(&mut infcx)
                 .with_span(span)?;
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
@@ -234,7 +234,7 @@ fn check_fn_subtyping(
 
     let super_sig = super_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
+        .normalize_projections(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -253,7 +253,7 @@ fn check_fn_subtyping(
         let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
         let sub_sig = sub_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(infcx.genv, infcx.region_infcx, *def_id)?;
+            .normalize_projections(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
         for requires in super_sig.requires() {
@@ -310,8 +310,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let Some((impl_trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
     };
+    let impl_method_id = def_id.to_def_id();
     // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-    if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
+    if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(impl_method_id) {
         return Ok(None);
     }
 
@@ -328,13 +329,13 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         .tcx()
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
-    let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
+    let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);
 
     let trait_fn_sig = genv.fn_sig(trait_method_id)?;
-    let impl_sig = genv.fn_sig(def_id)?;
+    let impl_sig = genv.fn_sig(impl_method_id)?;
     check_fn_subtyping(
         &mut infcx,
-        &def_id.to_def_id(),
+        &impl_method_id,
         impl_sig,
         &impl_args,
         &trait_fn_sig.instantiate(tcx, &trait_args, &trait_refine_args),
@@ -422,7 +423,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .normalize_projections(&mut infcx)
             .with_span(span)?;
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
@@ -782,7 +783,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .normalize_projections(infcx)
             .with_span(span)?;
 
         let mut at = infcx.at(span);

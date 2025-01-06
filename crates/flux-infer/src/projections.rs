@@ -15,59 +15,47 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{lowering::Lower, ToRustc};
 use rustc_hir::def_id::DefId;
-use rustc_infer::{infer::InferCtxt, traits::Obligation};
+use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::TyCtxt,
 };
 use rustc_trait_selection::traits::SelectionContext;
 
+use crate::infer::InferCtxt;
+
 pub trait NormalizeExt: TypeFoldable {
-    fn normalize_projections<'tcx>(
-        &self,
-        genv: GlobalEnv<'_, 'tcx>,
-        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-        callsite_def_id: DefId,
-    ) -> QueryResult<Self>;
+    fn normalize_projections<'tcx>(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections<'tcx>(
-        &self,
-        genv: GlobalEnv<'_, 'tcx>,
-        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-        callsite_def_id: DefId,
-    ) -> QueryResult<Self> {
-        let mut normalizer = Normalizer::new(genv, infcx, callsite_def_id)?;
+    fn normalize_projections<'tcx>(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
+        let mut normalizer = Normalizer::new(infcx.branch())?;
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 }
 
-struct Normalizer<'genv, 'tcx, 'cx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    selcx: SelectionContext<'cx, 'tcx>,
-    def_id: DefId,
+struct Normalizer<'infcx, 'genv, 'tcx> {
+    infcx: InferCtxt<'infcx, 'genv, 'tcx>,
+    selcx: SelectionContext<'infcx, 'tcx>,
     param_env: List<Clause>,
 }
 
-impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &'cx InferCtxt<'tcx>,
-        callsite_def_id: DefId,
-    ) -> QueryResult<Self> {
-        let param_env = genv
-            .predicates_of(callsite_def_id)?
+impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
+    fn new(infcx: InferCtxt<'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
+        let param_env = infcx
+            .genv
+            .predicates_of(infcx.def_id)?
             .instantiate_identity()
             .predicates
             .clone();
-        let selcx = SelectionContext::new(infcx);
-        Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+        let selcx = SelectionContext::new(infcx.region_infcx);
+        Ok(Normalizer { infcx, selcx, param_env })
     }
 
     fn get_impl_id_of_alias_reft(&mut self, alias_reft: &AliasReft) -> QueryResult<Option<DefId>> {
         let tcx = self.tcx();
-        let def_id = self.def_id;
+        let def_id = self.def_id();
         let selcx = &mut self.selcx;
 
         let trait_pred = Obligation::new(
@@ -90,7 +78,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     ) -> QueryResult<Expr> {
         if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
             let impl_trait_ref = self
-                .genv
+                .genv()
                 .impl_trait_ref(impl_def_id)?
                 .unwrap()
                 .skip_binder();
@@ -105,7 +93,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             let tcx = self.tcx();
 
             let pred = self
-                .genv
+                .genv()
                 .assoc_refinement_def(impl_def_id, alias_reft.name)?
                 .instantiate(tcx, &args, &[]);
 
@@ -125,7 +113,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     ) -> QueryResult<SubsetTyCtor> {
         let projection_ty = obligation.to_rustc(self.tcx());
         let cause = ObligationCause::dummy();
-        let param_env = self.tcx().param_env(self.def_id);
+        let param_env = self.rustc_param_env();
 
         let ty = rustc_trait_selection::traits::normalize_projection_ty(
             &mut self.selcx,
@@ -137,7 +125,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         )
         .expect_type();
         let rustc_ty = ty.lower(self.tcx()).unwrap();
-        Ok(Refiner::default_for_item(self.genv, self.def_id)?
+        Ok(Refiner::default_for_item(self.genv(), self.def_id())?
             .refine_ty_or_base(&rustc_ty)?
             .expect_base())
     }
@@ -158,7 +146,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             return Ok((ty != orig_ty, ty));
         }
         if candidates.len() > 1 {
-            bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
+            bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id());
         }
         let ctor = self.confirm_candidate(candidates.pop().unwrap(), obligation)?;
         Ok((true, ctor))
@@ -192,7 +180,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         impl_def_id: DefId,
     ) -> QueryResult {
         let mut projection_preds: Vec<_> = self
-            .genv
+            .genv()
             .predicates_of(impl_def_id)?
             .skip_binder()
             .predicates
@@ -241,7 +229,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
                 let impl_trait_ref = self
-                    .genv
+                    .genv()
                     .impl_trait_ref(impl_def_id)?
                     .unwrap()
                     .skip_binder();
@@ -269,7 +257,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
                 let tcx = self.tcx();
                 Ok(self
-                    .genv
+                    .genv()
                     .type_of(assoc_type_id)?
                     .instantiate(tcx, &args, &[])
                     .expect_subset_ty_ctor())
@@ -299,7 +287,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             && let BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
             debug_assert!(!alias_ty.has_escaping_bvars());
-            let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
+            let bounds = self.genv().item_bounds(alias_ty.def_id)?.instantiate(
                 self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
@@ -335,12 +323,20 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(())
     }
 
+    fn def_id(&self) -> DefId {
+        self.infcx.def_id
+    }
+
+    fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
+        self.infcx.genv
+    }
+
     fn tcx(&self) -> TyCtxt<'tcx> {
         self.selcx.tcx()
     }
 
     fn rustc_param_env(&self) -> rustc_middle::ty::ParamEnv<'tcx> {
-        self.selcx.tcx().param_env(self.def_id)
+        self.selcx.tcx().param_env(self.def_id())
     }
 }
 
@@ -367,7 +363,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
             Sort::Alias(AliasKind::Weak, alias_ty) => {
-                self.genv
+                self.genv()
                     .normalize_weak_alias_sort(alias_ty)?
                     .try_fold_with(self)
             }
@@ -393,9 +389,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) => {
                 Ok(self
-                    .genv
+                    .genv()
                     .type_of(alias_ty.def_id)?
-                    .instantiate(self.genv.tcx(), &alias_ty.args, &alias_ty.refine_args)
+                    .instantiate(self.tcx(), &alias_ty.args, &alias_ty.refine_args)
                     .expect_ctor()
                     .replace_bound_reft(idx))
             }
@@ -446,7 +442,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         c.to_rustc(self.tcx())
             .normalize_internal(self.tcx(), self.rustc_param_env())
             .lower(self.tcx())
-            .map_err(|e| QueryErr::unsupported(self.def_id, e.into_err()))
+            .map_err(|e| QueryErr::unsupported(self.def_id(), e.into_err()))
     }
 }
 

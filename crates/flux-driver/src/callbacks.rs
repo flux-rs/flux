@@ -228,7 +228,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {
-                    refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)?;
+                    refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)
+                        .emit(&self.genv)?;
                 }
                 Ok(())
             }
