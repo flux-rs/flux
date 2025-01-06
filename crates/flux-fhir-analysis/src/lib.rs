@@ -5,14 +5,12 @@ extern crate rustc_data_structures;
 extern crate rustc_errors;
 
 extern crate rustc_hir;
-extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_span;
 extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-pub mod compare_impl_item;
 mod conv;
 mod wf;
 

@@ -37,12 +37,12 @@ refineck_overflow_error =
     arithmetic operation may overflow
 
 refineck_opaque_struct_error =
-    cannot access fields of opaque struct `{$struct}`. 
+    cannot access fields of opaque struct `{$struct}`.
 
 refineck_opaque_struct_help =
     if you'd like to use fields of `{$struct}`, try annotating this method with `#[flux::trusted]`
 
-refineck_opaque_struct_note = 
+refineck_opaque_struct_note =
     fields of opaque structs can only be accessed inside trusted code (see: https://flux-rs.github.io/flux/guide/specs.html#opaque)
 
 refineck_unsupported_call =
@@ -56,3 +56,15 @@ refineck_expected_neg =
 
 refineck_invalid_invariant =
     invariant cannot be proven
+
+# Check impl against trait errors
+
+refineck_incompatible_sort =
+    implemented associated refinement `{$name}` has an incompatible sort for trait
+    .label = expected `{$expected}`, found `{$found}`
+
+refineck_invalid_assoc_reft =
+    associated refinement `{$name}` is not a member of trait `{$trait_}`
+
+refineck_missing_assoc_reft =
+    associated refinement `{$name}` is not defined in implementation of trait `{$trait_}`

@@ -120,7 +120,7 @@ pub(crate) mod errors {
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_sort, code = E0999)]
+    #[diag(refineck_incompatible_sort, code = E0999)]
     pub(super) struct IncompatibleSort {
         #[primary_span]
         #[label]
@@ -142,22 +142,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
-    pub struct InvalidAssocReft {
-        #[primary_span]
-        span: Span,
-        trait_: String,
-        name: Symbol,
-    }
-
-    impl InvalidAssocReft {
-        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
-            Self { span, trait_, name }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(fhir_analysis_missing_assoc_reft, code = E0999)]
+    #[diag(refineck_missing_assoc_reft, code = E0999)]
     pub struct MissingAssocReft {
         #[primary_span]
         span: Span,
@@ -166,6 +151,21 @@ pub(crate) mod errors {
     }
 
     impl MissingAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
+            Self { span, trait_, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_invalid_assoc_reft, code = E0999)]
+    pub struct InvalidAssocReft {
+        #[primary_span]
+        span: Span,
+        trait_: String,
+        name: Symbol,
+    }
+
+    impl InvalidAssocReft {
         pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
             Self { span, trait_, name }
         }

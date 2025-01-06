@@ -43,8 +43,6 @@ use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
-use crate::compare_impl_item::errors::InvalidAssocReft;
-
 /// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
 /// inherent methods instead of defining them as default implementation in the trait definition.
 #[repr(transparent)]
@@ -1997,7 +1995,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
 
         let Some(fsort) = alias_reft.fsort(self.genv())? else {
-            return Err(self.emit(InvalidAssocReft::new(
+            return Err(self.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
                 alias_reft.name,
                 format!("{:?}", alias.path),
@@ -2519,5 +2517,20 @@ mod errors {
     pub(super) struct GenericsOnSelfTy {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    pub struct InvalidAssocReft {
+        #[primary_span]
+        span: Span,
+        trait_: String,
+        name: Symbol,
+    }
+
+    impl InvalidAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
+            Self { span, trait_, name }
+        }
     }
 }

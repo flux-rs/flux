@@ -25,6 +25,7 @@ extern crate rustc_target;
 extern crate rustc_type_ir;
 
 mod checker;
+pub mod compare_impl_item;
 mod ghost_statements;
 pub mod invariants;
 mod primops;
