@@ -300,7 +300,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
         },
         TheoryFunc {
             name: Symbol::intern("bv_ult"),
-            fixpoint_name: Symbol::intern("bvugt"),
+            fixpoint_name: Symbol::intern("bvult"),
             sort: rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], Bool),
