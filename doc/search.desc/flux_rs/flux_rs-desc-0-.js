@@ -1,1 +1,1 @@
-searchState.loadedDescShard("flux_rs", 0, "")
+searchState.loadedDescShard("flux_rs", 0, "Returns the argument unchanged.\nCalls <code>U::from(self)</code>.")
