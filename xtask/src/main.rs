@@ -2,6 +2,7 @@ use std::{
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
+    process::ExitStatus,
 };
 
 use anyhow::anyhow;
@@ -275,9 +276,29 @@ fn run_cargo<S: AsRef<OsStr>>(
         }
     }
 
-    child.wait()?;
+    check_status(child.wait()?)?;
 
     Ok(artifacts)
+}
+
+fn check_status(st: ExitStatus) -> anyhow::Result<()> {
+    if st.success() {
+        return Ok(());
+    }
+    let err = match st.code() {
+        Some(code) => anyhow!("command exited with non-zero code: {code}"),
+        #[cfg(unix)]
+        None => {
+            use std::os::unix::process::ExitStatusExt;
+            match st.signal() {
+                Some(sig) => anyhow!("command was terminated by a signal: {sig}"),
+                None => anyhow!("command was terminated by a signal"),
+            }
+        }
+        #[cfg(not(unix))]
+        None => anyhow!("command was terminated by a signal"),
+    };
+    Err(err)
 }
 
 fn display_command(cmd: &std::process::Command) {
