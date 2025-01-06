@@ -306,29 +306,30 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let tcx = genv.tcx();
 
     // Skip the check if this is not an impl method
-    let Some((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
+    let Some((impl_trait_ref, trait_method_id)) = find_trait_item(genv, def_id)? else {
         return Ok(None);
     };
     // Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
     if genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
         return Ok(None);
     }
+
+    let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+    let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
+    let trait_args = impl_args.rebase_onto(&tcx, impl_id, &impl_trait_ref.args);
+    let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
+
     let mut root_ctxt = genv
         .infcx_root(trait_method_id, opts)
-        .with_generic_args(&trait_ref.args)
+        .with_generic_args(&impl_trait_ref.args)
         .build()?;
-
     let rustc_infcx = genv
         .tcx()
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
-
     let mut infcx = root_ctxt.infcx(trait_method_id, &rustc_infcx);
+
     let trait_fn_sig = genv.fn_sig(trait_method_id)?;
-    let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-    let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
-    let trait_args = impl_args.rebase_onto(&tcx, impl_id, &trait_ref.args);
-    let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
     let impl_sig = genv.fn_sig(def_id)?;
     check_fn_subtyping(
         &mut infcx,

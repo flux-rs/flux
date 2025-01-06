@@ -101,6 +101,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
         self
     }
 
+    /// When provided use `generic_args` to instantiate sorts
     pub fn with_generic_args(mut self, generic_args: &GenericArgs) -> Self {
         self.generic_args = Some(generic_args.clone());
         self
