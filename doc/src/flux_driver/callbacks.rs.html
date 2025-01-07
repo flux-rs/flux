@@ -277,7 +277,6 @@
 <a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
 <span class="kw">use </span>flux_infer::fixpoint_encoding::FixQueryCache;
 <span class="kw">use </span>flux_metadata::CStore;
 <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
@@ -505,7 +504,8 @@
             }
             DefKind::Impl { of_trait } =&gt; {
                 <span class="kw">if </span>of_trait {
-                    compare_impl_item::check_impl_against_trait(<span class="self">self</span>.genv, def_id)<span class="question-mark">?</span>;
+                    refineck::compare_impl_item::check_impl_against_trait(<span class="self">self</span>.genv, def_id)
+                        .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }

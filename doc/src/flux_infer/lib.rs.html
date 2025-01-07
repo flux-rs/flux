@@ -13,7 +13,9 @@
 <a href="#12" id="12">12</a>
 <a href="#13" id="13">13</a>
 <a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a></pre></div><pre class="rust"><code><span class="attr">#![feature(extract_if, let_chains, never_type, rustc_private)]
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a></pre></div><pre class="rust"><code><span class="attr">#![feature(extract_if, let_chains, never_type, rustc_private)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_hir;
@@ -22,10 +24,12 @@
 <span class="kw">extern crate </span>rustc_macros;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
+<span class="kw">extern crate </span>rustc_trait_selection;
 <span class="kw">extern crate </span>rustc_type_ir;
 
 <span class="kw">mod </span>evars;
 <span class="kw">pub mod </span>fixpoint_encoding;
 <span class="kw">pub mod </span>infer;
+<span class="kw">pub mod </span>projections;
 <span class="kw">pub mod </span>refine_tree;
 </code></pre></div></section></main></body></html>

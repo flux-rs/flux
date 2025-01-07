@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/projections.rs`."><title>projections.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>projections.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-infer/src/projections.rs`."><title>projections.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_infer" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_infer/</div>projections.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -609,57 +609,79 @@
 <a href="#608" id="608">608</a>
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
-<span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_middle::{
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    rty::{
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
+        refining::Refiner,
+        subst::{GenericsSubstDelegate, GenericsSubstFolder},
+        AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
+        EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
+        Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
+    },
+};
 <span class="kw">use </span>flux_rustc_bridge::{lowering::Lower, ToRustc};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_infer::{infer::InferCtxt, traits::Obligation};
+<span class="kw">use </span>rustc_infer::traits::Obligation;
 <span class="kw">use </span>rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::TyCtxt,
 };
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
-<span class="kw">use super</span>::{
-    fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    subst::{GenericsSubstDelegate, GenericsSubstFolder},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, EarlyBinder, Expr,
-    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, Sort, SubsetTy, SubsetTyCtor,
-    Ty, TyKind,
-};
-<span class="kw">use crate</span>::{
-    global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult},
-    rty::{fold::TypeVisitable, refining::Refiner},
-};
+<span class="kw">use </span><span class="kw">crate</span>::infer::InferCtxt;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    selcx: SelectionContext&lt;<span class="lifetime">'cx</span>, <span class="lifetime">'tcx</span>&gt;,
-    def_id: DefId,
+<span class="kw">pub trait </span>NormalizeExt: TypeFoldable {
+    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
+}
+
+<span class="kw">impl</span>&lt;T: TypeFoldable&gt; NormalizeExt <span class="kw">for </span>T {
+    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>normalizer = Normalizer::new(infcx.branch())<span class="question-mark">?</span>;
+        <span class="self">self</span>.erase_regions().try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
+    }
+}
+
+<span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    selcx: SelectionContext&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'tcx</span>&gt;,
     param_env: List&lt;Clause&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; Normalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="lifetime">'cx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'cx </span>InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        callsite_def_id: DefId,
-    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>param_env = genv
-            .predicates_of(callsite_def_id)<span class="question-mark">?
+<span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Normalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(infcx: InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>param_env = infcx
+            .genv
+            .predicates_of(infcx.def_id)<span class="question-mark">?
             </span>.instantiate_identity()
             .predicates
             .clone();
-        <span class="kw">let </span>selcx = SelectionContext::new(infcx);
-        <span class="prelude-val">Ok</span>(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+        <span class="kw">let </span>selcx = SelectionContext::new(infcx.region_infcx);
+        <span class="prelude-val">Ok</span>(Normalizer { infcx, selcx, param_env })
     }
 
     <span class="kw">fn </span>get_impl_id_of_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id;
+        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id();
         <span class="kw">let </span>selcx = <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx;
 
         <span class="kw">let </span>trait_pred = Obligation::new(
@@ -682,7 +704,7 @@
     ) -&gt; QueryResult&lt;Expr&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_def_id) = <span class="self">self</span>.get_impl_id_of_alias_reft(alias_reft)<span class="question-mark">? </span>{
             <span class="kw">let </span>impl_trait_ref = <span class="self">self
-                </span>.genv
+                </span>.genv()
                 .impl_trait_ref(impl_def_id)<span class="question-mark">?
                 </span>.unwrap()
                 .skip_binder();
@@ -697,7 +719,7 @@
             <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
 
             <span class="kw">let </span>pred = <span class="self">self
-                </span>.genv
+                </span>.genv()
                 .assoc_refinement_def(impl_def_id, alias_reft.name)<span class="question-mark">?
                 </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
 
@@ -717,7 +739,7 @@
     ) -&gt; QueryResult&lt;SubsetTyCtor&gt; {
         <span class="kw">let </span>projection_ty = obligation.to_rustc(<span class="self">self</span>.tcx());
         <span class="kw">let </span>cause = ObligationCause::dummy();
-        <span class="kw">let </span>param_env = <span class="self">self</span>.tcx().param_env(<span class="self">self</span>.def_id);
+        <span class="kw">let </span>param_env = <span class="self">self</span>.rustc_param_env();
 
         <span class="kw">let </span>ty = rustc_trait_selection::traits::normalize_projection_ty(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx,
@@ -729,7 +751,7 @@
         )
         .expect_type();
         <span class="kw">let </span>rustc_ty = ty.lower(<span class="self">self</span>.tcx()).unwrap();
-        <span class="prelude-val">Ok</span>(Refiner::default_for_item(<span class="self">self</span>.genv, <span class="self">self</span>.def_id)<span class="question-mark">?
+        <span class="prelude-val">Ok</span>(Refiner::default_for_item(<span class="self">self</span>.genv(), <span class="self">self</span>.def_id())<span class="question-mark">?
             </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
             </span>.expect_base())
     }
@@ -750,7 +772,7 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>((ty != orig_ty, ty));
         }
         <span class="kw">if </span>candidates.len() &gt; <span class="number">1 </span>{
-            <span class="macro">bug!</span>(<span class="string">"ambiguity when resolving `{obligation:?}` in {:?}"</span>, <span class="self">self</span>.def_id);
+            <span class="macro">bug!</span>(<span class="string">"ambiguity when resolving `{obligation:?}` in {:?}"</span>, <span class="self">self</span>.def_id());
         }
         <span class="kw">let </span>ctor = <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, ctor))
@@ -784,7 +806,7 @@
         impl_def_id: DefId,
     ) -&gt; QueryResult {
         <span class="kw">let </span><span class="kw-2">mut </span>projection_preds: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self
-            </span>.genv
+            </span>.genv()
             .predicates_of(impl_def_id)<span class="question-mark">?
             </span>.skip_binder()
             .predicates
@@ -833,7 +855,7 @@
                 //            =&gt; {T -&gt; {v. i32[v] | v &gt; 0}, A -&gt; Global}
 
                 </span><span class="kw">let </span>impl_trait_ref = <span class="self">self
-                    </span>.genv
+                    </span>.genv()
                     .impl_trait_ref(impl_def_id)<span class="question-mark">?
                     </span>.unwrap()
                     .skip_binder();
@@ -861,7 +883,7 @@
 
                 <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
                 <span class="prelude-val">Ok</span>(<span class="self">self
-                    </span>.genv
+                    </span>.genv()
                     .type_of(assoc_type_id)<span class="question-mark">?
                     </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
                     .expect_subset_ty_ctor())
@@ -891,7 +913,7 @@
             &amp;&amp; <span class="kw">let </span>BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
             <span class="macro">debug_assert!</span>(!alias_ty.has_escaping_bvars());
-            <span class="kw">let </span>bounds = <span class="self">self</span>.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
+            <span class="kw">let </span>bounds = <span class="self">self</span>.genv().item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
                 <span class="self">self</span>.tcx(),
                 <span class="kw-2">&amp;</span>alias_ty.args,
                 <span class="kw-2">&amp;</span>alias_ty.refine_args,
@@ -927,12 +949,20 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+        <span class="self">self</span>.infcx.def_id
+    }
+
+    <span class="kw">fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        <span class="self">self</span>.infcx.genv
+    }
+
     <span class="kw">fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.selcx.tcx()
     }
 
     <span class="kw">fn </span>rustc_param_env(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::ty::ParamEnv&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="self">self</span>.selcx.tcx().param_env(<span class="self">self</span>.def_id)
+        <span class="self">self</span>.selcx.tcx().param_env(<span class="self">self</span>.def_id())
     }
 }
 
@@ -959,7 +989,7 @@
     <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
         <span class="kw">match </span>sort {
             Sort::Alias(AliasKind::Weak, alias_ty) =&gt; {
-                <span class="self">self</span>.genv
+                <span class="self">self</span>.genv()
                     .normalize_weak_alias_sort(alias_ty)<span class="question-mark">?
                     </span>.try_fold_with(<span class="self">self</span>)
             }
@@ -985,9 +1015,9 @@
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="self">self
-                    </span>.genv
+                    </span>.genv()
                     .type_of(alias_ty.def_id)<span class="question-mark">?
-                    </span>.instantiate(<span class="self">self</span>.genv.tcx(), <span class="kw-2">&amp;</span>alias_ty.args, <span class="kw-2">&amp;</span>alias_ty.refine_args)
+                    </span>.instantiate(<span class="self">self</span>.tcx(), <span class="kw-2">&amp;</span>alias_ty.args, <span class="kw-2">&amp;</span>alias_ty.refine_args)
                     .expect_ctor()
                     .replace_bound_reft(idx))
             }
@@ -1038,7 +1068,7 @@
         c.to_rustc(<span class="self">self</span>.tcx())
             .normalize_internal(<span class="self">self</span>.tcx(), <span class="self">self</span>.rustc_param_env())
             .lower(<span class="self">self</span>.tcx())
-            .map_err(|e| QueryErr::unsupported(<span class="self">self</span>.def_id, e.into_err()))
+            .map_err(|e| QueryErr::unsupported(<span class="self">self</span>.def_id(), e.into_err()))
     }
 }
 
@@ -1206,7 +1236,7 @@
     }
 
     <span class="kw">fn </span>consts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Const, b: <span class="kw-2">&amp;</span>Const) {
-        <span class="kw">if let </span><span class="kw">super</span>::ConstKind::Param(param_const) = a.kind {
+        <span class="kw">if let </span>ConstKind::Param(param_const) = a.kind {
             <span class="self">self</span>.insert_generic_arg(param_const.index, GenericArg::Const(b.clone()));
         }
     }

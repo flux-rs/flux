@@ -2521,7 +2521,20 @@
 <a href="#2520" id="2520">2520</a>
 <a href="#2521" id="2521">2521</a>
 <a href="#2522" id="2522">2522</a>
-<a href="#2523" id="2523">2523</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
+<a href="#2529" id="2529">2529</a>
+<a href="#2530" id="2530">2530</a>
+<a href="#2531" id="2531">2531</a>
+<a href="#2532" id="2532">2532</a>
+<a href="#2533" id="2533">2533</a>
+<a href="#2534" id="2534">2534</a>
+<a href="#2535" id="2535">2535</a>
+<a href="#2536" id="2536">2536</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2565,8 +2578,6 @@
 <span class="kw">use </span>rustc_target::spec::abi;
 <span class="kw">use </span>rustc_trait_selection::traits;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
-
-<span class="kw">use </span><span class="kw">crate</span>::compare_impl_item::errors::InvalidAssocReft;
 
 <span class="doccomment">/// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
 /// inherent methods instead of defining them as default implementation in the trait definition.
@@ -4520,7 +4531,7 @@
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = alias_reft.fsort(<span class="self">self</span>.genv())<span class="question-mark">? </span><span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(InvalidAssocReft::new(
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
                 alias_reft.name,
                 <span class="macro">format!</span>(<span class="string">"{:?}"</span>, alias.path),
@@ -5042,6 +5053,21 @@
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnSelfTy {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    </span><span class="kw">pub struct </span>InvalidAssocReft {
+        <span class="attr">#[primary_span]
+        </span>span: Span,
+        trait_: String,
+        name: Symbol,
+    }
+
+    <span class="kw">impl </span>InvalidAssocReft {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span, trait_, name }
+        }
     }
 }
 </code></pre></div></section></main></body></html>

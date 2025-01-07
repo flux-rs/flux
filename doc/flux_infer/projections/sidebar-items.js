@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Candidate"],"fn":["assemble_candidates_from_predicates"],"struct":["Normalizer","TVarSubst"],"trait":["NormalizeExt"]};

@@ -959,10 +959,16 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
-<span class="kw">use </span>flux_infer::infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult};
+<span class="kw">use </span>flux_infer::{
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
+    projections::NormalizeExt <span class="kw">as _</span>,
+};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -1739,7 +1745,7 @@
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 </span><span class="kw">fn </span>downcast_struct(
-    infcx: <span class="kw-2">&amp;</span>InferCtxt,
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx: <span class="kw-2">&amp;</span>Expr,
@@ -1753,7 +1759,7 @@
     <span class="prelude-val">Ok</span>(struct_variant(infcx.genv, adt.did())<span class="question-mark">?
         </span>.instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?
+        .normalize_projections(infcx)<span class="question-mark">?
         </span>.fields
         .to_vec())
 }
@@ -1787,7 +1793,7 @@
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?</span>;
+        .normalize_projections(infcx)<span class="question-mark">?</span>;
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
     // are currently two problems.

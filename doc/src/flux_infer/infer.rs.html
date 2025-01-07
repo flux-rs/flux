@@ -1021,10 +1021,7 @@
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
 <a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1023" id="1023">1023</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1053,6 +1050,7 @@
 <span class="kw">use crate</span>::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    projections::NormalizeExt <span class="kw">as _</span>,
     refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
 };
 
@@ -1127,7 +1125,8 @@
         <span class="self">self
     </span>}
 
-    <span class="kw">pub fn </span>with_generic_args(<span class="kw-2">mut </span><span class="self">self</span>, generic_args: <span class="kw-2">&amp;</span>GenericArgs) -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// When provided use `generic_args` to instantiate sorts
+    </span><span class="kw">pub fn </span>with_generic_args(<span class="kw-2">mut </span><span class="self">self</span>, generic_args: <span class="kw-2">&amp;</span>GenericArgs) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.generic_args = <span class="prelude-val">Some</span>(generic_args.clone());
         <span class="self">self
     </span>}
@@ -1477,16 +1476,11 @@
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 <span class="kw">let </span>impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(
-                        <span class="self">self</span>.infcx.genv,
-                        <span class="self">self</span>.infcx.region_infcx,
-                        <span class="self">self</span>.infcx.def_id,
-                    )<span class="question-mark">?</span>;
-                <span class="kw">let </span>term = projection_pred.term.to_ty().normalize_projections(
-                    <span class="self">self</span>.infcx.genv,
-                    <span class="self">self</span>.infcx.region_infcx,
-                    <span class="self">self</span>.infcx.def_id,
-                )<span class="question-mark">?</span>;
+                    .normalize_projections(<span class="self">self</span>.infcx)<span class="question-mark">?</span>;
+                <span class="kw">let </span>term = projection_pred
+                    .term
+                    .to_ty()
+                    .normalize_projections(<span class="self">self</span>.infcx)<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 </span><span class="self">self</span>.subtyping(<span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>term, reason)<span class="question-mark">?</span>;
@@ -1988,7 +1982,7 @@
                     <span class="kw">let </span>alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     <span class="kw">let </span>ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)<span class="question-mark">?</span>;
+                        .normalize_projections(infcx)<span class="question-mark">?</span>;
                     <span class="kw">let </span>ty2 = pred.term.to_ty();
                     <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 }

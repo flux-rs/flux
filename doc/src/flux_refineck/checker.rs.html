@@ -1927,7 +1927,10 @@
 <a href="#1926" id="1926">1926</a>
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
-<a href="#1929" id="1929">1929</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1935,6 +1938,7 @@
     infer::{
         ConstrReason, GlobalEnvExt <span class="kw">as _</span>, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
+    projections::NormalizeExt <span class="kw">as _</span>,
     refine_tree::{Marker, RefineCtxtTrace},
 };
 <span class="kw">use </span>flux_middle::{
@@ -2090,12 +2094,12 @@
             <span class="kw">let </span>inherited = Inherited::new(<span class="kw-2">&amp;mut </span>mode, ghost_stmts)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>body = genv.mir(local_id).with_span(span)<span class="question-mark">?</span>;
-            <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
+            <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
             <span class="kw">let </span>poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)<span class="question-mark">?
                 </span>.instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
                 .with_span(span)<span class="question-mark">?</span>;
             Checker::run(infcx, local_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
@@ -2122,12 +2126,12 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs };
             <span class="kw">let </span>inherited = Inherited::new(<span class="kw-2">&amp;mut </span>mode, ghost_stmts)<span class="question-mark">?</span>;
             <span class="kw">let </span>body = genv.mir(local_id).with_span(span)<span class="question-mark">?</span>;
-            <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
+            <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
             <span class="kw">let </span>poly_sig = genv
                 .fn_sig(def_id)
                 .with_span(span)<span class="question-mark">?
                 </span>.instantiate_identity()
-                .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+                .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
                 .with_span(span)<span class="question-mark">?</span>;
             Checker::run(infcx, local_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
@@ -2162,7 +2166,7 @@
 
     <span class="kw">let </span>super_sig = super_sig
         .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
+        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)<span class="question-mark">?</span>;
 
     <span class="comment">// 1. Unpack `T_g` input types
     </span><span class="kw">let </span>actuals = super_sig
@@ -2181,7 +2185,7 @@
         <span class="kw">let </span>sub_sig = sub_sig.instantiate(tcx, sub_args, <span class="kw-2">&amp;</span>refine_args);
         <span class="kw">let </span>sub_sig = sub_sig
             .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(infcx.genv, infcx.region_infcx, <span class="kw-2">*</span>def_id)<span class="question-mark">?</span>;
+            .normalize_projections(infcx)<span class="question-mark">?</span>;
 
         <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
         </span><span class="kw">for </span>requires <span class="kw">in </span>super_sig.requires() {
@@ -2235,33 +2239,35 @@
     <span class="kw">let </span>tcx = genv.tcx();
 
     <span class="comment">// Skip the check if this is not an impl method
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>((trait_ref, trait_method_id)) = find_trait_item(genv, def_id)<span class="question-mark">? </span><span class="kw">else </span>{
+    </span><span class="kw">let </span><span class="prelude-val">Some</span>((impl_trait_ref, trait_method_id)) = find_trait_item(genv, def_id)<span class="question-mark">? </span><span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
     };
+    <span class="kw">let </span>impl_method_id = def_id.to_def_id();
     <span class="comment">// Skip the check if either the trait-method or the impl-method are marked as `trusted_impl`
-    </span><span class="kw">if </span>genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(def_id.to_def_id()) {
+    </span><span class="kw">if </span>genv.has_trusted_impl(trait_method_id) || genv.has_trusted_impl(impl_method_id) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
     }
+
+    <span class="kw">let </span>impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
+    <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>impl_trait_ref.args);
+    <span class="kw">let </span>trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)<span class="question-mark">?</span>;
+
     <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
         .infcx_root(trait_method_id, opts)
-        .with_generic_args(<span class="kw-2">&amp;</span>trait_ref.args)
+        .with_generic_args(<span class="kw-2">&amp;</span>impl_trait_ref.args)
         .build()<span class="question-mark">?</span>;
-
     <span class="kw">let </span>rustc_infcx = genv
         .tcx()
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(impl_method_id, <span class="kw-2">&amp;</span>rustc_infcx);
 
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(trait_method_id, <span class="kw-2">&amp;</span>rustc_infcx);
     <span class="kw">let </span>trait_fn_sig = genv.fn_sig(trait_method_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-    <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())<span class="question-mark">?</span>;
-    <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>trait_ref.args);
-    <span class="kw">let </span>trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>impl_sig = genv.fn_sig(def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>impl_sig = genv.fn_sig(impl_method_id)<span class="question-mark">?</span>;
     check_fn_subtyping(
         <span class="kw-2">&amp;mut </span>infcx,
-        <span class="kw-2">&amp;</span>def_id.to_def_id(),
+        <span class="kw-2">&amp;</span>impl_method_id,
         impl_sig,
         <span class="kw-2">&amp;</span>impl_args,
         <span class="kw-2">&amp;</span>trait_fn_sig.instantiate(tcx, <span class="kw-2">&amp;</span>trait_args, <span class="kw-2">&amp;</span>trait_refine_args),
@@ -2349,7 +2355,7 @@
 
         <span class="kw">let </span>fn_sig = poly_sig
             .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
-            .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)
+            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig);
@@ -2709,7 +2715,7 @@
         </span><span class="kw">let </span>fn_sig = fn_sig
             .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
             .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id)
+            .normalize_projections(infcx)
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);

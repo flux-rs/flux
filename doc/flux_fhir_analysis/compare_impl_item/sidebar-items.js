@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check_assoc_reft","check_impl_against_trait"],"mod":["errors"],"type":["Result"]};
