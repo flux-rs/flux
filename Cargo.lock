@@ -584,6 +584,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
+ "flux-rustc-bridge",
  "itertools 0.13.0",
  "liquid-fixpoint",
  "pad-adapter",

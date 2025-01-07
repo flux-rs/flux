@@ -11,7 +11,6 @@ mod expr;
 pub mod fold;
 pub(crate) mod normalize;
 mod pretty;
-pub mod projections;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;

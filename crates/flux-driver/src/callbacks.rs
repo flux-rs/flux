@@ -1,7 +1,6 @@
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::FluxSession;
-use flux_fhir_analysis::compare_impl_item;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
@@ -229,7 +228,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {
-                    compare_impl_item::check_impl_against_trait(self.genv, def_id)?;
+                    refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)
+                        .emit(&self.genv)?;
                 }
                 Ok(())
             }

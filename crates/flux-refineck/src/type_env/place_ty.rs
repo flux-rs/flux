@@ -1,7 +1,10 @@
 use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
-use flux_infer::infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult};
+use flux_infer::{
+    infer::{ConstrReason, InferCtxt, InferCtxtAt, InferErr, InferResult},
+    projections::NormalizeExt as _,
+};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -778,7 +781,7 @@ fn downcast(
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 fn downcast_struct(
-    infcx: &InferCtxt,
+    infcx: &mut InferCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
     idx: &Expr,
@@ -792,7 +795,7 @@ fn downcast_struct(
     Ok(struct_variant(infcx.genv, adt.did())?
         .instantiate(tcx, args, &[])
         .replace_bound_refts(&flds)
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?
+        .normalize_projections(infcx)?
         .fields
         .to_vec())
 }
@@ -826,7 +829,7 @@ fn downcast_enum(
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
         .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort))
-        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
+        .normalize_projections(infcx)?;
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
     // are currently two problems.
