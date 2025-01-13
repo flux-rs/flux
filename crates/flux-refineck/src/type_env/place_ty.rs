@@ -828,7 +828,7 @@ fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
-        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort))
+        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(infcx)?;
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there

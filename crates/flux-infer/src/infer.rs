@@ -926,7 +926,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| infcx.define_vars(kind.expect_sort()))
+            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);

@@ -375,7 +375,8 @@ pub struct Unpacker<'a, 'b> {
 
 impl HoisterDelegate for Unpacker<'_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| self.cursor.define_vars(sort));
+        let ty =
+            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.cursor.define_var(sort)));
         if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
             self.cursor.assume_invariants(&ty, check_overflow);
         }
