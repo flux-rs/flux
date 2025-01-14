@@ -1224,21 +1224,20 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Var> {
-        match arg.kind() {
-            rty::ExprKind::Var(var) => Ok(self.var_to_fixpoint(var)),
-            _ => {
-                let fresh = self.local_var_env.fresh_name();
-                let pred = fixpoint::Expr::eq(
-                    fixpoint::Expr::Var(fresh.into()),
-                    self.expr_to_fixpoint(arg, scx)?,
-                );
-                bindings.push(fixpoint::Bind {
-                    name: fresh.into(),
-                    sort: scx.sort_to_fixpoint(sort),
-                    pred: fixpoint::Pred::Expr(pred),
-                });
-                Ok(fresh.into())
-            }
+        let arg = self.expr_to_fixpoint(arg, scx)?;
+        // Check if it's a variable after encoding, in case the encoding produced a variable from a
+        // non-variable.
+        if let fixpoint::Expr::Var(var) = arg {
+            Ok(var)
+        } else {
+            let fresh = self.local_var_env.fresh_name();
+            let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), arg);
+            bindings.push(fixpoint::Bind {
+                name: fresh.into(),
+                sort: scx.sort_to_fixpoint(sort),
+                pred: fixpoint::Pred::Expr(pred),
+            });
+            Ok(fresh.into())
         }
     }
 
