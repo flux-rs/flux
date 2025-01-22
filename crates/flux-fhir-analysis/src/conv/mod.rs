@@ -927,7 +927,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     }
                 }
                 fhir::GenericBound::Outlives(lft) => {
-                    let re = self.conv_lifetime(env, *lft);
+                    let re = self.conv_lifetime(env, *lft, bounded_ty_span);
                     clauses.push(rty::Clause::new(
                         List::empty(),
                         rty::ClauseKind::TypeOutlives(rty::OutlivesPredicate(
@@ -1068,12 +1068,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::TyKind::StrgRef(lft, loc, ty) => {
-                let re = self.conv_lifetime(env, *lft);
+                let re = self.conv_lifetime(env, *lft, ty.span);
                 let ty = self.conv_ty(env, ty)?;
                 Ok(rty::Ty::strg_ref(re, env.lookup(loc).to_path(), ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
-                let region = self.conv_lifetime(env, *lft);
+                let region = self.conv_lifetime(env, *lft, ty.span);
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
             }
             fhir::TyKind::BareFn(bare_fn) => {
@@ -1112,10 +1112,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty),
+            fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty, ty.span),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    self.conv_trait_object(env, trait_bounds, *lft)
+                    self.conv_trait_object(env, trait_bounds, *lft, ty.span)
                 } else {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
@@ -1129,6 +1129,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         opaque_ty: &fhir::OpaqueTy,
+        span: Span
     ) -> QueryResult<rty::Ty> {
         let def_id = opaque_ty.def_id;
 
@@ -1142,7 +1143,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let args = rty::GenericArg::for_item(self.genv(), def_id.resolved_id(), |param, _| {
                 if let Some(i) = (param.index as usize).checked_sub(offset) {
                     let (lifetime, _) = lifetimes[i];
-                    rty::GenericArg::Lifetime(self.conv_resolved_lifetime(env, lifetime))
+                    rty::GenericArg::Lifetime(self.conv_resolved_lifetime(env, lifetime, span))
                 } else {
                     rty::GenericArg::from_param_def(param)
                 }
@@ -1168,6 +1169,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env: &mut Env,
         trait_bounds: &[fhir::PolyTraitRef],
         lifetime: fhir::Lifetime,
+        span: Span
     ) -> QueryResult<rty::Ty> {
         // We convert all the trait bounds into existential predicates. Some combinations won't yield
         // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
@@ -1252,7 +1254,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             List::from_vec(v)
         };
 
-        let region = self.conv_lifetime(env, lifetime);
+        let region = self.conv_lifetime(env, lifetime, span);
         Ok(rty::Ty::dynamic(existential_predicates, region))
     }
 
@@ -1424,15 +1426,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(bound)
     }
 
-    fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
+    fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime, span: Span) -> rty::Region {
         let res = match lft {
             fhir::Lifetime::Hole(_) => return rty::Region::ReVar(self.next_region_vid()),
             fhir::Lifetime::Resolved(res) => res,
         };
-        self.conv_resolved_lifetime(env, res)
+        self.conv_resolved_lifetime(env, res, span)
     }
 
-    fn conv_resolved_lifetime(&mut self, env: &Env, res: ResolvedArg) -> rty::Region {
+    fn conv_resolved_lifetime(&mut self, env: &Env, res: ResolvedArg, span: Span) -> rty::Region {
         let tcx = self.tcx();
         let lifetime_name = |def_id| tcx.item_name(def_id);
         match res {
@@ -1443,7 +1445,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
-                let depth = env.depth().checked_sub(1).unwrap();
+                let Some(depth) = env.depth().checked_sub(1) else { 
+                    span_bug!(span, "late-bound variable at depth 0")
+                }; 
                 let name = lifetime_name(def_id.to_def_id());
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
@@ -1628,7 +1632,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let param = generics.param_at(idx + len, self.genv())?;
             match arg {
                 fhir::GenericArg::Lifetime(lft) => {
-                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
+                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft, segment.ident.span)));
                 }
                 fhir::GenericArg::Type(ty) => {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);

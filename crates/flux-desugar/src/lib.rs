@@ -218,7 +218,11 @@ pub fn desugar<'genv>(
             nodes.insert(def_id, fhir::Node::AnonConst);
         }
         node => {
-            bug!("unsupported node: {node:?}");
+            if let Some(ident) = node.ident() {
+                span_bug!(ident.span, "unsupported node: {node:?}");
+            } else {
+                bug!("unsupported node: {node:?}");
+            }
         }
     }
     Ok(nodes)
