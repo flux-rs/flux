@@ -315,7 +315,11 @@
 <a href="#314" id="314">314</a>
 <a href="#315" id="315">315</a>
 <a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
 
@@ -535,7 +539,11 @@
             nodes.insert(def_id, fhir::Node::AnonConst);
         }
         node =&gt; {
-            <span class="macro">bug!</span>(<span class="string">"unsupported node: {node:?}"</span>);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ident) = node.ident() {
+                <span class="macro">span_bug!</span>(ident.span, <span class="string">"unsupported node: {node:?}"</span>);
+            } <span class="kw">else </span>{
+                <span class="macro">bug!</span>(<span class="string">"unsupported node: {node:?}"</span>);
+            }
         }
     }
     <span class="prelude-val">Ok</span>(nodes)

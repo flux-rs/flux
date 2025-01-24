@@ -2534,7 +2534,15 @@
 <a href="#2533" id="2533">2533</a>
 <a href="#2534" id="2534">2534</a>
 <a href="#2535" id="2535">2535</a>
-<a href="#2536" id="2536">2536</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2536" id="2536">2536</a>
+<a href="#2537" id="2537">2537</a>
+<a href="#2538" id="2538">2538</a>
+<a href="#2539" id="2539">2539</a>
+<a href="#2540" id="2540">2540</a>
+<a href="#2541" id="2541">2541</a>
+<a href="#2542" id="2542">2542</a>
+<a href="#2543" id="2543">2543</a>
+<a href="#2544" id="2544">2544</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3463,7 +3471,7 @@
                     }
                 }
                 fhir::GenericBound::Outlives(lft) =&gt; {
-                    <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                    <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft, bounded_ty_span);
                     clauses.push(rty::Clause::new(
                         List::empty(),
                         rty::ClauseKind::TypeOutlives(rty::OutlivesPredicate(
@@ -3604,12 +3612,12 @@
                 }
             }
             fhir::TyKind::StrgRef(lft, loc, ty) =&gt; {
-                <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft, ty.span);
                 <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(rty::Ty::strg_ref(re, env.lookup(loc).to_path(), ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) =&gt; {
-                <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft, ty.span);
                 <span class="prelude-val">Ok</span>(rty::Ty::mk_ref(region, <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl))
             }
             fhir::TyKind::BareFn(bare_fn) =&gt; {
@@ -3648,10 +3656,10 @@
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(opaque_ty) =&gt; <span class="self">self</span>.conv_opaque_def(env, opaque_ty),
+            fhir::TyKind::OpaqueDef(opaque_ty) =&gt; <span class="self">self</span>.conv_opaque_def(env, opaque_ty, ty.span),
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) =&gt; {
                 <span class="kw">if </span><span class="macro">matches!</span>(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    <span class="self">self</span>.conv_trait_object(env, trait_bounds, <span class="kw-2">*</span>lft)
+                    <span class="self">self</span>.conv_trait_object(env, trait_bounds, <span class="kw-2">*</span>lft, ty.span)
                 } <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(ty.span, <span class="string">"dyn* traits not supported yet"</span>)
                 }
@@ -3665,6 +3673,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         opaque_ty: <span class="kw-2">&amp;</span>fhir::OpaqueTy,
+        span: Span,
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
         <span class="kw">let </span>def_id = opaque_ty.def_id;
 
@@ -3678,7 +3687,7 @@
             <span class="kw">let </span>args = rty::GenericArg::for_item(<span class="self">self</span>.genv(), def_id.resolved_id(), |param, <span class="kw">_</span>| {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(i) = (param.index <span class="kw">as </span>usize).checked_sub(offset) {
                     <span class="kw">let </span>(lifetime, <span class="kw">_</span>) = lifetimes[i];
-                    rty::GenericArg::Lifetime(<span class="self">self</span>.conv_resolved_lifetime(env, lifetime))
+                    rty::GenericArg::Lifetime(<span class="self">self</span>.conv_resolved_lifetime(env, lifetime, span))
                 } <span class="kw">else </span>{
                     rty::GenericArg::from_param_def(param)
                 }
@@ -3704,6 +3713,7 @@
         env: <span class="kw-2">&amp;mut </span>Env,
         trait_bounds: <span class="kw-2">&amp;</span>[fhir::PolyTraitRef],
         lifetime: fhir::Lifetime,
+        span: Span,
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
         <span class="comment">// We convert all the trait bounds into existential predicates. Some combinations won't yield
         // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
@@ -3788,7 +3798,7 @@
             List::from_vec(v)
         };
 
-        <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, lifetime);
+        <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, lifetime, span);
         <span class="prelude-val">Ok</span>(rty::Ty::dynamic(existential_predicates, region))
     }
 
@@ -3960,15 +3970,15 @@
         <span class="prelude-val">Ok</span>(bound)
     }
 
-    <span class="kw">fn </span>conv_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, lft: fhir::Lifetime) -&gt; rty::Region {
+    <span class="kw">fn </span>conv_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, lft: fhir::Lifetime, span: Span) -&gt; rty::Region {
         <span class="kw">let </span>res = <span class="kw">match </span>lft {
             fhir::Lifetime::Hole(<span class="kw">_</span>) =&gt; <span class="kw">return </span>rty::Region::ReVar(<span class="self">self</span>.next_region_vid()),
             fhir::Lifetime::Resolved(res) =&gt; res,
         };
-        <span class="self">self</span>.conv_resolved_lifetime(env, res)
+        <span class="self">self</span>.conv_resolved_lifetime(env, res, span)
     }
 
-    <span class="kw">fn </span>conv_resolved_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, res: ResolvedArg) -&gt; rty::Region {
+    <span class="kw">fn </span>conv_resolved_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, res: ResolvedArg, span: Span) -&gt; rty::Region {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
         <span class="kw">let </span>lifetime_name = |def_id| tcx.item_name(def_id);
         <span class="kw">match </span>res {
@@ -3979,7 +3989,9 @@
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(<span class="kw">_</span>, index, def_id) =&gt; {
-                <span class="kw">let </span>depth = env.depth().checked_sub(<span class="number">1</span>).unwrap();
+                <span class="kw">let </span><span class="prelude-val">Some</span>(depth) = env.depth().checked_sub(<span class="number">1</span>) <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(span, <span class="string">"late-bound variable at depth 0"</span>)
+                };
                 <span class="kw">let </span>name = lifetime_name(def_id.to_def_id());
                 <span class="kw">let </span>kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 <span class="kw">let </span>var = BoundVar::from_u32(index);
@@ -4164,7 +4176,11 @@
             <span class="kw">let </span>param = generics.param_at(idx + len, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
             <span class="kw">match </span>arg {
                 fhir::GenericArg::Lifetime(lft) =&gt; {
-                    into.push(rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft)));
+                    into.push(rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(
+                        env,
+                        <span class="kw-2">*</span>lft,
+                        segment.ident.span,
+                    )));
                 }
                 fhir::GenericArg::Type(ty) =&gt; {
                     into.push(<span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>param, ty)<span class="question-mark">?</span>);
