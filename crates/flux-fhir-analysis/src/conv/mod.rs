@@ -1129,7 +1129,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         opaque_ty: &fhir::OpaqueTy,
-        span: Span
+        span: Span,
     ) -> QueryResult<rty::Ty> {
         let def_id = opaque_ty.def_id;
 
@@ -1169,7 +1169,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env: &mut Env,
         trait_bounds: &[fhir::PolyTraitRef],
         lifetime: fhir::Lifetime,
-        span: Span
+        span: Span,
     ) -> QueryResult<rty::Ty> {
         // We convert all the trait bounds into existential predicates. Some combinations won't yield
         // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
@@ -1445,9 +1445,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
-                let Some(depth) = env.depth().checked_sub(1) else { 
+                let Some(depth) = env.depth().checked_sub(1) else {
                     span_bug!(span, "late-bound variable at depth 0")
-                }; 
+                };
                 let name = lifetime_name(def_id.to_def_id());
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
@@ -1632,7 +1632,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let param = generics.param_at(idx + len, self.genv())?;
             match arg {
                 fhir::GenericArg::Lifetime(lft) => {
-                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft, segment.ident.span)));
+                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(
+                        env,
+                        *lft,
+                        segment.ident.span,
+                    )));
                 }
                 fhir::GenericArg::Type(ty) => {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
