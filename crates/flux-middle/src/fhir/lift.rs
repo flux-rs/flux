@@ -486,8 +486,14 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_unsupported<T>(&self, msg: &str) -> Result<T> {
-        self.emit_err(errors::UnsupportedHir::new(self.genv.tcx(), self.owner, msg))
+    fn emit_unsupported<T>(&self, note: &str) -> Result<T> {
+        let tcx = self.genv.tcx();
+        let local_id = self.owner.local_id().def_id;
+        let span = tcx
+            .def_ident_span(local_id)
+            .unwrap_or_else(|| tcx.def_span(local_id));
+        let def_kind = tcx.def_descr(local_id.to_def_id());
+        self.emit_err(errors::UnsupportedHir { span, def_kind, note })
     }
 
     #[track_caller]
@@ -510,31 +516,16 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 pub mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_hir::OwnerId;
-    use rustc_middle::ty::TyCtxt;
     use rustc_span::Span;
-
-    use crate::MaybeExternId;
 
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_hir, code = E0999)]
     #[note]
-    pub struct UnsupportedHir<'a> {
+    pub(super) struct UnsupportedHir<'a> {
         #[primary_span]
         #[label]
-        span: Span,
-        def_kind: &'static str,
-        note: &'a str,
-    }
-
-    impl<'a> UnsupportedHir<'a> {
-        pub fn new(tcx: TyCtxt, def_id: MaybeExternId<OwnerId>, note: &'a str) -> Self {
-            let local_id = def_id.local_id().def_id;
-            let span = tcx
-                .def_ident_span(local_id)
-                .unwrap_or_else(|| tcx.def_span(local_id));
-            let def_kind = tcx.def_descr(local_id.to_def_id());
-            Self { span, def_kind, note }
-        }
+        pub span: Span,
+        pub def_kind: &'static str,
+        pub note: &'a str,
     }
 }
