@@ -17,19 +17,6 @@ fhir_analysis_arg_count_mismatch =
         *[other] {$expected} arguments
     }, found {$found}
 
-fhir_analysis_early_bound_arg_count_mismatch =
-    this type alias takes {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    } but {$found ->
-        [one] {$found} was found
-        *[other] {$found} were found
-    }
-    .label = expected {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    }, found {$found}
-
 fhir_analysis_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
