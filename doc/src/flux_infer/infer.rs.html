@@ -1949,7 +1949,7 @@
         <span class="kw">let </span>vars = a
             .vars()
             .iter()
-            .map(|kind| infcx.define_vars(kind.expect_sort()))
+            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
             .collect_vec();
         <span class="kw">let </span>body_a = a.apply(<span class="kw-2">&amp;</span>vars);
         <span class="kw">let </span>body_b = b.apply(<span class="kw-2">&amp;</span>vars);

@@ -1792,7 +1792,7 @@
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
-        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort))
+        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(infcx)<span class="question-mark">?</span>;
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there

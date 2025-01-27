@@ -2165,7 +2165,7 @@
     <span class="kw">let </span>tcx = infcx.genv.tcx();
 
     <span class="kw">let </span>super_sig = super_sig
-        .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
+        .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)<span class="question-mark">?</span>;
 
     <span class="comment">// 1. Unpack `T_g` input types
@@ -2207,7 +2207,7 @@
 
     <span class="kw">let </span>output = infcx
         .fully_resolve_evars(<span class="kw-2">&amp;</span>output)
-        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
+        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
 
     <span class="comment">// 4. OUTPUT subtyping (f_out &lt;: g_out)
     </span>infcx.ensure_resolved_evars(|infcx| {
@@ -2354,7 +2354,7 @@
         <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>fn_sig = poly_sig
-            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| infcx.define_vars(sort))
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
             .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
             .with_span(span)<span class="question-mark">?</span>;
 
@@ -2736,7 +2736,7 @@
 
         <span class="kw">let </span>output = infcx
             .fully_resolve_evars(<span class="kw-2">&amp;</span>fn_sig.output)
-            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
 
         env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)<span class="question-mark">?</span>;

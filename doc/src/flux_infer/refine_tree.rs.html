@@ -808,7 +808,8 @@
 <a href="#807" id="807">807</a>
 <a href="#808" id="808">808</a>
 <a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -1185,7 +1186,8 @@
 
 <span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
-        <span class="kw">let </span>ty = ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| <span class="self">self</span>.cursor.define_vars(sort));
+        <span class="kw">let </span>ty =
+            ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(<span class="self">self</span>.cursor.define_var(sort)));
         <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
             <span class="self">self</span>.cursor.assume_invariants(<span class="kw-2">&amp;</span>ty, check_overflow);
         }

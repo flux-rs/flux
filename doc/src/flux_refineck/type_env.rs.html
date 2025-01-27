@@ -1728,7 +1728,7 @@
     ) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
         <span class="kw">let </span>data = <span class="self">self
             </span>.data
-            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
         <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>data.constrs {
             infcx.assume_pred(constr);
         }
