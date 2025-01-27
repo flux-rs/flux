@@ -99,7 +99,9 @@ pub(crate) fn check_node<'genv>(
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
     let mut wf = Wf::new(&mut infcx);
-    wf.init_infcx(node).emit(&genv)?;
+    wf.init_infcx(node)
+        .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
+        .emit(&genv)?;
 
     ImplicitParamInferer::infer(wf.infcx, node)?;
 
