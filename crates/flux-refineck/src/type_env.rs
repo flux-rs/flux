@@ -775,7 +775,7 @@ impl BasicBlockEnv {
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
         for constr in &data.constrs {
             infcx.assume_pred(constr);
         }

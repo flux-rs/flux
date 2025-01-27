@@ -233,7 +233,7 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+        .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -275,7 +275,7 @@ fn check_fn_subtyping(
 
     let output = infcx
         .fully_resolve_evars(&output)
-        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
@@ -422,7 +422,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let body = genv.mir(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| infcx.define_vars(sort))
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .normalize_projections(&mut infcx)
             .with_span(span)?;
 
@@ -804,7 +804,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
-            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
 
         env.assume_ensures(infcx, &output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
