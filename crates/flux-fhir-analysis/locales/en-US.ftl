@@ -107,7 +107,6 @@ fhir_analysis_constant_annotation_needed =
     constant annotation required
     .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
 
-
 fhir_analysis_cannot_infer_sort =
     sort annotation needed
     .label = cannot infer sort
@@ -269,3 +268,16 @@ fhir_analysis_generics_on_self_ty =
 
 fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
+
+fhir_analysis_refine_arg_mismatch =
+    {$kind} takes {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }, but {$found} {$found ->
+        [one] argument was
+        *[other] arguments were
+    } provided
+    .label = expected {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }
