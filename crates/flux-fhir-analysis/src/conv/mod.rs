@@ -1559,6 +1559,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty)
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
+                self.check_refinement_generics(path, def_id)?;
                 let args = self.conv_generic_args(env, def_id, path.last_segment())?;
                 self.0.insert_path_args(path.fhir_id, args.clone());
                 let refine_args = path
@@ -1566,6 +1567,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .iter()
                     .map(|expr| self.conv_expr(env, expr))
                     .try_collect_vec()?;
+
                 if P::EXPAND_TYPE_ALIASES {
                     let tcx = self.tcx();
                     return Ok(self
@@ -1753,6 +1755,23 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     #[track_caller]
     fn emit(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.genv().sess().emit_err(err)
+    }
+}
+
+/// Check generic params for types
+impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
+    fn check_refinement_generics(&mut self, path: &fhir::Path, def_id: DefId) -> QueryResult {
+        let generics = self.genv().refinement_generics_of(def_id)?;
+        if generics.count() != path.refine.len() {
+            let err = errors::RefineArgMismatch {
+                span: path.span,
+                expected: generics.count(),
+                found: path.refine.len(),
+                kind: self.tcx().def_descr(def_id),
+            };
+            Err(self.emit(err))?
+        }
+        Ok(())
     }
 
     fn check_prim_ty_generics(
@@ -2540,5 +2559,16 @@ mod errors {
         pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
             Self { span, trait_, name }
         }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_refine_arg_mismatch, code = E0999)]
+    pub(super) struct RefineArgMismatch {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        pub expected: usize,
+        pub found: usize,
+        pub kind: &'static str,
     }
 }

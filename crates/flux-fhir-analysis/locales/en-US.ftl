@@ -17,19 +17,6 @@ fhir_analysis_arg_count_mismatch =
         *[other] {$expected} arguments
     }, found {$found}
 
-fhir_analysis_early_bound_arg_count_mismatch =
-    this type alias takes {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    } but {$found ->
-        [one] {$found} was found
-        *[other] {$found} were found
-    }
-    .label = expected {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    }, found {$found}
-
 fhir_analysis_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
@@ -106,7 +93,6 @@ fhir_analysis_sort_annotation_needed =
 fhir_analysis_constant_annotation_needed =
     constant annotation required
     .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
-
 
 fhir_analysis_cannot_infer_sort =
     sort annotation needed
@@ -269,3 +255,16 @@ fhir_analysis_generics_on_self_ty =
 
 fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
+
+fhir_analysis_refine_arg_mismatch =
+    {$kind} takes {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }, but {$found} {$found ->
+        [one] argument was
+        *[other] arguments were
+    } provided
+    .label = expected {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }

@@ -37,22 +37,6 @@ impl ArgCountMismatch {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_early_bound_arg_count_mismatch, code = E0999)]
-pub(super) struct EarlyBoundArgCountMismatch {
-    #[primary_span]
-    #[label]
-    span: Span,
-    expected: usize,
-    found: usize,
-}
-
-impl EarlyBoundArgCountMismatch {
-    pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
-        Self { span, expected, found }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_duplicated_ensures, code = E0999)]
 pub(super) struct DuplicatedEnsures {
     #[primary_span]
