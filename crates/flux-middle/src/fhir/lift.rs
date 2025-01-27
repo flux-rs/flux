@@ -489,9 +489,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn emit_unsupported<T>(&self, note: &str) -> Result<T> {
         let tcx = self.genv.tcx();
         let local_id = self.owner.local_id().def_id;
-        let span = tcx
-            .def_ident_span(local_id)
-            .unwrap_or_else(|| tcx.def_span(local_id));
+        let span = tcx.def_span(local_id);
         let def_kind = tcx.def_descr(local_id.to_def_id());
         self.emit_err(errors::UnsupportedHir { span, def_kind, note })
     }
