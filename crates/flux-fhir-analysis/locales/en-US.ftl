@@ -163,6 +163,7 @@ fhir_analysis_assoc_type_not_found =
 
 fhir_analysis_ambiguous_assoc_type =
     ambiguous associated type `{$name}`
+    .label = help: use fully-qualified syntax
 
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances

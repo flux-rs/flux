@@ -1405,22 +1405,22 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn probe_single_bound_for_assoc_item<I>(
         &self,
         all_candidates: impl Fn() -> I,
-        assoc_ident: rustc_span::symbol::Ident,
-    ) -> Result<ty::PolyTraitRef<'tcx>, ErrorGuaranteed>
+        assoc_name: rustc_span::symbol::Ident,
+    ) -> QueryResult<ty::PolyTraitRef<'tcx>>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
         let mut matching_candidates = all_candidates().filter(|r| {
-            self.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_ident)
+            self.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_name)
                 .is_some()
         });
 
         let Some(bound) = matching_candidates.next() else {
-            return Err(self.emit(errors::AssocTypeNotFound::new(assoc_ident)));
+            return Err(self.emit(errors::AssocTypeNotFound::new(assoc_name)))?;
         };
 
         if matching_candidates.next().is_some() {
-            return Err(self.emit(errors::AmbiguousAssocType::new(assoc_ident)));
+            self.report_ambiguous_assoc_ty(assoc_name.span, assoc_name)?;
         }
 
         Ok(bound)
@@ -1539,16 +1539,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
                 let trait_id = self.tcx().trait_of_item(assoc_id).unwrap();
+
                 let [.., trait_segment, assoc_segment] = path.segments else {
                     span_bug!(path.span, "expected at least two segments");
                 };
 
+                let Some(qself) = qself else {
+                    self.report_ambiguous_assoc_ty(path.span, assoc_segment.ident)?
+                };
+
                 let trait_generics = self.genv().generics_of(trait_id)?;
-                let qself = self.conv_ty_to_generic_arg(
-                    env,
-                    &trait_generics.own_params[0],
-                    qself.unwrap(),
-                )?;
+                let qself =
+                    self.conv_ty_to_generic_arg(env, &trait_generics.own_params[0], qself)?;
                 let mut args = vec![qself];
                 self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
                 self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
@@ -1756,6 +1758,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     #[track_caller]
     fn emit(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.genv().sess().emit_err(err)
+    }
+
+    fn report_ambiguous_assoc_ty(
+        &self,
+        span: Span,
+        assoc_name: Ident,
+    ) -> Result<!, ErrorGuaranteed> {
+        Err(self.emit(errors::AmbiguousAssocType { span, name: assoc_name }))?
     }
 
     fn report_expected_type(
@@ -2335,14 +2345,9 @@ mod errors {
     #[diag(fhir_analysis_ambiguous_assoc_type, code = E0999)]
     pub(super) struct AmbiguousAssocType {
         #[primary_span]
-        span: Span,
-        name: Ident,
-    }
-
-    impl AmbiguousAssocType {
-        pub(super) fn new(assoc_ident: Ident) -> Self {
-            Self { span: assoc_ident.span, name: assoc_ident }
-        }
+        #[label]
+        pub span: Span,
+        pub name: Ident,
     }
 
     #[derive(Diagnostic)]
