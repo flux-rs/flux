@@ -5,11 +5,7 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{
-    fhir::{self, Res},
-    global_env::GlobalEnv,
-    MaybeExternId, ResolverOutput, Specs,
-};
+use flux_middle::{fhir, global_env::GlobalEnv, MaybeExternId, ResolverOutput, Specs};
 use flux_syntax::surface::{self, visit::Visitor as _, Ident};
 use hir::{def::DefKind, ItemId, ItemKind, OwnerId};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -278,27 +274,37 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         segments: &[S],
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
-        let mut module: Option<DefId> = None;
+        let mut module: Option<Module> = None;
 
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
 
-            let base_res = if let Some(module) = module {
-                self.resolve_ident_in_module(module, segment.ident())?
+            let base_res = if let Some(module) = &module {
+                self.resolve_ident_in_module(module, segment.ident(), ns)?
             } else {
                 self.resolve_ident_with_ribs(segment.ident(), ns)?
             };
 
             S::record_segment_res(self, segment, base_res);
 
-            if let Res::Def(DefKind::Mod, module_id) = base_res {
-                module = Some(module_id);
-            } else {
-                return Some(fhir::PartialRes::with_unresolved_segments(
-                    base_res,
-                    segments.len() - segment_idx - 1,
-                ));
+            if is_last {
+                return Some(fhir::PartialRes::new(base_res));
+            }
+
+            match base_res {
+                fhir::Res::Def(DefKind::Mod, module_id) => {
+                    module = Some(Module::new(ModuleKind::Mod, module_id));
+                }
+                fhir::Res::Def(DefKind::Trait, module_id) => {
+                    module = Some(Module::new(ModuleKind::Trait, module_id));
+                }
+                _ => {
+                    return Some(fhir::PartialRes::with_unresolved_segments(
+                        base_res,
+                        segments.len() - segment_idx - 1,
+                    ));
+                }
             }
         }
         None
@@ -334,10 +340,27 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             .flat_map(move |module_id| visible_module_children(tcx, module_id, curr_mod))
     }
 
-    fn resolve_ident_in_module(&self, module_id: DefId, ident: Ident) -> Option<fhir::Res> {
-        visible_module_children(self.genv.tcx(), module_id, self.current_module.to_def_id())
-            .find(|child| child.ident == ident)
-            .and_then(|child| fhir::Res::try_from(child.res).ok())
+    fn resolve_ident_in_module(
+        &self,
+        module: &Module,
+        ident: Ident,
+        ns: Namespace,
+    ) -> Option<fhir::Res> {
+        match module.kind {
+            ModuleKind::Mod => {
+                let module_id = module.def_id;
+                visible_module_children(self.genv.tcx(), module_id, self.current_module.to_def_id())
+                    .find(|child| child.ident == ident)
+                    .and_then(|child| fhir::Res::try_from(child.res).ok())
+            }
+            ModuleKind::Trait => {
+                let tcx = self.genv.tcx();
+                let trait_id = module.def_id;
+                tcx.associated_items(trait_id)
+                    .find_by_name_and_namespace(tcx, ident, ns, trait_id)
+                    .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+            }
+        }
     }
 
     pub fn into_output(self) -> Result<ResolverOutput> {
@@ -499,6 +522,24 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 }
 
+/// Akin to [`rustc_resolve::Module`] but specialized to what we support
+struct Module {
+    kind: ModuleKind,
+    def_id: DefId,
+}
+
+impl Module {
+    fn new(kind: ModuleKind, def_id: DefId) -> Self {
+        Self { kind, def_id }
+    }
+}
+
+/// Akin to [`rustc_resolve::ModuleKind`] but specialized to what we support
+enum ModuleKind {
+    Mod,
+    Trait,
+}
+
 #[derive(Debug)]
 enum RibKind {
     /// Any other rib without extra rules.
@@ -548,7 +589,7 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
 }
 
 /// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
-trait Segment {
+trait Segment: std::fmt::Debug {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
 }
