@@ -2572,7 +2572,35 @@
 <a href="#2571" id="2571">2571</a>
 <a href="#2572" id="2572">2572</a>
 <a href="#2573" id="2573">2573</a>
-<a href="#2574" id="2574">2574</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2574" id="2574">2574</a>
+<a href="#2575" id="2575">2575</a>
+<a href="#2576" id="2576">2576</a>
+<a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
+<a href="#2579" id="2579">2579</a>
+<a href="#2580" id="2580">2580</a>
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
+<a href="#2588" id="2588">2588</a>
+<a href="#2589" id="2589">2589</a>
+<a href="#2590" id="2590">2590</a>
+<a href="#2591" id="2591">2591</a>
+<a href="#2592" id="2592">2592</a>
+<a href="#2593" id="2593">2593</a>
+<a href="#2594" id="2594">2594</a>
+<a href="#2595" id="2595">2595</a>
+<a href="#2596" id="2596">2596</a>
+<a href="#2597" id="2597">2597</a>
+<a href="#2598" id="2598">2598</a>
+<a href="#2599" id="2599">2599</a>
+<a href="#2600" id="2600">2600</a>
+<a href="#2601" id="2601">2601</a>
+<a href="#2602" id="2602">2602</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3979,22 +4007,22 @@
     <span class="kw">fn </span>probe_single_bound_for_assoc_item&lt;I&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         all_candidates: <span class="kw">impl </span>Fn() -&gt; I,
-        assoc_ident: rustc_span::symbol::Ident,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt;
+        assoc_name: rustc_span::symbol::Ident,
+    ) -&gt; QueryResult&lt;ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt;&gt;
     <span class="kw">where
         </span>I: Iterator&lt;Item = ty::PolyTraitRef&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     {
         <span class="kw">let </span><span class="kw-2">mut </span>matching_candidates = all_candidates().filter(|r| {
-            <span class="self">self</span>.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_ident)
+            <span class="self">self</span>.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_name)
                 .is_some()
         });
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(bound) = matching_candidates.next() <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::AssocTypeNotFound::new(assoc_ident)));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::AssocTypeNotFound::new(assoc_name)))<span class="question-mark">?</span>;
         };
 
         <span class="kw">if </span>matching_candidates.next().is_some() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::AmbiguousAssocType::new(assoc_ident)));
+            <span class="self">self</span>.report_ambiguous_assoc_ty(assoc_name.span, assoc_name)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(bound)
@@ -4113,16 +4141,18 @@
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
                 <span class="kw">let </span>trait_id = <span class="self">self</span>.tcx().trait_of_item(assoc_id).unwrap();
+
                 <span class="kw">let </span>[.., trait_segment, assoc_segment] = path.segments <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(path.span, <span class="string">"expected at least two segments"</span>);
                 };
 
+                <span class="kw">let </span><span class="prelude-val">Some</span>(qself) = qself <span class="kw">else </span>{
+                    <span class="self">self</span>.report_ambiguous_assoc_ty(path.span, assoc_segment.ident)<span class="question-mark">?
+                </span>};
+
                 <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv().generics_of(trait_id)<span class="question-mark">?</span>;
-                <span class="kw">let </span>qself = <span class="self">self</span>.conv_ty_to_generic_arg(
-                    env,
-                    <span class="kw-2">&amp;</span>trait_generics.own_params[<span class="number">0</span>],
-                    qself.unwrap(),
-                )<span class="question-mark">?</span>;
+                <span class="kw">let </span>qself =
+                    <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>trait_generics.own_params[<span class="number">0</span>], qself)<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[qself];
                 <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                 <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
@@ -4155,7 +4185,8 @@
                     )
                 }
             }
-            fhir::Res::Def(..) | fhir::Res::Err =&gt; {
+            fhir::Res::Def(kind, def_id) =&gt; <span class="self">self</span>.report_expected_type(path.span, kind, def_id)<span class="question-mark">?</span>,
+            fhir::Res::Err =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)
             }
         };
@@ -4330,6 +4361,27 @@
     </span><span class="kw">fn </span>emit(<span class="kw-2">&amp;</span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'genv</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.genv().sess().emit_err(err)
     }
+
+    <span class="kw">fn </span>report_ambiguous_assoc_ty(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        span: Span,
+        assoc_name: Ident,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;!, ErrorGuaranteed&gt; {
+        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::AmbiguousAssocType { span, name: assoc_name }))<span class="question-mark">?
+    </span>}
+
+    <span class="kw">fn </span>report_expected_type(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        span: Span,
+        kind: DefKind,
+        def_id: DefId,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;!, ErrorGuaranteed&gt; {
+        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::ExpectedType {
+            span,
+            def_descr: <span class="self">self</span>.tcx().def_kind_descr(kind, def_id),
+            name: <span class="self">self</span>.tcx().def_path_str(def_id),
+        }))<span class="question-mark">?
+    </span>}
 }
 
 <span class="doccomment">/// Check generic params for types
@@ -4895,14 +4947,9 @@
     #[diag(fhir_analysis_ambiguous_assoc_type, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AmbiguousAssocType {
         <span class="attr">#[primary_span]
-        </span>span: Span,
-        name: Ident,
-    }
-
-    <span class="kw">impl </span>AmbiguousAssocType {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(assoc_ident: Ident) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span: assoc_ident.span, name: assoc_ident }
-        }
+        #[label]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="kw">pub </span>name: Ident,
     }
 
     <span class="attr">#[derive(Diagnostic)]
@@ -5144,6 +5191,15 @@
         <span class="kw">pub </span>expected: usize,
         <span class="kw">pub </span>found: usize,
         <span class="kw">pub </span>kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_expected_type, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ExpectedType {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
+        <span class="kw">pub </span>def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+        <span class="kw">pub </span>name: String,
     }
 }
 </code></pre></div></section></main></body></html>

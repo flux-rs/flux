@@ -810,18 +810,33 @@
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
 <a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
     bug,
     result::{ErrorCollector, ResultExt},
 };
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
-<span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, Res},
-    global_env::GlobalEnv,
-    MaybeExternId, ResolverOutput, Specs,
-};
+<span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, MaybeExternId, ResolverOutput, Specs};
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident};
 <span class="kw">use </span>hir::{def::DefKind, ItemId, ItemKind, OwnerId};
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -933,17 +948,20 @@
                         hir::UseKind::Single =&gt; {
                             <span class="kw">let </span>name = path.segments.last().unwrap().ident.name;
                             <span class="kw">for </span>res <span class="kw">in </span><span class="kw-2">&amp;</span>path.res {
-                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = res.ns() {
-                                    <span class="self">self</span>.define_res_in(name, <span class="kw-2">*</span>res, ns);
+                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = res.ns()
+                                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(res) = fhir::Res::try_from(<span class="kw-2">*</span>res)
+                                {
+                                    <span class="self">self</span>.define_res_in(name, res, ns);
                                 }
                             }
                         }
                         hir::UseKind::Glob =&gt; {
                             <span class="kw">let </span>is_prelude = is_prelude_import(<span class="self">self</span>.genv.tcx(), item);
                             <span class="kw">for </span>mod_child <span class="kw">in </span><span class="self">self</span>.glob_imports(path) {
-                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = mod_child.res.ns() {
+                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = mod_child.res.ns()
+                                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(res) = fhir::Res::try_from(mod_child.res)
+                                {
                                     <span class="kw">let </span>name = mod_child.ident.name;
-                                    <span class="kw">let </span>res = map_res(mod_child.res);
                                     <span class="kw">if </span>is_prelude {
                                         <span class="self">self</span>.define_in_prelude(name, res, ns);
                                     } <span class="kw">else </span>{
@@ -967,18 +985,18 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(ns) = def_kind.ns() {
                 <span class="self">self</span>.define_res_in(
                     item.ident.name,
-                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
                     ns,
                 );
             }
         }
     }
 
-    <span class="kw">fn </span>define_res_in(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: hir::def::Res, ns: Namespace) {
+    <span class="kw">fn </span>define_res_in(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: fhir::Res, ns: Namespace) {
         <span class="self">self</span>.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
     }
 
-    <span class="kw">fn </span>define_in_prelude(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: hir::def::Res, ns: Namespace) {
+    <span class="kw">fn </span>define_in_prelude(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: fhir::Res, ns: Namespace) {
         <span class="self">self</span>.prelude[ns].bindings.insert(name, res);
     }
 
@@ -1003,7 +1021,7 @@
             {
                 <span class="macro">debug_assert!</span>(<span class="macro">matches!</span>(def_kind, DefKind::TyParam | DefKind::ConstParam));
                 <span class="kw">let </span>param_id = <span class="self">self</span>.genv.maybe_extern_id(param.def_id).resolved_id();
-                <span class="self">self</span>.define_res_in(name.name, hir::def::Res::Def(def_kind, param_id), ns);
+                <span class="self">self</span>.define_res_in(name.name, fhir::Res::Def(def_kind, param_id), ns);
             }
         }
     }
@@ -1087,35 +1105,43 @@
         segments: <span class="kw-2">&amp;</span>[S],
         ns: Namespace,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;Module&gt; = <span class="prelude-val">None</span>;
 
         <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>segments.iter().enumerate() {
             <span class="kw">let </span>is_last = segment_idx + <span class="number">1 </span>== segments.len();
             <span class="kw">let </span>ns = <span class="kw">if </span>is_last { ns } <span class="kw">else </span>{ TypeNS };
 
-            <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = module {
-                <span class="self">self</span>.resolve_ident_in_module(module, segment.ident())<span class="question-mark">?
+            <span class="kw">let </span>base_res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = <span class="kw-2">&amp;</span>module {
+                <span class="self">self</span>.resolve_ident_in_module(module, segment.ident(), ns)<span class="question-mark">?
             </span>} <span class="kw">else </span>{
                 <span class="self">self</span>.resolve_ident_with_ribs(segment.ident(), ns)<span class="question-mark">?
             </span>};
 
-            <span class="kw">let </span>base_res = Res::try_from(res).ok()<span class="question-mark">?</span>;
-
             S::record_segment_res(<span class="self">self</span>, segment, base_res);
 
-            <span class="kw">if let </span>Res::Def(DefKind::Mod, module_id) = base_res {
-                module = <span class="prelude-val">Some</span>(module_id);
-            } <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::PartialRes::with_unresolved_segments(
-                    base_res,
-                    segments.len() - segment_idx - <span class="number">1</span>,
-                ));
+            <span class="kw">if </span>is_last {
+                <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::PartialRes::new(base_res));
+            }
+
+            <span class="kw">match </span>base_res {
+                fhir::Res::Def(DefKind::Mod, module_id) =&gt; {
+                    module = <span class="prelude-val">Some</span>(Module::new(ModuleKind::Mod, module_id));
+                }
+                fhir::Res::Def(DefKind::Trait, module_id) =&gt; {
+                    module = <span class="prelude-val">Some</span>(Module::new(ModuleKind::Trait, module_id));
+                }
+                <span class="kw">_ </span>=&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::PartialRes::with_unresolved_segments(
+                        base_res,
+                        segments.len() - segment_idx - <span class="number">1</span>,
+                    ));
+                }
             }
         }
         <span class="prelude-val">None
     </span>}
 
-    <span class="kw">fn </span>resolve_ident_with_ribs(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident, ns: Namespace) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
+    <span class="kw">fn </span>resolve_ident_with_ribs(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident, ns: Namespace) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Res&gt; {
         <span class="kw">for </span>rib <span class="kw">in </span><span class="self">self</span>.ribs[ns].iter().rev() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = rib.bindings.get(<span class="kw-2">&amp;</span>ident.name) {
                 <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">*</span>res);
@@ -1126,7 +1152,7 @@
         }
         <span class="kw">if </span>ns == TypeNS {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(crate_id) = <span class="self">self</span>.crates.get(<span class="kw-2">&amp;</span>ident.name) {
-                <span class="kw">return </span><span class="prelude-val">Some</span>(hir::def::Res::Def(DefKind::Mod, <span class="kw-2">*</span>crate_id));
+                <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::Res::Def(DefKind::Mod, <span class="kw-2">*</span>crate_id));
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.prelude[ns].bindings.get(<span class="kw-2">&amp;</span>ident.name) {
@@ -1145,9 +1171,27 @@
             .flat_map(<span class="kw">move </span>|module_id| visible_module_children(tcx, module_id, curr_mod))
     }
 
-    <span class="kw">fn </span>resolve_ident_in_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_id: DefId, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
-        visible_module_children(<span class="self">self</span>.genv.tcx(), module_id, <span class="self">self</span>.current_module.to_def_id())
-            .find_map(|child| <span class="kw">if </span>child.ident == ident { <span class="prelude-val">Some</span>(map_res(child.res)) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
+    <span class="kw">fn </span>resolve_ident_in_module(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        module: <span class="kw-2">&amp;</span>Module,
+        ident: Ident,
+        ns: Namespace,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Res&gt; {
+        <span class="kw">match </span>module.kind {
+            ModuleKind::Mod =&gt; {
+                <span class="kw">let </span>module_id = module.def_id;
+                visible_module_children(<span class="self">self</span>.genv.tcx(), module_id, <span class="self">self</span>.current_module.to_def_id())
+                    .find(|child| child.ident == ident)
+                    .and_then(|child| fhir::Res::try_from(child.res).ok())
+            }
+            ModuleKind::Trait =&gt; {
+                <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+                <span class="kw">let </span>trait_id = module.def_id;
+                tcx.associated_items(trait_id)
+                    .find_by_name_and_namespace(tcx, ident, ns, trait_id)
+                    .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+            }
+        }
     }
 
     <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;ResolverOutput&gt; {
@@ -1223,7 +1267,7 @@
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyParam { trait_: def_id.resolved_id() },
+                    fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
                 <span class="self">self</span>.resolve_trait(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
@@ -1232,9 +1276,8 @@
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
+                    fhir::Res::SelfTyAlias {
                         alias_to: def_id.resolved_id(),
-                        forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
                     TypeNS,
@@ -1249,11 +1292,7 @@
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
-                        alias_to: def_id.resolved_id(),
-                        forbid_generic: <span class="bool-val">false</span>,
-                        is_trait_impl: <span class="bool-val">false</span>,
-                    },
+                    fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: <span class="bool-val">false </span>},
                     TypeNS,
                 );
                 <span class="self">self</span>.resolve_enum_def(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
@@ -1262,11 +1301,7 @@
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
-                    hir::def::Res::SelfTyAlias {
-                        alias_to: def_id.resolved_id(),
-                        forbid_generic: <span class="bool-val">false</span>,
-                        is_trait_impl: <span class="bool-val">false</span>,
-                    },
+                    fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: <span class="bool-val">false </span>},
                     TypeNS,
                 );
                 <span class="self">self</span>.resolve_struct_def(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
@@ -1318,6 +1353,24 @@
     }
 }
 
+<span class="doccomment">/// Akin to [`rustc_resolve::Module`] but specialized to what we support
+</span><span class="kw">struct </span>Module {
+    kind: ModuleKind,
+    def_id: DefId,
+}
+
+<span class="kw">impl </span>Module {
+    <span class="kw">fn </span>new(kind: ModuleKind, def_id: DefId) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ kind, def_id }
+    }
+}
+
+<span class="doccomment">/// Akin to [`rustc_resolve::ModuleKind`] but specialized to what we support
+</span><span class="kw">enum </span>ModuleKind {
+    Mod,
+    Trait,
+}
+
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>RibKind {
     <span class="doccomment">/// Any other rib without extra rules.
@@ -1329,7 +1382,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>Rib {
     kind: RibKind,
-    bindings: FxHashMap&lt;Symbol, hir::def::Res&gt;,
+    bindings: FxHashMap&lt;Symbol, fhir::Res&gt;,
 }
 
 <span class="kw">impl </span>Rib {
@@ -1367,7 +1420,7 @@
 }
 
 <span class="doccomment">/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
-</span><span class="kw">trait </span>Segment {
+</span><span class="kw">trait </span>Segment: std::fmt::Debug {
     <span class="kw">fn </span>record_segment_res(resolver: <span class="kw-2">&amp;mut </span>CrateResolver, segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, res: fhir::Res);
     <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident;
 }
@@ -1487,21 +1540,6 @@
     }
 }
 
-<span class="kw">fn </span>map_res(res: hir::def::Res&lt;!&gt;) -&gt; hir::def::Res {
-    <span class="kw">match </span>res {
-        hir::def::Res::Def(k, id) =&gt; hir::def::Res::Def(k, id),
-        hir::def::Res::PrimTy(pty) =&gt; hir::def::Res::PrimTy(pty),
-        hir::def::Res::SelfTyParam { trait_ } =&gt; hir::def::Res::SelfTyParam { trait_ },
-        hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl } =&gt; {
-            hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl }
-        }
-        hir::def::Res::SelfCtor(id) =&gt; hir::def::Res::SelfCtor(id),
-        hir::def::Res::ToolMod =&gt; hir::def::Res::ToolMod,
-        hir::def::Res::NonMacroAttr(nma) =&gt; hir::def::Res::NonMacroAttr(nma),
-        hir::def::Res::Err =&gt; hir::def::Res::Err,
-    }
-}
-
 <span class="kw">struct </span>OpaqueTypeCollector&lt;<span class="lifetime">'sess</span>&gt; {
     opaque: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     </span>errors: Errors&lt;<span class="lifetime">'sess</span>&gt;,
@@ -1563,7 +1601,7 @@
         kind: RibKind::Normal,
         bindings: PrimTy::ALL
             .into_iter()
-            .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
+            .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)))
             .collect(),
     }
 }
