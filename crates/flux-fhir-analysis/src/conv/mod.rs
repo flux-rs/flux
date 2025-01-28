@@ -1581,7 +1581,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     )
                 }
             }
-            fhir::Res::Def(..) | fhir::Res::Err => {
+            fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
+            fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
@@ -1755,6 +1756,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     #[track_caller]
     fn emit(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.genv().sess().emit_err(err)
+    }
+
+    fn report_expected_type(
+        &self,
+        span: Span,
+        kind: DefKind,
+        def_id: DefId,
+    ) -> Result<!, ErrorGuaranteed> {
+        Err(self.emit(errors::ExpectedType {
+            span,
+            def_descr: self.tcx().def_kind_descr(kind, def_id),
+            name: self.tcx().def_path_str(def_id),
+        }))?
     }
 }
 
@@ -2570,5 +2584,14 @@ mod errors {
         pub expected: usize,
         pub found: usize,
         pub kind: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_expected_type, code = E0999)]
+    pub(super) struct ExpectedType {
+        #[primary_span]
+        pub span: Span,
+        pub def_descr: &'static str,
+        pub name: String,
     }
 }

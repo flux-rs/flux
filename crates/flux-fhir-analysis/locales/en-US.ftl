@@ -268,3 +268,6 @@ fhir_analysis_refine_arg_mismatch =
         [one] argument
         *[other] arguments
     }
+
+fhir_analysis_expected_type =
+    expected a type, found {$def_descr} `{$name}`
