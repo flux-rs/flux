@@ -506,7 +506,9 @@
 <a href="#505" id="505">505</a>
 <a href="#506" id="506">506</a>
 <a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 
@@ -607,7 +609,9 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
-    wf.init_infcx(node).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    wf.init_infcx(node)
+        .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     ImplicitParamInferer::infer(wf.infcx, node)<span class="question-mark">?</span>;
 
