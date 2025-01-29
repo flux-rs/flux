@@ -2598,9 +2598,7 @@
 <a href="#2597" id="2597">2597</a>
 <a href="#2598" id="2598">2598</a>
 <a href="#2599" id="2599">2599</a>
-<a href="#2600" id="2600">2600</a>
-<a href="#2601" id="2601">2601</a>
-<a href="#2602" id="2602">2602</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2600" id="2600">2600</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3566,14 +3564,10 @@
             </span>.into()];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
 
-        env.pop_layer();
-        <span class="kw">let </span>vars = generic_params
-            .iter()
-            .map(|param| <span class="self">self</span>.param_as_bound_var(param))
-            .try_collect_vec()<span class="question-mark">?</span>;
+        <span class="kw">let </span>vars = env.top_layer().to_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="kw">let </span>poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
-            List::from_vec(vars),
+            vars,
         );
 
         clauses.push(
@@ -3588,6 +3582,8 @@
         <span class="kw">for </span>cstr <span class="kw">in </span>trait_segment.constraints {
             <span class="self">self</span>.conv_assoc_item_constraint(env, <span class="kw-2">&amp;</span>poly_trait_ref, cstr, clauses)<span class="question-mark">?</span>;
         }
+
+        env.pop_layer();
 
         <span class="prelude-val">Ok</span>(())
     }
