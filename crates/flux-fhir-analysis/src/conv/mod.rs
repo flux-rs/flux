@@ -964,14 +964,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .into()];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
 
-        env.pop_layer();
-        let vars = generic_params
-            .iter()
-            .map(|param| self.param_as_bound_var(param))
-            .try_collect_vec()?;
+        let vars = env.top_layer().to_bound_vars(self.genv())?;
         let poly_trait_ref = rty::Binder::bind_with_vars(
             rty::TraitRef { def_id: trait_id, args: args.into() },
-            List::from_vec(vars),
+            vars,
         );
 
         clauses.push(
@@ -986,6 +982,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         for cstr in trait_segment.constraints {
             self.conv_assoc_item_constraint(env, &poly_trait_ref, cstr, clauses)?;
         }
+
+        env.pop_layer();
 
         Ok(())
     }
