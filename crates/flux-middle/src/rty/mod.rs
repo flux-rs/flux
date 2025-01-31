@@ -69,7 +69,7 @@ pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
-    /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
+    /// [`DefId`] of the struct or enum this data sort is associated to.
     def_id: DefId,
     /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
     ///
@@ -638,9 +638,10 @@ pub enum SortCtor {
 }
 
 newtype_index! {
-    /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be <
-    /// than the number of params.
+    /// [`ParamSort`] is used for polymorphic sorts (`Set`, `Map`, etc.) and [bit-vector size parameters].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]. We assume there's a
+    /// single binder and a [`ParamSort`] represents a variable as an index into the list of variables
+    /// bound by that binder, i.e., the representation doesnt't support higher-ranked sorts.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     #[debug_format = "?{}s"]
