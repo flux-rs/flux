@@ -2668,7 +2668,8 @@
 <a href="#2667" id="2667">2667</a>
 <a href="#2668" id="2668">2668</a>
 <a href="#2669" id="2669">2669</a>
-<a href="#2670" id="2670">2670</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2670" id="2670">2670</a>
+<a href="#2671" id="2671">2671</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2739,7 +2740,7 @@
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">struct </span>AdtSortDefData {
-    <span class="doccomment">/// [`DefId`] of the struct, enum or type aliases this data sort is associated to
+    <span class="doccomment">/// [`DefId`] of the struct or enum this data sort is associated to.
     </span>def_id: DefId,
     <span class="doccomment">/// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
     ///
@@ -3308,9 +3309,10 @@
 }
 
 <span class="macro">newtype_index!</span> {
-    <span class="doccomment">/// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be &lt;
-    /// than the number of params.
+    <span class="doccomment">/// [`ParamSort`] is used for polymorphic sorts (`Set`, `Map`, etc.) and [bit-vector size parameters].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]. We assume there's a
+    /// single binder and a [`ParamSort`] represents a variable as an index into the list of variables
+    /// bound by that binder, i.e., the representation doesnt't support higher-ranked sorts.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     </span><span class="attr">#[debug_format = <span class="string">"?{}s"</span>]

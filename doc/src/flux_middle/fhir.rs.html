@@ -2711,11 +2711,11 @@
     /// we implicitly create a data sort of the form `forall #0. { keys: Set&lt;#0&gt; }`, where `#0` is a
     /// *sort variable*.
     ///
-    /// The [`FxIndexSet`] is used to track a mapping between sort varriables and their corresponding
+    /// This [`FxIndexSet`] is used to track a mapping between sort variables and their corresponding
     /// type parameter. The [`DefId`] is the id of the type parameter and its index in the set is the
     /// position of the sort variable.
     </span><span class="kw">pub </span>sort_params: FxIndexSet&lt;DefId&gt;,
-    <span class="doccomment">/// Fields indexed by their name and in the same order they appear in the definition.
+    <span class="doccomment">/// Fields indexed by their name in the same order they appear in the `#[refined_by(..)]` annotation.
     </span><span class="kw">pub </span>fields: FxIndexMap&lt;Symbol, Sort&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
