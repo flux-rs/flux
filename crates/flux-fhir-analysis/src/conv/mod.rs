@@ -1844,6 +1844,21 @@ fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
 
 /// Conversion of expressions
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
+    fn get_variant_index(&self, variant_def_id: DefId) -> Option<usize> {
+        let tcx = self.genv().tcx();
+        // Get the parent enum's DefId
+        let enum_def_id = tcx.parent(variant_def_id);
+
+        // Get the enum's AdtDef which contains variant information
+        let adt_def = tcx.adt_def(enum_def_id);
+
+        // Find the variant's index by matching DefIds
+        adt_def
+            .variants()
+            .iter()
+            .position(|variant| variant.def_id == variant_def_id)
+    }
+
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
@@ -1861,6 +1876,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                             };
                             rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
                         }
+                    }
+                    ExprRes::Variant(_def_id) => {
+                        let pos = self.get_variant_index(_def_id).unwrap();
+                        rty::Expr::constant(rty::Constant::Int(pos.into()))
+                        // span_bug!(var.span, "unexpected variant {def_id:?} in var position (0)")
                     }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))

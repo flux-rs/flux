@@ -888,6 +888,7 @@ impl TypeSuperVisitable for Expr {
             ExprKind::ForAll(expr) => expr.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole(_)
+            // | ExprKind::Variant(..)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_, _) => ControlFlow::Continue(()),
@@ -908,6 +909,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
+            // ExprKind::Variant(_did, _k) => todo!("foldable--variant"), // Expr::variant(*did, k),
             ExprKind::ConstDefId(did, info) => Expr::const_def_id(*did, info.clone()),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(

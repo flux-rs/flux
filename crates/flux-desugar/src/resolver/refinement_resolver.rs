@@ -561,7 +561,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<ExprRes<NodeId>> {
-        let res = match self.resolver.resolve_path_with_ribs(segments, ValueNS) {
+        let path = self.resolver.resolve_path_with_ribs(segments, ValueNS);
+        let res = match path {
             Some(r) => r.full_res()?,
             _ => {
                 self.resolver
@@ -573,6 +574,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Ctor(def_id)),
+            fhir::Res::Def(DefKind::Variant, def_id) => Some(ExprRes::Variant(def_id)),
             _ => None,
         }
     }

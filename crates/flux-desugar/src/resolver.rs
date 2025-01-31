@@ -144,7 +144,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
+                ItemKind::Enum(enum_def, _) => {
+                    for variant in enum_def.variants {
+                        let name = variant.ident.name;
+                        let res = fhir::Res::Def(DefKind::Variant, variant.def_id.to_def_id());
+                        self.define_res_in(name, res, ValueNS);
+                    }
+                    DefKind::Enum
+                }
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
@@ -275,7 +282,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
         let mut module: Option<Module> = None;
-
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
@@ -457,13 +463,18 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_generics(def_id);
                 self.resolve_type_alias(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Enum(..) => {
+            ItemKind::Enum(_enum_def, ..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
+                // Add the enum variants to the rib
+                // self.push_rib(ValueNS, RibKind::Normal);
+
+                // self.pop_rib(ValueNS);
+                // Resolve the refinement-specs for the enum
                 self.resolve_enum_def(def_id).collect_err(&mut self.err);
             }
             ItemKind::Struct(..) => {

@@ -308,6 +308,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
             }
+            ExprRes::Variant(_def_id) => {
+                Ok(rty::Sort::Int)
+                // span_bug!(path.span, "unexpected variant {def_id:?} in var position (1)")
+            }
         }
     }
 

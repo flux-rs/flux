@@ -997,6 +997,7 @@ pub enum ExprRes<Id = ParamId> {
     ///
     /// [adt sort]: SortRes::Adt
     Ctor(DefId),
+    Variant(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
@@ -1011,6 +1012,7 @@ impl<Id> ExprRes<Id> {
             ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
             ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
+            ExprRes::Variant(def_id) => ExprRes::Variant(def_id),
         }
     }
 

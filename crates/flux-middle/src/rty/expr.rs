@@ -242,6 +242,11 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
+    // pub fn variant(did: DefId) -> Expr {
+    //     // Self::zero()
+    //     ExprKind::Variant(did).intern()
+    // }
+
     pub fn const_def_id(c: DefId, info: ConstantInfo) -> Expr {
         ExprKind::ConstDefId(c, info).intern()
     }
@@ -649,6 +654,10 @@ pub enum ExprKind {
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
     Alias(AliasReft, List<Expr>),
+    /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
+    /// TODO: extend to `Variant(DefId, List<Expr>)` to allow args...
+    // Variant(DefId),
+    // Variant(DefId, usize),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -1180,6 +1189,7 @@ pub(crate) mod pretty {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
                 ExprKind::ConstDefId(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                // ExprKind::Variant(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
@@ -1463,7 +1473,9 @@ pub(crate) mod pretty {
                 | ExprKind::ConstDefId(..)
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
-                | ExprKind::KVar(..) => debug_nested(cx, &e),
+                | ExprKind::KVar(..)
+                // | ExprKind::Variant(..)
+                => debug_nested(cx, &e),
 
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;
