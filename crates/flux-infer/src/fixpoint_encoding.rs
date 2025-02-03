@@ -955,7 +955,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
-            // rty::ExprKind::Variant(did, _) => todo!("convert-to-fixpoint {did:?}"),
+            rty::ExprKind::Variant(did) => todo!("convert-to-fixpoint {did:?}"),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,

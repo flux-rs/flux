@@ -878,7 +878,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         if a == b {
             return;
         }
-
         match (a.kind(), b.kind()) {
             (ExprKind::Aggregate(kind_a, flds_a), ExprKind::Aggregate(kind_b, flds_b)) => {
                 debug_assert_eq!(kind_a, kind_b);

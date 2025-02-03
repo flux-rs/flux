@@ -68,6 +68,55 @@ use crate::{
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct AdtSortRefined {
+    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
+    field_names: Vec<Symbol>,
+    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
+    sorts: List<Sort>,
+}
+
+impl AdtSortRefined {
+    pub fn fields(&self) -> usize {
+        self.sorts.len()
+    }
+
+    pub fn field_names(&self) -> &Vec<Symbol> {
+        &self.field_names
+    }
+
+    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
+        std::iter::zip(&self.field_names, &self.sorts.fold_with(&mut SortSubst::new(args)))
+            .map(|(name, sort)| (*name, sort.clone()))
+            .collect()
+    }
+
+    pub fn field_by_name(
+        &self,
+        def_id: DefId,
+        args: &[Sort],
+        name: Symbol,
+    ) -> Option<(FieldProj, Sort)> {
+        let idx = self.field_names.iter().position(|it| name == *it)?;
+        let proj = FieldProj::Adt { def_id, field: idx as u32 };
+        let sort = self.sorts[idx].fold_with(&mut SortSubst::new(args));
+        Some((proj, sort))
+    }
+
+    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
+        self.sorts.fold_with(&mut SortSubst::new(args))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum AdtSortIndex {
+    RefinedBy(AdtSortRefined),
+    Reflected,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
     /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
     def_id: DefId,
@@ -78,23 +127,18 @@ struct AdtSortDefData {
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
-    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
-    field_names: Vec<Symbol>,
-    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
-    /// to access these sorts guarantee they are properly instantiated.
-    ///
-    /// [sort variables]: Sort::Var
-    sorts: List<Sort>,
+    /// The `index` is *either* the user defined indices or the "reflected" ADT
+    index: AdtSortIndex,
 }
 
 impl AdtSortDef {
     pub fn new(def_id: DefId, params: Vec<ParamTy>, fields: Vec<(Symbol, Sort)>) -> Self {
         let (field_names, sorts) = fields.into_iter().unzip();
+        let adt_sort_refined = AdtSortRefined { field_names, sorts: List::from_vec(sorts) };
         Self(Interned::new(AdtSortDefData {
             def_id,
             params,
-            field_names,
-            sorts: List::from_vec(sorts),
+            index: AdtSortIndex::RefinedBy(adt_sort_refined),
         }))
     }
 
@@ -102,33 +146,54 @@ impl AdtSortDef {
         self.0.def_id
     }
 
+    pub fn index(&self) -> &AdtSortIndex {
+        &self.0.index
+    }
+
     pub fn fields(&self) -> usize {
-        self.0.sorts.len()
+        match self.index() {
+            AdtSortIndex::RefinedBy(refined) => refined.fields(),
+            AdtSortIndex::Reflected => 0,
+        }
     }
 
     pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_names(&self) -> &Vec<Symbol> {
-        &self.0.field_names
+    pub fn field_names(&self) -> &[Symbol] {
+        match &self.index() {
+            AdtSortIndex::RefinedBy(refined) => &refined.field_names[..],
+            AdtSortIndex::Reflected => &[],
+        }
     }
 
     pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
-            .map(|(name, sort)| (*name, sort.clone()))
-            .collect()
+        match self.index() {
+            AdtSortIndex::RefinedBy(refined) => refined.sort_by_field_name(args),
+            AdtSortIndex::Reflected => FxIndexMap::default(),
+        }
+        // std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
+        //     .map(|(name, sort)| (*name, sort.clone()))
+        //     .collect()
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        let idx = self.0.field_names.iter().position(|it| name == *it)?;
-        let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
-        let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
-        Some((proj, sort))
+        match self.index() {
+            AdtSortIndex::RefinedBy(refined) => refined.field_by_name(self.did(), args, name),
+            AdtSortIndex::Reflected => None,
+        }
+        // let idx = self.0.field_names.iter().position(|it| name == *it)?;
+        // let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
+        // let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
+        // Some((proj, sort))
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        self.0.sorts.fold_with(&mut SortSubst::new(args))
+        match self.index() {
+            AdtSortIndex::RefinedBy(refined) => refined.field_sorts(args),
+            AdtSortIndex::Reflected => List::empty(),
+        }
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {

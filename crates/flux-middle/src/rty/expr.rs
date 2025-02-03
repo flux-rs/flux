@@ -35,7 +35,7 @@ use crate::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
         },
-        BoundVariableKind, SortCtor,
+        AdtSortIndex, BoundVariableKind, SortCtor,
     },
 };
 
@@ -547,8 +547,16 @@ impl Expr {
             match sort {
                 Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
                 Sort::App(SortCtor::Adt(adt_sort_def), args) => {
-                    let flds = adt_sort_def.field_sorts(args);
-                    Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
+                    match adt_sort_def.index() {
+                        AdtSortIndex::RefinedBy(adt_sort_refined) => {
+                            let flds = adt_sort_refined.field_sorts(args);
+                            Expr::adt(
+                                adt_sort_def.did(),
+                                flds.iter().map(|sort| go(sort, f)).collect(),
+                            )
+                        }
+                        AdtSortIndex::Reflected => f(sort),
+                    }
                 }
                 _ => f(sort),
             }
@@ -656,8 +664,7 @@ pub enum ExprKind {
     Alias(AliasReft, List<Expr>),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
     /// TODO: extend to `Variant(DefId, List<Expr>)` to allow args...
-    // Variant(DefId),
-    // Variant(DefId, usize),
+    Variant(DefId),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -1190,6 +1197,7 @@ pub(crate) mod pretty {
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
                 ExprKind::ConstDefId(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 // ExprKind::Variant(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                ExprKind::Variant(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
@@ -1474,8 +1482,7 @@ pub(crate) mod pretty {
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
                 | ExprKind::KVar(..)
-                // | ExprKind::Variant(..)
-                => debug_nested(cx, &e),
+                | ExprKind::Variant(..) => debug_nested(cx, &e),
 
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;
