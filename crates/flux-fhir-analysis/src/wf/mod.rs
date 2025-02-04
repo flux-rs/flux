@@ -206,12 +206,15 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                 match &item.kind {
                     fhir::ItemKind::Enum(enum_def) => {
                         cx.conv_enum_variants(def_id, enum_def)?;
+                        cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::Struct(struct_def) => {
                         cx.conv_struct_variant(def_id, struct_def)?;
+                        cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::TyAlias(ty_alias) => {
                         cx.conv_type_alias(def_id, ty_alias)?;
+                        cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::Trait(trait_) => {
                         for assoc_reft in trait_.assoc_refinements {
@@ -223,6 +226,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                                 )?;
                             }
                         }
+                        cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::Impl(impl_) => {
                         for assoc_reft in impl_.assoc_refinements {
@@ -232,6 +236,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                                 &assoc_reft.output,
                             )?;
                         }
+                        cx.conv_generic_predicates(def_id, &item.generics)?;
                     }
                     fhir::ItemKind::Fn(fn_sig) => {
                         cx.conv_fn_sig(def_id, fn_sig)?;
