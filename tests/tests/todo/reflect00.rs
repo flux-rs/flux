@@ -9,20 +9,20 @@ pub enum State {
 //     State::On
 // }
 
-#[flux::sig(fn () -> State[Off])]
-pub fn test01() -> State {
-    State::On //~ ERROR refinement type
-}
-
-// #[flux_rs::sig(fn (s:State[On]) -> usize[1])]
-// pub fn test02(s: State) -> usize {
-//     match s {
-//         State::On => 1,
-//         State::Off => 0,
-//     }
-// }
-
-// // #[flux_rs::sig(fn () -> State[Off])]
+// #[flux_rs::sig(fn () -> State[Off])]
 // pub fn test01() -> State {
 //     State::Off
 // }
+
+// #[flux::sig(fn () -> State[Off])]
+// pub fn test02() -> State {
+//     State::On //~ ERROR refinement type
+// }
+
+#[flux::sig(fn (s:State[On]) -> usize[1])]
+pub fn test03(s: State) -> usize {
+    match s {
+        State::On => 1,
+        State::Off => 0,
+    }
+}

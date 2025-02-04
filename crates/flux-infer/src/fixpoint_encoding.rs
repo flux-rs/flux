@@ -947,6 +947,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn get_variant_index(&self, variant_def_id: DefId) -> Option<usize> {
+        let tcx = self.genv.tcx();
+        // Get the parent enum's DefId
+        let enum_def_id = tcx.parent(variant_def_id);
+
+        // Get the enum's AdtDef which contains variant information
+        let adt_def = tcx.adt_def(enum_def_id);
+
+        // Find the variant's index by matching DefIds
+        adt_def
+            .variants()
+            .iter()
+            .position(|variant| variant.def_id == variant_def_id)
+    }
+
     fn expr_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -955,7 +970,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
-            rty::ExprKind::Variant(did) => todo!("convert-to-fixpoint {did:?}"),
+            rty::ExprKind::Variant(did) => {
+                let pos = self.get_variant_index(*did).unwrap();
+                println!("TRACE: variant index: {pos}");
+                fixpoint::Expr::Constant(fixpoint::Constant::Numeral(pos.into()))
+            }
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
