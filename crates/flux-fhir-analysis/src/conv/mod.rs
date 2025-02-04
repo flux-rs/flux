@@ -268,21 +268,30 @@ enum LookupResultKind<'a> {
 pub(crate) fn conv_adt_sort_def(
     genv: GlobalEnv,
     def_id: MaybeExternId,
-    refined_by: &fhir::RefinedBy,
+    kind: &fhir::RefinementKind,
 ) -> QueryResult<rty::AdtSortDef> {
     let wfckresults = &WfckResults::new(OwnerId { def_id: def_id.local_id() });
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
-    let params = refined_by
-        .sort_params
-        .iter()
-        .map(|def_id| def_id_to_param_ty(genv, *def_id))
-        .collect();
-    let fields = refined_by
-        .fields
-        .iter()
-        .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
-        .try_collect_vec()?;
-    Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
+    match kind {
+        fhir::RefinementKind::Refined(refined_by) => {
+            let params = refined_by
+                .sort_params
+                .iter()
+                .map(|def_id| def_id_to_param_ty(genv, *def_id))
+                .collect();
+            let fields = refined_by
+                .fields
+                .iter()
+                .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
+                .try_collect_vec()?;
+            let refined_by = rty::AdtSortRefined::new(fields);
+            let kind = rty::RefinementKind::RefinedBy(refined_by);
+            Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, kind))
+        }
+        fhir::RefinementKind::Reflected => {
+            Ok(rty::AdtSortDef::new(def_id.resolved_id(), vec![], rty::RefinementKind::Reflected))
+        }
+    }
 }
 
 pub(crate) fn conv_generics(
@@ -496,10 +505,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         enum_id: MaybeExternId,
         enum_def: &fhir::EnumDef,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
+        let reflected = enum_def.refinement.is_reflected();
         enum_def
             .variants
             .iter()
-            .map(|variant| self.conv_enum_variant(enum_id, variant))
+            .map(|variant| self.conv_enum_variant(enum_id, variant, reflected))
             .try_collect_vec()
     }
 
@@ -507,10 +517,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         enum_id: MaybeExternId,
         variant: &fhir::VariantDef,
+        reflected: bool,
     ) -> QueryResult<rty::PolyVariant> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(self.results(), 0, variant.params));
 
+        // TODO(RJ): just "lift" the fields, ignore any `variant` signatures if reflected?
         let fields = variant
             .fields
             .iter()
@@ -518,7 +530,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .try_collect()?;
 
         let adt_def = self.genv().adt_def(enum_id)?;
-        let idxs = self.conv_expr(&mut env, &variant.ret.idx)?;
+        let idxs = if reflected {
+            rty::Expr::variant(variant.def_id.to_def_id())
+        } else {
+            self.conv_expr(&mut env, &variant.ret.idx)?
+        };
         let variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv(), enum_id.resolved_id())?,
@@ -1879,8 +1895,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     }
                     ExprRes::Variant(_def_id) => {
                         let pos = self.get_variant_index(_def_id).unwrap();
+                        println!("TRACE: variant index: {pos}");
                         rty::Expr::constant(rty::Constant::Int(pos.into()))
-                        // span_bug!(var.span, "unexpected variant {def_id:?} in var position (0)")
                     }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))

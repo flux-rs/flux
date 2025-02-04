@@ -1,4 +1,4 @@
-// #[flux_rs::reflect]
+#[flux::reflect]
 pub enum State {
     On,
     Off,
@@ -9,9 +9,9 @@ pub enum State {
 //     State::On
 // }
 
-#[flux_rs::sig(fn () -> State[On])]
+#[flux::sig(fn () -> State[Off])]
 pub fn test01() -> State {
-    State::Off //~ ERROR refinement type
+    State::On //~ ERROR refinement type
 }
 
 // #[flux_rs::sig(fn (s:State[On]) -> usize[1])]

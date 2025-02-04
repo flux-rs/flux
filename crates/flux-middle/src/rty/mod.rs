@@ -79,6 +79,11 @@ pub struct AdtSortRefined {
 }
 
 impl AdtSortRefined {
+    pub fn new(fields: Vec<(Symbol, Sort)>) -> Self {
+        let (field_names, sorts) = fields.into_iter().unzip();
+        AdtSortRefined { field_names, sorts: List::from_vec(sorts) }
+    }
+
     pub fn fields(&self) -> usize {
         self.sorts.len()
     }
@@ -111,7 +116,7 @@ impl AdtSortRefined {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum AdtSortIndex {
+pub enum RefinementKind {
     RefinedBy(AdtSortRefined),
     Reflected,
 }
@@ -128,32 +133,26 @@ struct AdtSortDefData {
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
     /// The `index` is *either* the user defined indices or the "reflected" ADT
-    index: AdtSortIndex,
+    kind: RefinementKind,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<ParamTy>, fields: Vec<(Symbol, Sort)>) -> Self {
-        let (field_names, sorts) = fields.into_iter().unzip();
-        let adt_sort_refined = AdtSortRefined { field_names, sorts: List::from_vec(sorts) };
-        Self(Interned::new(AdtSortDefData {
-            def_id,
-            params,
-            index: AdtSortIndex::RefinedBy(adt_sort_refined),
-        }))
+    pub fn new(def_id: DefId, params: Vec<ParamTy>, kind: RefinementKind) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, kind }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.def_id
     }
 
-    pub fn index(&self) -> &AdtSortIndex {
-        &self.0.index
+    pub fn index(&self) -> &RefinementKind {
+        &self.0.kind
     }
 
     pub fn fields(&self) -> usize {
         match self.index() {
-            AdtSortIndex::RefinedBy(refined) => refined.fields(),
-            AdtSortIndex::Reflected => 0,
+            RefinementKind::RefinedBy(refined) => refined.fields(),
+            RefinementKind::Reflected => 0,
         }
     }
 
@@ -163,36 +162,29 @@ impl AdtSortDef {
 
     pub fn field_names(&self) -> &[Symbol] {
         match &self.index() {
-            AdtSortIndex::RefinedBy(refined) => &refined.field_names[..],
-            AdtSortIndex::Reflected => &[],
+            RefinementKind::RefinedBy(refined) => &refined.field_names[..],
+            RefinementKind::Reflected => &[],
         }
     }
 
     pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
         match self.index() {
-            AdtSortIndex::RefinedBy(refined) => refined.sort_by_field_name(args),
-            AdtSortIndex::Reflected => FxIndexMap::default(),
+            RefinementKind::RefinedBy(refined) => refined.sort_by_field_name(args),
+            RefinementKind::Reflected => FxIndexMap::default(),
         }
-        // std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
-        //     .map(|(name, sort)| (*name, sort.clone()))
-        //     .collect()
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
         match self.index() {
-            AdtSortIndex::RefinedBy(refined) => refined.field_by_name(self.did(), args, name),
-            AdtSortIndex::Reflected => None,
+            RefinementKind::RefinedBy(refined) => refined.field_by_name(self.did(), args, name),
+            RefinementKind::Reflected => None,
         }
-        // let idx = self.0.field_names.iter().position(|it| name == *it)?;
-        // let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
-        // let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
-        // Some((proj, sort))
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         match self.index() {
-            AdtSortIndex::RefinedBy(refined) => refined.field_sorts(args),
-            AdtSortIndex::Reflected => List::empty(),
+            RefinementKind::RefinedBy(refined) => refined.field_sorts(args),
+            RefinementKind::Reflected => List::empty(),
         }
     }
 
@@ -2310,7 +2302,9 @@ impl VariantSig {
 
     pub fn ret(&self) -> Ty {
         let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
-        Ty::indexed(bty, self.idx.clone())
+        let idx = self.idx.clone();
+        println!("TRACE: ret {bty:?} / {idx:?}");
+        Ty::indexed(bty, idx)
     }
 }
 

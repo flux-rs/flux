@@ -517,13 +517,16 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.items.get(&name).as_ref().copied()
     }
 
-    pub fn refined_by(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::RefinedBy<'genv>> {
-        let refined_by = match &self.expect_item(def_id)?.kind {
-            fhir::ItemKind::Enum(enum_def) => enum_def.refined_by,
-            fhir::ItemKind::Struct(struct_def) => struct_def.refined_by,
+    pub fn refinement_kind(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<&'genv fhir::RefinementKind<'genv>> {
+        let kind = match &self.expect_item(def_id)?.kind {
+            fhir::ItemKind::Enum(enum_def) => &enum_def.refinement,
+            fhir::ItemKind::Struct(struct_def) => &struct_def.refinement,
             _ => bug!("expected struct, enum or type alias"),
         };
-        Ok(refined_by)
+        Ok(kind)
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {

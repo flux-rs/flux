@@ -35,7 +35,7 @@ use crate::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
         },
-        AdtSortIndex, BoundVariableKind, SortCtor,
+        BoundVariableKind, RefinementKind, SortCtor,
     },
 };
 
@@ -242,10 +242,9 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-    // pub fn variant(did: DefId) -> Expr {
-    //     // Self::zero()
-    //     ExprKind::Variant(did).intern()
-    // }
+    pub fn variant(did: DefId) -> Expr {
+        ExprKind::Variant(did).intern()
+    }
 
     pub fn const_def_id(c: DefId, info: ConstantInfo) -> Expr {
         ExprKind::ConstDefId(c, info).intern()
@@ -548,14 +547,14 @@ impl Expr {
                 Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
                 Sort::App(SortCtor::Adt(adt_sort_def), args) => {
                     match adt_sort_def.index() {
-                        AdtSortIndex::RefinedBy(adt_sort_refined) => {
+                        RefinementKind::RefinedBy(adt_sort_refined) => {
                             let flds = adt_sort_refined.field_sorts(args);
                             Expr::adt(
                                 adt_sort_def.did(),
                                 flds.iter().map(|sort| go(sort, f)).collect(),
                             )
                         }
-                        AdtSortIndex::Reflected => f(sort),
+                        RefinementKind::Reflected => f(sort),
                     }
                 }
                 _ => f(sort),
@@ -1196,7 +1195,6 @@ pub(crate) mod pretty {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
                 ExprKind::ConstDefId(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
-                // ExprKind::Variant(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Variant(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {

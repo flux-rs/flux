@@ -69,7 +69,8 @@ pub fn provide(providers: &mut Providers) {
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtSortDef> {
     let def_id = genv.maybe_extern_id(def_id);
-    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id.local_id())?)
+    let kind = genv.map().refinement_kind(def_id.local_id())?;
+    conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
 fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
@@ -503,6 +504,7 @@ fn variants_of(
             let wfckresults = genv.check_wf(local_id)?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let variants = cx.conv_enum_variants(def_id, enum_def)?;
+            println!("TRACE: conv_enum_variants {variants:?}");
             let variants = rty::List::from_vec(struct_compat::variants(genv, &variants, def_id)?);
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }

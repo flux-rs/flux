@@ -324,8 +324,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         };
 
         let params = self.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(&[]));
+        let refinement = fhir::RefinementKind::Refined(refined_by);
         let struct_def =
-            fhir::StructDef { refined_by: self.genv.alloc(refined_by), params, kind, invariants };
+            fhir::StructDef { refinement: self.genv.alloc(refinement), params, kind, invariants };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", struct_def)
@@ -349,10 +350,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             |(variant, hir_variant)| self.desugar_enum_variant_def(variant, hir_variant)
         )?;
 
-        let refined_by = if let Some(refined_by) = &enum_def.refined_by {
-            self.desugar_refined_by(refined_by)?
+        println!("TRACE: desugar_enum_def: {}", enum_def.reflected);
+
+        let kind = if enum_def.reflected {
+            fhir::RefinementKind::Reflected
+        } else if let Some(refined_by) = &enum_def.refined_by {
+            fhir::RefinementKind::Refined(self.desugar_refined_by(refined_by)?)
         } else {
-            self.as_lift_cx().lift_refined_by()
+            fhir::RefinementKind::Refined(self.as_lift_cx().lift_refined_by())
         };
 
         let generics = self.desugar_opt_generics(enum_def.generics.as_ref())?;
@@ -363,7 +368,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let params = self.desugar_refine_params(enum_def.refined_by.as_deref().unwrap_or(&[]));
         let enum_def =
-            fhir::EnumDef { refined_by: self.genv.alloc(refined_by), params, variants, invariants };
+            fhir::EnumDef { refinement: self.genv.alloc(kind), params, variants, invariants };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &enum_def).unwrap();

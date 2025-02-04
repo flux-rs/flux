@@ -406,7 +406,7 @@ pub struct TyAlias<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub refinement: &'fhir RefinementKind<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
     pub invariants: &'fhir [Expr<'fhir>],
@@ -428,8 +428,22 @@ pub struct FieldDef<'fhir> {
 }
 
 #[derive(Debug)]
+pub enum RefinementKind<'fhir> {
+    /// User specified indices (e.g. length, elems, etc.)
+    Refined(RefinedBy<'fhir>),
+    /// Singleton refinements e.g. `State[On]`, `State[Off]`
+    Reflected,
+}
+
+impl<'fhir> RefinementKind<'fhir> {
+    pub fn is_reflected(&self) -> bool {
+        matches!(self, RefinementKind::Reflected)
+    }
+}
+
+#[derive(Debug)]
 pub struct EnumDef<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub refinement: &'fhir RefinementKind<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
     pub invariants: &'fhir [Expr<'fhir>],

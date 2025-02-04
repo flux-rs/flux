@@ -909,7 +909,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::Variant(_did) => todo!("foldable--variant"), // Expr::variant(*did, k),
+            ExprKind::Variant(did) => Expr::variant(*did),
             ExprKind::ConstDefId(did, info) => Expr::const_def_id(*did, info.clone()),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(

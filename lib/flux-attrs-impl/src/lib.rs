@@ -11,6 +11,7 @@ pub const FLUX_ATTRS: &[&str] = &[
     "generics",
     "invariant",
     "opaque",
+    "reflect",
     "refined_by",
     "sig",
     "trusted",

@@ -1106,6 +1106,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_poly_fn_sig(*field_idx);
 
+                println!("TRACE: check_rvalue: agg => {sig:?}");
+
                 let args =
                     instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
                         .with_span(stmt_span)?;

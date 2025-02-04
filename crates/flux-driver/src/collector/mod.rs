@@ -272,6 +272,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     ) -> Result<&mut surface::EnumDef> {
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
+        let reflected = attrs.reflected();
 
         let variants = enum_def
             .variants
@@ -291,6 +292,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 refined_by,
                 variants,
                 invariants,
+                reflected,
                 node_id: self.parse_sess.next_node_id(),
             }))
     }
@@ -470,6 +472,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 )
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
+            ("reflect", AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             _ => return Err(invalid_attr_err(self)),
@@ -583,6 +586,7 @@ enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
     Opaque,
+    Reflect,
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
     ImplAssocReft(surface::ImplAssocReft),
@@ -664,6 +668,10 @@ impl FluxAttrs {
         read_flag!(self, Opaque)
     }
 
+    fn reflected(&self) -> bool {
+        read_flag!(self, Reflect)
+    }
+
     fn items(&mut self) -> Vec<surface::Item> {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }
@@ -731,6 +739,7 @@ impl FluxAttrKind {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
             FluxAttrKind::Opaque => attr_name!(Opaque),
+            FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),
             FluxAttrKind::ImplAssocReft(_) => attr_name!(ImplAssocReft),
