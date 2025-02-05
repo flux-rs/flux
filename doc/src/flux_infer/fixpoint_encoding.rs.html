@@ -1401,8 +1401,7 @@
 <a href="#1400" id="1400">1400</a>
 <a href="#1401" id="1401">1401</a>
 <a href="#1402" id="1402">1402</a>
-<a href="#1403" id="1403">1403</a>
-<a href="#1404" id="1404">1404</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1403" id="1403">1403</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -2011,7 +2010,7 @@
             .iter()
             .enumerate()
             .map(|(i, kvid)| {
-                <span class="kw">let </span>args = all_args.iter().skip(kvids.len() - i - <span class="number">1</span>).copied().collect();
+                <span class="kw">let </span>args = all_args[i..].to_vec();
                 fixpoint::Pred::KVar(<span class="kw-2">*</span>kvid, args)
             })
             .collect_vec();
@@ -2079,7 +2078,7 @@
                     <span class="kw">let </span>n = usize::max(decl.self_args, <span class="number">1</span>);
                     (<span class="number">0</span>..n)
                         .map(|i| {
-                            <span class="kw">let </span>sorts = all_args.iter().skip(n - i - <span class="number">1</span>).cloned().collect();
+                            <span class="kw">let </span>sorts = all_args[i..].to_vec();
                             <span class="self">self</span>.kvars.push(FixpointKVar::new(sorts, kvid))
                         })
                         .collect_vec()
@@ -2147,8 +2146,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone)]
-</span><span class="kw">struct </span>ConstInfo {
+<span class="kw">struct </span>ConstInfo {
     name: fixpoint::GlobalVar,
     sort: fixpoint::Sort,
     val: <span class="prelude-ty">Option</span>&lt;rty::Expr&gt;,
