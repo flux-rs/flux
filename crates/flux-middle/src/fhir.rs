@@ -98,7 +98,7 @@ impl From<bool> for Trusted {
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
     pub refinement_params: &'fhir [RefineParam<'fhir>],
-    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
+    pub predicates: Option<&'fhir [WhereBoundPredicate<'fhir>]>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1173,10 +1173,6 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
-    }
-
-    pub fn trivial() -> Self {
-        Generics { params: &[], refinement_params: &[], predicates: &[] }
     }
 }
 

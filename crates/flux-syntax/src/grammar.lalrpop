@@ -14,7 +14,7 @@ pub Generics: surface::Generics = {
     <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -25,7 +25,7 @@ GenericsWithAngleBrackets: surface::Generics = {
     <lo:@L> <hi:@R> => {
         surface::Generics {
             params: vec![],
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -250,7 +250,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
-        generics.predicates = predicates.unwrap_or_default();
+        generics.predicates = predicates;
         let output = surface::FnOutput {
             returns,
             ensures: ensures.unwrap_or_default(),

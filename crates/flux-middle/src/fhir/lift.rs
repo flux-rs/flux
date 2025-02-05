@@ -76,11 +76,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_generics_inner(&mut self, generics: &hir::Generics) -> Result<fhir::Generics<'genv>> {
         let params =
             try_alloc_slice!(self.genv, &generics.params, |param| self.lift_generic_param(param))?;
-        let predicates = try_alloc_slice!(self.genv, &generics.predicates, |pred| {
-            self.lift_where_predicate(pred)
-        })?;
 
-        Ok(fhir::Generics { params, refinement_params: &[], predicates })
+        Ok(fhir::Generics { params, refinement_params: &[], predicates: None })
     }
 
     fn lift_where_predicate(
