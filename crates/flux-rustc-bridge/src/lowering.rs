@@ -77,7 +77,7 @@ impl UnsupportedErr {
         UnsupportedErr { descr: reason.descr, span: None }
     }
 
-    fn with_span(mut self, span: Span) -> Self {
+    pub fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
         self
     }

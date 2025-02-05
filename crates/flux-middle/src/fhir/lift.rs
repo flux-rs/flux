@@ -80,24 +80,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::Generics { params, refinement_params: &[], predicates: None })
     }
 
-    fn lift_where_predicate(
-        &mut self,
-        pred: &hir::WherePredicate,
-    ) -> Result<fhir::WhereBoundPredicate<'genv>> {
-        if let hir::WherePredicate::BoundPredicate(bound) = pred {
-            if !bound.bound_generic_params.is_empty() {
-                return self.emit_unsupported("higher-rank trait bounds are not supported");
-            }
-            let bounded_ty = self.lift_ty(bound.bounded_ty)?;
-            let bounds =
-                try_alloc_slice!(self.genv, &bound.bounds, |bound| self.lift_generic_bound(bound))?;
-
-            Ok(fhir::WhereBoundPredicate { bounded_ty, bounds, span: bound.span })
-        } else {
-            self.emit_unsupported(&format!("unsupported where predicate: `{pred:?}`"))
-        }
-    }
-
     fn lift_generic_bound(
         &mut self,
         bound: &hir::GenericBound,

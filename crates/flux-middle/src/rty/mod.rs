@@ -27,7 +27,7 @@ use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    EarlyParamRegion, LateParamRegion,
     Region::{self, *},
     RegionVid,
 };
@@ -54,6 +54,7 @@ pub use rustc_middle::{
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 use rustc_target::spec::abi;
+use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{TyVid, INNERMOST};
 pub use SortInfer::*;
 
@@ -342,6 +343,14 @@ impl Clause {
     }
 }
 
+impl<'tcx> ToRustc<'tcx> for Clause {
+    type T = rustc_middle::ty::Clause<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        self.kind.to_rustc(tcx).upcast(tcx)
+    }
+}
+
 impl From<Binder<ClauseKind>> for Clause {
     fn from(kind: Binder<ClauseKind>) -> Self {
         Clause { kind }
@@ -360,7 +369,42 @@ pub enum ClauseKind {
     ConstArgHasType(Const, Ty),
 }
 
+impl<'tcx> ToRustc<'tcx> for ClauseKind {
+    type T = rustc_middle::ty::ClauseKind<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ClauseKind::Trait(trait_predicate) => {
+                rustc_middle::ty::ClauseKind::Trait(trait_predicate.to_rustc(tcx))
+            }
+            ClauseKind::Projection(projection_predicate) => {
+                rustc_middle::ty::ClauseKind::Projection(projection_predicate.to_rustc(tcx))
+            }
+            ClauseKind::TypeOutlives(outlives_predicate) => {
+                rustc_middle::ty::ClauseKind::TypeOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::ConstArgHasType(constant, ty) => {
+                rustc_middle::ty::ClauseKind::ConstArgHasType(
+                    constant.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                )
+            }
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]
+pub struct OutlivesPredicate<T>(pub T, pub Region);
+
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
+
+impl<'tcx, V: ToRustc<'tcx>> ToRustc<'tcx> for OutlivesPredicate<V> {
+    type T = rustc_middle::ty::OutlivesPredicate<'tcx, V::T>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::OutlivesPredicate(self.0.to_rustc(tcx), self.1.to_rustc(tcx))
+    }
+}
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
@@ -372,6 +416,17 @@ pub struct TraitPredicate {
 impl TraitPredicate {
     fn self_ty(&self) -> SubsetTyCtor {
         self.trait_ref.self_ty()
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for TraitPredicate {
+    type T = rustc_middle::ty::TraitPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::TraitPredicate {
+            polarity: rustc_middle::ty::PredicatePolarity::Positive,
+            trait_ref: self.trait_ref.to_rustc(tcx),
+        }
     }
 }
 
@@ -514,6 +569,21 @@ pub struct ProjectionPredicate {
 impl ProjectionPredicate {
     pub fn self_ty(&self) -> SubsetTyCtor {
         self.projection_ty.self_ty().clone()
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for ProjectionPredicate {
+    type T = rustc_middle::ty::ProjectionPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::ProjectionPredicate {
+            projection_term: rustc_middle::ty::AliasTerm::new_from_args(
+                tcx,
+                self.projection_ty.def_id,
+                self.projection_ty.args.to_rustc(tcx),
+            ),
+            term: self.term.as_bty_skipping_binder().to_rustc(tcx).into(),
+        }
     }
 }
 

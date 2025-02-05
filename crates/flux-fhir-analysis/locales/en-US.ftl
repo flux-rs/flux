@@ -272,3 +272,7 @@ fhir_analysis_refine_arg_mismatch =
 
 fhir_analysis_expected_type =
     expected a type, found {$def_descr} `{$name}`
+
+fhir_analysis_fail_to_match_predicates =
+    cannot determine corresponding unrefined predicate
+    .note = you can only add a refined predicate if an corresponding unrefined one exists
