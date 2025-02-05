@@ -55,18 +55,18 @@ fn check_invariant(
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = infcx_root.infcx(resolved_id, &region_infercx);
 
-        let variant = genv
+        let variant_sig = genv
             .variant_sig(adt_def.did(), variant_idx)
             .emit(&genv)?
             .expect("cannot check opaque structs")
             .instantiate_identity()
-            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| rty::Expr::fvar(rcx.define_var(sort)));
 
-        for ty in variant.fields() {
+        for ty in variant_sig.fields() {
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty);
         }
-        let pred = invariant.apply(&variant.idx);
+        let pred = invariant.apply(&variant_sig.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let errors = infcx_root

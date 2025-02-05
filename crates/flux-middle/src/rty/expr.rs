@@ -35,7 +35,7 @@ use crate::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
         },
-        BoundVariableKind, SortCtor,
+        BoundVariableKind,
     },
 };
 
@@ -535,20 +535,6 @@ impl Expr {
             .collect();
         let body = Expr::app(self, args);
         Lambda::bind_with_vars(body, inputs.clone(), output)
-    }
-
-    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
-            match sort {
-                Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
-                Sort::App(SortCtor::Adt(adt_sort_def), args) => {
-                    let flds = adt_sort_def.field_sorts(args);
-                    Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
-                }
-                _ => f(sort),
-            }
-        }
-        go(sort, &mut f)
     }
 
     /// Applies a field projection to an expression and optimistically try to beta reduce it
