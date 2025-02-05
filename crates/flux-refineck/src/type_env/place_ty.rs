@@ -809,12 +809,12 @@ fn struct_variant(genv: GlobalEnv, def_id: DefId) -> InferResult<EarlyBinder<Bin
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
 /// Given
-///     * a "place" `x : T[i..]`
-///     * a "variant" of type `forall z..,(y:t...) => E[j...]`
+///     * a "place" `x : T[i]`
+///     * a "variant" of type `forall z..,(y:t...) => E[j]`
 /// We want `downcast` to return a vector of types _and an assertion_ by
-///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j']`
 ///     2. *Unpack* the fields using `y:t'...`
-///     3. *Assert* the constraint `i == j'...`
+///     3. *Assume* the constraint `i == j'`
 fn downcast_enum(
     infcx: &mut InferCtxt,
     adt: &AdtDef,
@@ -823,7 +823,7 @@ fn downcast_enum(
     idx1: &Expr,
 ) -> InferResult<Vec<Ty>> {
     let tcx = infcx.genv.tcx();
-    let variant_def = infcx
+    let variant_sig = infcx
         .genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
@@ -831,20 +831,9 @@ fn downcast_enum(
         .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(infcx)?;
 
-    // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
-    // are currently two problems.
-    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
-    // 2. We could expand the equality during encoding, but that would require annotating the sort
-    // of the equality operator, which will be cumbersome because we create equalities in some places where
-    // the sort is not readily available.
-    let constr = Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
-        let e1 = idx1.proj_and_reduce(proj);
-        let e2 = variant_def.idx.proj_and_reduce(proj);
-        Expr::eq(e1, e2)
-    }));
-    infcx.assume_pred(&constr);
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
 
-    Ok(variant_def.fields.to_vec())
+    Ok(variant_sig.fields.to_vec())
 }
 
 fn fold(

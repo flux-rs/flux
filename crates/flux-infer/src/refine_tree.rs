@@ -130,21 +130,6 @@ impl<'a> Cursor<'a> {
         fresh
     }
 
-    /// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
-    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
-    /// sort.
-    ///
-    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
-    /// `a0: int`, `a1: bool`, and `a2: int`.
-    ///
-    /// [`sort`]: Sort
-    /// [tuple]: Sort::Tuple
-    /// [adt]: flux_middle::rty::SortCtor::Adt
-    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
-    }
-
     /// Pushes an [assumption] and moves the cursor into the new node.
     ///
     /// [assumption]: NodeKind::Assumption
