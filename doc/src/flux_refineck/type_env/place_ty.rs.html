@@ -951,18 +951,7 @@
 <a href="#950" id="950">950</a>
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#953" id="953">953</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
@@ -1773,12 +1762,12 @@
 
 <span class="doccomment">/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
 /// Given
-///     * a "place" `x : T[i..]`
-///     * a "variant" of type `forall z..,(y:t...) =&gt; E[j...]`
+///     * a "place" `x : T[i]`
+///     * a "variant" of type `forall z..,(y:t...) =&gt; E[j]`
 /// We want `downcast` to return a vector of types _and an assertion_ by
-///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) =&gt; T[j'...]`
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) =&gt; T[j']`
 ///     2. *Unpack* the fields using `y:t'...`
-///     3. *Assert* the constraint `i == j'...`
+///     3. *Assume* the constraint `i == j'`
 </span><span class="kw">fn </span>downcast_enum(
     infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
@@ -1787,7 +1776,7 @@
     idx1: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">let </span>tcx = infcx.genv.tcx();
-    <span class="kw">let </span>variant_def = infcx
+    <span class="kw">let </span>variant_sig = infcx
         .genv
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
@@ -1795,20 +1784,9 @@
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(infcx)<span class="question-mark">?</span>;
 
-    <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
-    // are currently two problems.
-    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
-    // 2. We could expand the equality during encoding, but that would require annotating the sort
-    // of the equality operator, which will be cumbersome because we create equalities in some places where
-    // the sort is not readily available.
-    </span><span class="kw">let </span>constr = Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
-        <span class="kw">let </span>e1 = idx1.proj_and_reduce(proj);
-        <span class="kw">let </span>e2 = variant_def.idx.proj_and_reduce(proj);
-        Expr::eq(e1, e2)
-    }));
-    infcx.assume_pred(<span class="kw-2">&amp;</span>constr);
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
 
-    <span class="prelude-val">Ok</span>(variant_def.fields.to_vec())
+    <span class="prelude-val">Ok</span>(variant_sig.fields.to_vec())
 }
 
 <span class="kw">fn </span>fold(

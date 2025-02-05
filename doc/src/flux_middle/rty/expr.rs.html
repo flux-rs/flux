@@ -1581,21 +1581,7 @@
 <a href="#1580" id="1580">1580</a>
 <a href="#1581" id="1581">1581</a>
 <a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1583" id="1583">1583</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
@@ -1632,7 +1618,7 @@
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable <span class="kw">as _</span>,
             TypeVisitor,
         },
-        BoundVariableKind, SortCtor,
+        BoundVariableKind,
     },
 };
 
@@ -2132,20 +2118,6 @@
             .collect();
         <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args);
         Lambda::bind_with_vars(body, inputs.clone(), output)
-    }
-
-    <span class="kw">pub fn </span>fold_sort(sort: <span class="kw-2">&amp;</span>Sort, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort) -&gt; Expr) -&gt; Expr {
-        <span class="kw">fn </span>go(sort: <span class="kw-2">&amp;</span>Sort, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort) -&gt; Expr) -&gt; Expr {
-            <span class="kw">match </span>sort {
-                Sort::Tuple(sorts) =&gt; Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
-                Sort::App(SortCtor::Adt(adt_sort_def), args) =&gt; {
-                    <span class="kw">let </span>flds = adt_sort_def.field_sorts(args);
-                    Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
-                }
-                <span class="kw">_ </span>=&gt; f(sort),
-            }
-        }
-        go(sort, <span class="kw-2">&amp;mut </span>f)
     }
 
     <span class="doccomment">/// Applies a field projection to an expression and optimistically try to beta reduce it

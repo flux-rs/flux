@@ -149,18 +149,18 @@
     <span class="kw">for </span>variant_idx <span class="kw">in </span>adt_def.variants().indices() {
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = infcx_root.infcx(resolved_id, <span class="kw-2">&amp;</span>region_infercx);
 
-        <span class="kw">let </span>variant = genv
+        <span class="kw">let </span>variant_sig = genv
             .variant_sig(adt_def.did(), variant_idx)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
             </span>.expect(<span class="string">"cannot check opaque structs"</span>)
             .instantiate_identity()
-            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rty::Expr::fvar(rcx.define_var(sort)));
 
-        <span class="kw">for </span>ty <span class="kw">in </span>variant.fields() {
+        <span class="kw">for </span>ty <span class="kw">in </span>variant_sig.fields() {
             <span class="kw">let </span>ty = rcx.unpack(ty);
             rcx.assume_invariants(<span class="kw-2">&amp;</span>ty);
         }
-        <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant.idx);
+        <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant_sig.idx);
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     <span class="kw">let </span>errors = infcx_root
