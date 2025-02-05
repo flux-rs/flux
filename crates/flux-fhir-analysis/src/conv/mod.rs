@@ -633,16 +633,22 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         let env = &mut Env::new(generics.refinement_params);
 
-        let mut clauses = vec![];
-        for pred in generics.predicates {
-            let span = pred.bounded_ty.span;
-            let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
-            for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
-                clauses.push(clause);
+        let predicates = self
+            .genv()
+            .lower_predicates_of(def_id)?
+            .refine(&Refiner::default_for_item(self.genv(), def_id.resolved_id())?)?;
+
+        if let Some(predicates) = generics.predicates {
+            let mut clauses = vec![];
+            for pred in predicates {
+                let span = pred.bounded_ty.span;
+                let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
+                for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
+                    clauses.push(clause);
+                }
             }
         }
-        let parent = self.tcx().predicates_of(def_id).parent;
-        Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
+        Ok(rty::EarlyBinder(predicates))
     }
 
     pub(crate) fn conv_opaque_ty(
