@@ -651,11 +651,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::infer::InferCtxt;
 
 <span class="kw">pub trait </span>NormalizeExt: TypeFoldable {
-    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
+    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
 }
 
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; NormalizeExt <span class="kw">for </span>T {
-    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>normalizer = Normalizer::new(infcx.branch())<span class="question-mark">?</span>;
         <span class="self">self</span>.erase_regions().try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
     }

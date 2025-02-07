@@ -274,7 +274,7 @@
         .normalize_projections(infcx)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>impl_sort != trait_sort {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(infcx
+        <span class="prelude-val">Err</span>(infcx
             .genv
             .emit(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)))<span class="question-mark">?</span>;
     }
