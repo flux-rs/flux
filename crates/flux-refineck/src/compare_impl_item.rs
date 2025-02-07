@@ -103,7 +103,7 @@ fn check_assoc_reft(
         .normalize_projections(infcx)?;
 
     if impl_sort != trait_sort {
-        return Err(infcx
+        Err(infcx
             .genv
             .emit(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)))?;
     }
