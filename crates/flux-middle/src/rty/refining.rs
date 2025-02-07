@@ -143,8 +143,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         } else {
             rty::Expr::unit_adt(adt_def_id)
         };
-        println!("TRACE: refine_variant_def {adt_def_id:?} (refl = {reflected:?}) [ {variant_idx:?} ] ==> {idx:?}");
-
         let value = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
@@ -152,7 +150,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             idx,
         );
 
-        println!("TRACE: refine_variant_def ==> {value:?}");
         Ok(rty::Binder::bind_with_vars(value, List::empty()))
     }
 

@@ -344,13 +344,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
+        let reflected = enum_def.reflected;
         let variants = try_alloc_slice!(
             self.genv,
             iter::zip(&enum_def.variants, hir_enum.variants),
-            |(variant, hir_variant)| self.desugar_enum_variant_def(variant, hir_variant)
+            |(variant, hir_variant)| self.desugar_enum_variant_def(reflected, variant, hir_variant)
         )?;
-
-        println!("TRACE: desugar_enum_def: {}", enum_def.reflected);
 
         let kind = if enum_def.reflected {
             fhir::RefinementKind::Reflected
@@ -379,10 +378,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_enum_variant_def(
         &mut self,
+        reflected: bool,
         variant_def: &Option<surface::VariantDef>,
         hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef<'genv>> {
         if let Some(variant_def) = variant_def {
+            if reflected {
+                panic!("TODO: proper error message")
+            }
             let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
                 Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
             })?;
@@ -553,6 +556,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
+
+        println!("TRACE: desugar_fn_spec {decl:?}");
 
         let qual_names = fn_spec.qual_names.as_ref().map_or(&[][..], |it| &it.names);
         Ok((

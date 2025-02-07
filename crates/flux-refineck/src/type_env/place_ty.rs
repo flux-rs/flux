@@ -837,13 +837,17 @@ fn downcast_enum(
     // 2. We could expand the equality during encoding, but that would require annotating the sort
     // of the equality operator, which will be cumbersome because we create equalities in some places where
     // the sort is not readily available.
-    let constr = Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
-        let e1 = idx1.proj_and_reduce(proj);
-        let e2 = variant_def.idx.proj_and_reduce(proj);
-        Expr::eq(e1, e2)
-    }));
-    infcx.assume_pred(&constr);
 
+    let constr = if adt.is_reflected() {
+        Expr::eq(idx1, variant_def.idx)
+    } else {
+        Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
+            let e1 = idx1.proj_and_reduce(proj);
+            let e2 = variant_def.idx.proj_and_reduce(proj);
+            Expr::eq(e1, e2)
+        }))
+    };
+    infcx.assume_pred(&constr);
     Ok(variant_def.fields.to_vec())
 }
 

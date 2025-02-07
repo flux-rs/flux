@@ -2,6 +2,7 @@
 
 use std::{hash::Hash, iter};
 
+use fixpoint::ReflData;
 use flux_common::{
     bug,
     cache::QueryCache,
@@ -18,7 +19,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List},
+    rty::{self, AggregateKind, BoundVariableKind, ESpan, Lambda, List},
     MaybeExternId,
 };
 use itertools::Itertools;
@@ -61,6 +62,16 @@ pub mod fixpoint {
 
     newtype_index! {
         pub struct GlobalVar {}
+    }
+
+    // Names for reflected Data Constructors
+    newtype_index! {
+        pub struct ReflData { }
+    }
+
+    // Names for reflected Data Constructors
+    newtype_index! {
+        pub struct ReflCtor { }
     }
 
     #[derive(Hash, Copy, Clone)]
@@ -124,6 +135,7 @@ pub mod fixpoint {
     #[derive(Clone, Hash)]
     pub enum DataSort {
         Tuple(usize),
+        ReflectedData(ReflData),
     }
 
     impl Identifier for DataSort {
@@ -131,6 +143,9 @@ pub mod fixpoint {
             match self {
                 DataSort::Tuple(arity) => {
                     write!(f, "Tuple{arity}")
+                }
+                DataSort::ReflectedData(refl_data) => {
+                    write!(f, "RD_{refl_data:?}")
                 }
             }
         }
@@ -149,11 +164,9 @@ pub mod fixpoint {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
-
         type Numeral = BigInt;
         type Decimal = Real;
         type String = SymStr;
-
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
@@ -183,6 +196,10 @@ impl<'de> Deserialize<'de> for TagIdx {
 struct SortEncodingCtxt {
     /// Set of all the tuple arities that need to be defined
     tuples: UnordSet<usize>,
+    /// Generator for fresh Reflected Datatypes
+    refl_data: IndexGen<ReflData>,
+    /// Set of all the reflected ADT (enum) definitions that need to be declared as Fixpoint data-decls
+    refl_decls: UnordMap<DefId, ReflData>,
 }
 
 impl SortEncodingCtxt {
@@ -211,6 +228,16 @@ impl SortEncodingCtxt {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
+
+            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) if sort_def.is_reflected() => {
+                debug_assert!(args.is_empty());
+                let refl_sort = self.declare_refl_decl(sort_def);
+                fixpoint::Sort::App(
+                    fixpoint::SortCtor::Data(fixpoint::DataSort::ReflectedData(refl_sort)),
+                    vec![],
+                )
+            }
+
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let sorts = sort_def.field_sorts(args);
                 // do not generate 1-tuples
@@ -258,6 +285,17 @@ impl SortEncodingCtxt {
 
     fn declare_tuple(&mut self, arity: usize) {
         self.tuples.insert(arity);
+    }
+
+    pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> ReflData {
+        let did = adt_sort_def.did();
+        if self.refl_decls.contains_key(&did) {
+            return self.refl_decls[&did];
+        } else {
+            let refl_decl = self.refl_data.fresh();
+            self.refl_decls.insert(did, refl_decl);
+            return self.refl_decls[&did];
+        }
     }
 
     fn into_data_decls(self) -> Vec<fixpoint::DataDecl> {
@@ -947,19 +985,40 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn get_variant_index(&self, variant_def_id: DefId) -> Option<usize> {
+    fn variant_to_fixpoint(
+        &self,
+        scx: &mut SortEncodingCtxt,
+        variant_def_id: &DefId,
+    ) -> fixpoint::Expr {
         let tcx = self.genv.tcx();
         // Get the parent enum's DefId
-        let enum_def_id = tcx.parent(variant_def_id);
+        let enum_def_id = tcx.parent(*variant_def_id);
 
         // Get the enum's AdtDef which contains variant information
         let adt_def = tcx.adt_def(enum_def_id);
 
         // Find the variant's index by matching DefIds
-        adt_def
+        let pos = adt_def
             .variants()
             .iter()
-            .position(|variant| variant.def_id == variant_def_id)
+            .position(|variant| variant.def_id == *variant_def_id)
+            .unwrap();
+
+        let adt_sort_def = self.genv.adt_sort_def_of(enum_def_id).unwrap();
+
+        let refl_data = scx.declare_refl_decl(&adt_sort_def);
+        let data_sort = fixpoint::DataSort::ReflectedData(refl_data);
+        fixpoint::Expr::Variant(data_sort, pos)
+    }
+
+    fn is_reflected(&self, kind: &AggregateKind) -> bool {
+        if let AggregateKind::Adt(def_id) = kind
+            && let Ok(sort_def) = self.genv.adt_sort_def_of(def_id)
+        {
+            sort_def.is_reflected()
+        } else {
+            false
+        }
     }
 
     fn expr_to_fixpoint(
@@ -970,14 +1029,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
-            rty::ExprKind::Variant(did) => {
-                let pos = self.get_variant_index(*did).unwrap();
-                println!("TRACE: variant index: {pos}");
-                fixpoint::Expr::Constant(fixpoint::Constant::Numeral(pos.into()))
-            }
+            rty::ExprKind::Variant(did) => self.variant_to_fixpoint(scx, did),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
+            rty::ExprKind::Aggregate(kind, flds) if self.is_reflected(kind) => {
+                debug_assert!(flds.is_empty());
+                todo!("TRACE: expr_to_Fixpoint aggregate -- {kind:?} / {flds:?}");
+            }
             rty::ExprKind::Aggregate(_, flds) => {
                 // do not generate 1-tuples
                 if let [fld] = &flds[..] {

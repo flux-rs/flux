@@ -149,6 +149,10 @@ impl AdtSortDef {
         &self.0.kind
     }
 
+    pub fn is_reflected(&self) -> bool {
+        matches!(self.index(), RefinementKind::Reflected)
+    }
+
     pub fn fields(&self) -> usize {
         match self.index() {
             RefinementKind::RefinedBy(refined) => refined.fields(),
@@ -2303,7 +2307,6 @@ impl VariantSig {
     pub fn ret(&self) -> Ty {
         let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
         let idx = self.idx.clone();
-        println!("TRACE: ret {bty:?} / {idx:?}");
         Ty::indexed(bty, idx)
     }
 }
@@ -2416,6 +2419,10 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
+    }
+
+    pub fn is_reflected(&self) -> bool {
+        self.0.sort_def.is_reflected()
     }
 }
 

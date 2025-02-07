@@ -314,6 +314,7 @@ impl<T: Types> fmt::Display for Expr<T> {
                 let [e1, e2] = &**exprs;
                 write!(f, "({rel} {e1} {e2})")
             }
+            Expr::Variant(sort, pos) => write!(f, "{}_{pos}", sort.display()),
         }
     }
 }

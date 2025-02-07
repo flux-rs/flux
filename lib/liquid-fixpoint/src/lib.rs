@@ -25,11 +25,9 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone;
     type KVar: Identifier + Hash;
     type Var: Identifier + Hash;
-
     type Numeral: FixpointFmt + Hash;
     type Decimal: FixpointFmt + Hash;
     type String: FixpointFmt + Hash;
-
     type Tag: fmt::Display + FromStr + Hash;
 }
 
@@ -102,7 +100,6 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
-
         type Numeral = $int:ty;
         type Decimal = $real:ty;
         type String = $str:ty;

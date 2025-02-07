@@ -504,7 +504,6 @@ fn variants_of(
             let wfckresults = genv.check_wf(local_id)?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let variants = cx.conv_enum_variants(def_id, enum_def)?;
-            println!("TRACE: conv_enum_variants {variants:?}");
             let variants = rty::List::from_vec(struct_compat::variants(genv, &variants, def_id)?);
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
