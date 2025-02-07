@@ -435,7 +435,7 @@ pub enum RefinementKind<'fhir> {
     Reflected,
 }
 
-impl<'fhir> RefinementKind<'fhir> {
+impl RefinementKind<'_> {
     pub fn is_reflected(&self) -> bool {
         matches!(self, RefinementKind::Reflected)
     }

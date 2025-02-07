@@ -25,7 +25,7 @@ use rustc_trait_selection::traits::SelectionContext;
 use crate::infer::InferCtxt;
 
 pub trait NormalizeExt: TypeFoldable {
-    fn normalize_projections<'tcx>(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
+    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {

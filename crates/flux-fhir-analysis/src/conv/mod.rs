@@ -1807,7 +1807,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 found: path.refine.len(),
                 kind: self.tcx().def_descr(def_id),
             };
-            Err(self.emit(err))?
+            Err(self.emit(err))?;
         }
         Ok(())
     }

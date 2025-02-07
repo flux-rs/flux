@@ -19,6 +19,14 @@ pub fn test02() -> State {
     State::On //~ ERROR refinement type
 }
 
+#[flux::sig(fn (State[On]) -> usize[1])]
+pub fn test03(s: State) -> usize {
+    match s {
+        State::On => 1,
+        State::Off => 0,
+    }
+}
+
 #[flux::sig(fn (State[@squig], zig: usize, tag: Day) -> usize[tag])]
 pub fn test04(s: State, _zig: usize, tag: Day) -> usize {
     match s {

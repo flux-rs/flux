@@ -298,18 +298,18 @@ impl SortEncodingCtxt {
 
     pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> ReflData {
         let did = adt_sort_def.did();
-        if self.refl_decls.contains_key(&did) {
-            return self.refl_decls[&did];
-        } else {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.refl_decls.entry(did) {
             let refl_decl = self.refl_data.fresh();
-            self.refl_decls.insert(did, refl_decl);
-            return self.refl_decls[&did];
+            e.insert(refl_decl);
+            self.refl_decls[&did]
+        } else {
+            self.refl_decls[&did]
         }
     }
 
     fn refl_data_decls(tcx: TyCtxt, refls: FxHashMap<DefId, ReflData>) -> Vec<fixpoint::DataDecl> {
         let mut res = vec![];
-        for (enum_def_id, refl_data) in refls.into_iter() {
+        for (enum_def_id, refl_data) in refls {
             let variants = tcx.adt_def(enum_def_id).variants().len();
 
             let ctors = (0..variants)
@@ -327,8 +327,7 @@ impl SortEncodingCtxt {
             };
             res.push(decl);
         }
-
-        return res;
+        res
     }
 
     fn tuples_data_decls(tuples: UnordSet<usize>) -> Vec<fixpoint::DataDecl> {
