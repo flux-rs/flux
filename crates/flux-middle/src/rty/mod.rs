@@ -865,6 +865,7 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
+            && !sort_def.is_reflected()
             && sort_def.fields() == 0
         {
             Some(sort_def.did())
@@ -1143,7 +1144,9 @@ pub type TyCtor = Binder<Ty>;
 impl TyCtor {
     pub fn to_ty(&self) -> Ty {
         match &self.vars()[..] {
-            [] => return self.skip_binder_ref().shift_out_escaping(1),
+            [] => {
+                return self.skip_binder_ref().shift_out_escaping(1);
+            }
             [BoundVariableKind::Refine(sort, ..)] => {
                 if sort.is_unit() {
                     return self.replace_bound_reft(&Expr::unit());

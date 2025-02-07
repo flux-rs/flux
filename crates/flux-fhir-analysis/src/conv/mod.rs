@@ -639,7 +639,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .cloned()
             .collect();
 
-        println!("TRACE: conv_fn_sig {fn_sig:?}");
         Ok(rty::PolyFnSig::bind_with_vars(fn_sig, vars))
     }
 
@@ -860,9 +859,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let mut inputs = vec![];
         for ty in decl.inputs {
-            let rty = self.conv_ty(env, ty)?;
-            println!("TRACE: conv_fn_decl: {ty:?} ==> {rty:?}");
-            inputs.push(rty); // self.conv_ty(env, ty)?);
+            inputs.push(self.conv_ty(env, ty)?);
         }
 
         let output = self.conv_fn_output(env, &decl.output)?;
@@ -1063,12 +1060,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => {
-                println!("TRACE: conv_ty {ty:?} => as base {bty:?}");
-                Ok(self.conv_bty(env, bty)?.to_ty())
-            }
+            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
             fhir::TyKind::Indexed(bty, idx) => {
-                println!("TRACE: conv_ty {ty:?} => indexed {bty:?} [ {idx:?} ] ");
                 let fhir_id = bty.fhir_id;
                 let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
@@ -1286,7 +1279,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::TyOrCtor> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
-                println!("TRACE: conv_bty (1) {bty:?} => path {path:?}");
                 self.conv_qpath(env, *qself, path)
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {

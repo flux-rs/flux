@@ -1072,11 +1072,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
-            rty::ExprKind::Aggregate(kind, flds) if self.is_reflected(kind) => {
-                debug_assert!(flds.is_empty());
-                todo!("TRACE: expr_to_Fixpoint aggregate -- {kind:?} / {flds:?}");
-            }
-            rty::ExprKind::Aggregate(_, flds) => {
+            rty::ExprKind::Aggregate(kind, flds) => {
+                debug_assert!(!self.is_reflected(kind));
                 // do not generate 1-tuples
                 if let [fld] = &flds[..] {
                     self.expr_to_fixpoint(fld, scx)?
