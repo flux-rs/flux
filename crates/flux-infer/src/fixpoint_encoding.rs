@@ -25,11 +25,12 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
-    fx::FxIndexMap,
+    fx::{FxHashMap, FxIndexMap},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -79,6 +80,7 @@ pub mod fixpoint {
         Underscore,
         Global(GlobalVar),
         Local(LocalVar),
+        Variant(ReflData, usize),
         TupleCtor {
             arity: usize,
         },
@@ -128,6 +130,7 @@ pub mod fixpoint {
                 Var::Param(param) => {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
+                Var::Variant(refl_data, i) => write!(f, "{}_{i}", refl_data.display()),
             }
         }
     }
@@ -138,6 +141,12 @@ pub mod fixpoint {
         ReflectedData(ReflData),
     }
 
+    impl Identifier for ReflData {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "RD_{self:?}")
+        }
+    }
+
     impl Identifier for DataSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
@@ -145,7 +154,7 @@ pub mod fixpoint {
                     write!(f, "Tuple{arity}")
                 }
                 DataSort::ReflectedData(refl_data) => {
-                    write!(f, "RD_{refl_data:?}")
+                    write!(f, "{}", refl_data.display())
                 }
             }
         }
@@ -199,7 +208,7 @@ struct SortEncodingCtxt {
     /// Generator for fresh Reflected Datatypes
     refl_data: IndexGen<ReflData>,
     /// Set of all the reflected ADT (enum) definitions that need to be declared as Fixpoint data-decls
-    refl_decls: UnordMap<DefId, ReflData>,
+    refl_decls: FxHashMap<DefId, ReflData>,
 }
 
 impl SortEncodingCtxt {
@@ -298,8 +307,32 @@ impl SortEncodingCtxt {
         }
     }
 
-    fn into_data_decls(self) -> Vec<fixpoint::DataDecl> {
-        self.tuples
+    fn refl_data_decls(tcx: TyCtxt, refls: FxHashMap<DefId, ReflData>) -> Vec<fixpoint::DataDecl> {
+        let mut res = vec![];
+        for (enum_def_id, refl_data) in refls.into_iter() {
+            let variants = tcx.adt_def(enum_def_id).variants().len();
+
+            let ctors = (0..variants)
+                .map(|variant| {
+                    fixpoint::DataCtor {
+                        name: fixpoint::Var::Variant(refl_data, variant),
+                        fields: vec![],
+                    }
+                })
+                .collect();
+            let decl = fixpoint::DataDecl {
+                name: fixpoint::DataSort::ReflectedData(refl_data),
+                vars: 0,
+                ctors,
+            };
+            res.push(decl);
+        }
+
+        return res;
+    }
+
+    fn tuples_data_decls(tuples: UnordSet<usize>) -> Vec<fixpoint::DataDecl> {
+        tuples
             .into_items()
             .into_sorted_stable_ord()
             .into_iter()
@@ -321,6 +354,12 @@ impl SortEncodingCtxt {
                 }
             })
             .collect()
+    }
+
+    fn into_data_decls(self, tcx: TyCtxt) -> Vec<fixpoint::DataDecl> {
+        let tuples = Self::tuples_data_decls(self.tuples);
+        let refls = Self::refl_data_decls(tcx, self.refl_decls);
+        tuples.into_iter().chain(refls).collect()
     }
 }
 
@@ -437,7 +476,7 @@ where
             qualifiers,
             scrape_quals,
             solver,
-            data_decls: self.scx.into_data_decls(),
+            data_decls: self.scx.into_data_decls(self.genv.tcx()),
         };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();

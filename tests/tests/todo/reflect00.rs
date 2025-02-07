@@ -29,32 +29,18 @@ pub enum Day {
 //     State::On //~ ERROR refinement type
 // }
 
-// #[flux::sig(fn (s:State[On]) -> usize[1])]
-// pub fn test03(s: State) -> usize {
-//     if s == State::On {
-//         1
-//     } else {
-//         0
+// #[flux::sig(fn (State[@squig], zig: usize, tag: Day) -> usize[tag])]
+// pub fn test04(s: State, zig: usize, tag: Day) -> usize {
+//     match s {
+//         State::On => 1,  //~ ERROR refinement type
+//         State::Off => 0, //~ ERROR refinement type
 //     }
 // }
 
-#[flux::sig(fn (State[@squig], zig: usize, tag: Day) -> usize[tag])]
-pub fn test04(s: State, zig: usize, tag: Day) -> usize {
+#[flux::sig(fn (s:State, zig: usize, tag: Day) -> usize[tag])]
+pub fn test05(s: State, zig: usize, tag: Day) -> usize {
     match s {
         State::On => 1,
         State::Off => 0,
     }
 }
-
-// #[flux::sig(fn (s:State, zig: usize, tag: Day) -> usize[tag])]
-// pub fn test05(s: State, zig: usize, tag: Day) -> usize {
-//     match s {
-//         State::On => 1,
-//         State::Off => 0,
-//     }
-// }
-
-// #[flux::sig(fn (nizeg:usize) -> usize[9])]
-// pub fn frog(n: usize) -> usize {
-//     n + 1
-// }
