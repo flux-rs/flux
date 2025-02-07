@@ -4,16 +4,6 @@ pub enum State {
     Off,
 }
 
-#[flux::refined_by(day: int)]
-pub enum Day {
-    #[flux::variant(Day[0])]
-    Mon,
-    #[flux::variant(Day[1])]
-    Tue,
-    #[flux::variant(Day[2])]
-    Wed,
-}
-
 #[flux_rs::sig(fn () -> State[On])]
 pub fn test00() -> State {
     State::On
@@ -37,10 +27,20 @@ pub fn test04(s: State, _zig: usize, tag: Day) -> usize {
     }
 }
 
+#[flux::refined_by(day: int)]
+pub enum Day {
+    #[flux::variant(Day[0])]
+    Mon,
+    #[flux::variant(Day[1])]
+    Tue,
+    #[flux::variant(Day[2])]
+    Wed,
+}
+
 #[flux::sig(fn (s:State, zig: usize, tag: Day) -> usize[tag])]
 pub fn test05(s: State, _zig: usize, _tag: Day) -> usize {
     match s {
-        State::On => 1,
-        State::Off => 0,
+        State::On => 1,  //~ ERROR refinement type
+        State::Off => 0, //~ ERROR refinement type
     }
 }
