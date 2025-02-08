@@ -274,6 +274,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let refined_by = attrs.refined_by();
         let reflected = attrs.reflected();
 
+        if refined_by.is_some() && reflected {
+            let span = self.tcx.def_span(owner_id.to_def_id());
+            return Err(self
+                .errors
+                .emit(errors::ReflectedEnumWithRefinedBy::new(span)));
+        }
+
         let variants = enum_def
             .variants
             .iter()
@@ -919,6 +926,20 @@ mod errors {
         pub(super) fn new(span: Span, field: &rustc_hir::FieldDef) -> Self {
             let field_span = field.ident.span;
             Self { span, field_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
+    #[note]
+    pub(super) struct ReflectedEnumWithRefinedBy {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+    impl ReflectedEnumWithRefinedBy {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

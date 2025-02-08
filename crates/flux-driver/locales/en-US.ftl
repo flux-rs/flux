@@ -17,6 +17,10 @@ driver_attr_on_opaque =
     opaque struct can't have refined fields
     .label = this field has a refinement type annotation
 
+driver_reflected_enum_with_refined_by =
+    reflected enum with `refined_by` annotation
+    .label = this enum can either be `reflected` or have a `refined_by` but not both
+
 driver_missing_variant =
     missing variant annotation
     .label = this variant doesn't have a refinement annotation
@@ -71,4 +75,3 @@ driver_mismatched_generics =
     .label = generic parameters don't match the external {$def_descr}
     .extern_def_label = external {$def_descr} found here
     .note = extern specs must exactly match the external definition, including the list of generic parameters and their names
-

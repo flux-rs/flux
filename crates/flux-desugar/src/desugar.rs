@@ -384,7 +384,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::VariantDef<'genv>> {
         if let Some(variant_def) = variant_def {
             if reflected {
-                panic!("TODO: proper error message")
+                return Err(self.emit_err(errors::InvalidReflectedVariant::new(hir_variant.span)));
             }
             let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
                 Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })

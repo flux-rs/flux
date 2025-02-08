@@ -97,6 +97,19 @@ impl InvalidVariantRet {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_invalid_reflected_variant, code = E0999)]
+pub(super) struct InvalidReflectedVariant {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+impl InvalidReflectedVariant {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_multiple_spreads_in_constructor, code = E0999)]
 pub(super) struct MultipleSpreadsInConstructor {
     #[primary_span]
