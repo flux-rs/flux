@@ -931,7 +931,6 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
-    #[note]
     pub(super) struct ReflectedEnumWithRefinedBy {
         #[primary_span]
         #[label]
