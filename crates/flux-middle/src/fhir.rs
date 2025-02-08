@@ -1156,11 +1156,11 @@ pub struct RefinedBy<'fhir> {
     /// we implicitly create a data sort of the form `forall #0. { keys: Set<#0> }`, where `#0` is a
     /// *sort variable*.
     ///
-    /// The [`FxIndexSet`] is used to track a mapping between sort varriables and their corresponding
+    /// This [`FxIndexSet`] is used to track a mapping between sort variables and their corresponding
     /// type parameter. The [`DefId`] is the id of the type parameter and its index in the set is the
     /// position of the sort variable.
     pub sort_params: FxIndexSet<DefId>,
-    /// Fields indexed by their name and in the same order they appear in the definition.
+    /// Fields indexed by their name in the same order they appear in the `#[refined_by(..)]` annotation.
     pub fields: FxIndexMap<Symbol, Sort<'fhir>>,
 }
 

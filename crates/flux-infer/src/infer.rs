@@ -381,10 +381,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_vars(&mut self, sort: &Sort) -> Expr {
-        self.cursor.define_vars(sort)
-    }
-
     pub fn define_var(&mut self, sort: &Sort) -> Name {
         self.cursor.define_var(sort)
     }

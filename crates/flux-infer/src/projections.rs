@@ -29,7 +29,7 @@ pub trait NormalizeExt: TypeFoldable {
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections<'tcx>(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
+    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
         let mut normalizer = Normalizer::new(infcx.branch())?;
         self.erase_regions().try_fold_with(&mut normalizer)
     }

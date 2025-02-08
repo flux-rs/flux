@@ -683,7 +683,7 @@ where
             .iter()
             .enumerate()
             .map(|(i, kvid)| {
-                let args = all_args.iter().skip(kvids.len() - i - 1).copied().collect();
+                let args = all_args[i..].to_vec();
                 fixpoint::Pred::KVar(*kvid, args)
             })
             .collect_vec();
@@ -751,7 +751,7 @@ impl KVarEncodingCtxt {
                     let n = usize::max(decl.self_args, 1);
                     (0..n)
                         .map(|i| {
-                            let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
+                            let sorts = all_args[i..].to_vec();
                             self.kvars.push(FixpointKVar::new(sorts, kvid))
                         })
                         .collect_vec()
@@ -819,7 +819,6 @@ impl LocalVarEnv {
     }
 }
 
-#[derive(Clone)]
 struct ConstInfo {
     name: fixpoint::GlobalVar,
     sort: fixpoint::Sort,
