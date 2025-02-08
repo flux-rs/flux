@@ -265,6 +265,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                     fhir::ImplItemKind::Const => {}
                 }
             }
+            fhir::OwnerNode::ForeignItem(_) => {
+            }
         }
         self.infcx.normalize_weak_alias_sorts()
     }

@@ -1,7 +1,7 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
-    GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
+    GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, ForeignItem, Lifetime,
     Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
     RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
     TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
@@ -35,6 +35,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_impl_item(&mut self, impl_item: &ImplItem<'v>) {
         walk_impl_item(self, impl_item);
+    }
+
+    fn visit_foreign_item(&mut self, foreign_item: &ForeignItem<'v>) {
+        walk_foreign_item(self, foreign_item);
     }
 
     fn visit_generics(&mut self, generics: &Generics<'v>) {
@@ -241,6 +245,7 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
         OwnerNode::Item(item) => vis.visit_item(item),
         OwnerNode::TraitItem(trait_item) => vis.visit_trait_item(trait_item),
         OwnerNode::ImplItem(impl_item) => vis.visit_impl_item(impl_item),
+        OwnerNode::ForeignItem(foreign_item) => vis.visit_foreign_item(foreign_item),
     }
 }
 
@@ -279,6 +284,10 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
         ImplItemKind::Const => {}
         ImplItemKind::Type => {}
     }
+}
+
+pub fn walk_foreign_item<'v, V: Visitor<'v>>(_: &mut V, _: &ForeignItem<'v>) {
+    
 }
 
 pub fn walk_trait_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &TraitAssocReft<'v>) {

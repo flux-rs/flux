@@ -509,6 +509,49 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn local_id(&self) -> LocalDefId {
         self.owner.local_id().def_id
     }
+
+    fn lift_fn_sig(&mut self, fn_sig: hir::FnSig) -> Result<fhir::FnSig<'genv>> {
+        let decl = self.lift_fn_decl_inner(fn_sig.span, fn_sig.decl)?;
+        Ok(fhir::FnSig {
+            header: fn_sig.header,
+            qualifiers: &[],
+            decl: self.genv.alloc(decl)
+        })
+    }
+
+    fn lift_foreign_item_kind(&mut self, foreign_item: hir::ForeignItemKind) -> Result<fhir::ForeignItemKind<'genv>> {
+        Ok(match foreign_item {
+            hir::ForeignItemKind::Fn(fnsig, _, _) => {
+                let lifted_fnsig = self.lift_fn_sig(fnsig)?;
+                let fnsig = self.genv.alloc(lifted_fnsig);
+                fhir::ForeignItemKind::Fn(*fnsig)
+            },
+            hir::ForeignItemKind::Static(_, _, _) => fhir::ForeignItemKind::Static,
+            hir::ForeignItemKind::Type => fhir::ForeignItemKind::Type,
+        })
+    }
+
+    pub fn lift_foreign_item(
+        &mut self,
+        foreign_item: hir::ForeignItem,
+    ) -> Result<fhir::ForeignItem<'genv>> {
+        let lifting_kind = self.lift_foreign_item_kind(foreign_item.kind)?;
+        let kind_ref = self.genv.alloc(lifting_kind);
+    
+        let kind = match kind_ref {
+            fhir::ForeignItemKind::Fn(sig) => fhir::ForeignItemKind::Fn(*sig),
+            fhir::ForeignItemKind::Static => fhir::ForeignItemKind::Static,
+            fhir::ForeignItemKind::Type => fhir::ForeignItemKind::Type,
+        };
+    
+        Ok(fhir::ForeignItem {
+            ident: foreign_item.ident,
+            kind: kind,
+            owner_id: MaybeExternId::Local(foreign_item.owner_id),
+            span: foreign_item.span,
+            vis_span: foreign_item.vis_span,
+        })
+    }
 }
 
 pub mod errors {

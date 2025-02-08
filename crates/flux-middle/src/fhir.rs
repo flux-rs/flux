@@ -129,6 +129,7 @@ pub enum Node<'fhir> {
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
+    ForeignItem(&'fhir ForeignItem<'fhir>),
     AnonConst,
 }
 
@@ -138,6 +139,7 @@ impl<'fhir> Node<'fhir> {
             Node::Item(item) => Some(OwnerNode::Item(item)),
             Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
+            Node::ForeignItem(foreign_item) => Some(OwnerNode::ForeignItem(foreign_item)),
             Node::OpaqueTy(_) => None,
             Node::AnonConst => None,
         }
@@ -157,6 +159,7 @@ pub enum OwnerNode<'fhir> {
     Item(&'fhir Item<'fhir>),
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
+    ForeignItem(&'fhir ForeignItem<'fhir>),
 }
 
 impl<'fhir> OwnerNode<'fhir> {
@@ -165,6 +168,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
             | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
             | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
+            OwnerNode::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig), ..}) => Some(fn_sig),
             _ => None,
         }
     }
@@ -174,6 +178,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(item) => &item.generics,
             OwnerNode::TraitItem(trait_item) => &trait_item.generics,
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
+            OwnerNode::ForeignItem(foreign_item) => span_bug!(foreign_item.span, "no generics for ForeignItem"),
         }
     }
 
@@ -182,6 +187,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(item) => item.owner_id,
             OwnerNode::TraitItem(trait_item) => trait_item.owner_id,
             OwnerNode::ImplItem(impl_item) => impl_item.owner_id,
+            OwnerNode::ForeignItem(foreign_item) => foreign_item.owner_id,
         }
     }
 }
@@ -278,6 +284,22 @@ pub enum ImplItemKind<'fhir> {
 pub enum FluxItem<'fhir> {
     Qualifier(Qualifier<'fhir>),
     Func(SpecFunc<'fhir>),
+}
+
+#[derive(Debug)]
+pub struct ForeignItem<'fhir> {
+    pub ident: Ident,
+    pub kind: ForeignItemKind<'fhir>,
+    pub owner_id: MaybeExternId<OwnerId>,
+    pub span: Span,
+    pub vis_span: Span,
+}
+
+#[derive(Debug)]
+pub enum ForeignItemKind<'fhir> {
+    Fn(FnSig<'fhir>),
+    Static,
+    Type,
 }
 
 impl FluxItem<'_> {
