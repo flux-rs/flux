@@ -442,7 +442,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Type, owner_id: self.owner })
     }
 
-    pub(crate) fn desugar_foreign_item(&mut self, foreign_item: hir::ForeignItem) -> Result<fhir::ForeignItem<'genv>> {
+    pub(crate) fn desugar_foreign_item(
+        &mut self,
+        foreign_item: hir::ForeignItem,
+    ) -> Result<fhir::ForeignItem<'genv>> {
         let foreign_item = self.as_lift_cx().lift_foreign_item(foreign_item)?;
         Ok(foreign_item)
     }
