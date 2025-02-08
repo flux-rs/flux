@@ -820,10 +820,10 @@ fn downcast_enum(
     adt: &AdtDef,
     variant_idx: VariantIdx,
     args: &[GenericArg],
-    _idx1: &Expr,
+    idx1: &Expr,
 ) -> InferResult<Vec<Ty>> {
     let tcx = infcx.genv.tcx();
-    let _variant_sig = infcx
+    let variant_sig = infcx
         .genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
@@ -831,32 +831,9 @@ fn downcast_enum(
         .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(infcx)?;
 
-    // <<<<<<< HEAD
-    // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
-    // are currently two problems.
-    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
-    // 2. We could expand the equality during encoding, but that would require annotating the sort
-    // of the equality operator, which will be cumbersome because we create equalities in some places where
-    // the sort is not readily available.
+    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
 
-    todo!("OH GOD FUCKING GIT")
-
-    // let constr = if adt.is_reflected() {
-    //     Expr::eq(idx1, variant_def.idx)
-    // } else {
-    //     Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
-    //         let e1 = idx1.proj_and_reduce(proj);
-    //         let e2 = variant_def.idx.proj_and_reduce(proj);
-    //         Expr::eq(e1, e2)
-    //     }))
-    // };
-    // infcx.assume_pred(&constr);
-    // Ok(variant_def.fields.to_vec())
-    // // =======
-    // //     infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
-
-    // //     Ok(variant_sig.fields.to_vec())
-    // // >>>>>>> main
+    Ok(variant_sig.fields.to_vec())
 }
 
 fn fold(
