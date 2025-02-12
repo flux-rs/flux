@@ -3,7 +3,15 @@ use flux_common::tracked_span_bug;
 use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
-use crate::{global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
+use crate::{
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    query_bug,
+    rty::{
+        self,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable as _},
+    },
+};
 
 impl GlobalEnv<'_, '_> {
     pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> QueryResult<Option<rty::Sort>> {
@@ -96,6 +104,27 @@ impl GlobalEnv<'_, '_> {
             }
             _ => Err(query_bug!(alias_ty.def_id, "unexpected weak alias `{:?}`", alias_ty.def_id)),
         }
+    }
+
+    pub fn deep_normalize_weak_alias_sorts<T: TypeFoldable>(self, t: &T) -> QueryResult<T> {
+        struct WeakAliasSortNormalizer<'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
+        }
+
+        impl FallibleTypeFolder for WeakAliasSortNormalizer<'_, '_> {
+            type Error = QueryErr;
+
+            fn try_fold_sort(&mut self, sort: &rty::Sort) -> QueryResult<rty::Sort> {
+                if let rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
+                    self.genv
+                        .normalize_weak_alias_sort(alias_ty)?
+                        .try_fold_with(self)
+                } else {
+                    sort.try_super_fold_with(self)
+                }
+            }
+        }
+        t.try_fold_with(&mut WeakAliasSortNormalizer { genv: self })
     }
 }
 
