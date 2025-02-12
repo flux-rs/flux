@@ -186,7 +186,7 @@ fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<
     copy_file(sh, build_binary("flux-driver", release)?, sysroot)?;
 
     let artifacts = Command::new(build_binary("cargo-flux", release)?)
-        .args(["flux", "-p", "flux-rs"])
+        .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
         .env(FLUX_SYSROOT, sysroot)
         .run_with_cargo_metadata()?;
 
@@ -219,7 +219,7 @@ fn copy_artifact(sh: &Shell, filename: &Utf8Path, dst: &Path) -> anyhow::Result<
 }
 
 fn is_flux_lib(artifact: &Artifact) -> bool {
-    ["flux_rs", "flux_attrs"].contains(&&artifact.target.name[..])
+    matches!(&artifact.target.name[..], "flux_rs" | "flux_attrs" | "flux_core")
 }
 
 impl Install {
