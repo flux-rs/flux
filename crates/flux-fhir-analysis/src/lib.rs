@@ -463,7 +463,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
-            let ty = genv.lower_type_of(def_id.local_id())?.skip_binder();
+            let ty = genv.lower_type_of(def_id)?.skip_binder();
             Refiner::default_for_item(genv, def_id.resolved_id())?
                 .refine_ty_or_base(&ty)?
                 .into()
