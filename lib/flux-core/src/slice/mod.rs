@@ -1,3 +1,4 @@
+mod index;
 mod iter;
 
 use flux_attrs::*;
