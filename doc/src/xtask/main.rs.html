@@ -333,7 +333,8 @@
 <a href="#332" id="332">332</a>
 <a href="#333" id="333">333</a>
 <a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -345,7 +346,7 @@
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-<span class="kw">use </span>tests::FLUX_SYSROOT;
+<span class="kw">use </span>tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
 <span class="kw">use </span>xshell::{cmd, PushEnv, Shell};
 
 <span class="macro">xflags::xflags!</span> {
@@ -523,7 +524,8 @@
     <span class="kw">let </span>artifacts = Command::new(build_binary(<span class="string">"cargo-flux"</span>, release)<span class="question-mark">?</span>)
         .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
         .env(FLUX_SYSROOT, sysroot)
-        .run_with_cargo_metadata()<span class="question-mark">?</span>;
+        .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>) <span class="comment">// run sysroot tests
+        </span>.run_with_cargo_metadata()<span class="question-mark">?</span>;
 
     copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, sysroot)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())

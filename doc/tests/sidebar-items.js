@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FLUX_FULL_COMPILATION","FLUX_SYSROOT"],"fn":["default_rustc_flags"]};
+window.SIDEBAR_ITEMS = {"constant":["FLUX_FULL_COMPILATION","FLUX_SYSROOT","FLUX_SYSROOT_TEST"],"fn":["default_rustc_flags"]};
