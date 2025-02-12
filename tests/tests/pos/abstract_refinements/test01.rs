@@ -11,22 +11,22 @@ fn test00() -> Pair {
     Pair { fst: 0, snd: 1 }
 }
 
-// #[flux::sig(fn(Pair[@a, @b, |a, b| a < b]) -> i32{v: v > 0})]
-// fn test01(pair: Pair) -> i32 {
-//     pair.snd - pair.fst
-// }
+#[flux::sig(fn(Pair[@a, @b, |a, b| a < b]) -> i32{v: v > 0})]
+fn test01(pair: Pair) -> i32 {
+    pair.snd - pair.fst
+}
 
-// fn test02() {
-//     let pair = Pair { fst: 0, snd: 1 };
-//     let x = test01(pair);
-// }
+fn test02() {
+    let pair = Pair { fst: 0, snd: 1 };
+    let x = test01(pair);
+}
 
-// #[flux::sig(fn(x: i32, Pair[@a, @b, |a, b| a > x]) -> i32{v: v > x})]
-// fn test03(x: i32, pair: Pair) -> i32 {
-//     pair.fst
-// }
+#[flux::sig(fn(x: i32, Pair[@a, @b, |a, b| a > x]) -> i32{v: v > x})]
+fn test03(x: i32, pair: Pair) -> i32 {
+    pair.fst
+}
 
-// fn test04() {
-//     let pair = Pair { fst: 10, snd: 0 };
-//     test03(0, pair);
-// }
+fn test04() {
+    let pair = Pair { fst: 10, snd: 0 };
+    test03(0, pair);
+}
