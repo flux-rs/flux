@@ -886,17 +886,34 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     self.idxs_eq(infcx, a, b);
                 }
             }
-            (_, ExprKind::Tuple(flds_b)) | (_, ExprKind::Ctor(_, _, flds_b)) => {
+            (_, ExprKind::Tuple(flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_b.len(), field: f as u32 };
                     let a = a.proj_and_reduce(proj);
                     self.idxs_eq(infcx, &a, b);
                 }
             }
-            (ExprKind::Tuple(flds_a), _) | (ExprKind::Ctor(_, _, flds_a), _) => {
+
+            (_, ExprKind::Ctor(def_id, _, flds_b)) => {
+                for (f, b) in flds_b.iter().enumerate() {
+                    let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };
+                    let a = a.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, &a, b);
+                }
+            }
+
+            (ExprKind::Tuple(flds_a), _) => {
                 infcx.unify_exprs(a, b);
                 for (f, a) in flds_a.iter().enumerate() {
                     let proj = FieldProj::Tuple { arity: flds_a.len(), field: f as u32 };
+                    let b = b.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, a, &b);
+                }
+            }
+            (ExprKind::Ctor(def_id, _, flds_a), _) => {
+                infcx.unify_exprs(a, b);
+                for (f, a) in flds_a.iter().enumerate() {
+                    let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };
                     let b = b.proj_and_reduce(proj);
                     self.idxs_eq(infcx, a, &b);
                 }

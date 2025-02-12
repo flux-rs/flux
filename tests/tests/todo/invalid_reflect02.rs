@@ -1,6 +1,6 @@
 #[flux::reflect]
 pub enum Day {
-    Sat(i32),
+    Sat(i32),       //~ ERROR invalid variant for reflected enum
     Sun,
 }
 
