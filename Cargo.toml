@@ -43,7 +43,7 @@ toposort-scc = "0.5.4"
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(flux_sysroot)',
-    'cfg(flux)',
+    'cfg(flux_sysroot_test)',
 ] }
 unused_extern_crates = "warn"
 

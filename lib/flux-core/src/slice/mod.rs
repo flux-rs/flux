@@ -17,7 +17,7 @@ impl<T> [T] {
     fn iter(&self) -> Iter<'_, T>;
 }
 
-#[cfg(flux)]
+#[cfg(flux_sysroot_test)]
 mod tests {
     #![allow(dead_code)]
 
