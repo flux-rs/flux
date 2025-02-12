@@ -5,7 +5,7 @@ use flux_common::bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    ty::{Const, ConstKind, ValTree},
+    ty::{Const, ConstKind, ValTree, VariantIdx},
     ToRustc,
 };
 use itertools::Itertools;
@@ -35,7 +35,7 @@ use crate::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
         },
-        BoundVariableKind, RefinementKind, SortCtor,
+        BoundVariableKind,
     },
 };
 
@@ -203,7 +203,7 @@ impl Expr {
 
     #[track_caller]
     pub fn expect_adt(&self) -> (DefId, List<Expr>) {
-        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = self.kind() {
+        if let ExprKind::Ctor(def_id, _, flds) = self.kind() {
             (*def_id, flds.clone())
         } else {
             bug!("expected record, found {self:?}")
@@ -254,16 +254,16 @@ impl Expr {
         ExprKind::Var(Var::ConstGeneric(param)).intern()
     }
 
-    pub fn aggregate(kind: AggregateKind, flds: List<Expr>) -> Expr {
-        ExprKind::Aggregate(kind, flds).intern()
-    }
-
     pub fn tuple(flds: List<Expr>) -> Expr {
-        Expr::aggregate(AggregateKind::Tuple(flds.len()), flds)
+        ExprKind::Tuple(flds).intern()
     }
 
     pub fn adt(def_id: DefId, flds: List<Expr>) -> Expr {
-        ExprKind::Aggregate(AggregateKind::Adt(def_id), flds).intern()
+        ExprKind::Ctor(def_id, VariantIdx::ZERO, flds).intern()
+    }
+
+    pub fn ctor(def_id: DefId, idx: VariantIdx, flds: List<Expr>) -> Expr {
+        ExprKind::Ctor(def_id, idx, flds).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -312,7 +312,7 @@ impl Expr {
     }
 
     pub fn unit_adt(def_id: DefId) -> Expr {
-        Expr::adt(def_id, List::empty())
+        Expr::ctor(def_id, VariantIdx::ZERO, List::empty())
     }
 
     pub fn app(func: impl Into<Expr>, args: List<Expr>) -> Expr {
@@ -530,7 +530,8 @@ impl Expr {
 
     /// Whether this is an aggregate expression with no fields.
     pub fn is_unit(&self) -> bool {
-        matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
+        matches!(self.kind(), ExprKind::Tuple(flds) if flds.is_empty())
+            || matches!(self.kind(), ExprKind::Ctor(_, _, flds) if flds.is_empty())
     }
 
     pub fn eta_expand_abs(&self, inputs: &BoundVariableKinds, output: Sort) -> Lambda {
@@ -541,32 +542,9 @@ impl Expr {
         Lambda::bind_with_vars(body, inputs.clone(), output)
     }
 
-    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
-            match sort {
-                Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
-                Sort::App(SortCtor::Adt(adt_sort_def), args) => {
-                    match adt_sort_def.index() {
-                        RefinementKind::RefinedBy(adt_sort_refined) => {
-                            let flds = adt_sort_refined.field_sorts(args);
-                            Expr::adt(
-                                adt_sort_def.did(),
-                                flds.iter().map(|sort| go(sort, f)).collect(),
-                            )
-                        }
-                        RefinementKind::Reflected => f(sort),
-                    }
-                }
-                _ => f(sort),
-            }
-        }
-        go(sort, &mut f)
-    }
-
     /// Applies a field projection to an expression and optimistically try to beta reduce it
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
-            ExprKind::Aggregate(_, flds) => flds[proj.field_idx() as usize].clone(),
             _ => Expr::field_proj(self.clone(), proj),
         }
     }
@@ -656,14 +634,18 @@ pub enum ExprKind {
     GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
-    Aggregate(AggregateKind, List<Expr>),
+    // Aggregate(AggregateKind, List<Expr>),
+    // HEREHEREHERE
+    // replace `Variant(variant_def_id)` with `Ctor(enum_def_id, variant_idx, args)
+    Ctor(DefId, VariantIdx, List<Expr>),
+    Tuple(List<Expr>),
+    /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
+    /// TODO: extend to `Variant(DefId, List<Expr>)` to allow args...
+    Variant(DefId),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
     Alias(AliasReft, List<Expr>),
-    /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
-    /// TODO: extend to `Variant(DefId, List<Expr>)` to allow args...
-    Variant(DefId),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -1239,14 +1221,14 @@ pub(crate) mod pretty {
                         w!(cx, f, ".{:?}", ^proj.field_idx())
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
+                ExprKind::Tuple(flds) => {
                     if let [e] = &flds[..] {
                         w!(cx, f, "({:?},)", e)
                     } else {
                         w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
+                ExprKind::Ctor(def_id, idx, flds) => {
                     if let Some(genv) = cx.genv()
                         && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
@@ -1256,7 +1238,11 @@ pub(crate) mod pretty {
                             .zip(flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
-                        w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                        if adt_sort_def.is_reflected() {
+                            w!(cx, f, "{:?}_{:?}({:?})", def_id, ^idx.index(), join!(", ", field_binds))
+                        } else {
+                            w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                        }
                     } else {
                         w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
                     }
@@ -1435,6 +1421,7 @@ pub(crate) mod pretty {
     pub fn aggregate_nested(
         cx: &PrettyCx,
         def_id: DefId,
+        _idx: VariantIdx, // TODO(RJ): reflected enums with multiple fields...
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
@@ -1541,7 +1528,7 @@ pub(crate) mod pretty {
                     };
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
+                ExprKind::Tuple(flds) => {
                     let mut texts = vec![];
                     let mut kidss = vec![];
                     for e in flds {
@@ -1557,8 +1544,8 @@ pub(crate) mod pretty {
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
-                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
-                    aggregate_nested(cx, *def_id, flds, true)
+                ExprKind::Ctor(def_id, idx, flds) => {
+                    aggregate_nested(cx, *def_id, *idx, flds, true)
                 }
 
                 ExprKind::PathProj(e, field) => {

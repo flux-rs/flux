@@ -19,7 +19,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, AggregateKind, BoundVariableKind, ESpan, Lambda, List},
+    rty::{self, BoundVariableKind, ESpan, Lambda, List},
     MaybeExternId,
 };
 use itertools::Itertools;
@@ -1048,10 +1048,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::Variant(data_sort, pos)
     }
 
-    fn is_reflected(&self, kind: &AggregateKind) -> bool {
-        if let AggregateKind::Adt(def_id) = kind
-            && let Ok(sort_def) = self.genv.adt_sort_def_of(def_id)
-        {
+    fn is_reflected(&self, def_id: &DefId) -> bool {
+        if let Ok(sort_def) = self.genv.adt_sort_def_of(def_id) {
             sort_def.is_reflected()
         } else {
             false
@@ -1070,7 +1068,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
-            rty::ExprKind::Aggregate(kind, flds) => {
+
+            rty::ExprKind::Tuple(flds) => {
+                // do not generate 1-tuples
+                if let [fld] = &flds[..] {
+                    self.expr_to_fixpoint(fld, scx)?
+                } else {
+                    scx.declare_tuple(flds.len());
+                    let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
+                    let args = flds
+                        .iter()
+                        .map(|fld| self.expr_to_fixpoint(fld, scx))
+                        .try_collect()?;
+                    fixpoint::Expr::App(Box::new(ctor), args)
+                }
+            }
+            rty::ExprKind::Ctor(kind, _idx, flds) => {
                 debug_assert!(!self.is_reflected(kind));
                 // do not generate 1-tuples
                 if let [fld] = &flds[..] {

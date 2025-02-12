@@ -409,7 +409,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
-            let refined_by = rty::AdtSortRefined::new(vec![]);
+            let refined_by = rty::AdtSortVariant::new(vec![]);
             let kind = rty::RefinementKind::RefinedBy(refined_by);
             dispatch_query(
                 genv,

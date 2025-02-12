@@ -68,7 +68,7 @@ use crate::{
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct AdtSortRefined {
+pub struct AdtSortVariant {
     /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
     field_names: Vec<Symbol>,
     /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
@@ -78,10 +78,10 @@ pub struct AdtSortRefined {
     sorts: List<Sort>,
 }
 
-impl AdtSortRefined {
+impl AdtSortVariant {
     pub fn new(fields: Vec<(Symbol, Sort)>) -> Self {
         let (field_names, sorts) = fields.into_iter().unzip();
-        AdtSortRefined { field_names, sorts: List::from_vec(sorts) }
+        AdtSortVariant { field_names, sorts: List::from_vec(sorts) }
     }
 
     pub fn fields(&self) -> usize {
@@ -117,7 +117,7 @@ impl AdtSortRefined {
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum RefinementKind {
-    RefinedBy(AdtSortRefined),
+    RefinedBy(AdtSortVariant),
     Reflected,
 }
 
@@ -134,6 +134,7 @@ struct AdtSortDefData {
     params: Vec<ParamTy>,
     /// The `index` is *either* the user defined indices or the "reflected" ADT
     kind: RefinementKind,
+    // HEREHEREHEREHEREHEREHERE variants: Vec<AdtSortVariant>,
 }
 
 impl AdtSortDef {

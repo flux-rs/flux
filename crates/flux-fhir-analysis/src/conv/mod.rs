@@ -284,7 +284,7 @@ pub(crate) fn conv_adt_sort_def(
                 .iter()
                 .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
                 .try_collect_vec()?;
-            let refined_by = rty::AdtSortRefined::new(fields);
+            let refined_by = rty::AdtSortVariant::new(fields);
             let kind = rty::RefinementKind::RefinedBy(refined_by);
             Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, kind))
         }
@@ -2019,8 +2019,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         for coercion in self.results().coercions_for(fhir_id) {
             expr = match *coercion {
                 rty::Coercion::Inject(def_id) => {
-                    rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
-                        .at_opt(span)
+                    rty::Expr::adt(def_id, List::singleton(expr)).at_opt(span)
                 }
                 rty::Coercion::Project(def_id) => {
                     rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })

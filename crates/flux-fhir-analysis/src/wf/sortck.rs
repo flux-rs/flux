@@ -313,9 +313,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
-            } // ExprRes::Variant(def_id) => {
-              //     span_bug!(path.span, "unexpected variant {def_id:?} in var position (1)")
-              // }
+            }
         }
     }
 

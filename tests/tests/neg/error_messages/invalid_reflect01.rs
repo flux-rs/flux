@@ -5,3 +5,5 @@ pub enum State {
     #[flux::variant(State[1])]
     Off, //~ ERROR invalid variant for reflected enum
 }
+
+
