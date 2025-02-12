@@ -330,11 +330,14 @@
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
-    process::ExitStatus,
+    process::{Command, ExitStatus},
 };
 
 <span class="kw">use </span>anyhow::anyhow;
@@ -354,25 +357,25 @@
             <span class="doccomment">/// Only run tests containing `filter` as substring.
             </span>optional filter: String
         }
-        <span class="doccomment">/// Run the flux binary on the given input file setting the appropriate flags to use
-        /// custom flux attributes and macros.
+        <span class="doccomment">/// Run the Flux binary on the given input file setting the appropriate flags to use
+        /// custom Flux attributes and macros.
         </span>cmd run {
             <span class="doccomment">/// Input file
             </span>required input: PathBuf
-            <span class="doccomment">/// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
+            <span class="doccomment">/// Extra options to pass to the Flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
             </span>repeated opts: String
         }
-        <span class="doccomment">/// Expand flux macros
+        <span class="doccomment">/// Expand Flux macros
         </span>cmd expand {
             <span class="doccomment">/// Input file
             </span>required input: PathBuf
         }
-        <span class="doccomment">/// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
+        <span class="doccomment">/// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
         </span>cmd install {
-            <span class="doccomment">/// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
+            <span class="doccomment">/// Build the `flux-driver` binary in debug mode (with the 'dev' profile) instead of release mode
             </span>optional --debug
         }
-        <span class="doccomment">/// Uninstall flux binaries and libraries
+        <span class="doccomment">/// Uninstall Flux binaries and libraries
         </span>cmd uninstall { }
         <span class="doccomment">/// Generate precompiled libraries
         </span>cmd build-sysroot { }
@@ -501,18 +504,14 @@
 }
 
 <span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, release: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
-    run_cargo(<span class="string">"cargo"</span>, |cmd| {
-        cmd.args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin]);
-        <span class="kw">if </span>release {
-            cmd.arg(<span class="string">"--release"</span>);
-        }
-        cmd
-    })<span class="question-mark">?
-    </span>.into_iter()
-    .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
-    .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}`"</span>))<span class="question-mark">?
-    </span>.executable
-    .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}"</span>))
+    Command::new(<span class="string">"cargo"</span>)
+        .args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin])
+        .arg_if(release, <span class="string">"--release"</span>)
+        .run_with_cargo_metadata()<span class="question-mark">?
+        </span>.into_iter()
+        .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
+        .and_then(|artifact| artifact.executable)
+        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"cannot find binary: `{bin}`"</span>))
 }
 
 <span class="kw">fn </span>install_sysroot(sh: <span class="kw-2">&amp;</span>Shell, release: bool, sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
@@ -521,10 +520,10 @@
 
     copy_file(sh, build_binary(<span class="string">"flux-driver"</span>, release)<span class="question-mark">?</span>, sysroot)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>artifacts = run_cargo(build_binary(<span class="string">"cargo-flux"</span>, release)<span class="question-mark">?</span>, |cmd| {
-        cmd.args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>])
-            .env(FLUX_SYSROOT, sysroot)
-    })<span class="question-mark">?</span>;
+    <span class="kw">let </span>artifacts = Command::new(build_binary(<span class="string">"cargo-flux"</span>, release)<span class="question-mark">?</span>)
+        .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
+        .env(FLUX_SYSROOT, sysroot)
+        .run_with_cargo_metadata()<span class="question-mark">?</span>;
 
     copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, sysroot)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
@@ -555,7 +554,7 @@
 }
 
 <span class="kw">fn </span>is_flux_lib(artifact: <span class="kw-2">&amp;</span>Artifact) -&gt; bool {
-    [<span class="string">"flux_rs"</span>, <span class="string">"flux_attrs"</span>].contains(&amp;&amp;artifact.target.name[..])
+    <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>artifact.target.name[..], <span class="string">"flux_rs" </span>| <span class="string">"flux_attrs" </span>| <span class="string">"flux_core"</span>)
 }
 
 <span class="kw">impl </span>Install {
@@ -579,40 +578,6 @@
         .join(<span class="string">"sysroot"</span>))
 }
 
-<span class="kw">fn </span>run_cargo&lt;S: AsRef&lt;OsStr&gt;&gt;(
-    cargo_path: S,
-    f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>std::process::Command) -&gt; <span class="kw-2">&amp;mut </span>std::process::Command,
-) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>cmd = std::process::Command::new(cargo_path);
-
-    f(<span class="kw-2">&amp;mut </span>cmd);
-
-    cmd.arg(<span class="string">"--message-format=json-render-diagnostics"</span>)
-        .stdout(std::process::Stdio::piped());
-
-    display_command(<span class="kw-2">&amp;</span>cmd);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>child = cmd.spawn()<span class="question-mark">?</span>;
-
-    <span class="kw">let </span><span class="kw-2">mut </span>artifacts = <span class="macro">vec!</span>[];
-    <span class="kw">let </span>reader = std::io::BufReader::new(child.stdout.take().unwrap());
-    <span class="kw">for </span>message <span class="kw">in </span>cargo_metadata::Message::parse_stream(reader) {
-        <span class="kw">match </span>message.unwrap() {
-            Message::CompilerMessage(msg) =&gt; {
-                <span class="macro">println!</span>(<span class="string">"{msg}"</span>);
-            }
-            Message::CompilerArtifact(artifact) =&gt; {
-                artifacts.push(artifact);
-            }
-            <span class="kw">_ </span>=&gt; (),
-        }
-    }
-
-    check_status(child.wait()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(artifacts)
-}
-
 <span class="kw">fn </span>check_status(st: ExitStatus) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">if </span>st.success() {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -633,7 +598,7 @@
     <span class="prelude-val">Err</span>(err)
 }
 
-<span class="kw">fn </span>display_command(cmd: <span class="kw-2">&amp;</span>std::process::Command) {
+<span class="kw">fn </span>display_command(cmd: <span class="kw-2">&amp;</span>Command) {
     <span class="kw">for </span>var <span class="kw">in </span>cmd.get_envs() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = var.<span class="number">1 </span>{
             <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, var.<span class="number">0</span>.to_string_lossy(), val.to_string_lossy());
@@ -661,5 +626,46 @@
     <span class="macro">eprintln!</span>(<span class="string">"$ cp {} {}"</span>, src.to_string_lossy(), dst.to_string_lossy());
     sh.copy_file(src, dst)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">trait </span>CommandExt {
+    <span class="kw">fn </span>arg_if&lt;S: AsRef&lt;OsStr&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, arg: S) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>;
+    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt;;
+}
+
+<span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
+    <span class="kw">fn </span>arg_if&lt;S: AsRef&lt;OsStr&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, arg: S) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="kw">if </span>b {
+            <span class="self">self</span>.arg(arg);
+        }
+        <span class="self">self
+    </span>}
+
+    <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt; {
+        <span class="self">self</span>.arg(<span class="string">"--message-format=json-render-diagnostics"</span>)
+            .stdout(std::process::Stdio::piped());
+
+        display_command(<span class="self">self</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>child = <span class="self">self</span>.spawn()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>artifacts = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>reader = std::io::BufReader::new(child.stdout.take().unwrap());
+        <span class="kw">for </span>message <span class="kw">in </span>cargo_metadata::Message::parse_stream(reader) {
+            <span class="kw">match </span>message.unwrap() {
+                Message::CompilerMessage(msg) =&gt; {
+                    <span class="macro">println!</span>(<span class="string">"{msg}"</span>);
+                }
+                Message::CompilerArtifact(artifact) =&gt; {
+                    artifacts.push(artifact);
+                }
+                <span class="kw">_ </span>=&gt; (),
+            }
+        }
+
+        check_status(child.wait()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(artifacts)
+    }
 }
 </code></pre></div></section></main></body></html>
