@@ -25,3 +25,29 @@ impl<T> SliceIndex<[T]> for usize {
     #![reft(fn in_bounds(idx: int, len: int) -> bool { idx < len })] //
 }
 
+#[extern_spec(core::slice)]
+impl<T> SliceIndex<[T]> for ops::Range<usize> {
+    #![reft(
+        fn in_bounds(r: ops::Range<int>, len: int) -> bool {
+            r.start <= r.end && r.end < len
+        }
+    )] //
+}
+
+#[cfg(flux_sysroot_test)]
+mod tests {
+    #![allow(dead_code)]
+    use core::ops::Index;
+
+    use flux_attrs::*;
+
+    #[sig(fn(&[i32]{n: n > 10}))]
+    fn test00(xs: &[i32]) {
+        let y = &xs[0..1];
+    }
+
+    #[should_fail]
+    fn test01(xs: &[i32]) {
+        let y = &xs[0..1];
+    }
+}
