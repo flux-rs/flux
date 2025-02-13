@@ -27,17 +27,14 @@ use flux_middle::{
     cstore::{CrateStore, OptResult},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty,
+    rty::{self, AssocReftId},
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
-use rustc_span::{
-    def_id::{CrateNum, DefId, DefIndex},
-    Symbol,
-};
+use rustc_span::def_id::{CrateNum, DefId, DefIndex};
 
 pub use crate::encoder::encode_metadata;
 
@@ -59,7 +56,7 @@ pub struct CrateMetadata {
 }
 
 /// Trait to deal with the fact that `assoc_refinmenents_of` and `assoc_refinements_def` use
-/// `(K, Symbol)` as key;
+/// `AssocReftId<K>` as key;
 trait Key {
     type KeyIndex;
     fn crate_num(self) -> CrateNum;
@@ -83,19 +80,19 @@ impl Key for DefId {
     }
 }
 
-impl Key for (DefId, Symbol) {
-    type KeyIndex = (DefIndex, Symbol);
+impl Key for AssocReftId {
+    type KeyIndex = AssocReftId<DefIndex>;
 
     fn crate_num(self) -> CrateNum {
-        self.0.krate
+        self.container_id.krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        (self.0.index, self.1)
+        self.index()
     }
 
     fn name(self, tcx: TyCtxt) -> String {
-        format!("{}::{}", tcx.def_path_str(self.0), self.1)
+        format!("{}::{}", tcx.def_path_str(self.container_id), self.name)
     }
 }
 
@@ -107,10 +104,10 @@ pub struct Tables<K: Eq + Hash> {
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
-    assoc_refinements_def: UnordMap<(K, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    assoc_refinements_def: UnordMap<AssocReftId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinements_def:
-        UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
-    sort_of_assoc_reft: UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
+        UnordMap<AssocReftId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
+    sort_of_assoc_reft: UnordMap<AssocReftId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
@@ -227,24 +224,18 @@ impl CrateStore for CStore {
         get!(self, assoc_refinements_of, def_id)
     }
 
-    fn assoc_refinements_def(
-        &self,
-        key: (DefId, Symbol),
-    ) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
+    fn assoc_refinements_def(&self, key: AssocReftId) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
         get!(self, assoc_refinements_def, key)
     }
 
     fn default_assoc_refinements_def(
         &self,
-        key: (DefId, Symbol),
+        key: AssocReftId,
     ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         get!(self, default_assoc_refinements_def, key)
     }
 
-    fn sort_of_assoc_reft(
-        &self,
-        key: (DefId, Symbol),
-    ) -> OptResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
+    fn sort_of_assoc_reft(&self, key: AssocReftId) -> OptResult<rty::EarlyBinder<rty::FuncSort>> {
         get!(self, sort_of_assoc_reft, key)
     }
 
@@ -260,11 +251,18 @@ impl CrateMetadata {
             genv,
             genv.iter_local_def_id().map(LocalDefId::to_def_id),
             &mut local_tables,
-            |def_id| def_id.index,
+            DefId::to_index,
+            AssocReftId::to_index,
         );
 
         let mut extern_tables = Tables::default();
-        encode_def_ids(genv, genv.iter_extern_def_id(), &mut extern_tables, |def_id| def_id);
+        encode_def_ids(
+            genv,
+            genv.iter_extern_def_id(),
+            &mut extern_tables,
+            |def_id| def_id,
+            |assoc_id| assoc_id,
+        );
 
         CrateMetadata { local_tables, extern_tables }
     }
@@ -274,11 +272,12 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
     genv: GlobalEnv,
     def_ids: impl IntoIterator<Item = DefId>,
     tables: &mut Tables<K>,
-    mk_key: impl Fn(DefId) -> K,
+    did_to_key: fn(DefId) -> K,
+    assoc_id_to_key: fn(AssocReftId) -> AssocReftId<K>,
 ) {
     for def_id in def_ids {
         let def_kind = genv.def_kind(def_id);
-        let key = mk_key(def_id);
+        let key = did_to_key(def_id);
 
         match def_kind {
             DefKind::Trait => {
@@ -289,16 +288,14 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .insert(key, genv.refinement_generics_of(def_id));
                 let assocs = genv.assoc_refinements_of(def_id);
                 if let Ok(assocs) = &assocs {
-                    for assoc in &assocs.items {
-                        let key = mk_key(assoc.container_def_id);
-                        tables.default_assoc_refinements_def.insert(
-                            (key, assoc.name),
-                            genv.default_assoc_refinement_def(assoc.container_def_id, assoc.name),
-                        );
-                        tables.sort_of_assoc_reft.insert(
-                            (key, assoc.name),
-                            genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                        );
+                    for assoc_id in &assocs.items {
+                        let key = assoc_id_to_key(*assoc_id);
+                        tables
+                            .default_assoc_refinements_def
+                            .insert(key, genv.default_assoc_refinement_def(*assoc_id));
+                        tables
+                            .sort_of_assoc_reft
+                            .insert(key, genv.sort_of_assoc_reft(*assoc_id));
                     }
                 }
                 tables.assoc_refinements_of.insert(key, assocs);
@@ -313,16 +310,14 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 if of_trait {
                     let assocs = genv.assoc_refinements_of(def_id);
                     if let Ok(assocs) = &assocs {
-                        for assoc in &assocs.items {
-                            let key = mk_key(assoc.container_def_id);
-                            tables.assoc_refinements_def.insert(
-                                (key, assoc.name),
-                                genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
-                            );
-                            tables.sort_of_assoc_reft.insert(
-                                (key, assoc.name),
-                                genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                            );
+                        for assoc_id in &assocs.items {
+                            let key = assoc_id_to_key(*assoc_id);
+                            tables
+                                .assoc_refinements_def
+                                .insert(key, genv.assoc_refinement_def(*assoc_id));
+                            tables
+                                .sort_of_assoc_reft
+                                .insert(key, genv.sort_of_assoc_reft(*assoc_id));
                         }
                     }
                     tables.assoc_refinements_of.insert(key, assocs);

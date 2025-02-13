@@ -134,10 +134,9 @@ impl rty::BaseTy {
 }
 
 impl rty::AliasReft {
-    pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<Option<rty::FuncSort>> {
-        let Some(fsort) = genv.sort_of_assoc_reft(self.trait_id, self.name)? else {
-            return Ok(None);
-        };
-        Ok(Some(fsort.instantiate(genv.tcx(), &self.args, &[])))
+    pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<rty::FuncSort> {
+        Ok(genv
+            .sort_of_assoc_reft(self.assoc_id)?
+            .instantiate(genv.tcx(), &self.args, &[]))
     }
 }

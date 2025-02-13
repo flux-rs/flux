@@ -1006,6 +1006,7 @@ macro_rules! TrivialTypeTraversalImpls {
 
 // For things that don't carry any arena-allocated data (and are copy...), just add them to this list.
 TrivialTypeTraversalImpls! {
+    (),
     bool,
     usize,
     crate::fhir::InferMode,

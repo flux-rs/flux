@@ -4,12 +4,15 @@ use flux_infer::{
     projections::NormalizeExt as _,
 };
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty::TraitRef, MaybeExternId,
+    def_id_to_string,
+    global_env::GlobalEnv,
+    queries::QueryResult,
+    rty::{AssocReftId, TraitRef},
+    MaybeExternId,
 };
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
-use rustc_span::{def_id::DefId, Symbol};
 
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> QueryResult {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
@@ -18,12 +21,13 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id)?;
     let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name).collect();
 
-    for trait_assoc_reft in &trait_assoc_refts.items {
-        let name = trait_assoc_reft.name;
-        let has_default = genv.default_assoc_refinement_def(trait_id, name)?.is_some();
-        if !impl_names.contains(&name) && !has_default {
+    for trait_assoc_id in &trait_assoc_refts.items {
+        let has_default = genv
+            .default_assoc_refinement_def(*trait_assoc_id)?
+            .is_some();
+        if !impl_names.contains(&trait_assoc_id.name) && !has_default {
             let span = genv.tcx().def_span(impl_id);
-            Err(genv.emit(errors::MissingAssocReft::new(span, name, def_id_to_string(trait_id))))?;
+            Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_id.name)))?;
         }
     }
 
@@ -42,9 +46,11 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         .build(TypingMode::non_body_analysis());
     let mut infcx = root_ctxt.infcx(trait_id, &rustc_infcx);
 
-    for impl_assoc_reft in &impl_assoc_refts.items {
-        let name = impl_assoc_reft.name;
-        if trait_assoc_refts.find(name).is_none() {
+    for impl_assoc_id in &impl_assoc_refts.items {
+        let name = impl_assoc_id.name;
+        if let Some(trait_assoc_id) = trait_assoc_refts.find(name) {
+            check_assoc_reft(&mut infcx, impl_id, &impl_trait_ref, trait_assoc_id, *impl_assoc_id)?;
+        } else {
             let fhir_impl_assoc_reft = genv
                 .map()
                 .expect_item(impl_id.local_id())?
@@ -57,7 +63,6 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
                 def_id_to_string(trait_id),
             )))?;
         }
-        check_assoc_reft(&mut infcx, impl_id, &impl_trait_ref, trait_id, impl_assoc_reft.name)?;
     }
 
     Ok(())
@@ -67,45 +72,39 @@ fn check_assoc_reft(
     infcx: &mut InferCtxt,
     impl_id: MaybeExternId,
     impl_trait_ref: &TraitRef,
-    trait_id: DefId,
-    name: Symbol,
+    trait_assoc_id: AssocReftId,
+    impl_assoc_id: AssocReftId,
 ) -> QueryResult {
+    debug_assert_eq!(trait_assoc_id.name, impl_assoc_id.name);
+
     let impl_span = infcx
         .genv
         .map()
         .expect_item(impl_id.local_id())?
         .expect_impl()
-        .find_assoc_reft(name)
+        .find_assoc_reft(impl_assoc_id.name)
         .unwrap()
         .span;
 
-    let Some(impl_sort) = infcx.genv.sort_of_assoc_reft(impl_id, name)? else {
-        return Err(infcx.genv.emit(errors::InvalidAssocReft::new(
-            impl_span,
-            name,
-            def_id_to_string(trait_id),
-        )))?;
-    };
-
-    let impl_sort = impl_sort
+    let impl_sort = infcx
+        .genv
+        .sort_of_assoc_reft(impl_assoc_id)?
         .instantiate_identity()
         .normalize_projections(infcx)?;
 
-    let Some(trait_sort) = infcx.genv.sort_of_assoc_reft(trait_id, name)? else {
-        return Err(infcx.genv.emit(errors::InvalidAssocReft::new(
-            impl_span,
-            name,
-            def_id_to_string(trait_id),
-        )))?;
-    };
-    let trait_sort = trait_sort
+    let trait_sort = infcx
+        .genv
+        .sort_of_assoc_reft(trait_assoc_id)?
         .instantiate(infcx.tcx(), &impl_trait_ref.args, &[])
         .normalize_projections(infcx)?;
 
     if impl_sort != trait_sort {
-        Err(infcx
-            .genv
-            .emit(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)))?;
+        Err(infcx.genv.emit(errors::IncompatibleSort::new(
+            impl_span,
+            impl_assoc_id.name,
+            trait_sort,
+            impl_sort,
+        )))?;
     }
 
     Ok(())
@@ -144,13 +143,12 @@ pub(crate) mod errors {
     pub struct MissingAssocReft {
         #[primary_span]
         span: Span,
-        trait_: String,
         name: Symbol,
     }
 
     impl MissingAssocReft {
-        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
-            Self { span, trait_, name }
+        pub(crate) fn new(span: Span, name: Symbol) -> Self {
+            Self { span, name }
         }
     }
 

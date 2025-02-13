@@ -24,6 +24,7 @@ use crate::{
         self,
         normalize::SpecFuncDefns,
         refining::{Refine as _, Refiner},
+        AssocReftId,
     },
     MaybeExternId, ResolvedDefId,
 };
@@ -274,32 +275,61 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .assoc_refinements_of(self, def_id.into_query_param())
     }
 
+    /// Given the id of an associated refinement in a trait definition returns the body for the
+    /// corresponding associated refinement in the implementation with id `impl_id`.
+    ///
+    /// This function returns [`QueryErr::MissingAssocReft`] if the associated refinement is not
+    /// found in the implementation and there's no default body in the trait. This can happen if an
+    /// extern spec adds an associated refinement without a default body because we are currently
+    /// not checking `compare_impl_item` for those definitions.
+    pub fn assoc_refinement_body_for_impl(
+        self,
+        trait_assoc_id: AssocReftId,
+        impl_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+        // Check if the implementation has the associated refinement
+        let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
+        if let Some(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name) {
+            return self.assoc_refinement_def(impl_assoc_id);
+        }
+
+        // Otherwise, check if the trait has a default body
+        if let Some(body) = self.default_assoc_refinement_def(trait_assoc_id)? {
+            let impl_trait_ref = self
+                .impl_trait_ref(impl_id)?
+                .unwrap()
+                .instantiate_identity();
+            return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
+        }
+
+        Err(QueryErr::MissingAssocReft {
+            impl_id,
+            trait_id: trait_assoc_id.container_id,
+            name: trait_assoc_id.name,
+        })
+    }
+
     pub fn default_assoc_refinement_def(
         self,
-        trait_id: DefId,
-        name: Symbol,
+        trait_assoc_id: AssocReftId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         self.inner
             .queries
-            .default_assoc_refinement_def(self, trait_id, name)
+            .default_assoc_refinement_def(self, trait_assoc_id)
     }
 
     pub fn assoc_refinement_def(
         self,
-        impl_id: DefId,
-        name: Symbol,
+        impl_assoc_id: AssocReftId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-        self.inner.queries.assoc_refinement_def(self, impl_id, name)
+        self.inner.queries.assoc_refinement_def(self, impl_assoc_id)
     }
 
     pub fn sort_of_assoc_reft(
         self,
-        def_id: impl IntoQueryParam<DefId>,
-        name: Symbol,
-    ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-        self.inner
-            .queries
-            .sort_of_assoc_reft(self, def_id.into_query_param(), name)
+        assoc_id: AssocReftId,
+    ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
+        self.inner.queries.sort_of_assoc_reft(self, assoc_id)
     }
 
     pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
