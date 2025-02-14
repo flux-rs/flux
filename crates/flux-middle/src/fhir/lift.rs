@@ -523,7 +523,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             hir::ForeignItemKind::Fn(fnsig, _, _) => {
                 let lifted_fnsig = self.lift_fn_sig(fnsig)?;
                 let fnsig = self.genv.alloc(lifted_fnsig);
-                fhir::ForeignItemKind::Fn(*fnsig)
+                let lifted_generics = self.lift_generics()?;
+                let generics = self.genv.alloc(lifted_generics);
+                fhir::ForeignItemKind::Fn(*fnsig, generics)
             }
             hir::ForeignItemKind::Static(_, _, _) => fhir::ForeignItemKind::Static,
             hir::ForeignItemKind::Type => fhir::ForeignItemKind::Type,
@@ -538,7 +540,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let kind_ref = self.genv.alloc(lifting_kind);
 
         let kind = match kind_ref {
-            fhir::ForeignItemKind::Fn(sig) => fhir::ForeignItemKind::Fn(*sig),
+            fhir::ForeignItemKind::Fn(sig, gen) => fhir::ForeignItemKind::Fn(*sig, gen),
             fhir::ForeignItemKind::Static => fhir::ForeignItemKind::Static,
             fhir::ForeignItemKind::Type => fhir::ForeignItemKind::Type,
         };

@@ -168,7 +168,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
             | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
             | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
-            OwnerNode::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig), .. }) => {
+            OwnerNode::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => {
                 Some(fn_sig)
             }
             _ => None,
@@ -181,7 +181,11 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::TraitItem(trait_item) => &trait_item.generics,
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
-                span_bug!(foreign_item.span, "no generics for ForeignItem")
+                if let ForeignItemKind::Fn(_, generics) = &foreign_item.kind {
+                    generics
+                } else {
+                    span_bug!(foreign_item.span, "foreign_item missing generics")
+                }
             }
         }
     }
@@ -301,7 +305,7 @@ pub struct ForeignItem<'fhir> {
 
 #[derive(Debug)]
 pub enum ForeignItemKind<'fhir> {
-    Fn(FnSig<'fhir>),
+    Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
     Static,
     Type,
 }
