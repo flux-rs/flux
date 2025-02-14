@@ -168,7 +168,9 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
             | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
             | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
-            | OwnerNode::ForeignItem(ForeignItem {kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => Some(fn_sig),
+            | OwnerNode::ForeignItem(ForeignItem {
+                kind: ForeignItemKind::Fn(fn_sig, ..), ..
+            }) => Some(fn_sig),
             _ => None,
         }
     }
