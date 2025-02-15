@@ -292,7 +292,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                         let key = assoc_id_to_key(*assoc_id);
                         tables
                             .default_assoc_refinements_def
-                            .insert(key, genv.default_assoc_refinement_def(*assoc_id));
+                            .insert(key, genv.default_assoc_refinement_body(*assoc_id));
                         tables
                             .sort_of_assoc_reft
                             .insert(key, genv.sort_of_assoc_reft(*assoc_id));
@@ -314,7 +314,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                             let key = assoc_id_to_key(*assoc_id);
                             tables
                                 .assoc_refinements_def
-                                .insert(key, genv.assoc_refinement_def(*assoc_id));
+                                .insert(key, genv.assoc_refinement_body(*assoc_id));
                             tables
                                 .sort_of_assoc_reft
                                 .insert(key, genv.sort_of_assoc_reft(*assoc_id));

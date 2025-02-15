@@ -23,7 +23,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
 
     for trait_assoc_id in &trait_assoc_refts.items {
         let has_default = genv
-            .default_assoc_refinement_def(*trait_assoc_id)?
+            .default_assoc_refinement_body(*trait_assoc_id)?
             .is_some();
         if !impl_names.contains(&trait_assoc_id.name) && !has_default {
             let span = genv.tcx().def_span(impl_id);

@@ -290,11 +290,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         // Check if the implementation has the associated refinement
         let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
         if let Some(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name) {
-            return self.assoc_refinement_def(impl_assoc_id);
+            return self.assoc_refinement_body(impl_assoc_id);
         }
 
         // Otherwise, check if the trait has a default body
-        if let Some(body) = self.default_assoc_refinement_def(trait_assoc_id)? {
+        if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
             let impl_trait_ref = self
                 .impl_trait_ref(impl_id)?
                 .unwrap()
@@ -309,20 +309,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         })
     }
 
-    pub fn default_assoc_refinement_def(
+    pub fn default_assoc_refinement_body(
         self,
         trait_assoc_id: AssocReftId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         self.inner
             .queries
-            .default_assoc_refinement_def(self, trait_assoc_id)
+            .default_assoc_refinement_body(self, trait_assoc_id)
     }
 
-    pub fn assoc_refinement_def(
+    pub fn assoc_refinement_body(
         self,
         impl_assoc_id: AssocReftId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-        self.inner.queries.assoc_refinement_def(self, impl_assoc_id)
+        self.inner
+            .queries
+            .assoc_refinement_body(self, impl_assoc_id)
     }
 
     pub fn sort_of_assoc_reft(

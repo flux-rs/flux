@@ -637,7 +637,7 @@ impl<Id> AssocReftId<Id> {
 
 impl AssocReftId {
     pub fn index(self) -> AssocReftId<DefIndex> {
-        AssocReftId::new(self.container_id.index, self.name)
+        AssocReftId { container_id: self.container_id.index, name: self.name }
     }
 }
 

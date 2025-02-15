@@ -62,8 +62,8 @@ pub fn provide(providers: &mut Providers) {
     providers.predicates_of = predicates_of;
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
-    providers.assoc_refinement_def = assoc_refinement_def;
-    providers.default_assoc_refinement_def = default_assoc_refinement_def;
+    providers.assoc_refinement_body = assoc_refinement_body;
+    providers.default_assoc_refinement_body = default_assoc_refinement_body;
     providers.item_bounds = item_bounds;
 }
 
@@ -239,11 +239,11 @@ fn assoc_refinements_of(
     Ok(rty::AssocRefinements { items: predicates })
 }
 
-fn default_assoc_refinement_def(
+fn default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_assoc_id: AssocReftId<LocalDefId>,
+    trait_assoc_id: AssocReftId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-    let trait_id = genv.maybe_extern_id(trait_assoc_id.container_id);
+    let trait_id = trait_assoc_id.container_id;
     let assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())?
@@ -257,11 +257,11 @@ fn default_assoc_refinement_def(
     Ok(Some(rty::EarlyBinder(body)))
 }
 
-fn assoc_refinement_def(
+fn assoc_refinement_body(
     genv: GlobalEnv,
-    impl_assoc_id: AssocReftId<LocalDefId>,
+    impl_assoc_id: AssocReftId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let impl_id = genv.maybe_extern_id(impl_assoc_id.container_id);
+    let impl_id = impl_assoc_id.container_id;
 
     let assoc_reft = genv
         .map()
@@ -278,9 +278,9 @@ fn assoc_refinement_def(
 
 fn sort_of_assoc_reft(
     genv: GlobalEnv,
-    assoc_id: AssocReftId<LocalDefId>,
+    assoc_id: AssocReftId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
-    let container_id = genv.maybe_extern_id(assoc_id.container_id);
+    let container_id = assoc_id.container_id;
 
     match &genv.map().expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
