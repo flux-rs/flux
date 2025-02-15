@@ -167,20 +167,21 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
+<a href="#169" id="169">169</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
 <span class="kw">use </span>flux_infer::{
     infer::{GlobalEnvExt <span class="kw">as _</span>, InferCtxt},
     projections::NormalizeExt <span class="kw">as _</span>,
 };
 <span class="kw">use </span>flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, rty::TraitRef, MaybeExternId,
+    def_id_to_string,
+    global_env::GlobalEnv,
+    queries::QueryResult,
+    rty::{AssocReftId, TraitRef},
+    MaybeExternId,
 };
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_middle::ty::TypingMode;
-<span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
 
 <span class="kw">pub fn </span>check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -&gt; QueryResult {
     <span class="kw">let </span>trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
@@ -189,12 +190,13 @@
     <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>impl_names: FxHashSet&lt;<span class="kw">_</span>&gt; = impl_assoc_refts.items.iter().map(|x| x.name).collect();
 
-    <span class="kw">for </span>trait_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>trait_assoc_refts.items {
-        <span class="kw">let </span>name = trait_assoc_reft.name;
-        <span class="kw">let </span>has_default = genv.default_assoc_refinement_def(trait_id, name)<span class="question-mark">?</span>.is_some();
-        <span class="kw">if </span>!impl_names.contains(<span class="kw-2">&amp;</span>name) &amp;&amp; !has_default {
+    <span class="kw">for </span>trait_assoc_id <span class="kw">in </span><span class="kw-2">&amp;</span>trait_assoc_refts.items {
+        <span class="kw">let </span>has_default = genv
+            .default_assoc_refinement_body(<span class="kw-2">*</span>trait_assoc_id)<span class="question-mark">?
+            </span>.is_some();
+        <span class="kw">if </span>!impl_names.contains(<span class="kw-2">&amp;</span>trait_assoc_id.name) &amp;&amp; !has_default {
             <span class="kw">let </span>span = genv.tcx().def_span(impl_id);
-            <span class="prelude-val">Err</span>(genv.emit(errors::MissingAssocReft::new(span, name, def_id_to_string(trait_id))))<span class="question-mark">?</span>;
+            <span class="prelude-val">Err</span>(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_id.name)))<span class="question-mark">?</span>;
         }
     }
 
@@ -213,9 +215,11 @@
         .build(TypingMode::non_body_analysis());
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(trait_id, <span class="kw-2">&amp;</span>rustc_infcx);
 
-    <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
-        <span class="kw">let </span>name = impl_assoc_reft.name;
-        <span class="kw">if </span>trait_assoc_refts.find(name).is_none() {
+    <span class="kw">for </span>impl_assoc_id <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
+        <span class="kw">let </span>name = impl_assoc_id.name;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_assoc_id) = trait_assoc_refts.find(name) {
+            check_assoc_reft(<span class="kw-2">&amp;mut </span>infcx, impl_id, <span class="kw-2">&amp;</span>impl_trait_ref, trait_assoc_id, <span class="kw-2">*</span>impl_assoc_id)<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
             <span class="kw">let </span>fhir_impl_assoc_reft = genv
                 .map()
                 .expect_item(impl_id.local_id())<span class="question-mark">?
@@ -228,7 +232,6 @@
                 def_id_to_string(trait_id),
             )))<span class="question-mark">?</span>;
         }
-        check_assoc_reft(<span class="kw-2">&amp;mut </span>infcx, impl_id, <span class="kw-2">&amp;</span>impl_trait_ref, trait_id, impl_assoc_reft.name)<span class="question-mark">?</span>;
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -238,45 +241,39 @@
     infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     impl_id: MaybeExternId,
     impl_trait_ref: <span class="kw-2">&amp;</span>TraitRef,
-    trait_id: DefId,
-    name: Symbol,
+    trait_assoc_id: AssocReftId,
+    impl_assoc_id: AssocReftId,
 ) -&gt; QueryResult {
+    <span class="macro">debug_assert_eq!</span>(trait_assoc_id.name, impl_assoc_id.name);
+
     <span class="kw">let </span>impl_span = infcx
         .genv
         .map()
         .expect_item(impl_id.local_id())<span class="question-mark">?
         </span>.expect_impl()
-        .find_assoc_reft(name)
+        .find_assoc_reft(impl_assoc_id.name)
         .unwrap()
         .span;
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(impl_sort) = infcx.genv.sort_of_assoc_reft(impl_id, name)<span class="question-mark">? </span><span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(infcx.genv.emit(errors::InvalidAssocReft::new(
-            impl_span,
-            name,
-            def_id_to_string(trait_id),
-        )))<span class="question-mark">?</span>;
-    };
-
-    <span class="kw">let </span>impl_sort = impl_sort
-        .instantiate_identity()
+    <span class="kw">let </span>impl_sort = infcx
+        .genv
+        .sort_of_assoc_reft(impl_assoc_id)<span class="question-mark">?
+        </span>.instantiate_identity()
         .normalize_projections(infcx)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(trait_sort) = infcx.genv.sort_of_assoc_reft(trait_id, name)<span class="question-mark">? </span><span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(infcx.genv.emit(errors::InvalidAssocReft::new(
-            impl_span,
-            name,
-            def_id_to_string(trait_id),
-        )))<span class="question-mark">?</span>;
-    };
-    <span class="kw">let </span>trait_sort = trait_sort
-        .instantiate(infcx.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[])
+    <span class="kw">let </span>trait_sort = infcx
+        .genv
+        .sort_of_assoc_reft(trait_assoc_id)<span class="question-mark">?
+        </span>.instantiate(infcx.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[])
         .normalize_projections(infcx)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>impl_sort != trait_sort {
-        <span class="prelude-val">Err</span>(infcx
-            .genv
-            .emit(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)))<span class="question-mark">?</span>;
+        <span class="prelude-val">Err</span>(infcx.genv.emit(errors::IncompatibleSort::new(
+            impl_span,
+            impl_assoc_id.name,
+            trait_sort,
+            impl_sort,
+        )))<span class="question-mark">?</span>;
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -315,13 +312,12 @@
     </span><span class="kw">pub struct </span>MissingAssocReft {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        trait_: String,
         name: Symbol,
     }
 
     <span class="kw">impl </span>MissingAssocReft {
-        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, trait_, name }
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span, name }
         }
     }
 

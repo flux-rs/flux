@@ -882,7 +882,8 @@
 <a href="#881" id="881">881</a>
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -916,7 +917,7 @@
     bv_size_unification_table: InPlaceUnificationTable&lt;rty::BvSizeVid&gt;,
     sort_of_bty: FxHashMap&lt;FhirId, rty::Sort&gt;,
     path_args: UnordMap&lt;FhirId, rty::GenericArgs&gt;,
-    sort_of_alias_reft: UnordMap&lt;FhirId, rty::FuncSort&gt;,
+    sort_of_alias_reft: FxHashMap&lt;FhirId, rty::FuncSort&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1110,7 +1111,7 @@
             fhir::ExprKind::App(f, es) =&gt; <span class="self">self</span>.synth_app(f, es, expr.span),
             fhir::ExprKind::Alias(_alias_reft, func_args) =&gt; {
                 <span class="comment">// To check the application we only need the sort of `_alias_reft` which we collected
-                // during early conv, but should we do any extra checks on _alias_reft?
+                // during early conv, but should we do any extra checks on `_alias_reft`?
                 </span><span class="self">self</span>.synth_alias_reft_app(expr.fhir_id, expr.span, func_args)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
@@ -1360,14 +1361,15 @@
             .clone()
     }
 
-    <span class="comment">// FIXME(nilehmann) this assumes weak aliases appear shallowly and are only created for the
-    // sorts associated to base types. We should find a more robust way to do normalization for
-    // sort checking. Once we do that we can also stop expanding self aliases in `conv::conv_sort`.
+    <span class="comment">// FIXME(nilehmann) this is a bit of a hack. We should find a more robust way to do normalization
+    // for sort checking, including normalizing projections. Maybe we can do lazy normalization. Once
+    // we do that maybe we can also stop expanding aliases in `ConvCtxt::conv_sort`.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalize_weak_alias_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; QueryResult {
         <span class="kw">for </span>sort <span class="kw">in </span><span class="self">self</span>.sort_of_bty.values_mut() {
-            <span class="kw">if let </span>rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
-                <span class="kw-2">*</span>sort = <span class="self">self</span>.genv.normalize_weak_alias_sort(alias_ty)<span class="question-mark">?</span>;
-            }
+            <span class="kw-2">*</span>sort = <span class="self">self</span>.genv.deep_normalize_weak_alias_sorts(sort)<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>fsort <span class="kw">in </span><span class="self">self</span>.sort_of_alias_reft.values_mut() {
+            <span class="kw-2">*</span>fsort = <span class="self">self</span>.genv.deep_normalize_weak_alias_sorts(fsort)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }

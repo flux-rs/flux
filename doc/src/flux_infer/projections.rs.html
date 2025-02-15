@@ -621,10 +621,7 @@
 <a href="#620" id="620">620</a>
 <a href="#621" id="621">621</a>
 <a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#623" id="623">623</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
@@ -716,14 +713,11 @@
             }
             <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics);
 
-            <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
-
-            <span class="kw">let </span>pred = <span class="self">self
-                </span>.genv()
-                .assoc_refinement_def(impl_def_id, alias_reft.name)<span class="question-mark">?
-                </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
-
-            pred.apply(refine_args).try_fold_with(<span class="self">self</span>)
+            <span class="self">self</span>.genv()
+                .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)<span class="question-mark">?
+                </span>.instantiate(<span class="self">self</span>.genv().tcx(), <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
+                .apply(refine_args)
+                .try_fold_with(<span class="self">self</span>)
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }

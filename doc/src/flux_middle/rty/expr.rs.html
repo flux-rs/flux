@@ -1604,8 +1604,8 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
-    GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
+    AssocReftId, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
+    GenericArgs, GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
 };
 <span class="kw">use crate</span>::{
     big_int::BigInt,
@@ -1665,14 +1665,14 @@
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>AliasReft {
-    <span class="kw">pub </span>trait_id: DefId,
-    <span class="kw">pub </span>name: Symbol,
+    <span class="doccomment">/// Id of the associated refinement in the trait
+    </span><span class="kw">pub </span>assoc_id: AssocReftId,
     <span class="kw">pub </span>args: GenericArgs,
 }
 
 <span class="kw">impl </span>AliasReft {
     <span class="kw">pub fn </span>to_rustc_trait_ref&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">let </span>trait_def_id = <span class="self">self</span>.trait_id;
+        <span class="kw">let </span>trait_def_id = <span class="self">self</span>.assoc_id.container_id;
         <span class="kw">let </span>args = <span class="self">self
             </span>.args
             .to_rustc(tcx)
@@ -2872,12 +2872,12 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>AliasReft {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">w!</span>(cx, f, <span class="string">"&lt;({:?}) as {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.trait_id)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(cx, f, <span class="string">"&lt;({:?}) as {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.assoc_id.container_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>args = <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">1</span>..];
             <span class="kw">if </span>!args.is_empty() {
                 <span class="macro">w!</span>(cx, f, <span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, args))<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(cx, f, <span class="string">"&gt;::{}"</span>, ^<span class="self">self</span>.name)
+            <span class="macro">w!</span>(cx, f, <span class="string">"&gt;::{}"</span>, ^<span class="self">self</span>.assoc_id.name)
         }
     }
 

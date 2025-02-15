@@ -2598,7 +2598,8 @@
 <a href="#2597" id="2597">2597</a>
 <a href="#2598" id="2598">2598</a>
 <a href="#2599" id="2599">2599</a>
-<a href="#2600" id="2600">2600</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2600" id="2600">2600</a>
+<a href="#2601" id="2601">2601</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4640,16 +4641,17 @@
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>alias_reft =
-            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-
-        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = alias_reft.fsort(<span class="self">self</span>.genv())<span class="question-mark">? </span><span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(assoc_id) = <span class="self">self</span>.genv().assoc_refinements_of(trait_id)<span class="question-mark">?</span>.find(alias.name) <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
-                alias_reft.name,
+                alias.name,
                 <span class="macro">format!</span>(<span class="string">"{:?}"</span>, alias.path),
             )))<span class="question-mark">?</span>;
         };
+
+        <span class="kw">let </span>alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
+
+        <span class="kw">let </span>fsort = alias_reft.fsort(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="number">0</span>.insert_alias_reft_sort(fhir_id, fsort);
         <span class="prelude-val">Ok</span>(alias_reft)
     }

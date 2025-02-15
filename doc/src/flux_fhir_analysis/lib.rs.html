@@ -588,41 +588,7 @@
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#590" id="590">590</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -648,13 +614,13 @@
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>},
     global_env::GlobalEnv,
-    queries::{Providers, QueryErr, QueryResult},
+    queries::{Providers, QueryResult},
     query_bug,
     rty::{
         <span class="self">self</span>,
         fold::TypeFoldable,
         refining::{<span class="self">self</span>, Refiner},
-        WfckResults,
+        AssocReftId, WfckResults,
     },
     MaybeExternId,
 };
@@ -686,8 +652,8 @@
     providers.predicates_of = predicates_of;
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
-    providers.assoc_refinement_def = assoc_refinement_def;
-    providers.default_assoc_refinement_def = default_assoc_refinement_def;
+    providers.assoc_refinement_body = assoc_refinement_body;
+    providers.default_assoc_refinement_body = default_assoc_refinement_body;
     providers.item_bounds = item_bounds;
 }
 
@@ -838,29 +804,24 @@
     local_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
     <span class="kw">let </span>local_id = genv.maybe_extern_id(local_id);
-    <span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(local_id.local_id())<span class="question-mark">?</span>.kind {
+
+    <span class="attr">#[allow(
+        clippy::disallowed_methods,
+        reason = <span class="string">"We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
+    </span>)]
+    </span><span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(local_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| {
-                    rty::AssocRefinement {
-                        container_def_id: local_id.resolved_id(),
-                        name: assoc_reft.name,
-                    }
-                })
+                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| {
-                    rty::AssocRefinement {
-                        container_def_id: local_id.resolved_id(),
-                        name: assoc_reft.name,
-                    }
-                })
+                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id.resolved_id(), <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
@@ -868,82 +829,53 @@
     <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
 }
 
-<span class="kw">fn </span>default_assoc_refinement_def(
+<span class="kw">fn </span>default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_id: LocalDefId,
-    name: Symbol,
+    trait_assoc_id: AssocReftId&lt;MaybeExternId&gt;,
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
-    <span class="kw">let </span>trait_id = genv.maybe_extern_id(trait_id);
+    <span class="kw">let </span>trait_id = trait_assoc_id.container_id;
     <span class="kw">let </span>assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())<span class="question-mark">?
         </span>.expect_trait()
-        .find_assoc_reft(name);
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-        <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-        <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })<span class="question-mark">?
-    </span>}
+        .find_assoc_reft(trait_assoc_id.name)
+        .unwrap();
+    <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+    <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
 }
 
-<span class="kw">fn </span>impl_assoc_refinement_def(
+<span class="kw">fn </span>assoc_refinement_body(
     genv: GlobalEnv,
-    impl_id: LocalDefId,
-    name: Symbol,
-) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
+    impl_assoc_id: AssocReftId&lt;MaybeExternId&gt;,
+) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
+    <span class="kw">let </span>impl_id = impl_assoc_id.container_id;
+
     <span class="kw">let </span>assoc_reft = genv
         .map()
-        .expect_item(impl_id)<span class="question-mark">?
+        .expect_item(impl_id.local_id())<span class="question-mark">?
         </span>.expect_impl()
-        .find_assoc_reft(name);
+        .find_assoc_reft(impl_assoc_id.name)
+        .unwrap();
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(assoc_reft) = assoc_reft {
-        <span class="kw">let </span>wfckresults = genv.check_wf(impl_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-        <span class="kw">let </span>body =
-            cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-    }
-}
-
-<span class="kw">fn </span>assoc_refinement_def(
-    genv: GlobalEnv,
-    impl_id: LocalDefId,
-    name: Symbol,
-) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
-    <span class="kw">let </span>impl_id = genv.maybe_extern_id(impl_id);
-
-    <span class="comment">// First check if the assoc reft is defined in the impl
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(lam) = impl_assoc_refinement_def(genv, impl_id.local_id(), name)<span class="question-mark">? </span>{
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(lam);
-    }
-
-    <span class="comment">// Else check if the assoc reft is defined in the trait
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(trait_id) = genv.tcx().trait_id_of_impl(impl_id.resolved_id())
-        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(lam) = genv.default_assoc_refinement_def(trait_id, name)<span class="question-mark">?
-    </span>{
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(lam);
-    }
-    <span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name })
+    <span class="kw">let </span>wfckresults = genv.check_wf(impl_id.local_id())<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(rty::EarlyBinder(body))
 }
 
 <span class="kw">fn </span>sort_of_assoc_reft(
     genv: GlobalEnv,
-    def_id: LocalDefId,
-    name: Symbol,
-) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt; {
-    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id.local_id())<span class="question-mark">?</span>.kind {
+    assoc_id: AssocReftId&lt;MaybeExternId&gt;,
+) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
+    <span class="kw">let </span>container_id = assoc_id.container_id;
+
+    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(assoc_reft) = trait_.find_assoc_reft(name) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name).unwrap();
+            <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
@@ -951,11 +883,11 @@
                 .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
                 .try_collect_vec()<span class="question-mark">?</span>;
             <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
+            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
-            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(name).unwrap();
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name).unwrap();
+            <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
@@ -963,9 +895,9 @@
                 .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
                 .try_collect_vec()<span class="question-mark">?</span>;
             <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
+            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected trait or impl"</span>)),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(container_id.local_id(), <span class="string">"expected trait or impl"</span>)),
     }
 }
 

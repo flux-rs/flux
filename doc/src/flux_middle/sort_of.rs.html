@@ -141,12 +141,48 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>rustc_hir::def::DefKind;
 <span class="kw">use </span>rustc_span::def_id::DefId;
 
-<span class="kw">use crate</span>::{global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
+<span class="kw">use crate</span>::{
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    query_bug,
+    rty::{
+        <span class="self">self</span>,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable <span class="kw">as _</span>},
+    },
+};
 
 <span class="kw">impl </span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>sort_of_self_ty_alias(<span class="self">self</span>, alias_to: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
@@ -240,6 +276,27 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(alias_ty.def_id, <span class="string">"unexpected weak alias `{:?}`"</span>, alias_ty.def_id)),
         }
     }
+
+    <span class="kw">pub fn </span>deep_normalize_weak_alias_sorts&lt;T: TypeFoldable&gt;(<span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; QueryResult&lt;T&gt; {
+        <span class="kw">struct </span>WeakAliasSortNormalizer&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+            genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        }
+
+        <span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>WeakAliasSortNormalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+            <span class="kw">type </span>Error = QueryErr;
+
+            <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; QueryResult&lt;rty::Sort&gt; {
+                <span class="kw">if let </span>rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
+                    <span class="self">self</span>.genv
+                        .normalize_weak_alias_sort(alias_ty)<span class="question-mark">?
+                        </span>.try_fold_with(<span class="self">self</span>)
+                } <span class="kw">else </span>{
+                    sort.try_super_fold_with(<span class="self">self</span>)
+                }
+            }
+        }
+        t.try_fold_with(<span class="kw-2">&amp;mut </span>WeakAliasSortNormalizer { genv: <span class="self">self </span>})
+    }
 }
 
 <span class="kw">impl </span>rty::BaseTy {
@@ -277,11 +334,10 @@
 }
 
 <span class="kw">impl </span>rty::AliasReft {
-    <span class="kw">pub fn </span>fsort(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::FuncSort&gt;&gt; {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = genv.sort_of_assoc_reft(<span class="self">self</span>.trait_id, <span class="self">self</span>.name)<span class="question-mark">? </span><span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
-        };
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fsort.instantiate(genv.tcx(), <span class="kw-2">&amp;</span><span class="self">self</span>.args, <span class="kw-2">&amp;</span>[])))
+    <span class="kw">pub fn </span>fsort(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;rty::FuncSort&gt; {
+        <span class="prelude-val">Ok</span>(genv
+            .sort_of_assoc_reft(<span class="self">self</span>.assoc_id)<span class="question-mark">?
+            </span>.instantiate(genv.tcx(), <span class="kw-2">&amp;</span><span class="self">self</span>.args, <span class="kw-2">&amp;</span>[]))
     }
 }
 </code></pre></div></section></main></body></html>
