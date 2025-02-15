@@ -137,8 +137,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             })
             .try_collect()?;
 
-        let reflected = matches!(adt_def.sort_def().index(), rty::RefinementKind::Reflected);
-        let idx = if reflected {
+        let idx = if adt_def.sort_def().is_reflected() {
             rty::Expr::variant(variant_def.def_id)
         } else {
             rty::Expr::unit_adt(adt_def_id)

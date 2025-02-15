@@ -284,12 +284,12 @@ pub(crate) fn conv_adt_sort_def(
                 .iter()
                 .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
                 .try_collect_vec()?;
-            let refined_by = rty::AdtSortVariant::new(fields);
-            let kind = rty::RefinementKind::RefinedBy(refined_by);
-            Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, kind))
+            let variants = vec![rty::AdtSortVariant::new(fields)];
+            Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, variants, false))
         }
         fhir::RefinementKind::Reflected => {
-            Ok(rty::AdtSortDef::new(def_id.resolved_id(), vec![], rty::RefinementKind::Reflected))
+            todo!("HEREHEREHERE: OK--do the translation here!")
+            // Ok(rty::AdtSortDef::new(def_id.resolved_id(), vec![], rty::RefinementKind::Reflected))
         }
     }
 }

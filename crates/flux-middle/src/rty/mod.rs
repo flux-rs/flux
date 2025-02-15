@@ -115,11 +115,11 @@ impl AdtSortVariant {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum RefinementKind {
-    RefinedBy(AdtSortVariant),
-    Reflected,
-}
+// #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+// pub enum RefinementKind {
+//     RefinedBy(AdtSortVariant),
+//     Reflected,
+// }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
@@ -132,65 +132,65 @@ struct AdtSortDefData {
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
-    /// The `index` is *either* the user defined indices or the "reflected" ADT
-    kind: RefinementKind,
-    // HEREHEREHEREHEREHEREHERE variants: Vec<AdtSortVariant>,
+    // The `index` is *either* the user defined indices or the "reflected" ADT
+    // kind: RefinementKind,
+    /// A vec of variants of the ADT;
+    /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
+    /// - a `reflected` sort -- used for `reflected` enums have multiple variants
+    variants: Vec<AdtSortVariant>,
+    reflected: bool,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<ParamTy>, kind: RefinementKind) -> Self {
-        Self(Interned::new(AdtSortDefData { def_id, params, kind }))
+    // CUT pub fn new(def_id: DefId, params: Vec<ParamTy>, kind: RefinementKind) -> Self {
+    // CUT     Self(Interned::new(AdtSortDefData { def_id, params, kind }))
+    // CUT }
+
+    pub fn new(
+        def_id: DefId,
+        params: Vec<ParamTy>,
+        variants: Vec<AdtSortVariant>,
+        reflected: bool,
+    ) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, variants, reflected }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.def_id
     }
 
-    pub fn index(&self) -> &RefinementKind {
-        &self.0.kind
+    pub fn index(&self) -> &AdtSortVariant {
+        tracked_span_assert_eq!(self.0.variants.len(), 1);
+        tracked_span_assert_eq!(self.0.reflected, false);
+        &self.0.variants[0]
     }
 
     pub fn is_reflected(&self) -> bool {
-        matches!(self.index(), RefinementKind::Reflected)
+        self.0.reflected
     }
 
-    pub fn fields(&self) -> usize {
-        match self.index() {
-            RefinementKind::RefinedBy(refined) => refined.fields(),
-            RefinementKind::Reflected => 0,
-        }
+    pub fn non_enum_fields(&self) -> usize {
+        self.index().sorts.len()
     }
 
     pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
-        (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+        (0..self.non_enum_fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
     pub fn field_names(&self) -> &[Symbol] {
-        match &self.index() {
-            RefinementKind::RefinedBy(refined) => &refined.field_names[..],
-            RefinementKind::Reflected => &[],
-        }
+        &self.index().field_names[..]
     }
 
     pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        match self.index() {
-            RefinementKind::RefinedBy(refined) => refined.sort_by_field_name(args),
-            RefinementKind::Reflected => FxIndexMap::default(),
-        }
+        self.index().sort_by_field_name(args)
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        match self.index() {
-            RefinementKind::RefinedBy(refined) => refined.field_by_name(self.did(), args, name),
-            RefinementKind::Reflected => None,
-        }
+        self.index().field_by_name(self.did(), args, name)
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        match self.index() {
-            RefinementKind::RefinedBy(refined) => refined.field_sorts(args),
-            RefinementKind::Reflected => List::empty(),
-        }
+        self.index().field_sorts(args)
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
@@ -868,7 +868,7 @@ impl Sort {
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
             && !sort_def.is_reflected()
-            && sort_def.fields() == 0
+            && sort_def.non_enum_fields() == 0
         {
             Some(sort_def.did())
         } else {
