@@ -288,8 +288,12 @@ pub(crate) fn conv_adt_sort_def(
             Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, variants, false))
         }
         fhir::RefinementKind::Reflected => {
-            todo!("HEREHEREHERE: OK--do the translation here!")
-            // Ok(rty::AdtSortDef::new(def_id.resolved_id(), vec![], rty::RefinementKind::Reflected))
+            let enum_def_id = def_id.resolved_id();
+            let mut variants = vec![];
+            for _ in 0..genv.tcx().adt_def(enum_def_id).variants().len() {
+                variants.push(rty::AdtSortVariant::new(vec![]))
+            }
+            Ok(rty::AdtSortDef::new(enum_def_id, vec![], variants, true))
         }
     }
 }
@@ -498,6 +502,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 }
 
+/// HEREHEREHERE:reflect-adt: check if existing API in rustc
+fn variant_idx(tcx: TyCtxt, variant_def_id: DefId) -> rty::VariantIdx {
+    let enum_def_id = tcx.parent(variant_def_id);
+    tcx.adt_def(enum_def_id)
+        .variants()
+        .iter_enumerated()
+        .find(|(_, variant)| variant.def_id == variant_def_id)
+        .unwrap()
+        .0
+}
+
 /// Conversion of definitions
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     pub(crate) fn conv_enum_variants(
@@ -532,6 +547,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let adt_def = self.genv().adt_def(enum_id)?;
         let idxs = if reflected {
             let enum_def_id = enum_id.resolved_id();
+            let idx = variant_idx(self.tcx(), variant.def_id.to_def_id());
             rty::Expr::ctor(enum_def_id, idx, List::empty())
             // rty::Expr::variant(variant.def_id.to_def_id())
         } else {
@@ -1880,7 +1896,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                             rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
                         }
                     }
-                    ExprRes::Variant(def_id) => rty::Expr::variant(def_id),
+                    ExprRes::Variant(variant_def_id) => {
+                        let enum_def_id = self.tcx().parent(variant_def_id);
+                        let idx = variant_idx(self.tcx(), variant_def_id);
+                        rty::Expr::ctor(enum_def_id, idx, List::empty())
+                    }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)

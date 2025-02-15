@@ -311,7 +311,6 @@ impl SortEncodingCtxt {
         let mut res = vec![];
         for (enum_def_id, refl_data) in refls {
             let variants = tcx.adt_def(enum_def_id).variants().len();
-
             let ctors = (0..variants)
                 .map(|variant| {
                     fixpoint::DataCtor {
@@ -1079,7 +1078,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Ctor(did, idx, flds) => {
                 if self.is_reflected(did) {
                     self.variant_to_fixpoint(scx, did, *idx)
-                    // todo!("HEREHERE: translate Ctor-at-idx to fixpoint")
                 } else {
                     debug_assert_eq!(*idx, VariantIdx::ZERO);
                     self.fields_to_fixpoint(flds, scx)?

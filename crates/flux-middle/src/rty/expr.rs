@@ -637,14 +637,9 @@ pub enum ExprKind {
     GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
-    // Aggregate(AggregateKind, List<Expr>),
-    // HEREHEREHERE
-    // replace `Variant(variant_def_id)` with `Ctor(enum_def_id, variant_idx, args)
+    /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
     Ctor(DefId, VariantIdx, List<Expr>),
     Tuple(List<Expr>),
-    /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
-    /// TODO: extend to `Variant(DefId, List<Expr>)` to allow args...
-    // Variant(DefId),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
@@ -1423,7 +1418,7 @@ pub(crate) mod pretty {
     pub fn aggregate_nested(
         cx: &PrettyCx,
         def_id: DefId,
-        _idx: VariantIdx, // TODO(RJ): reflected enums with multiple fields...
+        _idx: VariantIdx, // HEREHEREHERE:reflect-adt: reflected enums with multiple fields...
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
