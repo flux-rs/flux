@@ -531,7 +531,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let adt_def = self.genv().adt_def(enum_id)?;
         let idxs = if reflected {
-            rty::Expr::variant(variant.def_id.to_def_id())
+            let enum_def_id = enum_id.resolved_id();
+            rty::Expr::ctor(enum_def_id, idx, List::empty())
+            // rty::Expr::variant(variant.def_id.to_def_id())
         } else {
             self.conv_expr(&mut env, &variant.ret.idx)?
         };

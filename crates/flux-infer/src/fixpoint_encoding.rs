@@ -19,7 +19,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List},
+    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
     MaybeExternId,
 };
 use itertools::Itertools;
@@ -1025,24 +1025,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn variant_to_fixpoint(
         &self,
         scx: &mut SortEncodingCtxt,
-        variant_def_id: &DefId,
+        enum_def_id: &DefId,
+        idx: VariantIdx,
     ) -> fixpoint::Expr {
-        let tcx = self.genv.tcx();
-        // Get the parent enum's DefId
-        let enum_def_id = tcx.parent(*variant_def_id);
-
-        // Get the enum's AdtDef which contains variant information
-        let adt_def = tcx.adt_def(enum_def_id);
-
-        // Find the variant's index by matching DefIds
-        let pos = adt_def
-            .variants()
-            .iter()
-            .position(|variant| variant.def_id == *variant_def_id)
-            .unwrap();
-
         let adt_sort_def = self.genv.adt_sort_def_of(enum_def_id).unwrap();
-
+        let pos = idx.as_usize();
         let refl_data = scx.declare_refl_decl(&adt_sort_def);
         let data_sort = fixpoint::DataSort::ReflectedData(refl_data);
         fixpoint::Expr::Variant(data_sort, pos)
@@ -1056,6 +1043,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn fields_to_fixpoint(
+        &mut self,
+        flds: &[rty::Expr],
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Expr> {
+        // do not generate 1-tuples
+        if let [fld] = &flds[..] {
+            self.expr_to_fixpoint(fld, scx)
+        } else {
+            scx.declare_tuple(flds.len());
+            let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
+            let args = flds
+                .iter()
+                .map(|fld| self.expr_to_fixpoint(fld, scx))
+                .try_collect()?;
+            Ok(fixpoint::Expr::App(Box::new(ctor), args))
+        }
+    }
+
     fn expr_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -1064,38 +1070,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
-            rty::ExprKind::Variant(did) => self.variant_to_fixpoint(scx, did),
+            // rty::ExprKind::Variant(did) => self.variant_to_fixpoint(scx, did),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
+            rty::ExprKind::Tuple(flds) => self.fields_to_fixpoint(flds, scx)?,
 
-            rty::ExprKind::Tuple(flds) => {
-                // do not generate 1-tuples
-                if let [fld] = &flds[..] {
-                    self.expr_to_fixpoint(fld, scx)?
+            rty::ExprKind::Ctor(did, idx, flds) => {
+                if self.is_reflected(did) {
+                    self.variant_to_fixpoint(scx, did, *idx)
+                    // todo!("HEREHERE: translate Ctor-at-idx to fixpoint")
                 } else {
-                    scx.declare_tuple(flds.len());
-                    let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
-                    let args = flds
-                        .iter()
-                        .map(|fld| self.expr_to_fixpoint(fld, scx))
-                        .try_collect()?;
-                    fixpoint::Expr::App(Box::new(ctor), args)
-                }
-            }
-            rty::ExprKind::Ctor(kind, _idx, flds) => {
-                debug_assert!(!self.is_reflected(kind));
-                // do not generate 1-tuples
-                if let [fld] = &flds[..] {
-                    self.expr_to_fixpoint(fld, scx)?
-                } else {
-                    scx.declare_tuple(flds.len());
-                    let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
-                    let args = flds
-                        .iter()
-                        .map(|fld| self.expr_to_fixpoint(fld, scx))
-                        .try_collect()?;
-                    fixpoint::Expr::App(Box::new(ctor), args)
+                    debug_assert_eq!(*idx, VariantIdx::ZERO);
+                    self.fields_to_fixpoint(flds, scx)?
                 }
             }
             rty::ExprKind::ConstDefId(did, info) => {
