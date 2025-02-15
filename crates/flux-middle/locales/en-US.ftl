@@ -14,8 +14,8 @@ middle_query_unsupported =
 middle_query_invalid_generic_arg =
     cannot instantiate base generic with opaque type or a type parameter of kind type
 
-middle_query_invalid_assoc_reft =
-    associated refinement `{$name}` is not defined in this trait implementation
+middle_query_missing_assoc_reft =
+    associated refinement `{$name}` is missing from implementation
 
 middle_query_bug =
     internal flux error: {$location}
@@ -33,5 +33,5 @@ middle_query_ignored_at =
     use of ignored {$kind} `{$name}`
     .label = help: try ignoring or trusting this code
 
-middle_query_invalid_assoc_reft_at =
-    invalid associated refinement for this function call
+middle_query_missing_assoc_reft_at =
+    associated refinement `{$name}` is missing from implementation

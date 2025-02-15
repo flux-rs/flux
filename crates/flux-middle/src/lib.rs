@@ -426,7 +426,7 @@ impl Specs {
     ) -> Result<(), ExternSpecMappingErr> {
         #[expect(
             clippy::disallowed_methods,
-            reason = "we are inserting the extern spec mapping and we want to ensure it's not point to a local item"
+            reason = "we are inserting the extern spec mapping and we want to ensure it doesn't point to a local item"
         )]
         if let Some(local) = extern_id.as_local() {
             return Err(ExternSpecMappingErr::IsLocal(local));
@@ -446,8 +446,8 @@ impl Specs {
 /// Represents errors that can occur when inserting a mapping between a `LocalDefId` and a `DefId`
 /// for an extern spec.
 pub enum ExternSpecMappingErr {
-    /// Indicates that the extern `DefId` being inserted is actually local. Returns the extern id as
-    /// a `LocalDefId`.
+    /// Indicates that the [`DefId`] we are trying to add extern specs to is actually local. Returns
+    /// the [`DefId`] as a [`LocalDefId`].
     IsLocal(LocalDefId),
 
     /// Indicates that there is an existing extern spec for the given extern id. Returns the existing
@@ -456,7 +456,7 @@ pub enum ExternSpecMappingErr {
     /// NOTE: This currently only considers extern specs defined in the local crate. There could still
     /// be duplicates if an extern spec is imported from an external crate. In such cases, the local
     /// extern spec takes precedence. Probably, we should at least warn about this, but it's a bit
-    /// tricky because we need to look at the crate metadata which we don't currently have while
+    /// tricky because we need to look at the crate metadata which we don't have handy when
     /// collecting specs.
     Dup(LocalDefId),
 }

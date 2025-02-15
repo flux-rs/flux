@@ -44,6 +44,7 @@ toposort-scc = "0.5.4"
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(flux_sysroot)',
     'cfg(flux_sysroot_test)',
+    'cfg(flux)',
 ] }
 unused_extern_crates = "warn"
 

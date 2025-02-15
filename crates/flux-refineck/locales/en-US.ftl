@@ -67,4 +67,4 @@ refineck_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
 
 refineck_missing_assoc_reft =
-    associated refinement `{$name}` is not defined in implementation of trait `{$trait_}`
+    associated refinement `{$name}` is missing from implementation

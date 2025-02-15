@@ -988,10 +988,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ]))
             }
             rty::ExprKind::Alias(alias_reft, args) => {
-                let sort = self
-                    .genv
-                    .sort_of_assoc_reft(alias_reft.trait_id, alias_reft.name)?
-                    .unwrap();
+                let sort = self.genv.sort_of_assoc_reft(alias_reft.assoc_id)?;
                 let sort = sort.instantiate_identity();
                 let func = fixpoint::Expr::Var(
                     self.register_const_for_alias_reft(alias_reft, sort, scx)

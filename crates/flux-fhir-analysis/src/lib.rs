@@ -24,13 +24,13 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     fhir::{self},
     global_env::GlobalEnv,
-    queries::{Providers, QueryErr, QueryResult},
+    queries::{Providers, QueryResult},
     query_bug,
     rty::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        WfckResults,
+        AssocReftId, WfckResults,
     },
     MaybeExternId,
 };
@@ -62,8 +62,8 @@ pub fn provide(providers: &mut Providers) {
     providers.predicates_of = predicates_of;
     providers.assoc_refinements_of = assoc_refinements_of;
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
-    providers.assoc_refinement_def = assoc_refinement_def;
-    providers.default_assoc_refinement_def = default_assoc_refinement_def;
+    providers.assoc_refinement_body = assoc_refinement_body;
+    providers.default_assoc_refinement_body = default_assoc_refinement_body;
     providers.item_bounds = item_bounds;
 }
 
@@ -214,29 +214,24 @@ fn assoc_refinements_of(
     local_id: LocalDefId,
 ) -> QueryResult<rty::AssocRefinements> {
     let local_id = genv.maybe_extern_id(local_id);
+
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
+    )]
     let predicates = match &genv.map().expect_item(local_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| {
-                    rty::AssocRefinement {
-                        container_def_id: local_id.resolved_id(),
-                        name: assoc_reft.name,
-                    }
-                })
+                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) => {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| {
-                    rty::AssocRefinement {
-                        container_def_id: local_id.resolved_id(),
-                        name: assoc_reft.name,
-                    }
-                })
+                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         _ => Err(query_bug!(local_id.resolved_id(), "expected trait or impl"))?,
@@ -244,82 +239,53 @@ fn assoc_refinements_of(
     Ok(rty::AssocRefinements { items: predicates })
 }
 
-fn default_assoc_refinement_def(
+fn default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_id: LocalDefId,
-    name: Symbol,
+    trait_assoc_id: AssocReftId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-    let trait_id = genv.maybe_extern_id(trait_id);
+    let trait_id = trait_assoc_id.container_id;
     let assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())?
         .expect_trait()
-        .find_assoc_reft(name);
-
-    if let Some(assoc_reft) = assoc_reft {
-        let Some(body) = assoc_reft.body else { return Ok(None) };
-        let wfckresults = genv.check_wf(trait_id.local_id())?;
-        let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let body = cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
-        Ok(Some(rty::EarlyBinder(body)))
-    } else {
-        Err(QueryErr::InvalidAssocReft { container_def_id: trait_id.resolved_id(), name })?
-    }
+        .find_assoc_reft(trait_assoc_id.name)
+        .unwrap();
+    let Some(body) = assoc_reft.body else { return Ok(None) };
+    let wfckresults = genv.check_wf(trait_id.local_id())?;
+    let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
+    let body = cx.conv_assoc_reft_body(assoc_reft.params, &body, &assoc_reft.output)?;
+    Ok(Some(rty::EarlyBinder(body)))
 }
 
-fn impl_assoc_refinement_def(
+fn assoc_refinement_body(
     genv: GlobalEnv,
-    impl_id: LocalDefId,
-    name: Symbol,
-) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+    impl_assoc_id: AssocReftId<MaybeExternId>,
+) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+    let impl_id = impl_assoc_id.container_id;
+
     let assoc_reft = genv
         .map()
-        .expect_item(impl_id)?
+        .expect_item(impl_id.local_id())?
         .expect_impl()
-        .find_assoc_reft(name);
+        .find_assoc_reft(impl_assoc_id.name)
+        .unwrap();
 
-    if let Some(assoc_reft) = assoc_reft {
-        let wfckresults = genv.check_wf(impl_id)?;
-        let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let body =
-            cx.conv_assoc_reft_body(assoc_reft.params, &assoc_reft.body, &assoc_reft.output)?;
-        Ok(Some(rty::EarlyBinder(body)))
-    } else {
-        Ok(None)
-    }
-}
-
-fn assoc_refinement_def(
-    genv: GlobalEnv,
-    impl_id: LocalDefId,
-    name: Symbol,
-) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let impl_id = genv.maybe_extern_id(impl_id);
-
-    // First check if the assoc reft is defined in the impl
-    if let Some(lam) = impl_assoc_refinement_def(genv, impl_id.local_id(), name)? {
-        return Ok(lam);
-    }
-
-    // Else check if the assoc reft is defined in the trait
-    if let Some(trait_id) = genv.tcx().trait_id_of_impl(impl_id.resolved_id())
-        && let Some(lam) = genv.default_assoc_refinement_def(trait_id, name)?
-    {
-        return Ok(lam);
-    }
-    Err(QueryErr::InvalidAssocReft { container_def_id: impl_id.resolved_id(), name })
+    let wfckresults = genv.check_wf(impl_id.local_id())?;
+    let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
+    let body = cx.conv_assoc_reft_body(assoc_reft.params, &assoc_reft.body, &assoc_reft.output)?;
+    Ok(rty::EarlyBinder(body))
 }
 
 fn sort_of_assoc_reft(
     genv: GlobalEnv,
-    def_id: LocalDefId,
-    name: Symbol,
-) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-    let def_id = genv.maybe_extern_id(def_id);
-    match &genv.map().expect_item(def_id.local_id())?.kind {
+    assoc_id: AssocReftId<MaybeExternId>,
+) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
+    let container_id = assoc_id.container_id;
+
+    match &genv.map().expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
-            let Some(assoc_reft) = trait_.find_assoc_reft(name) else { return Ok(None) };
-            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let assoc_reft = trait_.find_assoc_reft(assoc_id.name).unwrap();
+            let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -327,11 +293,11 @@ fn sort_of_assoc_reft(
                 .map(|p| cx.conv_sort(&p.sort))
                 .try_collect_vec()?;
             let output = cx.conv_sort(&assoc_reft.output)?;
-            Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
+            Ok(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         fhir::ItemKind::Impl(impl_) => {
-            let assoc_reft = impl_.find_assoc_reft(name).unwrap();
-            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let assoc_reft = impl_.find_assoc_reft(assoc_id.name).unwrap();
+            let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -339,9 +305,9 @@ fn sort_of_assoc_reft(
                 .map(|p| cx.conv_sort(&p.sort))
                 .try_collect_vec()?;
             let output = cx.conv_sort(&assoc_reft.output)?;
-            Ok(Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output))))
+            Ok(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
-        _ => Err(query_bug!(def_id.local_id(), "expected trait or impl")),
+        _ => Err(query_bug!(container_id.local_id(), "expected trait or impl")),
     }
 }
 

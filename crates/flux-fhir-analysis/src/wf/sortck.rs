@@ -32,7 +32,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
-    sort_of_alias_reft: UnordMap<FhirId, rty::FuncSort>,
+    sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -226,7 +226,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
             fhir::ExprKind::Alias(_alias_reft, func_args) => {
                 // To check the application we only need the sort of `_alias_reft` which we collected
-                // during early conv, but should we do any extra checks on _alias_reft?
+                // during early conv, but should we do any extra checks on `_alias_reft`?
                 self.synth_alias_reft_app(expr.fhir_id, expr.span, func_args)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
@@ -476,14 +476,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
-    // FIXME(nilehmann) this assumes weak aliases appear shallowly and are only created for the
-    // sorts associated to base types. We should find a more robust way to do normalization for
-    // sort checking. Once we do that we can also stop expanding self aliases in `conv::conv_sort`.
+    // FIXME(nilehmann) this is a bit of a hack. We should find a more robust way to do normalization
+    // for sort checking, including normalizing projections. Maybe we can do lazy normalization. Once
+    // we do that maybe we can also stop expanding aliases in `ConvCtxt::conv_sort`.
     pub(crate) fn normalize_weak_alias_sorts(&mut self) -> QueryResult {
         for sort in self.sort_of_bty.values_mut() {
-            if let rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
-                *sort = self.genv.normalize_weak_alias_sort(alias_ty)?;
-            }
+            *sort = self.genv.deep_normalize_weak_alias_sorts(sort)?;
+        }
+        for fsort in self.sort_of_alias_reft.values_mut() {
+            *fsort = self.genv.deep_normalize_weak_alias_sorts(fsort)?;
         }
         Ok(())
     }

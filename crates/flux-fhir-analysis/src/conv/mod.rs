@@ -2040,16 +2040,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
-        let alias_reft =
-            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-
-        let Some(fsort) = alias_reft.fsort(self.genv())? else {
+        let Some(assoc_id) = self.genv().assoc_refinements_of(trait_id)?.find(alias.name) else {
             return Err(self.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
-                alias_reft.name,
+                alias.name,
                 format!("{:?}", alias.path),
             )))?;
         };
+
+        let alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
+
+        let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
     }

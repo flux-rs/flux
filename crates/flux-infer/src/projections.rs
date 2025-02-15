@@ -90,14 +90,11 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
             }
             let args = subst.finish(self.tcx(), generics);
 
-            let tcx = self.tcx();
-
-            let pred = self
-                .genv()
-                .assoc_refinement_def(impl_def_id, alias_reft.name)?
-                .instantiate(tcx, &args, &[]);
-
-            pred.apply(refine_args).try_fold_with(self)
+            self.genv()
+                .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+                .instantiate(self.genv().tcx(), &args, &[])
+                .apply(refine_args)
+                .try_fold_with(self)
         } else {
             Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
