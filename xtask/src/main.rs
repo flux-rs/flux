@@ -2,7 +2,7 @@ use std::{
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
-    process::ExitStatus,
+    process::{Command, ExitStatus},
 };
 
 use anyhow::anyhow;
@@ -10,7 +10,7 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use tests::FLUX_SYSROOT;
+use tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
 use xshell::{cmd, PushEnv, Shell};
 
 xflags::xflags! {
@@ -22,25 +22,25 @@ xflags::xflags! {
             /// Only run tests containing `filter` as substring.
             optional filter: String
         }
-        /// Run the flux binary on the given input file setting the appropriate flags to use
-        /// custom flux attributes and macros.
+        /// Run the Flux binary on the given input file setting the appropriate flags to use
+        /// custom Flux attributes and macros.
         cmd run {
             /// Input file
             required input: PathBuf
-            /// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
+            /// Extra options to pass to the Flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
             repeated opts: String
         }
-        /// Expand flux macros
+        /// Expand Flux macros
         cmd expand {
             /// Input file
             required input: PathBuf
         }
-        /// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
+        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
         cmd install {
-            /// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
+            /// Build the `flux-driver` binary in debug mode (with the 'dev' profile) instead of release mode
             optional --debug
         }
-        /// Uninstall flux binaries and libraries
+        /// Uninstall Flux binaries and libraries
         cmd uninstall { }
         /// Generate precompiled libraries
         cmd build-sysroot { }
@@ -169,18 +169,14 @@ fn project_root() -> PathBuf {
 }
 
 fn build_binary(bin: &str, release: bool) -> anyhow::Result<Utf8PathBuf> {
-    run_cargo("cargo", |cmd| {
-        cmd.args(["build", "--bin", bin]);
-        if release {
-            cmd.arg("--release");
-        }
-        cmd
-    })?
-    .into_iter()
-    .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
-    .ok_or_else(|| anyhow!("cannot find binary: `{bin}`"))?
-    .executable
-    .ok_or_else(|| anyhow!("cannot find binary: `{bin}"))
+    Command::new("cargo")
+        .args(["build", "--bin", bin])
+        .arg_if(release, "--release")
+        .run_with_cargo_metadata()?
+        .into_iter()
+        .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
+        .and_then(|artifact| artifact.executable)
+        .ok_or_else(|| anyhow!("cannot find binary: `{bin}`"))
 }
 
 fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<()> {
@@ -189,10 +185,11 @@ fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<
 
     copy_file(sh, build_binary("flux-driver", release)?, sysroot)?;
 
-    let artifacts = run_cargo(build_binary("cargo-flux", release)?, |cmd| {
-        cmd.args(["flux", "-p", "flux-rs"])
-            .env(FLUX_SYSROOT, sysroot)
-    })?;
+    let artifacts = Command::new(build_binary("cargo-flux", release)?)
+        .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
+        .env(FLUX_SYSROOT, sysroot)
+        .env(FLUX_SYSROOT_TEST, "1") // run sysroot tests
+        .run_with_cargo_metadata()?;
 
     copy_artifacts(sh, &artifacts, sysroot)?;
     Ok(())
@@ -223,7 +220,7 @@ fn copy_artifact(sh: &Shell, filename: &Utf8Path, dst: &Path) -> anyhow::Result<
 }
 
 fn is_flux_lib(artifact: &Artifact) -> bool {
-    ["flux_rs", "flux_attrs"].contains(&&artifact.target.name[..])
+    matches!(&artifact.target.name[..], "flux_rs" | "flux_attrs" | "flux_core")
 }
 
 impl Install {
@@ -247,40 +244,6 @@ fn local_sysroot_dir() -> anyhow::Result<PathBuf> {
         .join("sysroot"))
 }
 
-fn run_cargo<S: AsRef<OsStr>>(
-    cargo_path: S,
-    f: impl FnOnce(&mut std::process::Command) -> &mut std::process::Command,
-) -> anyhow::Result<Vec<Artifact>> {
-    let mut cmd = std::process::Command::new(cargo_path);
-
-    f(&mut cmd);
-
-    cmd.arg("--message-format=json-render-diagnostics")
-        .stdout(std::process::Stdio::piped());
-
-    display_command(&cmd);
-
-    let mut child = cmd.spawn()?;
-
-    let mut artifacts = vec![];
-    let reader = std::io::BufReader::new(child.stdout.take().unwrap());
-    for message in cargo_metadata::Message::parse_stream(reader) {
-        match message.unwrap() {
-            Message::CompilerMessage(msg) => {
-                println!("{msg}");
-            }
-            Message::CompilerArtifact(artifact) => {
-                artifacts.push(artifact);
-            }
-            _ => (),
-        }
-    }
-
-    check_status(child.wait()?)?;
-
-    Ok(artifacts)
-}
-
 fn check_status(st: ExitStatus) -> anyhow::Result<()> {
     if st.success() {
         return Ok(());
@@ -301,7 +264,7 @@ fn check_status(st: ExitStatus) -> anyhow::Result<()> {
     Err(err)
 }
 
-fn display_command(cmd: &std::process::Command) {
+fn display_command(cmd: &Command) {
     for var in cmd.get_envs() {
         if let Some(val) = var.1 {
             eprintln!("$ export {}={}", var.0.to_string_lossy(), val.to_string_lossy());
@@ -329,4 +292,45 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyh
     eprintln!("$ cp {} {}", src.to_string_lossy(), dst.to_string_lossy());
     sh.copy_file(src, dst)?;
     Ok(())
+}
+
+trait CommandExt {
+    fn arg_if<S: AsRef<OsStr>>(&mut self, b: bool, arg: S) -> &mut Self;
+    fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
+}
+
+impl CommandExt for Command {
+    fn arg_if<S: AsRef<OsStr>>(&mut self, b: bool, arg: S) -> &mut Self {
+        if b {
+            self.arg(arg);
+        }
+        self
+    }
+
+    fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>> {
+        self.arg("--message-format=json-render-diagnostics")
+            .stdout(std::process::Stdio::piped());
+
+        display_command(self);
+
+        let mut child = self.spawn()?;
+
+        let mut artifacts = vec![];
+        let reader = std::io::BufReader::new(child.stdout.take().unwrap());
+        for message in cargo_metadata::Message::parse_stream(reader) {
+            match message.unwrap() {
+                Message::CompilerMessage(msg) => {
+                    println!("{msg}");
+                }
+                Message::CompilerArtifact(artifact) => {
+                    artifacts.push(artifact);
+                }
+                _ => (),
+            }
+        }
+
+        check_status(child.wait()?)?;
+
+        Ok(artifacts)
+    }
 }

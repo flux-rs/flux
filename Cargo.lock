@@ -517,6 +517,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-core"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
+]
+
+[[package]]
 name = "flux-desugar"
 version = "0.1.0"
 dependencies = [

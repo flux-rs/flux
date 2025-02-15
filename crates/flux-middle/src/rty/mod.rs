@@ -40,7 +40,10 @@ use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use refining::{Refine as _, Refiner};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hir::{def_id::DefId, LangItem, Safety};
+use rustc_hir::{
+    def_id::{DefId, DefIndex},
+    LangItem, Safety,
+};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
@@ -605,9 +608,42 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Debug, Clone, Encodable, Decodable)]
+/// An id for an associated refinement with a type-level invariant ensuring that it exists.
+///
+/// We represent the id as a container id and an arbitrary name. This doesn't guarantee the
+/// existence of the associated refinement, so we must be careful when creating instances of
+/// this struct.
+///
+/// We mark the struct as `non_exhaustive` to make it harder to create one by mistake without
+/// calling [`AssocReftId::new`]. We also have a clippy lint disallowing [`AssocReftId::new`]
+/// which can be disabled selectively when we can ensure the associated refinement exists.
+///
+/// The struct is generic on the container `Id` because we use it with various kinds of ids,
+/// e.g., [`DefId`], [`MaybeExternId`], ...
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, TypeVisitable, TypeFoldable)]
+#[non_exhaustive]
+pub struct AssocReftId<Id = DefId> {
+    /// Id of the container, i.e., the impl block or trait.
+    pub container_id: Id,
+    /// Name of the associated refinement
+    pub name: Symbol,
+}
+
+impl<Id> AssocReftId<Id> {
+    pub fn new(container_id: Id, name: Symbol) -> Self {
+        Self { container_id, name }
+    }
+}
+
+impl AssocReftId {
+    pub fn index(self) -> AssocReftId<DefIndex> {
+        AssocReftId { container_id: self.container_id.index, name: self.name }
+    }
+}
+
+#[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<AssocRefinement>,
+    pub items: List<AssocReftId>,
 }
 
 impl Default for AssocRefinements {
@@ -617,16 +653,9 @@ impl Default for AssocRefinements {
 }
 
 impl AssocRefinements {
-    pub fn find(&self, name: Symbol) -> Option<&AssocRefinement> {
-        self.items.iter().find(|it| it.name == name)
+    pub fn find(&self, name: Symbol) -> Option<AssocReftId> {
+        self.items.iter().find(|it| it.name == name).copied()
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Encodable, Decodable)]
-pub struct AssocRefinement {
-    /// [`DefId`] of the container, i.e., the impl block or trait.
-    pub container_def_id: DefId,
-    pub name: Symbol,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2539,7 +2568,7 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     RefineParam,
-    AssocRefinement,
+    AssocReftId,
     SortParamKind,
 );
 
