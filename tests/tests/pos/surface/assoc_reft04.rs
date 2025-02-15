@@ -1,12 +1,11 @@
 // Testing that we properly map generics in trait's default associated refinement
 // body into the impl.
 
-extern crate flux_rs;
-
 use flux_rs::attrs::*;
 
-#[assoc(fn p(x: Self) -> bool { true })]
 trait MyTrait {
+    #![reft(fn p(x: Self) -> bool { true })]
+
     #[sig(fn(&Self{v: <Self as MyTrait>::p(v)}))]
     fn method(&self);
 }

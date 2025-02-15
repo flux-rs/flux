@@ -69,16 +69,16 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<surface::TraitAssocReft> {
-        parse!(self, grammar::TraitAssocReftParser, tokens, span)
+    ) -> ParseResult<Vec<surface::TraitAssocReft>> {
+        parse!(self, grammar::TraitAssocReftsParser, tokens, span)
     }
 
     pub fn parse_impl_assoc_reft(
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<surface::ImplAssocReft> {
-        parse!(self, grammar::ImplAssocReftParser, tokens, span)
+    ) -> ParseResult<Vec<surface::ImplAssocReft>> {
+        parse!(self, grammar::ImplAssocReftsParser, tokens, span)
     }
 
     pub fn parse_qual_names(

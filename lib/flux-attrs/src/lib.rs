@@ -94,6 +94,11 @@ pub fn should_fail(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::should_fail(attrs, tokens)
 }
 
+#[proc_macro_attribute]
+pub fn reft(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::reft(attrs, tokens)
+}
+
 #[cfg(flux_sysroot)]
 mod attr_sysroot {
     use super::*;
@@ -134,7 +139,8 @@ mod attr_sysroot {
         generics,
         assoc,
         ignore,
-        should_fail
+        should_fail,
+        reft,
     );
 }
 
@@ -179,5 +185,6 @@ mod attr_dummy {
         assoc,
         ignore,
         should_fail,
+        reft,
     );
 }
