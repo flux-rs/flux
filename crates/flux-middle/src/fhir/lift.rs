@@ -527,9 +527,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let generics = self.genv.alloc(lifted_generics);
                 Ok(fhir::ForeignItemKind::Fn(*fnsig, generics))
             }
-            _ => {
-                self.emit_unsupported("Static and type in extern_item are not supported.")
-            }
+            _ => self.emit_unsupported("Static and type in extern_item are not supported."),
         }?;
 
         Ok(fhir::ForeignItem {

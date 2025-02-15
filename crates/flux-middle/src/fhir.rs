@@ -182,7 +182,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
                 match foreign_item.kind {
-                    ForeignItemKind::Fn(_, generics) => generics
+                    ForeignItemKind::Fn(_, generics) => generics,
                 }
             }
         }
