@@ -143,7 +143,8 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a></pre></div><pre class="rust"><code><span class="kw">mod </span>ast;
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a></pre></div><pre class="rust"><code><span class="kw">mod </span>ast;
 <span class="kw">mod </span>extern_spec;
 
 <span class="kw">use </span>proc_macro2::{Ident, TokenStream, TokenTree};
@@ -163,6 +164,7 @@
     <span class="string">"variant"</span>,
     <span class="string">"should_fail"</span>,
     <span class="string">"opts"</span>,
+    <span class="string">"reft"</span>,
 ];
 
 <span class="kw">pub fn </span>extern_spec(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {

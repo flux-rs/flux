@@ -961,7 +961,13 @@
 <a href="#960" id="960">960</a>
 <a href="#961" id="961">961</a>
 <a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1361,7 +1367,7 @@
             (<span class="string">"sig" </span>| <span class="string">"spec"</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)<span class="question-mark">?
             </span>}
-            (<span class="string">"assoc"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"assoc" </span>| <span class="string">"reft"</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="kw">match </span>def_kind {
                     DefKind::Trait =&gt; {
                         <span class="self">self</span>.parse(
@@ -1547,8 +1553,8 @@
     TrustedImpl(Trusted),
     Opaque,
     FnSig(surface::FnSig),
-    TraitAssocReft(surface::TraitAssocReft),
-    ImplAssocReft(surface::ImplAssocReft),
+    TraitAssocReft(Vec&lt;surface::TraitAssocReft&gt;),
+    ImplAssocReft(Vec&lt;surface::ImplAssocReft&gt;),
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
@@ -1653,10 +1659,16 @@
 
     <span class="kw">fn </span>trait_assoc_refts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;surface::TraitAssocReft&gt; {
         <span class="macro">read_attrs!</span>(<span class="self">self</span>, TraitAssocReft)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     <span class="kw">fn </span>impl_assoc_refts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;surface::ImplAssocReft&gt; {
         <span class="macro">read_attrs!</span>(<span class="self">self</span>, ImplAssocReft)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::Ty&gt; {

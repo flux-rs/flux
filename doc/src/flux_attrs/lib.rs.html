@@ -181,7 +181,14 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
 </span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
 <span class="attr">#[cfg(flux_sysroot)]
 </span><span class="kw">use </span>attr_sysroot <span class="kw">as </span>attr_impl;
@@ -277,6 +284,11 @@
     attr_impl::should_fail(attrs, tokens)
 }
 
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>reft(attrs: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::reft(attrs, tokens)
+}
+
 <span class="attr">#[cfg(flux_sysroot)]
 </span><span class="kw">mod </span>attr_sysroot {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -317,7 +329,8 @@
         generics,
         assoc,
         ignore,
-        should_fail
+        should_fail,
+        reft,
     );
 }
 
@@ -362,6 +375,7 @@
         assoc,
         ignore,
         should_fail,
+        reft,
     );
 }
 </code></pre></div></section></main></body></html>

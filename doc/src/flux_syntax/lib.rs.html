@@ -261,16 +261,16 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
-    ) -&gt; ParseResult&lt;surface::TraitAssocReft&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::TraitAssocReftParser, tokens, span)
+    ) -&gt; ParseResult&lt;Vec&lt;surface::TraitAssocReft&gt;&gt; {
+        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::TraitAssocReftsParser, tokens, span)
     }
 
     <span class="kw">pub fn </span>parse_impl_assoc_reft(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
-    ) -&gt; ParseResult&lt;surface::ImplAssocReft&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ImplAssocReftParser, tokens, span)
+    ) -&gt; ParseResult&lt;Vec&lt;surface::ImplAssocReft&gt;&gt; {
+        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ImplAssocReftsParser, tokens, span)
     }
 
     <span class="kw">pub fn </span>parse_qual_names(
