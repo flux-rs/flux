@@ -181,10 +181,8 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::TraitItem(trait_item) => &trait_item.generics,
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
             OwnerNode::ForeignItem(foreign_item) => {
-                if let ForeignItemKind::Fn(_, generics) = &foreign_item.kind {
-                    generics
-                } else {
-                    span_bug!(foreign_item.span, "foreign_item missing generics")
+                match foreign_item.kind {
+                    ForeignItemKind::Fn(_, generics) => generics
                 }
             }
         }
@@ -300,14 +298,11 @@ pub struct ForeignItem<'fhir> {
     pub kind: ForeignItemKind<'fhir>,
     pub owner_id: MaybeExternId<OwnerId>,
     pub span: Span,
-    pub vis_span: Span,
 }
 
 #[derive(Debug)]
 pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
-    Static,
-    Type,
 }
 
 impl FluxItem<'_> {

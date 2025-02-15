@@ -1,7 +1,6 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
-    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, FuncSort,
-    GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item,
+    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item,
     ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort,
     PolyTraitRef, QPath, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft,
     TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
@@ -286,7 +285,14 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
     }
 }
 
-pub fn walk_foreign_item<'v, V: Visitor<'v>>(_: &mut V, _: &ForeignItem<'v>) {}
+pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignItem<'v>) {
+    match &impl_item.kind {
+        ForeignItemKind::Fn(fn_sig, generics) => {
+            vis.visit_generics(generics);
+            vis.visit_fn_sig(fn_sig)
+        },
+    }
+}
 
 pub fn walk_trait_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &TraitAssocReft<'v>) {
     walk_list!(vis, visit_refine_param, assoc_reft.params);
