@@ -9,9 +9,10 @@ use flux_middle::{
     query_bug,
     rty::{
         self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
-        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
-        FieldProj, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability,
-        Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
+        BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr,
+        ExprKind, FieldProj, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc,
+        Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
+        TyKind, Var,
     },
     MaybeExternId,
 };
@@ -875,7 +876,20 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             return;
         }
         match (a.kind(), b.kind()) {
-            (ExprKind::Ctor(did_a, _idx_a, flds_a), ExprKind::Ctor(did_b, _idx_b, flds_b)) => {
+            (
+                ExprKind::Ctor(Ctor::Enum(did_a, idx_a), flds_a),
+                ExprKind::Ctor(Ctor::Enum(did_b, idx_b), flds_b),
+            ) => {
+                todo!("HEREHEREHERE:reflect-adt: AHA THE BUG IS HERE -- for reflected you need to equate the exprs!");
+                debug_assert_eq!(did_a, did_b);
+                for (a, b) in iter::zip(flds_a, flds_b) {
+                    self.idxs_eq(infcx, a, b);
+                }
+            }
+            (
+                ExprKind::Ctor(Ctor::Struct(did_a), flds_a),
+                ExprKind::Ctor(Ctor::Struct(did_b), flds_b),
+            ) => {
                 debug_assert_eq!(did_a, did_b);
                 for (a, b) in iter::zip(flds_a, flds_b) {
                     self.idxs_eq(infcx, a, b);
@@ -894,7 +908,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
             }
 
-            (_, ExprKind::Ctor(def_id, _, flds_b)) => {
+            (_, ExprKind::Ctor(Ctor::Struct(def_id), flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
                     let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };
                     let a = a.proj_and_reduce(proj);
@@ -910,7 +924,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     self.idxs_eq(infcx, a, &b);
                 }
             }
-            (ExprKind::Ctor(def_id, _, flds_a), _) => {
+            (ExprKind::Ctor(Ctor::Struct(def_id), flds_a), _) => {
                 infcx.unify_exprs(a, b);
                 for (f, a) in flds_a.iter().enumerate() {
                     let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };

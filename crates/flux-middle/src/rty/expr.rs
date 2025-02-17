@@ -201,14 +201,14 @@ impl Expr {
         }
     }
 
-    #[track_caller]
-    pub fn expect_adt(&self) -> (DefId, List<Expr>) {
-        if let ExprKind::Ctor(def_id, _, flds) = self.kind() {
-            (*def_id, flds.clone())
-        } else {
-            bug!("expected record, found {self:?}")
-        }
-    }
+    // #[track_caller]
+    // pub fn expect_adt(&self) -> (DefId, List<Expr>) {
+    //     if let ExprKind::Ctor(def_id, _, flds) = self.kind() {
+    //         (*def_id, flds.clone())
+    //     } else {
+    //         bug!("expected record, found {self:?}")
+    //     }
+    // }
 
     pub fn unit() -> Expr {
         Expr::tuple(List::empty())
@@ -258,12 +258,16 @@ impl Expr {
         ExprKind::Tuple(flds).intern()
     }
 
-    pub fn adt(def_id: DefId, flds: List<Expr>) -> Expr {
-        ExprKind::Ctor(def_id, VariantIdx::ZERO, flds).intern()
+    pub fn ctor_struct(def_id: DefId, flds: List<Expr>) -> Expr {
+        ExprKind::Ctor(Ctor::Struct(def_id), flds).intern()
     }
 
-    pub fn ctor(def_id: DefId, idx: VariantIdx, flds: List<Expr>) -> Expr {
-        ExprKind::Ctor(def_id, idx, flds).intern()
+    pub fn ctor_enum(def_id: DefId, idx: VariantIdx) -> Expr {
+        ExprKind::Ctor(Ctor::Enum(def_id, idx), List::empty()).intern()
+    }
+
+    pub fn ctor(ctor: Ctor, flds: List<Expr>) -> Expr {
+        ExprKind::Ctor(ctor, flds).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -312,7 +316,7 @@ impl Expr {
     }
 
     pub fn unit_adt(def_id: DefId) -> Expr {
-        Expr::ctor(def_id, VariantIdx::ZERO, List::empty())
+        Expr::ctor_struct(def_id, List::empty())
     }
 
     pub fn app(func: impl Into<Expr>, args: List<Expr>) -> Expr {
@@ -531,7 +535,7 @@ impl Expr {
     /// Whether this is an aggregate expression with no fields.
     pub fn is_unit(&self) -> bool {
         matches!(self.kind(), ExprKind::Tuple(flds) if flds.is_empty())
-            || matches!(self.kind(), ExprKind::Ctor(_, _, flds) if flds.is_empty())
+            || matches!(self.kind(), ExprKind::Ctor(Ctor::Struct(_), flds) if flds.is_empty())
     }
 
     pub fn eta_expand_abs(&self, inputs: &BoundVariableKinds, output: Sort) -> Lambda {
@@ -545,7 +549,7 @@ impl Expr {
     /// Applies a field projection to an expression and optimistically try to beta reduce it
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
-            ExprKind::Tuple(flds) | ExprKind::Ctor(_, _, flds) => {
+            ExprKind::Tuple(flds) | ExprKind::Ctor(_, flds) => {
                 flds[proj.field_idx() as usize].clone()
             }
             _ => Expr::field_proj(self.clone(), proj),
@@ -627,6 +631,29 @@ pub enum UnOp {
     Neg,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum Ctor {
+    /// for `refined_by` types
+    Struct(DefId),
+    /// for `reflected` types
+    Enum(DefId, VariantIdx),
+}
+
+impl Ctor {
+    pub fn def_id(&self) -> DefId {
+        match self {
+            Self::Struct(def_id) | Self::Enum(def_id, _) => *def_id,
+        }
+    }
+
+    pub fn variant_idx(&self) -> VariantIdx {
+        match self {
+            Self::Struct(_) => VariantIdx::ZERO,
+            Self::Enum(_, variant_idx) => *variant_idx,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
@@ -638,7 +665,7 @@ pub enum ExprKind {
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
-    Ctor(DefId, VariantIdx, List<Expr>),
+    Ctor(Ctor, List<Expr>),
     Tuple(List<Expr>),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
@@ -1225,7 +1252,8 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
-                ExprKind::Ctor(def_id, idx, flds) => {
+                ExprKind::Ctor(ctor, flds) => {
+                    let def_id = ctor.def_id();
                     if let Some(genv) = cx.genv()
                         && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
@@ -1235,13 +1263,23 @@ pub(crate) mod pretty {
                             .zip(flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
-                        if adt_sort_def.is_reflected() {
-                            w!(cx, f, "{:?}_{:?}({:?})", def_id, ^idx.index(), join!(", ", field_binds))
-                        } else {
-                            w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                        match ctor {
+                            Ctor::Struct(_) => {
+                                w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                            }
+                            Ctor::Enum(_, idx) => {
+                                w!(cx, f, "{:?}_{:?}({:?})", def_id, ^idx.index(), join!(", ", field_binds))
+                            }
                         }
                     } else {
-                        w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                        match ctor {
+                            Ctor::Struct(_) => {
+                                w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                            }
+                            Ctor::Enum(_, idx) => {
+                                w!(cx, f, "{:?}::{:?} {{ {:?} }}", def_id, ^idx, join!(", ", flds))
+                            }
+                        }
                     }
                 }
                 ExprKind::PathProj(e, field) => {
@@ -1417,11 +1455,11 @@ pub(crate) mod pretty {
 
     pub fn aggregate_nested(
         cx: &PrettyCx,
-        def_id: DefId,
-        _idx: VariantIdx, // HEREHEREHERE:reflect-adt: reflected enums with multiple fields...
+        ctor: &Ctor, // HEREHEREHERE:reflect-adt: reflected enums with multiple fields...
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
+        let def_id = ctor.def_id();
         let mut text = if is_named { format_cx!(cx, "{:?}", def_id) } else { format_cx!(cx, "") };
         if flds.is_empty() {
             // No fields, no index
@@ -1540,9 +1578,7 @@ pub(crate) mod pretty {
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
-                ExprKind::Ctor(def_id, idx, flds) => {
-                    aggregate_nested(cx, *def_id, *idx, flds, true)
-                }
+                ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, true),
 
                 ExprKind::PathProj(e, field) => {
                     let e_d = e.fmt_nested(cx)?;

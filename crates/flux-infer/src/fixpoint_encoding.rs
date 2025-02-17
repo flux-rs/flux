@@ -1034,14 +1034,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::Variant(data_sort, pos)
     }
 
-    fn is_reflected(&self, def_id: &DefId) -> bool {
-        if let Ok(sort_def) = self.genv.adt_sort_def_of(def_id) {
-            sort_def.is_reflected()
-        } else {
-            false
-        }
-    }
-
     fn fields_to_fixpoint(
         &mut self,
         flds: &[rty::Expr],
@@ -1075,14 +1067,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
             rty::ExprKind::Tuple(flds) => self.fields_to_fixpoint(flds, scx)?,
 
-            rty::ExprKind::Ctor(did, idx, flds) => {
-                if self.is_reflected(did) {
-                    self.variant_to_fixpoint(scx, did, *idx)
-                } else {
-                    debug_assert_eq!(*idx, VariantIdx::ZERO);
-                    self.fields_to_fixpoint(flds, scx)?
-                }
+            rty::ExprKind::Ctor(rty::Ctor::Struct(_), flds) => {
+                self.fields_to_fixpoint(flds, scx)?
             }
+
+            rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
+                self.variant_to_fixpoint(scx, did, *idx)
+            }
+
             rty::ExprKind::ConstDefId(did, info) => {
                 let var = self.register_rust_const(*did, scx, info);
                 fixpoint::Expr::Var(var.into())

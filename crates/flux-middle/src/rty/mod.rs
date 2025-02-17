@@ -18,7 +18,7 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EVid, EarlyReftParam, Expr,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 pub use flux_arc_interner::List;

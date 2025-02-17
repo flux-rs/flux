@@ -138,7 +138,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             .try_collect()?;
 
         let idx = if adt_def.sort_def().is_reflected() {
-            rty::Expr::ctor(adt_def_id, variant_idx, List::empty())
+            rty::Expr::ctor_enum(adt_def_id, variant_idx)
         } else {
             rty::Expr::unit_adt(adt_def_id)
         };

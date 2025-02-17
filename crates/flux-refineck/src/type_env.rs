@@ -17,7 +17,7 @@ use flux_middle::{
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
         Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
         VariantIdx, INNERMOST,
     },
@@ -605,16 +605,14 @@ impl BasicBlockEnvShape {
                 )
             }
             (
-                ExprKind::Ctor(_, idx1, flds1),
-                ExprKind::Ctor(_, idx2, flds2),
+                ExprKind::Ctor(Ctor::Struct(_), flds1),
+                ExprKind::Ctor(Ctor::Struct(_), flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) => {
                 let sorts = sort_def.field_sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
-                debug_assert!(*idx1 == VariantIdx::ZERO);
-                debug_assert!(*idx2 == VariantIdx::ZERO);
 
-                Expr::adt(
+                Expr::ctor_struct(
                     sort_def.did(),
                     izip!(flds1, flds2, &sorts)
                         .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))

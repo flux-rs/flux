@@ -548,8 +548,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let idxs = if reflected {
             let enum_def_id = enum_id.resolved_id();
             let idx = variant_idx(self.tcx(), variant.def_id.to_def_id());
-            rty::Expr::ctor(enum_def_id, idx, List::empty())
-            // rty::Expr::variant(variant.def_id.to_def_id())
+            rty::Expr::ctor_enum(enum_def_id, idx)
         } else {
             self.conv_expr(&mut env, &variant.ret.idx)?
         };
@@ -580,7 +579,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .try_collect()?;
 
             let vars = env.pop_layer().into_bound_vars(self.genv())?;
-            let idx = rty::Expr::adt(
+            let idx = rty::Expr::ctor_struct(
                 struct_id.resolved_id(),
                 (0..vars.len())
                     .map(|idx| {
@@ -639,6 +638,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         fn_id: MaybeExternId,
         fn_sig: &fhir::FnSig,
     ) -> QueryResult<rty::PolyFnSig> {
+        println!("TRACE conv_fn_sig (0) {fn_id:?} ==> {fn_sig:?}");
         let decl = &fn_sig.decl;
         let header = fn_sig.header;
 
@@ -650,6 +650,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
+
+        println!("TRACE conv_fn_sig (1) {fn_id:?} ==> {fn_sig:?}");
 
         let vars = late_bound_regions
             .iter()
@@ -921,6 +923,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), 0, output.params));
 
         let ret = self.conv_ty(env, &output.ret)?;
+
         let ensures: List<rty::Ensures> = output
             .ensures
             .iter()
@@ -1079,14 +1082,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
-            fhir::TyKind::Indexed(bty, idx) => {
+            fhir::TyKind::Indexed(bty, idx0) => {
                 let fhir_id = bty.fhir_id;
                 let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
-                let idx = self.conv_expr(env, idx)?;
+                let idx = self.conv_expr(env, idx0)?;
+                // let idx = rty::Expr::zero();
                 self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
-                Ok(ty_ctor.replace_bound_reft(&idx))
+                let res = ty_ctor.replace_bound_reft(&idx);
+                if let rty::TyKind::Indexed(res_bty, res_idx) = res.kind() {
+                    println!("TRACE: conv_ty *indexed* {idx0:?} ==> {idx:?} ==> ({res_bty:?}, {res_idx:?})");
+                }
+                Ok(res)
             }
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self.results(), 0, params);
@@ -1899,7 +1907,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     ExprRes::Variant(variant_def_id) => {
                         let enum_def_id = self.tcx().parent(variant_def_id);
                         let idx = variant_idx(self.tcx(), variant_def_id);
-                        rty::Expr::ctor(enum_def_id, idx, List::empty())
+                        let res = rty::Expr::ctor_enum(enum_def_id, idx);
+                        println!("TRACE: conv_expr {variant_def_id:?} ==> {res:?}");
+                        res
                     }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
@@ -1966,7 +1976,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .iter()
                     .map(|expr| self.conv_expr(env, expr))
                     .try_collect()?;
-                rty::Expr::adt(def_id, flds)
+                rty::Expr::ctor_struct(def_id, flds)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
@@ -1978,7 +1988,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     self.results().record_ctor(expr.fhir_id)
                 };
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
-                rty::Expr::adt(def_id, assns)
+                rty::Expr::ctor_struct(def_id, assns)
             }
         };
         Ok(self.add_coercions(expr, fhir_id))
@@ -2041,7 +2051,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         for coercion in self.results().coercions_for(fhir_id) {
             expr = match *coercion {
                 rty::Coercion::Inject(def_id) => {
-                    rty::Expr::adt(def_id, List::singleton(expr)).at_opt(span)
+                    rty::Expr::ctor_struct(def_id, List::singleton(expr)).at_opt(span)
                 }
                 rty::Coercion::Project(def_id) => {
                     rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })
