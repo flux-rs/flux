@@ -638,7 +638,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         fn_id: MaybeExternId,
         fn_sig: &fhir::FnSig,
     ) -> QueryResult<rty::PolyFnSig> {
-        println!("TRACE conv_fn_sig (0) {fn_id:?} ==> {fn_sig:?}");
         let decl = &fn_sig.decl;
         let header = fn_sig.header;
 
@@ -650,8 +649,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
-
-        println!("TRACE conv_fn_sig (1) {fn_id:?} ==> {fn_sig:?}");
 
         let vars = late_bound_regions
             .iter()
@@ -1090,11 +1087,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let idx = self.conv_expr(env, idx0)?;
                 // let idx = rty::Expr::zero();
                 self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
-                let res = ty_ctor.replace_bound_reft(&idx);
-                if let rty::TyKind::Indexed(res_bty, res_idx) = res.kind() {
-                    println!("TRACE: conv_ty *indexed* {idx0:?} ==> {idx:?} ==> ({res_bty:?}, {res_idx:?})");
-                }
-                Ok(res)
+                Ok(ty_ctor.replace_bound_reft(&idx))
             }
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self.results(), 0, params);
@@ -1907,9 +1900,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     ExprRes::Variant(variant_def_id) => {
                         let enum_def_id = self.tcx().parent(variant_def_id);
                         let idx = variant_idx(self.tcx(), variant_def_id);
-                        let res = rty::Expr::ctor_enum(enum_def_id, idx);
-                        println!("TRACE: conv_expr {variant_def_id:?} ==> {res:?}");
-                        res
+                        rty::Expr::ctor_enum(enum_def_id, idx)
                     }
                     ExprRes::ConstGeneric(def_id) => {
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))

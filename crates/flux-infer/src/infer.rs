@@ -877,16 +877,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         }
         match (a.kind(), b.kind()) {
             (
-                ExprKind::Ctor(Ctor::Enum(did_a, idx_a), flds_a),
-                ExprKind::Ctor(Ctor::Enum(did_b, idx_b), flds_b),
-            ) => {
-                todo!("HEREHEREHERE:reflect-adt: AHA THE BUG IS HERE -- for reflected you need to equate the exprs!");
-                debug_assert_eq!(did_a, did_b);
-                for (a, b) in iter::zip(flds_a, flds_b) {
-                    self.idxs_eq(infcx, a, b);
-                }
-            }
-            (
                 ExprKind::Ctor(Ctor::Struct(did_a), flds_a),
                 ExprKind::Ctor(Ctor::Struct(did_b), flds_b),
             ) => {
