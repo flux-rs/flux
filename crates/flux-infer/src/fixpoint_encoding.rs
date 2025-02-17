@@ -25,7 +25,7 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
-    fx::{FxHashMap, FxIndexMap},
+    fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -65,10 +65,13 @@ pub mod fixpoint {
         pub struct GlobalVar {}
     }
 
+    #[derive(Hash, Debug, Copy, Clone)]
+    pub struct ReflData(pub usize);
+
     // Names for reflected Data Constructors
-    newtype_index! {
-        pub struct ReflData { }
-    }
+    // newtype_index! {
+    //     pub struct ReflData { }
+    // }
 
     // Names for reflected Data Constructors
     newtype_index! {
@@ -143,7 +146,7 @@ pub mod fixpoint {
 
     impl Identifier for ReflData {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "RD_{self:?}")
+            write!(f, "RD_{:?}", self.0)
         }
     }
 
@@ -205,10 +208,8 @@ impl<'de> Deserialize<'de> for TagIdx {
 struct SortEncodingCtxt {
     /// Set of all the tuple arities that need to be defined
     tuples: UnordSet<usize>,
-    /// Generator for fresh Reflected Datatypes
-    refl_data: IndexGen<ReflData>,
     /// Set of all the reflected ADT (enum) definitions that need to be declared as Fixpoint data-decls
-    refl_decls: FxHashMap<DefId, ReflData>,
+    refl_decls: FxIndexSet<DefId>,
 }
 
 impl SortEncodingCtxt {
@@ -298,29 +299,37 @@ impl SortEncodingCtxt {
 
     pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> ReflData {
         let did = adt_sort_def.did();
-        if let std::collections::hash_map::Entry::Vacant(e) = self.refl_decls.entry(did) {
-            let refl_decl = self.refl_data.fresh();
-            e.insert(refl_decl);
-            self.refl_decls[&did]
+
+        if let Some(refl_data) = self.refl_decls.get_index_of(&did) {
+            ReflData(refl_data)
         } else {
-            self.refl_decls[&did]
+            let refl_data = ReflData(self.refl_decls.len());
+            self.refl_decls.insert(did);
+            refl_data
         }
+        // if let std::collections::hash_map::Entry::Vacant(e) = self.refl_decls.entry(did) {
+        //     let refl_decl = self.refl_data.fresh();
+        //     e.insert(refl_decl);
+        //     self.refl_decls[&did]
+        // } else {
+        //     self.refl_decls[&did]
+        // }
     }
 
-    fn refl_data_decls(tcx: TyCtxt, refls: FxHashMap<DefId, ReflData>) -> Vec<fixpoint::DataDecl> {
+    fn refl_data_decls(tcx: TyCtxt, refls: FxIndexSet<DefId>) -> Vec<fixpoint::DataDecl> {
         let mut res = vec![];
-        for (enum_def_id, refl_data) in refls {
+        for (refl_data, enum_def_id) in refls.iter().enumerate() {
             let variants = tcx.adt_def(enum_def_id).variants().len();
             let ctors = (0..variants)
                 .map(|variant| {
                     fixpoint::DataCtor {
-                        name: fixpoint::Var::Variant(refl_data, variant),
+                        name: fixpoint::Var::Variant(ReflData(refl_data), variant),
                         fields: vec![],
                     }
                 })
                 .collect();
             let decl = fixpoint::DataDecl {
-                name: fixpoint::DataSort::ReflectedData(refl_data),
+                name: fixpoint::DataSort::ReflectedData(ReflData(refl_data)),
                 vars: 0,
                 ctors,
             };

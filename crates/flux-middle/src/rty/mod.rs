@@ -142,10 +142,6 @@ struct AdtSortDefData {
 }
 
 impl AdtSortDef {
-    // CUT pub fn new(def_id: DefId, params: Vec<ParamTy>, kind: RefinementKind) -> Self {
-    // CUT     Self(Interned::new(AdtSortDefData { def_id, params, kind }))
-    // CUT }
-
     pub fn new(
         def_id: DefId,
         params: Vec<ParamTy>,
