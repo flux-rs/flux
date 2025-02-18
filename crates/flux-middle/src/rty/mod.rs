@@ -365,6 +365,7 @@ pub type Clauses = List<Clause>;
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
@@ -379,6 +380,9 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
             }
             ClauseKind::Projection(projection_predicate) => {
                 rustc_middle::ty::ClauseKind::Projection(projection_predicate.to_rustc(tcx))
+            }
+            ClauseKind::RegionOutlives(outlives_predicate) => {
+                rustc_middle::ty::ClauseKind::RegionOutlives(outlives_predicate.to_rustc(tcx))
             }
             ClauseKind::TypeOutlives(outlives_predicate) => {
                 rustc_middle::ty::ClauseKind::TypeOutlives(outlives_predicate.to_rustc(tcx))
@@ -397,6 +401,7 @@ impl<'tcx> ToRustc<'tcx> for ClauseKind {
 pub struct OutlivesPredicate<T>(pub T, pub Region);
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
+pub type RegionOutlivesPredicate = OutlivesPredicate<Region>;
 
 impl<'tcx, V: ToRustc<'tcx>> ToRustc<'tcx> for OutlivesPredicate<V> {
     type T = rustc_middle::ty::OutlivesPredicate<'tcx, V::T>;
