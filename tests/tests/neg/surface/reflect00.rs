@@ -4,22 +4,22 @@ pub enum State {
     Off,
 }
 
-#[flux_rs::sig(fn () -> State[On])]
+#[flux_rs::sig(fn () -> State[State::On])]
 pub fn test00() -> State {
     State::On
 }
 
-#[flux_rs::sig(fn () -> State[Off])]
+#[flux_rs::sig(fn () -> State[State::Off])]
 pub fn test01() -> State {
     State::Off
 }
 
-#[flux::sig(fn () -> State[Off])]
+#[flux::sig(fn () -> State[State::Off])]
 pub fn test02() -> State {
     State::On //~ ERROR refinement type
 }
 
-#[flux::sig(fn (State[On]) -> usize[1])]
+#[flux::sig(fn (State[State::On]) -> usize[1])]
 pub fn test03(s: State) -> usize {
     match s {
         State::On => 1,

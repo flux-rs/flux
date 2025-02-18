@@ -43,6 +43,10 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     resolver.into_output()
 }
 
+pub(crate) struct EnumVariants {
+    variants: FxHashMap<Symbol, DefId>,
+}
+
 pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
@@ -54,6 +58,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    enum_variants: FxHashMap<DefId, EnumVariants>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
@@ -76,6 +81,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
@@ -145,11 +151,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
                 ItemKind::Enum(enum_def, _) => {
-                    for variant in enum_def.variants {
-                        let name = variant.ident.name;
-                        let res = fhir::Res::Def(DefKind::Variant, variant.def_id.to_def_id());
-                        self.define_res_in(name, res, ValueNS);
-                    }
+                    self.define_enum_variants(&enum_def);
                     DefKind::Enum
                 }
                 ItemKind::Struct(..) => DefKind::Struct,
@@ -166,6 +168,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 );
             }
         }
+    }
+
+    fn define_enum_variants(&mut self, enum_def: &rustc_hir::EnumDef) {
+        let Some(v0) = enum_def.variants.get(0) else { return };
+        let enum_def_id = self.genv.tcx().parent(v0.def_id.to_def_id());
+
+        let mut variants = FxHashMap::default();
+        for variant in enum_def.variants {
+            let name = variant.ident.name;
+            variants.insert(name, variant.def_id.to_def_id());
+        }
+        self.enum_variants
+            .insert(enum_def_id, EnumVariants { variants });
     }
 
     fn define_res_in(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {

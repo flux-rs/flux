@@ -502,7 +502,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 }
 
-/// HEREHEREHERE:reflect-adt: check if existing API in rustc
+// TODO(RJ):reflect-adt: check if existing API in rustc
 fn variant_idx(tcx: TyCtxt, variant_def_id: DefId) -> rty::VariantIdx {
     let enum_def_id = tcx.parent(variant_def_id);
     tcx.adt_def(enum_def_id)

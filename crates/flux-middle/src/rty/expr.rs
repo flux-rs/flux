@@ -1455,7 +1455,7 @@ pub(crate) mod pretty {
 
     pub fn aggregate_nested(
         cx: &PrettyCx,
-        ctor: &Ctor, // HEREHEREHERE:reflect-adt: reflected enums with multiple fields...
+        ctor: &Ctor, // TODO(RJ):reflect-adt: reflected enums with multiple fields...
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
