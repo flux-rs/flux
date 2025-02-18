@@ -2,9 +2,6 @@
 
 <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
 
-Flux is a research project described in [the paper][paper] [PLDI 23 talk][talk] 
-
-
 ## Team
 
 Flux is being developed by
@@ -19,6 +16,16 @@ Flux is being developed by
 ## Code
 
 Flux is open-source and available [here](http://github.com/liquid-rust/flux)
+
+## Publications
+
+* [Lehmann, Nico, Adam T. Geller, Niki Vazou, and Ranjit Jhala. "Flux: Liquid types for rust."  PLDI (2023)](https://dl.acm.org/doi/pdf/10.1145/3591283)
+* [Lehmann, Nico, Cole Kurashige, Nikhil Akiti, Niroop Krishnakumar, and Ranjit Jhala. "Generic Refinement Types." POPL (2025)](https://dl.acm.org/doi/pdf/10.1145/3704885)
+
+## Talks
+
+* [PLDI'23](https://www.youtube.com/watch?v=3iYt2JTXCwM)
+* [SOAP'23](https://www.youtube.com/watch?v=NIJtZ0yUDX0)
 
 ## Thanks
 
