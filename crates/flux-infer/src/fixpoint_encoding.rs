@@ -1049,7 +1049,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
         // do not generate 1-tuples
-        if let [fld] = &flds[..] {
+        if let [fld] = flds {
             self.expr_to_fixpoint(fld, scx)
         } else {
             scx.declare_tuple(flds.len());

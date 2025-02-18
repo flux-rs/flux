@@ -171,7 +171,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn define_enum_variants(&mut self, enum_def: &rustc_hir::EnumDef) {
-        let Some(v0) = enum_def.variants.get(0) else { return };
+        let Some(v0) = enum_def.variants.first() else { return };
         let enum_def_id = self.genv.tcx().parent(v0.def_id.to_def_id());
 
         let mut variants = FxHashMap::default();

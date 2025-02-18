@@ -291,7 +291,7 @@ pub(crate) fn conv_adt_sort_def(
             let enum_def_id = def_id.resolved_id();
             let mut variants = vec![];
             for _ in 0..genv.tcx().adt_def(enum_def_id).variants().len() {
-                variants.push(rty::AdtSortVariant::new(vec![]))
+                variants.push(rty::AdtSortVariant::new(vec![]));
             }
             Ok(rty::AdtSortDef::new(enum_def_id, vec![], variants, true))
         }

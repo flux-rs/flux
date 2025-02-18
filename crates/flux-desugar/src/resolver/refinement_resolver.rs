@@ -582,16 +582,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let path = self.resolver.resolve_path_with_ribs(segments, ValueNS);
 
         let res = match path {
-            Some(r) => {
-                let res = r.full_res()?;
-                res
-            }
+            Some(r) => r.full_res()?,
             _ => {
-                let res = self
-                    .resolver
+                self.resolver
                     .resolve_path_with_ribs(segments, TypeNS)?
-                    .full_res()?;
-                res
+                    .full_res()?
             }
         };
         match res {
