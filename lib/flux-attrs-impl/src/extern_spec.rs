@@ -13,7 +13,7 @@ use syn::{
     TypePath,
 };
 
-use crate::{flux_tool_attrs, tokens_or_default};
+use crate::{flux_tool_attrs, inner, outer, parse_inner, tokens_or_default};
 
 pub(crate) fn transform_extern_spec(
     attr: TokenStream,
@@ -222,7 +222,7 @@ impl ExternItem {
 
 impl Parse for ExternItem {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
         let lookahead = input.lookahead1();
         let mut item = if lookahead.peek(Token![fn]) {
             ExternItem::Fn(input.parse()?)
@@ -238,6 +238,8 @@ impl Parse for ExternItem {
         } else {
             return Err(lookahead.error());
         };
+
+        attrs.extend(item.replace_attrs(Vec::new()));
         item.replace_attrs(attrs);
         Ok(item)
     }
@@ -273,7 +275,7 @@ impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        tokens.append_all(&self.attrs);
+        tokens.append_all(outer(&self.attrs));
 
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
@@ -283,6 +285,7 @@ impl ToTokens for ExternItemImpl {
 
         where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
+            tokens.append_all(inner(&self.attrs));
             for item in &self.items {
                 item.to_tokens(tokens);
             }
@@ -318,7 +321,7 @@ impl ExternItemTrait {
 
 impl ToTokens for ExternItemTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append_all(&self.attrs);
+        tokens.append_all(outer(&self.attrs));
         self.trait_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
         self.generics.to_tokens(tokens);
@@ -328,6 +331,7 @@ impl ToTokens for ExternItemTrait {
         }
         self.generics.where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
+            tokens.append_all(inner(&self.attrs));
             for item in &self.items {
                 item.to_tokens(tokens);
             }
@@ -429,7 +433,7 @@ impl Parse for ExternFn {
 
 impl Parse for ExternItemImpl {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
         let generics = input.parse()?;
 
@@ -464,6 +468,7 @@ impl Parse for ExternItemImpl {
 
         let content;
         let brace_token = braced!(content in input);
+        parse_inner(&content, &mut attrs)?;
         let mut items = Vec::new();
         while !content.is_empty() {
             items.push(content.parse()?);
@@ -490,7 +495,7 @@ impl Parse for ExternItemImpl {
 
 impl Parse for ExternItemTrait {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
         let trait_token = input.parse()?;
         let ident: Ident = input.parse()?;
         let mut generics: syn::Generics = input.parse()?;
@@ -498,6 +503,7 @@ impl Parse for ExternItemTrait {
 
         let content;
         let brace_token = braced!(content in input);
+        parse_inner(&content, &mut attrs)?;
         let mut items = Vec::new();
         while !content.is_empty() {
             items.push(content.parse()?);

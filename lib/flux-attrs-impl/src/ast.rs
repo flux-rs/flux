@@ -12,7 +12,7 @@ use syn::{
     Attribute, Ident, Result, Token, Visibility,
 };
 
-use crate::{flux_tool_attrs, tokens_or_default};
+use crate::{flux_tool_attrs, parse_inner, tokens_or_default};
 
 pub struct Items(Vec<Item>);
 
@@ -2704,23 +2704,6 @@ fn inner(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
         }
     }
     attrs.iter().filter(is_inner)
-}
-
-fn parse_inner(input: ParseStream, attrs: &mut Vec<Attribute>) -> Result<()> {
-    while input.peek(Token![#]) && input.peek2(Token![!]) {
-        attrs.push(input.call(single_parse_inner)?);
-    }
-    Ok(())
-}
-
-fn single_parse_inner(input: ParseStream) -> Result<Attribute> {
-    let content;
-    Ok(Attribute {
-        pound_token: input.parse()?,
-        style: syn::AttrStyle::Inner(input.parse()?),
-        bracket_token: bracketed!(content in input),
-        meta: content.parse()?,
-    })
 }
 
 fn peek_signature(input: ParseStream) -> bool {
