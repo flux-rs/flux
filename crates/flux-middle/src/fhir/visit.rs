@@ -297,7 +297,9 @@ pub fn walk_impl_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &ImplAs
 
 pub fn walk_generics<'v, V: Visitor<'v>>(vis: &mut V, generics: &Generics<'v>) {
     walk_list!(vis, visit_refine_param, generics.refinement_params);
-    walk_list!(vis, visit_where_predicate, generics.predicates);
+    if let Some(predicates) = generics.predicates {
+        walk_list!(vis, visit_where_predicate, predicates);
+    }
 }
 
 pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBoundPredicate<'v>) {

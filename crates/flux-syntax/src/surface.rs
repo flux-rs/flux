@@ -58,7 +58,7 @@ pub struct SpecFunc {
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
-    pub predicates: Vec<WhereBoundPredicate>,
+    pub predicates: Option<Vec<WhereBoundPredicate>>,
     pub span: Span,
 }
 

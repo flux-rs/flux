@@ -34,7 +34,10 @@ use super::{
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     mir::CallKind,
-    ty::{AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region},
+    ty::{
+        AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
+        RegionOutlivesPredicate,
+    },
 };
 
 pub trait Lower<'tcx> {
@@ -77,7 +80,7 @@ impl UnsupportedErr {
         UnsupportedErr { descr: reason.descr, span: None }
     }
 
-    fn with_span(mut self, span: Span) -> Self {
+    pub fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
         self
     }
@@ -1091,6 +1094,9 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
                 let term = term.lower(tcx)?;
                 ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
             }
+            rustc_ty::ClauseKind::RegionOutlives(outlives) => {
+                ClauseKind::RegionOutlives(outlives.lower(tcx)?)
+            }
             rustc_ty::ClauseKind::TypeOutlives(outlives) => {
                 ClauseKind::TypeOutlives(outlives.lower(tcx)?)
             }
@@ -1123,6 +1129,14 @@ impl<'tcx> Lower<'tcx> for rustc_ty::TraitRef<'tcx> {
 
 impl<'tcx> Lower<'tcx> for rustc_ty::TypeOutlivesPredicate<'tcx> {
     type R = Result<TypeOutlivesPredicate, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+        Ok(OutlivesPredicate(self.0.lower(tcx)?, self.1.lower(tcx)?))
+    }
+}
+
+impl<'tcx> Lower<'tcx> for rustc_ty::RegionOutlivesPredicate<'tcx> {
+    type R = Result<RegionOutlivesPredicate, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
         Ok(OutlivesPredicate(self.0.lower(tcx)?, self.1.lower(tcx)?))

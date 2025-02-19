@@ -92,6 +92,7 @@ pub struct Clause {
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
@@ -100,6 +101,7 @@ pub enum ClauseKind {
 pub struct OutlivesPredicate<T>(pub T, pub Region);
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
+pub type RegionOutlivesPredicate = OutlivesPredicate<Region>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TraitPredicate {
