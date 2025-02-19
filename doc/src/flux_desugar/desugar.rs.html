@@ -1565,7 +1565,15 @@
 <a href="#1564" id="1564">1564</a>
 <a href="#1565" id="1565">1565</a>
 <a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -2011,6 +2019,14 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl_assoc_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ImplItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Type, owner_id: <span class="self">self</span>.owner })
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_foreign_item(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        foreign_item: hir::ForeignItem,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ForeignItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">let </span>foreign_item = <span class="self">self</span>.as_lift_cx().lift_foreign_item(foreign_item)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(foreign_item)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_item_fn(

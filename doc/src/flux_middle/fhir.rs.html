@@ -1565,7 +1565,32 @@
 <a href="#1564" id="1564">1564</a>
 <a href="#1565" id="1565">1565</a>
 <a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1696,6 +1721,7 @@
     TraitItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>TraitItem&lt;<span class="lifetime">'fhir</span>&gt;),
     ImplItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt;),
     OpaqueTy(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt;),
+    ForeignItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ForeignItem&lt;<span class="lifetime">'fhir</span>&gt;),
     AnonConst,
 }
 
@@ -1705,6 +1731,7 @@
             Node::Item(item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::Item(item)),
             Node::TraitItem(trait_item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::ImplItem(impl_item)),
+            Node::ForeignItem(foreign_item) =&gt; <span class="prelude-val">Some</span>(OwnerNode::ForeignItem(foreign_item)),
             Node::OpaqueTy(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             Node::AnonConst =&gt; <span class="prelude-val">None</span>,
         }
@@ -1724,6 +1751,7 @@
     Item(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Item&lt;<span class="lifetime">'fhir</span>&gt;),
     TraitItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>TraitItem&lt;<span class="lifetime">'fhir</span>&gt;),
     ImplItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt;),
+    ForeignItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ForeignItem&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; OwnerNode&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -1731,7 +1759,10 @@
         <span class="kw">match </span><span class="self">self </span>{
             OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
             | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
-            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
+            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
+            | OwnerNode::ForeignItem(ForeignItem {
+                kind: ForeignItemKind::Fn(fn_sig, ..), ..
+            }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -1741,6 +1772,11 @@
             OwnerNode::Item(item) =&gt; <span class="kw-2">&amp;</span>item.generics,
             OwnerNode::TraitItem(trait_item) =&gt; <span class="kw-2">&amp;</span>trait_item.generics,
             OwnerNode::ImplItem(impl_item) =&gt; <span class="kw-2">&amp;</span>impl_item.generics,
+            OwnerNode::ForeignItem(foreign_item) =&gt; {
+                <span class="kw">match </span>foreign_item.kind {
+                    ForeignItemKind::Fn(<span class="kw">_</span>, generics) =&gt; generics,
+                }
+            }
         }
     }
 
@@ -1749,6 +1785,7 @@
             OwnerNode::Item(item) =&gt; item.owner_id,
             OwnerNode::TraitItem(trait_item) =&gt; trait_item.owner_id,
             OwnerNode::ImplItem(impl_item) =&gt; impl_item.owner_id,
+            OwnerNode::ForeignItem(foreign_item) =&gt; foreign_item.owner_id,
         }
     }
 }
@@ -1845,6 +1882,19 @@
 </span><span class="kw">pub enum </span>FluxItem&lt;<span class="lifetime">'fhir</span>&gt; {
     Qualifier(Qualifier&lt;<span class="lifetime">'fhir</span>&gt;),
     Func(SpecFunc&lt;<span class="lifetime">'fhir</span>&gt;),
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ForeignItem&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub </span>ident: Ident,
+    <span class="kw">pub </span>kind: ForeignItemKind&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>owner_id: MaybeExternId&lt;OwnerId&gt;,
+    <span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>ForeignItemKind&lt;<span class="lifetime">'fhir</span>&gt; {
+    Fn(FnSig&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Generics&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="kw">impl </span>FluxItem&lt;<span class="lifetime">'_</span>&gt; {

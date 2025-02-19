@@ -319,7 +319,16 @@
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
 
@@ -537,6 +546,15 @@
         }
         rustc_hir::Node::AnonConst(..) =&gt; {
             nodes.insert(def_id, fhir::Node::AnonConst);
+        }
+        rustc_hir::Node::ForeignItem(foreign) =&gt; {
+            <span class="kw">let </span>foreign_item = fhir::Node::ForeignItem(
+                genv.alloc(
+                    cx.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
+                        .desugar_foreign_item(<span class="kw-2">*</span>foreign)<span class="question-mark">?</span>,
+                ),
+            );
+            nodes.insert(def_id, foreign_item);
         }
         node =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(ident) = node.ident() {
