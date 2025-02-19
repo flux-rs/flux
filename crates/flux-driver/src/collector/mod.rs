@@ -398,7 +398,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("sig" | "spec", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
-            ("assoc", AttrArgs::Delimited(dargs)) => {
+            ("assoc" | "reft", AttrArgs::Delimited(dargs)) => {
                 match def_kind {
                     DefKind::Trait => {
                         self.parse(
@@ -584,8 +584,8 @@ enum FluxAttrKind {
     TrustedImpl(Trusted),
     Opaque,
     FnSig(surface::FnSig),
-    TraitAssocReft(surface::TraitAssocReft),
-    ImplAssocReft(surface::ImplAssocReft),
+    TraitAssocReft(Vec<surface::TraitAssocReft>),
+    ImplAssocReft(Vec<surface::ImplAssocReft>),
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
@@ -690,10 +690,16 @@ impl FluxAttrs {
 
     fn trait_assoc_refts(&mut self) -> Vec<surface::TraitAssocReft> {
         read_attrs!(self, TraitAssocReft)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     fn impl_assoc_refts(&mut self) -> Vec<surface::ImplAssocReft> {
         read_attrs!(self, ImplAssocReft)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     fn field(&mut self) -> Option<surface::Ty> {

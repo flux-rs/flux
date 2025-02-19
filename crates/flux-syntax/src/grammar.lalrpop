@@ -14,7 +14,7 @@ pub Generics: surface::Generics = {
     <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -25,7 +25,7 @@ GenericsWithAngleBrackets: surface::Generics = {
     <lo:@L> <hi:@R> => {
         surface::Generics {
             params: vec![],
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -193,8 +193,10 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
-pub TraitAssocReft: surface::TraitAssocReft = {
-    <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> <hi:@R> => {
+pub TraitAssocRefts: Vec<surface::TraitAssocReft> = TraitAssocReft*;
+
+TraitAssocReft: surface::TraitAssocReft = {
+    <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> ";"? <hi:@R> => {
         surface::TraitAssocReft {
             name,
             params,
@@ -214,7 +216,9 @@ pub TraitAssocReft: surface::TraitAssocReft = {
     },
 }
 
-pub ImplAssocReft: surface::ImplAssocReft = {
+pub ImplAssocRefts: Vec<surface::ImplAssocReft> = ImplAssocReft*;
+
+ImplAssocReft: surface::ImplAssocReft = {
     <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> "{" <body:Expr> "}" <hi:@R> => {
         surface::ImplAssocReft {
             name,
@@ -246,7 +250,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
-        generics.predicates = predicates.unwrap_or_default();
+        generics.predicates = predicates;
         let output = surface::FnOutput {
             returns,
             ensures: ensures.unwrap_or_default(),

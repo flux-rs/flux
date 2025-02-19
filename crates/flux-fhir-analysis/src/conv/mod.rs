@@ -25,9 +25,12 @@ use flux_middle::{
     },
     MaybeExternId,
 };
-use flux_rustc_bridge::{lowering::Lower, ToRustc};
+use flux_rustc_bridge::{
+    lowering::{Lower, UnsupportedErr},
+    ToRustc,
+};
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId, Safety};
@@ -633,16 +636,74 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         let env = &mut Env::new(generics.refinement_params);
 
-        let mut clauses = vec![];
-        for pred in generics.predicates {
-            let span = pred.bounded_ty.span;
-            let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
-            for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
-                clauses.push(clause);
+        let predicates = if let Some(fhir_predicates) = generics.predicates {
+            let mut clauses = vec![];
+            for pred in fhir_predicates {
+                let span = pred.bounded_ty.span;
+                let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
+                for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
+                    clauses.push(clause);
+                }
+            }
+            self.match_clauses(def_id, &clauses)?
+        } else {
+            self.genv()
+                .lower_predicates_of(def_id)?
+                .refine(&Refiner::default_for_item(self.genv(), def_id.resolved_id())?)?
+        };
+        Ok(rty::EarlyBinder(predicates))
+    }
+
+    fn match_clauses(
+        &self,
+        def_id: MaybeExternId,
+        refined_clauses: &[rty::Clause],
+    ) -> QueryResult<rty::GenericPredicates> {
+        let tcx = self.genv().tcx();
+        let predicates = tcx.predicates_of(def_id);
+        let unrefined_clauses = predicates.predicates;
+
+        // For each *refined clause* at index `j` find a corrresponding *unrefined clause* at index
+        // `i` and save a mapping `i -> j`.
+        let mut map = UnordMap::default();
+        for (j, clause) in refined_clauses.iter().enumerate() {
+            let clause = clause.to_rustc(tcx);
+            let Some((i, _)) = unrefined_clauses.iter().find_position(|it| it.0 == clause) else {
+                self.emit_fail_to_match_predicates(def_id)?;
+            };
+            if map.insert(i, j).is_some() {
+                self.emit_fail_to_match_predicates(def_id)?;
             }
         }
-        let parent = self.tcx().predicates_of(def_id).parent;
-        Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
+
+        // For each unrefined clause, create a default refined clause or use corresponding refined
+        // clause if one was found.
+        let refiner = Refiner::default_for_item(self.genv(), def_id.resolved_id())?;
+        let mut clauses = vec![];
+        for (i, (clause, span)) in unrefined_clauses.iter().enumerate() {
+            let clause = if let Some(j) = map.get(&i) {
+                refined_clauses[*j].clone()
+            } else {
+                clause
+                    .lower(tcx)
+                    .map_err(|reason| {
+                        let err = UnsupportedErr::new(reason).with_span(*span);
+                        QueryErr::unsupported(def_id.resolved_id(), err)
+                    })?
+                    .refine(&refiner)?
+            };
+            clauses.push(clause)
+        }
+
+        Ok(rty::GenericPredicates {
+            parent: predicates.parent,
+            predicates: List::from_vec(clauses),
+        })
+    }
+
+    fn emit_fail_to_match_predicates(&self, def_id: MaybeExternId) -> Result<!, ErrorGuaranteed> {
+        let span = self.tcx().def_span(def_id.resolved_id());
+        Err(self.emit(errors::FailToMatchPredicates { span }))
     }
 
     pub(crate) fn conv_opaque_ty(
@@ -1194,6 +1255,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::ClauseKind::Projection(proj) => {
                     projection_bounds.push(rty::Binder::bind_with_vars(proj, vars));
                 }
+                rty::ClauseKind::RegionOutlives(_) => {}
                 rty::ClauseKind::TypeOutlives(_) => {}
                 rty::ClauseKind::ConstArgHasType(..) => {
                     bug!("did not expect {pred:?} clause in object bounds");
@@ -2597,5 +2659,12 @@ mod errors {
         pub span: Span,
         pub def_descr: &'static str,
         pub name: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_fail_to_match_predicates, code = E0999)]
+    pub(super) struct FailToMatchPredicates {
+        #[primary_span]
+        pub span: Span,
     }
 }

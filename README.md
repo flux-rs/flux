@@ -2,15 +2,19 @@
     src="assets/logo-wide.svg"
     alt="flux logo" class="flux-logo">
 
-`flux` is a refinement type checker for Rust.
+Flux is a refinement type checker for Rust.
+
+# Help and Discussions
+If you need help using Flux or would like to discuss, you can post on the discussions forum or join
+our [Zulip chat](https://flux-rs.zulipchat.com/)!
 
 # Online Demo
 
-You can try `flux` [online at this site](http://goto.ucsd.edu:8091/)
+You can try Flux [online at this site](http://goto.ucsd.edu:8091/).
 
 # Overview
 
-For an overview, take a look at the [`flux` website](https://flux-rs.github.io).
+For an overview, take a look at the [Flux website](https://flux-rs.github.io).
 
 # Docs
 

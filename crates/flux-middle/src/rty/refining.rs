@@ -376,6 +376,10 @@ impl Refine for ty::ClauseKind {
                 };
                 rty::ClauseKind::Projection(pred)
             }
+            ty::ClauseKind::RegionOutlives(pred) => {
+                let pred = rty::OutlivesPredicate(pred.0, pred.1);
+                rty::ClauseKind::RegionOutlives(pred)
+            }
             ty::ClauseKind::TypeOutlives(pred) => {
                 let pred = rty::OutlivesPredicate(pred.0.refine(refiner)?, pred.1);
                 rty::ClauseKind::TypeOutlives(pred)

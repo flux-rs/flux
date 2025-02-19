@@ -335,7 +335,9 @@ pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_generic_param, &generics.params);
-    walk_list!(vis, visit_where_predicate, &generics.predicates);
+    if let Some(predicates) = &generics.predicates {
+        walk_list!(vis, visit_where_predicate, predicates);
+    }
 }
 
 pub fn walk_fn_input<V: Visitor>(vis: &mut V, arg: &FnInput) {

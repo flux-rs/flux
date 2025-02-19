@@ -1,21 +1,24 @@
+use flux_rs::attrs::*;
+
 // Step 1 : declare -------------------------------
-#[flux::generics(Self as base)]
-#[flux::assoc(fn f(self: Self) -> bool )]
 pub trait MyTrait {
+    #![reft(fn f(self: Self) -> bool)]
+
     fn method(&self) -> i32;
 }
 
 // Step 2 : implement -----------------------------
-#[flux::assoc(fn f(x: int) -> bool { 0 < x })] // TODO: check against trait-def
 impl MyTrait for i32 {
+    #![reft(fn f(x: int) -> bool { 0 < x } )] // TODO: check against trait-def
+
     fn method(&self) -> i32 {
         10
     }
 }
 
 // Step 3 : abstract ------------------------------
-#[flux::trusted] // TODO: subtyping with alias_pred on lhs
-#[flux::sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
+#[trusted] // TODO: subtyping with alias_pred on lhs
+#[sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
 pub fn bob<T: MyTrait>(x: &T) {
     x.method();
 }

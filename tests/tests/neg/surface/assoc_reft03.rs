@@ -1,5 +1,9 @@
-#[flux::assoc(fn f(x: int) -> int { x + 1 })]
-pub trait MyTrait {}
+use flux_rs::attrs::*;
+
+pub trait MyTrait {
+    #![reft(fn f(x: int) -> int { x + 1 })]
+    //
+}
 
 // -----------------------------------------------------------------------------
 
@@ -23,8 +27,10 @@ pub fn test1_fail() -> i32 {
 pub struct Add2;
 
 // Specify a custom assoc reft for Add2
-#[flux::assoc(fn f(x: int) -> int { x + 2 })]
-impl MyTrait for Add2 {}
+impl MyTrait for Add2 {
+    #![reft(fn f(x: int) -> int { x + 2 })]
+    //
+}
 
 #[flux::sig(fn() -> i32{v: v == <Add2 as MyTrait>::f(0)})]
 pub fn test2() -> i32 {

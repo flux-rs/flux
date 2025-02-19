@@ -211,7 +211,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             |hir_param| self.as_lift_cx().lift_generic_param(hir_param)
         )?;
 
-        let predicates = self.desugar_generic_predicates(&generics.predicates)?;
+        let predicates = if let Some(predicates) = &generics.predicates {
+            Some(self.desugar_generic_predicates(predicates)?)
+        } else {
+            None
+        };
         Ok(fhir::Generics { params, refinement_params: &[], predicates })
     }
 
