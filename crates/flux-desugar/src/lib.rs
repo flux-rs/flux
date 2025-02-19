@@ -302,10 +302,10 @@ impl CrateDesugar<'_, '_> {
         for item in specs.flux_items_by_parent.values().flatten() {
             match item {
                 surface::Item::Qualifier(qual) => {
-                    self.desugar_qualifier(&qual).collect_err(&mut self.err);
+                    self.desugar_qualifier(qual).collect_err(&mut self.err);
                 }
                 surface::Item::FuncDef(defn) => {
-                    self.desugar_func_defn(&defn).collect_err(&mut self.err);
+                    self.desugar_func_defn(defn).collect_err(&mut self.err);
                 }
                 surface::Item::SortDecl(_) => {}
             }
