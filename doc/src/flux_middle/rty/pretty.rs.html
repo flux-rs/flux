@@ -775,7 +775,10 @@
 <a href="#774" id="774">774</a>
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{pretty::aggregate_nested, FieldBind};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -789,6 +792,9 @@
         <span class="kw">match </span><span class="self">self </span>{
             ClauseKind::Trait(pred) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"Trait ({:?})"</span>, ^pred),
             ClauseKind::Projection(pred) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"Projection ({:?})"</span>, ^pred),
+            ClauseKind::RegionOutlives(pred) =&gt; {
+                <span class="macro">w!</span>(cx, f, <span class="string">"Outlives ({:?}, {:?})"</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>)
+            }
             ClauseKind::TypeOutlives(pred) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"Outlives ({:?}, {:?})"</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>),
             ClauseKind::ConstArgHasType(c, ty) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"ConstArgHasType ({:?}, {:?})"</span>, c, ty),
         }

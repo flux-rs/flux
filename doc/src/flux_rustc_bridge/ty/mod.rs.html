@@ -1142,7 +1142,9 @@
 <a href="#1141" id="1141">1141</a>
 <a href="#1142" id="1142">1142</a>
 <a href="#1143" id="1143">1143</a>
-<a href="#1144" id="1144">1144</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
 
@@ -1236,6 +1238,7 @@
 </span><span class="kw">pub enum </span>ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
@@ -1244,6 +1247,7 @@
 </span><span class="kw">pub struct </span>OutlivesPredicate&lt;T&gt;(<span class="kw">pub </span>T, <span class="kw">pub </span>Region);
 
 <span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty&gt;;
+<span class="kw">pub type </span>RegionOutlivesPredicate = OutlivesPredicate&lt;Region&gt;;
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
 </span><span class="kw">pub struct </span>TraitPredicate {

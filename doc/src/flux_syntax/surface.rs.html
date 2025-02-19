@@ -698,7 +698,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Generics {
     <span class="kw">pub </span>params: Vec&lt;GenericParam&gt;,
-    <span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&gt;,
+    <span class="kw">pub </span>predicates: <span class="prelude-ty">Option</span>&lt;Vec&lt;WhereBoundPredicate&gt;&gt;,
     <span class="kw">pub </span>span: Span,
 }
 

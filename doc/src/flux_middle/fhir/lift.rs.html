@@ -506,28 +506,7 @@
 <a href="#505" id="505">505</a>
 <a href="#506" id="506">506</a>
 <a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
+<a href="#508" id="508">508</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
@@ -605,29 +584,8 @@
     <span class="kw">fn </span>lift_generics_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>params =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>generics.params, |param| <span class="self">self</span>.lift_generic_param(param))<span class="question-mark">?</span>;
-        <span class="kw">let </span>predicates = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>generics.predicates, |pred| {
-            <span class="self">self</span>.lift_where_predicate(pred)
-        })<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates })
-    }
-
-    <span class="kw">fn </span>lift_where_predicate(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        pred: <span class="kw-2">&amp;</span>hir::WherePredicate,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::WhereBoundPredicate&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">if let </span>hir::WherePredicate::BoundPredicate(bound) = pred {
-            <span class="kw">if </span>!bound.bound_generic_params.is_empty() {
-                <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">"higher-rank trait bounds are not supported"</span>);
-            }
-            <span class="kw">let </span>bounded_ty = <span class="self">self</span>.lift_ty(bound.bounded_ty)<span class="question-mark">?</span>;
-            <span class="kw">let </span>bounds =
-                <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>bound.bounds, |bound| <span class="self">self</span>.lift_generic_bound(bound))<span class="question-mark">?</span>;
-
-            <span class="prelude-val">Ok</span>(fhir::WhereBoundPredicate { bounded_ty, bounds, span: bound.span })
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"unsupported where predicate: `{pred:?}`"</span>))
-        }
+        <span class="prelude-val">Ok</span>(fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates: <span class="prelude-val">None </span>})
     }
 
     <span class="kw">fn </span>lift_generic_bound(

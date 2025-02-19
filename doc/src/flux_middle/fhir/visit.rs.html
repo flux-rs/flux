@@ -510,7 +510,9 @@
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
     GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
@@ -809,7 +811,9 @@
 
 <span class="kw">pub fn </span>walk_generics&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, generics.refinement_params);
-    <span class="macro">walk_list!</span>(vis, visit_where_predicate, generics.predicates);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = generics.predicates {
+        <span class="macro">walk_list!</span>(vis, visit_where_predicate, predicates);
+    }
 }
 
 <span class="kw">pub fn </span>walk_where_predicate&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate&lt;<span class="lifetime">'v</span>&gt;) {

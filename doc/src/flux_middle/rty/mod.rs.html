@@ -2698,7 +2698,82 @@
 <a href="#2697" id="2697">2697</a>
 <a href="#2698" id="2698">2698</a>
 <a href="#2699" id="2699">2699</a>
-<a href="#2700" id="2700">2700</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2700" id="2700">2700</a>
+<a href="#2701" id="2701">2701</a>
+<a href="#2702" id="2702">2702</a>
+<a href="#2703" id="2703">2703</a>
+<a href="#2704" id="2704">2704</a>
+<a href="#2705" id="2705">2705</a>
+<a href="#2706" id="2706">2706</a>
+<a href="#2707" id="2707">2707</a>
+<a href="#2708" id="2708">2708</a>
+<a href="#2709" id="2709">2709</a>
+<a href="#2710" id="2710">2710</a>
+<a href="#2711" id="2711">2711</a>
+<a href="#2712" id="2712">2712</a>
+<a href="#2713" id="2713">2713</a>
+<a href="#2714" id="2714">2714</a>
+<a href="#2715" id="2715">2715</a>
+<a href="#2716" id="2716">2716</a>
+<a href="#2717" id="2717">2717</a>
+<a href="#2718" id="2718">2718</a>
+<a href="#2719" id="2719">2719</a>
+<a href="#2720" id="2720">2720</a>
+<a href="#2721" id="2721">2721</a>
+<a href="#2722" id="2722">2722</a>
+<a href="#2723" id="2723">2723</a>
+<a href="#2724" id="2724">2724</a>
+<a href="#2725" id="2725">2725</a>
+<a href="#2726" id="2726">2726</a>
+<a href="#2727" id="2727">2727</a>
+<a href="#2728" id="2728">2728</a>
+<a href="#2729" id="2729">2729</a>
+<a href="#2730" id="2730">2730</a>
+<a href="#2731" id="2731">2731</a>
+<a href="#2732" id="2732">2732</a>
+<a href="#2733" id="2733">2733</a>
+<a href="#2734" id="2734">2734</a>
+<a href="#2735" id="2735">2735</a>
+<a href="#2736" id="2736">2736</a>
+<a href="#2737" id="2737">2737</a>
+<a href="#2738" id="2738">2738</a>
+<a href="#2739" id="2739">2739</a>
+<a href="#2740" id="2740">2740</a>
+<a href="#2741" id="2741">2741</a>
+<a href="#2742" id="2742">2742</a>
+<a href="#2743" id="2743">2743</a>
+<a href="#2744" id="2744">2744</a>
+<a href="#2745" id="2745">2745</a>
+<a href="#2746" id="2746">2746</a>
+<a href="#2747" id="2747">2747</a>
+<a href="#2748" id="2748">2748</a>
+<a href="#2749" id="2749">2749</a>
+<a href="#2750" id="2750">2750</a>
+<a href="#2751" id="2751">2751</a>
+<a href="#2752" id="2752">2752</a>
+<a href="#2753" id="2753">2753</a>
+<a href="#2754" id="2754">2754</a>
+<a href="#2755" id="2755">2755</a>
+<a href="#2756" id="2756">2756</a>
+<a href="#2757" id="2757">2757</a>
+<a href="#2758" id="2758">2758</a>
+<a href="#2759" id="2759">2759</a>
+<a href="#2760" id="2760">2760</a>
+<a href="#2761" id="2761">2761</a>
+<a href="#2762" id="2762">2762</a>
+<a href="#2763" id="2763">2763</a>
+<a href="#2764" id="2764">2764</a>
+<a href="#2765" id="2765">2765</a>
+<a href="#2766" id="2766">2766</a>
+<a href="#2767" id="2767">2767</a>
+<a href="#2768" id="2768">2768</a>
+<a href="#2769" id="2769">2769</a>
+<a href="#2770" id="2770">2770</a>
+<a href="#2771" id="2771">2771</a>
+<a href="#2772" id="2772">2772</a>
+<a href="#2773" id="2773">2773</a>
+<a href="#2774" id="2774">2774</a>
+<a href="#2775" id="2775">2775</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2727,7 +2802,7 @@
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">pub use </span>flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    EarlyParamRegion, LateParamRegion,
     Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
     RegionVid,
 };
@@ -2754,6 +2829,7 @@
 <span class="kw">use </span>rustc_span::{sym, symbol::kw, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 <span class="kw">use </span>rustc_target::spec::abi;
+<span class="kw">use </span>rustc_type_ir::Upcast <span class="kw">as _</span>;
 <span class="kw">pub use </span>rustc_type_ir::{TyVid, INNERMOST};
 <span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
 
@@ -3042,6 +3118,14 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Clause {
+    <span class="kw">type </span>T = rustc_middle::ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        <span class="self">self</span>.kind.to_rustc(tcx).upcast(tcx)
+    }
+}
+
 <span class="kw">impl </span>From&lt;Binder&lt;ClauseKind&gt;&gt; <span class="kw">for </span>Clause {
     <span class="kw">fn </span>from(kind: Binder&lt;ClauseKind&gt;) -&gt; <span class="self">Self </span>{
         Clause { kind }
@@ -3056,11 +3140,51 @@
 </span><span class="kw">pub enum </span>ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>ClauseKind {
+    <span class="kw">type </span>T = rustc_middle::ty::ClauseKind&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        <span class="kw">match </span><span class="self">self </span>{
+            ClauseKind::Trait(trait_predicate) =&gt; {
+                rustc_middle::ty::ClauseKind::Trait(trait_predicate.to_rustc(tcx))
+            }
+            ClauseKind::Projection(projection_predicate) =&gt; {
+                rustc_middle::ty::ClauseKind::Projection(projection_predicate.to_rustc(tcx))
+            }
+            ClauseKind::RegionOutlives(outlives_predicate) =&gt; {
+                rustc_middle::ty::ClauseKind::RegionOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::TypeOutlives(outlives_predicate) =&gt; {
+                rustc_middle::ty::ClauseKind::TypeOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::ConstArgHasType(constant, ty) =&gt; {
+                rustc_middle::ty::ClauseKind::ConstArgHasType(
+                    constant.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                )
+            }
+        }
+    }
+}
+
+<span class="attr">#[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>OutlivesPredicate&lt;T&gt;(<span class="kw">pub </span>T, <span class="kw">pub </span>Region);
+
 <span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty&gt;;
+<span class="kw">pub type </span>RegionOutlivesPredicate = OutlivesPredicate&lt;Region&gt;;
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>, V: ToRustc&lt;<span class="lifetime">'tcx</span>&gt;&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>OutlivesPredicate&lt;V&gt; {
+    <span class="kw">type </span>T = rustc_middle::ty::OutlivesPredicate&lt;<span class="lifetime">'tcx</span>, V::T&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        rustc_middle::ty::OutlivesPredicate(<span class="self">self</span>.<span class="number">0</span>.to_rustc(tcx), <span class="self">self</span>.<span class="number">1</span>.to_rustc(tcx))
+    }
+}
 
 <span class="attr">#[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
@@ -3072,6 +3196,17 @@
 <span class="kw">impl </span>TraitPredicate {
     <span class="kw">fn </span>self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SubsetTyCtor {
         <span class="self">self</span>.trait_ref.self_ty()
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>TraitPredicate {
+    <span class="kw">type </span>T = rustc_middle::ty::TraitPredicate&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        rustc_middle::ty::TraitPredicate {
+            polarity: rustc_middle::ty::PredicatePolarity::Positive,
+            trait_ref: <span class="self">self</span>.trait_ref.to_rustc(tcx),
+        }
     }
 }
 
@@ -3214,6 +3349,21 @@
 <span class="kw">impl </span>ProjectionPredicate {
     <span class="kw">pub fn </span>self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SubsetTyCtor {
         <span class="self">self</span>.projection_ty.self_ty().clone()
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; ToRustc&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>ProjectionPredicate {
+    <span class="kw">type </span>T = rustc_middle::ty::ProjectionPredicate&lt;<span class="lifetime">'tcx</span>&gt;;
+
+    <span class="kw">fn </span>to_rustc(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::T {
+        rustc_middle::ty::ProjectionPredicate {
+            projection_term: rustc_middle::ty::AliasTerm::new_from_args(
+                tcx,
+                <span class="self">self</span>.projection_ty.def_id,
+                <span class="self">self</span>.projection_ty.args.to_rustc(tcx),
+            ),
+            term: <span class="self">self</span>.term.as_bty_skipping_binder().to_rustc(tcx).into(),
+        }
     }
 }
 

@@ -1561,7 +1561,11 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1774,7 +1778,11 @@
             |hir_param| <span class="self">self</span>.as_lift_cx().lift_generic_param(hir_param)
         )<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>predicates = <span class="self">self</span>.desugar_generic_predicates(<span class="kw-2">&amp;</span>generics.predicates)<span class="question-mark">?</span>;
+        <span class="kw">let </span>predicates = <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = <span class="kw-2">&amp;</span>generics.predicates {
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.desugar_generic_predicates(predicates)<span class="question-mark">?</span>)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>};
         <span class="prelude-val">Ok</span>(fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates })
     }
 

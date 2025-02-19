@@ -475,7 +475,11 @@
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -852,6 +856,10 @@
                     term,
                 };
                 rty::ClauseKind::Projection(pred)
+            }
+            ty::ClauseKind::RegionOutlives(pred) =&gt; {
+                <span class="kw">let </span>pred = rty::OutlivesPredicate(pred.<span class="number">0</span>, pred.<span class="number">1</span>);
+                rty::ClauseKind::RegionOutlives(pred)
             }
             ty::ClauseKind::TypeOutlives(pred) =&gt; {
                 <span class="kw">let </span>pred = rty::OutlivesPredicate(pred.<span class="number">0</span>.refine(refiner)<span class="question-mark">?</span>, pred.<span class="number">1</span>);

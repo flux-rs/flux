@@ -1565,11 +1565,7 @@
 <a href="#1564" id="1564">1564</a>
 <a href="#1565" id="1565">1565</a>
 <a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1567" id="1567">1567</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1669,7 +1665,7 @@
 </span><span class="kw">pub struct </span>Generics&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>refinement_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
-    <span class="kw">pub </span>predicates: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[WhereBoundPredicate&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>predicates: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[WhereBoundPredicate&lt;<span class="lifetime">'fhir</span>&gt;]&gt;,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -2744,10 +2740,6 @@
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
-    }
-
-    <span class="kw">pub fn </span>trivial() -&gt; <span class="self">Self </span>{
-        Generics { params: <span class="kw-2">&amp;</span>[], refinement_params: <span class="kw-2">&amp;</span>[], predicates: <span class="kw-2">&amp;</span>[] }
     }
 }
 
