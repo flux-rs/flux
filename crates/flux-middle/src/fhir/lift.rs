@@ -488,6 +488,34 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn local_id(&self) -> LocalDefId {
         self.owner.local_id().def_id
     }
+
+    fn lift_fn_sig(&mut self, fn_sig: hir::FnSig) -> Result<fhir::FnSig<'genv>> {
+        let decl = self.lift_fn_decl_inner(fn_sig.span, fn_sig.decl)?;
+        Ok(fhir::FnSig { header: fn_sig.header, qualifiers: &[], decl: self.genv.alloc(decl) })
+    }
+
+    pub fn lift_foreign_item(
+        &mut self,
+        foreign_item: hir::ForeignItem,
+    ) -> Result<fhir::ForeignItem<'genv>> {
+        let kind = match foreign_item.kind {
+            hir::ForeignItemKind::Fn(fnsig, _, _) => {
+                let lifted_fnsig = self.lift_fn_sig(fnsig)?;
+                let fnsig = self.genv.alloc(lifted_fnsig);
+                let lifted_generics = self.lift_generics()?;
+                let generics = self.genv.alloc(lifted_generics);
+                Ok(fhir::ForeignItemKind::Fn(*fnsig, generics))
+            }
+            _ => self.emit_unsupported("Static and type in extern_item are not supported."),
+        }?;
+
+        Ok(fhir::ForeignItem {
+            ident: foreign_item.ident,
+            kind,
+            owner_id: MaybeExternId::Local(foreign_item.owner_id),
+            span: foreign_item.span,
+        })
+    }
 }
 
 pub mod errors {

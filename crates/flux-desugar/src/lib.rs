@@ -217,6 +217,15 @@ pub fn desugar<'genv>(
         rustc_hir::Node::AnonConst(..) => {
             nodes.insert(def_id, fhir::Node::AnonConst);
         }
+        rustc_hir::Node::ForeignItem(foreign) => {
+            let foreign_item = fhir::Node::ForeignItem(
+                genv.alloc(
+                    cx.as_rust_item_ctxt(owner_id, None)
+                        .desugar_foreign_item(*foreign)?,
+                ),
+            );
+            nodes.insert(def_id, foreign_item);
+        }
         node => {
             if let Some(ident) = node.ident() {
                 span_bug!(ident.span, "unsupported node: {node:?}");
