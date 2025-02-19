@@ -298,7 +298,7 @@ struct ExternItemTrait {
     trait_token: Token![trait],
     ident: Ident,
     generics: Generics,
-    supertrait: Option<syn::Ident>,
+    supertrait: Option<syn::Path>,
     brace_token: Brace,
     items: Vec<ExternFn>,
 }
@@ -308,14 +308,18 @@ impl ExternItemTrait {
         let dummy_ident = format_ident!("__FluxExternTrait{}", self.ident);
         let ident = std::mem::replace(&mut self.ident, dummy_ident);
 
+        let ident_span = self.ident.span();
+        let args = GenericArgs(&self.generics);
+        let trait_ = parse_quote_spanned!(ident_span=> #ident #args);
+
         flux_tool_attrs(&mut self.attrs);
 
-        let cx = FnCtxt::Trait { trait_: &ident };
+        let cx = FnCtxt::Trait { trait_: &trait_ };
         for item in &mut self.items {
             item.prepare(&cx, false);
         }
 
-        self.supertrait = Some(ident);
+        self.supertrait = Some(trait_);
     }
 }
 
@@ -326,8 +330,7 @@ impl ToTokens for ExternItemTrait {
         self.ident.to_tokens(tokens);
         self.generics.to_tokens(tokens);
         if let Some(supertrait) = &self.supertrait {
-            let args = GenericArgs(&self.generics);
-            tokens.extend(quote!(: #supertrait #args));
+            tokens.extend(quote!(: #supertrait));
         }
         self.generics.where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
@@ -342,7 +345,7 @@ impl ToTokens for ExternItemTrait {
 enum FnCtxt<'a> {
     TraitImpl { self_ty: &'a syn::Type, trait_: &'a syn::Path },
     InherentImpl { self_ty: &'a syn::Type },
-    Trait { trait_: &'a syn::Ident },
+    Trait { trait_: &'a syn::Path },
     Free,
 }
 
@@ -404,7 +407,7 @@ impl ExternFn {
         let fn_path = match cx {
             FnCtxt::TraitImpl { self_ty, trait_ } => quote!(< #self_ty as #trait_ > :: #ident),
             FnCtxt::InherentImpl { self_ty } => quote!(< #self_ty > :: #ident),
-            FnCtxt::Trait { trait_ } => quote!(#trait_ :: #ident),
+            FnCtxt::Trait { trait_ } => quote!(< Self as #trait_ > :: #ident),
             FnCtxt::Free => quote!(#ident),
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);

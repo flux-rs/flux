@@ -188,7 +188,7 @@ fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<
     let artifacts = Command::new(build_binary("cargo-flux", release)?)
         .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
         .env(FLUX_SYSROOT, sysroot)
-        .env(FLUX_SYSROOT_TEST, "1") // run sysroot tests
+        .env(FLUX_SYSROOT_TEST, "1")
         .run_with_cargo_metadata()?;
 
     copy_artifacts(sh, &artifacts, sysroot)?;
