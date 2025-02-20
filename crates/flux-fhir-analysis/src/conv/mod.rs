@@ -290,13 +290,13 @@ pub(crate) fn conv_adt_sort_def(
         fhir::RefinementKind::Reflected => {
             let enum_def_id = def_id.resolved_id();
             let mut variants = vec![];
-            for variant in genv.tcx().adt_def(enum_def_id).variants().iter() {
+            for variant in genv.tcx().adt_def(enum_def_id).variants() {
                 if let Some(field) = variant.fields.iter().next() {
                     let span = genv.tcx().def_span(field.did);
                     let err = genv
                         .sess()
                         .emit_err(errors::FieldsOnReflectedEnumVariant::new(span));
-                    return Err(err)?;
+                    Err(err)?;
                 }
                 variants.push(rty::AdtSortVariant::new(vec![]));
             }
@@ -1081,13 +1081,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
-            fhir::TyKind::Indexed(bty, idx0) => {
+            fhir::TyKind::Indexed(bty, idx) => {
                 let fhir_id = bty.fhir_id;
                 let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
-                let idx = self.conv_expr(env, idx0)?;
-                // let idx = rty::Expr::zero();
+                let idx = self.conv_expr(env, idx)?;
                 self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }

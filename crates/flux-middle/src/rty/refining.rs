@@ -140,7 +140,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let idx = if adt_def.sort_def().is_reflected() {
             rty::Expr::ctor_enum(adt_def_id, variant_idx)
         } else {
-            rty::Expr::unit_adt(adt_def_id)
+            rty::Expr::unit_struct(adt_def_id)
         };
         let value = rty::VariantSig::new(
             adt_def,

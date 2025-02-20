@@ -1150,7 +1150,7 @@ impl TyCtor {
                     return self.replace_bound_reft(&Expr::unit());
                 }
                 if let Some(def_id) = sort.is_unit_adt() {
-                    return self.replace_bound_reft(&Expr::unit_adt(def_id));
+                    return self.replace_bound_reft(&Expr::unit_struct(def_id));
                 }
             }
             _ => {}
@@ -1275,7 +1275,7 @@ impl Ty {
         let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         let bty = BaseTy::adt(adt_def, args);
-        Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
+        Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
     }
 
     pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
@@ -1849,7 +1849,7 @@ impl SubsetTyCtor {
         if sort.is_unit() {
             self.replace_bound_reft(&Expr::unit()).to_ty()
         } else if let Some(def_id) = sort.is_unit_adt() {
-            self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
+            self.replace_bound_reft(&Expr::unit_struct(def_id)).to_ty()
         } else {
             Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }

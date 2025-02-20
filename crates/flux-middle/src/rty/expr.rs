@@ -201,15 +201,6 @@ impl Expr {
         }
     }
 
-    // #[track_caller]
-    // pub fn expect_adt(&self) -> (DefId, List<Expr>) {
-    //     if let ExprKind::Ctor(def_id, _, flds) = self.kind() {
-    //         (*def_id, flds.clone())
-    //     } else {
-    //         bug!("expected record, found {self:?}")
-    //     }
-    // }
-
     pub fn unit() -> Expr {
         Expr::tuple(List::empty())
     }
@@ -241,10 +232,6 @@ impl Expr {
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
     }
-
-    // CUT pub fn variant(did: DefId) -> Expr {
-    // CUT     ExprKind::Variant(did).intern()
-    // CUT }
 
     pub fn const_def_id(c: DefId, info: ConstantInfo) -> Expr {
         ExprKind::ConstDefId(c, info).intern()
@@ -315,7 +302,7 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn unit_adt(def_id: DefId) -> Expr {
+    pub fn unit_struct(def_id: DefId) -> Expr {
         Expr::ctor_struct(def_id, List::empty())
     }
 
@@ -1455,7 +1442,7 @@ pub(crate) mod pretty {
 
     pub fn aggregate_nested(
         cx: &PrettyCx,
-        ctor: &Ctor, // TODO(RJ):reflect-adt: reflected enums with multiple fields...
+        ctor: &Ctor,
         flds: &[Expr],
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
