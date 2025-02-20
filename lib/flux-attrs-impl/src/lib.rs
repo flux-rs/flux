@@ -3,7 +3,10 @@ mod extern_spec;
 
 use proc_macro2::{Ident, TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
+use syn::{
+    bracketed, parse::ParseStream, parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct,
+    Token,
+};
 
 pub const FLUX_ATTRS: &[&str] = &[
     "assoc",
@@ -143,4 +146,41 @@ pub fn tokens_or_default<T: ToTokens + Default>(x: Option<&T>, tokens: &mut Toke
         Some(t) => t.to_tokens(tokens),
         None => T::default().to_tokens(tokens),
     }
+}
+
+fn parse_inner(input: ParseStream, attrs: &mut Vec<Attribute>) -> syn::Result<()> {
+    while input.peek(Token![#]) && input.peek2(Token![!]) {
+        attrs.push(input.call(single_parse_inner)?);
+    }
+    Ok(())
+}
+
+fn single_parse_inner(input: ParseStream) -> syn::Result<Attribute> {
+    let content;
+    Ok(Attribute {
+        pound_token: input.parse()?,
+        style: syn::AttrStyle::Inner(input.parse()?),
+        bracket_token: bracketed!(content in input),
+        meta: content.parse()?,
+    })
+}
+
+fn outer(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    fn is_outer(attr: &&Attribute) -> bool {
+        match attr.style {
+            syn::AttrStyle::Outer => true,
+            syn::AttrStyle::Inner(_) => false,
+        }
+    }
+    attrs.iter().filter(is_outer)
+}
+
+fn inner(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
+    fn is_inner(attr: &&Attribute) -> bool {
+        match attr.style {
+            syn::AttrStyle::Outer => false,
+            syn::AttrStyle::Inner(_) => true,
+        }
+    }
+    attrs.iter().filter(is_inner)
 }
