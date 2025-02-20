@@ -666,7 +666,16 @@
 <a href="#665" id="665">665</a>
 <a href="#666" id="666">666</a>
 <a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
 <span class="kw">use </span>proc_macro2::{Span, TokenStream};
 <span class="kw">use </span>quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
@@ -681,7 +690,7 @@
     TypePath,
 };
 
-<span class="kw">use crate</span>::{flux_tool_attrs, tokens_or_default};
+<span class="kw">use crate</span>::{flux_tool_attrs, inner, outer, parse_inner, tokens_or_default};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>transform_extern_spec(
     attr: TokenStream,
@@ -890,7 +899,7 @@
 
 <span class="kw">impl </span>Parse <span class="kw">for </span>ExternItem {
     <span class="kw">fn </span>parse(input: ParseStream) -&gt; syn::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
         <span class="kw">let </span>lookahead = input.lookahead1();
         <span class="kw">let </span><span class="kw-2">mut </span>item = <span class="kw">if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">fn</span>]) {
             ExternItem::Fn(input.parse()<span class="question-mark">?</span>)
@@ -906,6 +915,8 @@
         } <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
         };
+
+        attrs.extend(item.replace_attrs(Vec::new()));
         item.replace_attrs(attrs);
         <span class="prelude-val">Ok</span>(item)
     }
@@ -941,7 +952,7 @@
     <span class="kw">fn </span>to_tokens(<span class="kw-2">&amp;</span><span class="self">self</span>, tokens: <span class="kw-2">&amp;mut </span>TokenStream) {
         <span class="kw">let </span>(impl_generics, ty_generics, where_clause) = <span class="self">self</span>.generics.split_for_impl();
 
-        tokens.append_all(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs);
+        tokens.append_all(outer(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs));
 
         <span class="self">self</span>.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
@@ -951,6 +962,7 @@
 
         where_clause.to_tokens(tokens);
         <span class="self">self</span>.brace_token.surround(tokens, |tokens| {
+            tokens.append_all(inner(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs));
             <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.items {
                 item.to_tokens(tokens);
             }
@@ -963,7 +975,7 @@
     trait_token: <span class="macro">Token!</span>[<span class="kw">trait</span>],
     ident: Ident,
     generics: Generics,
-    supertrait: <span class="prelude-ty">Option</span>&lt;syn::Ident&gt;,
+    supertrait: <span class="prelude-ty">Option</span>&lt;syn::Path&gt;,
     brace_token: Brace,
     items: Vec&lt;ExternFn&gt;,
 }
@@ -973,29 +985,33 @@
         <span class="kw">let </span>dummy_ident = <span class="macro">format_ident!</span>(<span class="string">"__FluxExternTrait{}"</span>, <span class="self">self</span>.ident);
         <span class="kw">let </span>ident = std::mem::replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>.ident, dummy_ident);
 
+        <span class="kw">let </span>ident_span = <span class="self">self</span>.ident.span();
+        <span class="kw">let </span>args = GenericArgs(<span class="kw-2">&amp;</span><span class="self">self</span>.generics);
+        <span class="kw">let </span>trait_ = <span class="macro">parse_quote_spanned!</span>(ident_span=&gt; #ident #args);
+
         flux_tool_attrs(<span class="kw-2">&amp;mut </span><span class="self">self</span>.attrs);
 
-        <span class="kw">let </span>cx = FnCtxt::Trait { trait_: <span class="kw-2">&amp;</span>ident };
+        <span class="kw">let </span>cx = FnCtxt::Trait { trait_: <span class="kw-2">&amp;</span>trait_ };
         <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.items {
             item.prepare(<span class="kw-2">&amp;</span>cx, <span class="bool-val">false</span>);
         }
 
-        <span class="self">self</span>.supertrait = <span class="prelude-val">Some</span>(ident);
+        <span class="self">self</span>.supertrait = <span class="prelude-val">Some</span>(trait_);
     }
 }
 
 <span class="kw">impl </span>ToTokens <span class="kw">for </span>ExternItemTrait {
     <span class="kw">fn </span>to_tokens(<span class="kw-2">&amp;</span><span class="self">self</span>, tokens: <span class="kw-2">&amp;mut </span>TokenStream) {
-        tokens.append_all(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs);
+        tokens.append_all(outer(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs));
         <span class="self">self</span>.trait_token.to_tokens(tokens);
         <span class="self">self</span>.ident.to_tokens(tokens);
         <span class="self">self</span>.generics.to_tokens(tokens);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(supertrait) = <span class="kw-2">&amp;</span><span class="self">self</span>.supertrait {
-            <span class="kw">let </span>args = GenericArgs(<span class="kw-2">&amp;</span><span class="self">self</span>.generics);
-            tokens.extend(<span class="macro">quote!</span>(: #supertrait #args));
+            tokens.extend(<span class="macro">quote!</span>(: #supertrait));
         }
         <span class="self">self</span>.generics.where_clause.to_tokens(tokens);
         <span class="self">self</span>.brace_token.surround(tokens, |tokens| {
+            tokens.append_all(inner(<span class="kw-2">&amp;</span><span class="self">self</span>.attrs));
             <span class="kw">for </span>item <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.items {
                 item.to_tokens(tokens);
             }
@@ -1006,7 +1022,7 @@
 <span class="kw">enum </span>FnCtxt&lt;<span class="lifetime">'a</span>&gt; {
     TraitImpl { self_ty: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>syn::Type, trait_: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>syn::Path },
     InherentImpl { self_ty: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>syn::Type },
-    Trait { trait_: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>syn::Ident },
+    Trait { trait_: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>syn::Path },
     Free,
 }
 
@@ -1068,7 +1084,7 @@
         <span class="kw">let </span>fn_path = <span class="kw">match </span>cx {
             FnCtxt::TraitImpl { self_ty, trait_ } =&gt; <span class="macro">quote!</span>(&lt; #self_ty <span class="kw">as </span>#trait_ &gt; :: #ident),
             FnCtxt::InherentImpl { self_ty } =&gt; <span class="macro">quote!</span>(&lt; #self_ty &gt; :: #ident),
-            FnCtxt::Trait { trait_ } =&gt; <span class="macro">quote!</span>(#trait_ :: #ident),
+            FnCtxt::Trait { trait_ } =&gt; <span class="macro">quote!</span>(&lt; <span class="self">Self </span><span class="kw">as </span>#trait_ &gt; :: #ident),
             FnCtxt::Free =&gt; <span class="macro">quote!</span>(#ident),
         };
         <span class="kw">let </span>generic_args = generic_params_to_args(<span class="kw-2">&amp;</span><span class="self">self</span>.sig.generics.params);
@@ -1097,7 +1113,7 @@
 
 <span class="kw">impl </span>Parse <span class="kw">for </span>ExternItemImpl {
     <span class="kw">fn </span>parse(input: ParseStream) -&gt; syn::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
         <span class="kw">let </span>impl_token = input.parse()<span class="question-mark">?</span>;
         <span class="kw">let </span>generics = input.parse()<span class="question-mark">?</span>;
 
@@ -1132,6 +1148,7 @@
 
         <span class="kw">let </span>content;
         <span class="kw">let </span>brace_token = <span class="macro">braced!</span>(content <span class="kw">in </span>input);
+        parse_inner(<span class="kw-2">&amp;</span>content, <span class="kw-2">&amp;mut </span>attrs)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::new();
         <span class="kw">while </span>!content.is_empty() {
             items.push(content.parse()<span class="question-mark">?</span>);
@@ -1158,7 +1175,7 @@
 
 <span class="kw">impl </span>Parse <span class="kw">for </span>ExternItemTrait {
     <span class="kw">fn </span>parse(input: ParseStream) -&gt; syn::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_token = input.parse()<span class="question-mark">?</span>;
         <span class="kw">let </span>ident: Ident = input.parse()<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>generics: syn::Generics = input.parse()<span class="question-mark">?</span>;
@@ -1166,6 +1183,7 @@
 
         <span class="kw">let </span>content;
         <span class="kw">let </span>brace_token = <span class="macro">braced!</span>(content <span class="kw">in </span>input);
+        parse_inner(<span class="kw-2">&amp;</span>content, <span class="kw-2">&amp;mut </span>attrs)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>items = Vec::new();
         <span class="kw">while </span>!content.is_empty() {
             items.push(content.parse()<span class="question-mark">?</span>);

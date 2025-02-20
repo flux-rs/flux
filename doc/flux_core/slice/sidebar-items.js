@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["iter"]};
+window.SIDEBAR_ITEMS = {"mod":["index","iter"]};

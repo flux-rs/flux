@@ -524,8 +524,8 @@
     <span class="kw">let </span>artifacts = Command::new(build_binary(<span class="string">"cargo-flux"</span>, release)<span class="question-mark">?</span>)
         .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
         .env(FLUX_SYSROOT, sysroot)
-        .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>) <span class="comment">// run sysroot tests
-        </span>.run_with_cargo_metadata()<span class="question-mark">?</span>;
+        .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
+        .run_with_cargo_metadata()<span class="question-mark">?</span>;
 
     copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, sysroot)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())

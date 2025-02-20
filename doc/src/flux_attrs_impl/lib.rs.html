@@ -144,12 +144,55 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a></pre></div><pre class="rust"><code><span class="kw">mod </span>ast;
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a></pre></div><pre class="rust"><code><span class="kw">mod </span>ast;
 <span class="kw">mod </span>extern_spec;
 
 <span class="kw">use </span>proc_macro2::{Ident, TokenStream, TokenTree};
 <span class="kw">use </span>quote::{quote, quote_spanned, ToTokens};
-<span class="kw">use </span>syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
+<span class="kw">use </span>syn::{
+    bracketed, parse::ParseStream, parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct,
+    Token,
+};
 
 <span class="kw">pub const </span>FLUX_ATTRS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
     <span class="string">"assoc"</span>,
@@ -289,5 +332,42 @@
         <span class="prelude-val">Some</span>(t) =&gt; t.to_tokens(tokens),
         <span class="prelude-val">None </span>=&gt; T::default().to_tokens(tokens),
     }
+}
+
+<span class="kw">fn </span>parse_inner(input: ParseStream, attrs: <span class="kw-2">&amp;mut </span>Vec&lt;Attribute&gt;) -&gt; syn::Result&lt;()&gt; {
+    <span class="kw">while </span>input.peek(<span class="macro">Token!</span>[#]) &amp;&amp; input.peek2(<span class="macro">Token!</span>[!]) {
+        attrs.push(input.call(single_parse_inner)<span class="question-mark">?</span>);
+    }
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>single_parse_inner(input: ParseStream) -&gt; syn::Result&lt;Attribute&gt; {
+    <span class="kw">let </span>content;
+    <span class="prelude-val">Ok</span>(Attribute {
+        pound_token: input.parse()<span class="question-mark">?</span>,
+        style: syn::AttrStyle::Inner(input.parse()<span class="question-mark">?</span>),
+        bracket_token: <span class="macro">bracketed!</span>(content <span class="kw">in </span>input),
+        meta: content.parse()<span class="question-mark">?</span>,
+    })
+}
+
+<span class="kw">fn </span>outer(attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>Attribute&gt; {
+    <span class="kw">fn </span>is_outer(attr: &amp;&amp;Attribute) -&gt; bool {
+        <span class="kw">match </span>attr.style {
+            syn::AttrStyle::Outer =&gt; <span class="bool-val">true</span>,
+            syn::AttrStyle::Inner(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+        }
+    }
+    attrs.iter().filter(is_outer)
+}
+
+<span class="kw">fn </span>inner(attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>Attribute&gt; {
+    <span class="kw">fn </span>is_inner(attr: &amp;&amp;Attribute) -&gt; bool {
+        <span class="kw">match </span>attr.style {
+            syn::AttrStyle::Outer =&gt; <span class="bool-val">false</span>,
+            syn::AttrStyle::Inner(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+        }
+    }
+    attrs.iter().filter(is_inner)
 }
 </code></pre></div></section></main></body></html>

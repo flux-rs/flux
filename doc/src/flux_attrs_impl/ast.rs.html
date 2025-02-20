@@ -2854,24 +2854,7 @@
 <a href="#2853" id="2853">2853</a>
 <a href="#2854" id="2854">2854</a>
 <a href="#2855" id="2855">2855</a>
-<a href="#2856" id="2856">2856</a>
-<a href="#2857" id="2857">2857</a>
-<a href="#2858" id="2858">2858</a>
-<a href="#2859" id="2859">2859</a>
-<a href="#2860" id="2860">2860</a>
-<a href="#2861" id="2861">2861</a>
-<a href="#2862" id="2862">2862</a>
-<a href="#2863" id="2863">2863</a>
-<a href="#2864" id="2864">2864</a>
-<a href="#2865" id="2865">2865</a>
-<a href="#2866" id="2866">2866</a>
-<a href="#2867" id="2867">2867</a>
-<a href="#2868" id="2868">2868</a>
-<a href="#2869" id="2869">2869</a>
-<a href="#2870" id="2870">2870</a>
-<a href="#2871" id="2871">2871</a>
-<a href="#2872" id="2872">2872</a>
-<a href="#2873" id="2873">2873</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
+<a href="#2856" id="2856">2856</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
 <span class="kw">use </span>proc_macro2::{TokenStream, TokenTree};
 <span class="kw">use </span>quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
@@ -2885,7 +2868,7 @@
     Attribute, Ident, <span class="prelude-ty">Result</span>, Token, Visibility,
 };
 
-<span class="kw">use crate</span>::{flux_tool_attrs, tokens_or_default};
+<span class="kw">use crate</span>::{flux_tool_attrs, parse_inner, tokens_or_default};
 
 <span class="kw">pub struct </span>Items(Vec&lt;Item&gt;);
 
@@ -5577,23 +5560,6 @@
         }
     }
     attrs.iter().filter(is_inner)
-}
-
-<span class="kw">fn </span>parse_inner(input: ParseStream, attrs: <span class="kw-2">&amp;mut </span>Vec&lt;Attribute&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-    <span class="kw">while </span>input.peek(<span class="macro">Token!</span>[#]) &amp;&amp; input.peek2(<span class="macro">Token!</span>[!]) {
-        attrs.push(input.call(single_parse_inner)<span class="question-mark">?</span>);
-    }
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="kw">fn </span>single_parse_inner(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;Attribute&gt; {
-    <span class="kw">let </span>content;
-    <span class="prelude-val">Ok</span>(Attribute {
-        pound_token: input.parse()<span class="question-mark">?</span>,
-        style: syn::AttrStyle::Inner(input.parse()<span class="question-mark">?</span>),
-        bracket_token: <span class="macro">bracketed!</span>(content <span class="kw">in </span>input),
-        meta: content.parse()<span class="question-mark">?</span>,
-    })
 }
 
 <span class="kw">fn </span>peek_signature(input: ParseStream) -&gt; bool {
