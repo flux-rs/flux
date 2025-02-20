@@ -620,9 +620,9 @@ pub enum UnOp {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Ctor {
-    /// for `refined_by` types
+    /// for indices represented as `struct` in the refinement logic (e.g. using `refined_by` annotations)
     Struct(DefId),
-    /// for `reflected` types
+    /// for indices represented as  `enum` in the refinement logic (e.g. using `reflected` annotations)
     Enum(DefId, VariantIdx),
 }
 
