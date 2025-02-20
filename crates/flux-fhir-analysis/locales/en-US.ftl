@@ -238,6 +238,10 @@ fhir_analysis_generics_on_self_alias =
     type alias Self expects no generics but found {$found}
     .label = found generics on type `Self`
 
+fhir_analysis_fields_on_reflected_enum_variant =
+    reflected enum variants cannot have any fields
+    .label = found fields on reflected enum variant
+
 fhir_analysis_generics_on_opaque_sort =
     user defined opaque sorts have no generics but found {$found}
     .label = found generics on user defined opaque sort

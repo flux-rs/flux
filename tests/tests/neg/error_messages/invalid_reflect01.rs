@@ -1,9 +1,7 @@
 #[flux::reflect]
 pub enum State {
     #[flux::variant(State[0])]
-    On, //~ ERROR invalid variant for reflected enum
+    On, //~ ERROR reflected types cannot have refinement annotations
     #[flux::variant(State[1])]
-    Off, //~ ERROR invalid variant for reflected enum
+    Off, //~ ERROR reflected types cannot have refinement annotations
 }
-
-

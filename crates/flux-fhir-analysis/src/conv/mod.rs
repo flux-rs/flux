@@ -290,7 +290,14 @@ pub(crate) fn conv_adt_sort_def(
         fhir::RefinementKind::Reflected => {
             let enum_def_id = def_id.resolved_id();
             let mut variants = vec![];
-            for _ in 0..genv.tcx().adt_def(enum_def_id).variants().len() {
+            for variant in genv.tcx().adt_def(enum_def_id).variants().iter() {
+                if let Some(field) = variant.fields.iter().next() {
+                    let span = genv.tcx().def_span(field.did);
+                    let err = genv
+                        .sess()
+                        .emit_err(errors::FieldsOnReflectedEnumVariant::new(span));
+                    return Err(err)?;
+                }
                 variants.push(rty::AdtSortVariant::new(vec![]));
             }
             Ok(rty::AdtSortDef::new(enum_def_id, vec![], variants, true))
@@ -502,15 +509,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 }
 
-// TODO(RJ):reflect-adt: check if existing API in rustc
 fn variant_idx(tcx: TyCtxt, variant_def_id: DefId) -> rty::VariantIdx {
     let enum_def_id = tcx.parent(variant_def_id);
     tcx.adt_def(enum_def_id)
-        .variants()
-        .iter_enumerated()
-        .find(|(_, variant)| variant.def_id == variant_def_id)
-        .unwrap()
-        .0
+        .variant_index_with_id(variant_def_id)
 }
 
 /// Conversion of definitions
@@ -2561,6 +2563,20 @@ mod errors {
     impl GenericsOnSelf {
         pub(super) fn new(span: Span, found: usize) -> Self {
             Self { span, found }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_fields_on_reflected_enum_variant, code = E0999)]
+    pub(super) struct FieldsOnReflectedEnumVariant {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+
+    impl FieldsOnReflectedEnumVariant {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

@@ -485,11 +485,6 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
-                // Add the enum variants to the rib
-                // self.push_rib(ValueNS, RibKind::Normal);
-
-                // self.pop_rib(ValueNS);
-                // Resolve the refinement-specs for the enum
                 self.resolve_enum_def(def_id).collect_err(&mut self.err);
             }
             ItemKind::Struct(..) => {

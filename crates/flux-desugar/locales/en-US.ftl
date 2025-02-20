@@ -39,7 +39,7 @@ desugar_invalid_variant_ret =
     invalid variant return type
 
 desugar_invalid_reflected_variant =
-    invalid variant for reflected enum
+    reflected types cannot have refinement annotations
 
 desugar_multiple_spreads_in_constructor =
     multiple spreads found in constructor
