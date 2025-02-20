@@ -2,7 +2,7 @@
 
 use std::{hash::Hash, iter};
 
-use fixpoint::ReflData;
+use fixpoint::DeclData;
 use flux_common::{
     bug,
     cache::QueryCache,
@@ -65,25 +65,16 @@ pub mod fixpoint {
         pub struct GlobalVar {}
     }
 
+    /// To represent SMT "declared-datatypes" each with a unique `usize` id.
     #[derive(Hash, Debug, Copy, Clone)]
-    pub struct ReflData(pub usize);
-
-    // Names for reflected Data Constructors
-    // newtype_index! {
-    //     pub struct ReflData { }
-    // }
-
-    // Names for reflected Data Constructors
-    newtype_index! {
-        pub struct ReflCtor { }
-    }
+    pub struct DeclData(pub usize);
 
     #[derive(Hash, Copy, Clone)]
     pub enum Var {
         Underscore,
         Global(GlobalVar),
         Local(LocalVar),
-        Variant(ReflData, usize),
+        Variant(DeclData, usize),
         TupleCtor {
             arity: usize,
         },
@@ -141,10 +132,10 @@ pub mod fixpoint {
     #[derive(Clone, Hash)]
     pub enum DataSort {
         Tuple(usize),
-        ReflectedData(ReflData),
+        ReflectedData(DeclData),
     }
 
-    impl Identifier for ReflData {
+    impl Identifier for DeclData {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "RD_{:?}", self.0)
         }
@@ -297,23 +288,16 @@ impl SortEncodingCtxt {
         self.tuples.insert(arity);
     }
 
-    pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> ReflData {
+    pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> DeclData {
         let did = adt_sort_def.did();
 
         if let Some(refl_data) = self.refl_decls.get_index_of(&did) {
-            ReflData(refl_data)
+            DeclData(refl_data)
         } else {
-            let refl_data = ReflData(self.refl_decls.len());
+            let refl_data = DeclData(self.refl_decls.len());
             self.refl_decls.insert(did);
             refl_data
         }
-        // if let std::collections::hash_map::Entry::Vacant(e) = self.refl_decls.entry(did) {
-        //     let refl_decl = self.refl_data.fresh();
-        //     e.insert(refl_decl);
-        //     self.refl_decls[&did]
-        // } else {
-        //     self.refl_decls[&did]
-        // }
     }
 
     fn refl_data_decls(tcx: TyCtxt, refls: FxIndexSet<DefId>) -> Vec<fixpoint::DataDecl> {
@@ -323,13 +307,13 @@ impl SortEncodingCtxt {
             let ctors = (0..variants)
                 .map(|variant| {
                     fixpoint::DataCtor {
-                        name: fixpoint::Var::Variant(ReflData(refl_data), variant),
+                        name: fixpoint::Var::Variant(DeclData(refl_data), variant),
                         fields: vec![],
                     }
                 })
                 .collect();
             let decl = fixpoint::DataDecl {
-                name: fixpoint::DataSort::ReflectedData(ReflData(refl_data)),
+                name: fixpoint::DataSort::ReflectedData(DeclData(refl_data)),
                 vars: 0,
                 ctors,
             };
@@ -1070,7 +1054,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
-            // rty::ExprKind::Variant(did) => self.variant_to_fixpoint(scx, did),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
