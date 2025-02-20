@@ -722,7 +722,9 @@ impl FieldProj {
     pub fn arity(&self, genv: GlobalEnv) -> QueryResult<usize> {
         match self {
             FieldProj::Tuple { arity, .. } => Ok(*arity),
-            FieldProj::Adt { def_id, .. } => Ok(genv.adt_sort_def_of(*def_id)?.non_enum_fields()),
+            FieldProj::Adt { def_id, .. } => {
+                Ok(genv.adt_sort_def_of(*def_id)?.struct_variant().fields())
+            }
         }
     }
 

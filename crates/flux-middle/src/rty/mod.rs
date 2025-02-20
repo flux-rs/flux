@@ -115,12 +115,6 @@ impl AdtSortVariant {
     }
 }
 
-// #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-// pub enum RefinementKind {
-//     RefinedBy(AdtSortVariant),
-//     Reflected,
-// }
-
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
     /// [`DefId`] of the struct or enum this data sort is associated to.
@@ -157,7 +151,7 @@ impl AdtSortDef {
         self.0.def_id
     }
 
-    pub fn index(&self) -> &AdtSortVariant {
+    pub fn struct_variant(&self) -> &AdtSortVariant {
         tracked_span_assert_eq!(self.0.strukt, true);
         &self.0.variants[0]
     }
@@ -171,27 +165,28 @@ impl AdtSortDef {
     }
 
     pub fn non_enum_fields(&self) -> usize {
-        self.index().sorts.len()
+        self.struct_variant().sorts.len()
     }
 
     pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
-        (0..self.non_enum_fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+        (0..self.struct_variant().fields())
+            .map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
     pub fn field_names(&self) -> &[Symbol] {
-        &self.index().field_names[..]
+        &self.struct_variant().field_names[..]
     }
 
     pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        self.index().sort_by_field_name(args)
+        self.struct_variant().sort_by_field_name(args)
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        self.index().field_by_name(self.did(), args, name)
+        self.struct_variant().field_by_name(self.did(), args, name)
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        self.index().field_sorts(args)
+        self.struct_variant().field_sorts(args)
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
@@ -868,7 +863,6 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            // && !sort_def.is_reflected()
             && sort_def.is_struct()
             && sort_def.non_enum_fields() == 0
         {
