@@ -232,7 +232,7 @@ impl SortEncodingCtxt {
 
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) if !sort_def.is_struct() => {
                 debug_assert!(args.is_empty());
-                let refl_sort = self.declare_refl_decl(sort_def);
+                let refl_sort = self.declare_refl_decl(sort_def.did());
                 fixpoint::Sort::App(
                     fixpoint::SortCtor::Data(fixpoint::DataSort::ReflectedData(refl_sort)),
                     vec![],
@@ -288,9 +288,7 @@ impl SortEncodingCtxt {
         self.tuples.insert(arity);
     }
 
-    pub fn declare_refl_decl(&mut self, adt_sort_def: &rty::AdtSortDef) -> DeclData {
-        let did = adt_sort_def.did();
-
+    pub fn declare_refl_decl(&mut self, did: DefId) -> DeclData {
         if let Some(refl_data) = self.refl_decls.get_index_of(&did) {
             DeclData(refl_data)
         } else {
@@ -1020,10 +1018,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         enum_def_id: &DefId,
         idx: VariantIdx,
     ) -> fixpoint::Expr {
-        let adt_sort_def = self.genv.adt_sort_def_of(enum_def_id).unwrap();
-        let pos = idx.as_usize();
-        let refl_data = scx.declare_refl_decl(&adt_sort_def);
-        let var = fixpoint::Var::Variant(refl_data, pos);
+        let refl_data = scx.declare_refl_decl(*enum_def_id);
+        let var = fixpoint::Var::Variant(refl_data, idx.as_usize());
         fixpoint::Expr::Var(var)
     }
 
