@@ -285,7 +285,9 @@ pub(crate) fn conv_adt_sort_def(
                 .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
                 .try_collect_vec()?;
             let variants = vec![rty::AdtSortVariant::new(fields)];
-            Ok(rty::AdtSortDef::new(def_id.resolved_id(), params, variants, false))
+            let def_id = def_id.resolved_id();
+            let strukt = genv.tcx().def_kind(def_id) == DefKind::Struct;
+            Ok(rty::AdtSortDef::new(def_id, params, variants, false, strukt))
         }
         fhir::RefinementKind::Reflected => {
             let enum_def_id = def_id.resolved_id();
@@ -300,7 +302,7 @@ pub(crate) fn conv_adt_sort_def(
                 }
                 variants.push(rty::AdtSortVariant::new(vec![]));
             }
-            Ok(rty::AdtSortDef::new(enum_def_id, vec![], variants, true))
+            Ok(rty::AdtSortDef::new(enum_def_id, vec![], variants, true, false))
         }
     }
 }

@@ -139,6 +139,7 @@ struct AdtSortDefData {
     /// - a `reflected` sort -- used for `reflected` enums have multiple variants
     variants: Vec<AdtSortVariant>,
     reflected: bool,
+    strukt: bool,
 }
 
 impl AdtSortDef {
@@ -147,8 +148,9 @@ impl AdtSortDef {
         params: Vec<ParamTy>,
         variants: Vec<AdtSortVariant>,
         reflected: bool,
+        strukt: bool,
     ) -> Self {
-        Self(Interned::new(AdtSortDefData { def_id, params, variants, reflected }))
+        Self(Interned::new(AdtSortDefData { def_id, params, variants, reflected, strukt }))
     }
 
     pub fn did(&self) -> DefId {
