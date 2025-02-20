@@ -230,7 +230,7 @@ impl SortEncodingCtxt {
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
 
-            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) if sort_def.is_reflected() => {
+            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) if !sort_def.is_struct() => {
                 debug_assert!(args.is_empty());
                 let refl_sort = self.declare_refl_decl(sort_def);
                 fixpoint::Sort::App(
