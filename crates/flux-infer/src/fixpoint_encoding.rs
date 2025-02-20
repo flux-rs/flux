@@ -1023,8 +1023,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let adt_sort_def = self.genv.adt_sort_def_of(enum_def_id).unwrap();
         let pos = idx.as_usize();
         let refl_data = scx.declare_refl_decl(&adt_sort_def);
-        let data_sort = fixpoint::DataSort::ReflectedData(refl_data);
-        fixpoint::Expr::Variant(data_sort, pos)
+        let var = fixpoint::Var::Variant(refl_data, pos);
+        fixpoint::Expr::Var(var)
     }
 
     fn fields_to_fixpoint(

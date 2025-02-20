@@ -248,7 +248,6 @@ impl BinRel {
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
-    Variant(T::Sort, usize),
     App(Box<Self>, Vec<Self>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
