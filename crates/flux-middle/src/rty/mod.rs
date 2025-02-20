@@ -166,6 +166,10 @@ impl AdtSortDef {
         self.0.reflected
     }
 
+    pub fn is_struct(&self) -> bool {
+        self.0.strukt
+    }
+
     pub fn non_enum_fields(&self) -> usize {
         self.index().sorts.len()
     }
@@ -864,7 +868,8 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && !sort_def.is_reflected()
+            // && !sort_def.is_reflected()
+            && sort_def.is_struct()
             && sort_def.non_enum_fields() == 0
         {
             Some(sort_def.did())
@@ -2423,9 +2428,9 @@ impl AdtDef {
         self.0.opaque
     }
 
-    pub fn is_reflected(&self) -> bool {
-        self.0.sort_def.is_reflected()
-    }
+    // pub fn is_reflected(&self) -> bool {
+    //     self.0.sort_def.is_reflected()
+    // }
 }
 
 impl<T> Opaqueness<T> {

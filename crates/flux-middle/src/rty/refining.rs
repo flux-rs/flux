@@ -137,10 +137,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             })
             .try_collect()?;
 
-        let idx = if adt_def.sort_def().is_reflected() {
-            rty::Expr::ctor_enum(adt_def_id, variant_idx)
-        } else {
+        let idx = if adt_def.sort_def().is_struct() {
             rty::Expr::unit_struct(adt_def_id)
+        } else {
+            rty::Expr::ctor_enum(adt_def_id, variant_idx)
         };
         let value = rty::VariantSig::new(
             adt_def,
