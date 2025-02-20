@@ -410,13 +410,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
             let variants = vec![rty::AdtSortVariant::new(vec![])];
-            let strukt = genv.tcx().def_kind(def_id) == DefKind::Struct;
             dispatch_query(
                 genv,
                 def_id,
                 |def_id| (self.providers.adt_sort_def_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().adt_sort_def(def_id),
-                |def_id| Ok(rty::AdtSortDef::new(def_id, vec![], variants, false, strukt)),
+                |def_id| Ok(rty::AdtSortDef::new(def_id, vec![], variants, false, true)),
             )
         })
     }

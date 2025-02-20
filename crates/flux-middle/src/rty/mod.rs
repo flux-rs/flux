@@ -158,8 +158,7 @@ impl AdtSortDef {
     }
 
     pub fn index(&self) -> &AdtSortVariant {
-        tracked_span_assert_eq!(self.0.variants.len(), 1);
-        tracked_span_assert_eq!(self.0.reflected, false);
+        tracked_span_assert_eq!(self.0.strukt, true);
         &self.0.variants[0]
     }
 

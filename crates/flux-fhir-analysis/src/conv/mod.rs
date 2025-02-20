@@ -286,8 +286,7 @@ pub(crate) fn conv_adt_sort_def(
                 .try_collect_vec()?;
             let variants = vec![rty::AdtSortVariant::new(fields)];
             let def_id = def_id.resolved_id();
-            let strukt = genv.tcx().def_kind(def_id) == DefKind::Struct;
-            Ok(rty::AdtSortDef::new(def_id, params, variants, false, strukt))
+            Ok(rty::AdtSortDef::new(def_id, params, variants, false, true))
         }
         fhir::RefinementKind::Reflected => {
             let enum_def_id = def_id.resolved_id();
