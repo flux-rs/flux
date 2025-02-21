@@ -50,8 +50,7 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(flux)]
+<a href="#52" id="52">52</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(flux)]
 </span><span class="kw">use </span>core::ops;
 
 <span class="kw">use </span>flux_attrs::<span class="kw-2">*</span>;
@@ -90,18 +89,17 @@
 <span class="attr">#[cfg(flux_sysroot_test)]
 </span><span class="kw">mod </span>tests {
     <span class="attr">#![allow(dead_code)]
-    </span><span class="kw">use </span>core::ops::Index;
 
-    <span class="kw">use </span>flux_attrs::<span class="kw-2">*</span>;
+    </span><span class="kw">use </span>flux_attrs::<span class="kw-2">*</span>;
 
     <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span>[i32]</span>{n: n &gt; <span class="number">10</span>}))]
     <span class="kw">fn </span>test00(xs: <span class="kw-2">&amp;</span>[i32]) {
-        <span class="kw">let </span>y = <span class="kw-2">&amp;</span>xs[<span class="number">0</span>..<span class="number">1</span>];
+        <span class="kw">let </span>_y = <span class="kw-2">&amp;</span>xs[<span class="number">0</span>..<span class="number">1</span>];
     }
 
     <span class="attr">#[should_fail]
     </span><span class="kw">fn </span>test01(xs: <span class="kw-2">&amp;</span>[i32]) {
-        <span class="kw">let </span>y = <span class="kw-2">&amp;</span>xs[<span class="number">0</span>..<span class="number">1</span>];
+        <span class="kw">let </span>_y = <span class="kw-2">&amp;</span>xs[<span class="number">0</span>..<span class="number">1</span>];
     }
 }
 </code></pre></div></section></main></body></html>

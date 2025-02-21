@@ -1026,9 +1026,7 @@
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1343,9 +1341,7 @@
             }
         }
 
-        <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.try_fold_with(<span class="kw-2">&amp;mut </span>Folder(f))<span class="question-mark">?
-            </span>.normalize(<span class="kw-2">&amp;</span>Default::default()))
+        <span class="self">self</span>.try_fold_with(<span class="kw-2">&amp;mut </span>Folder(f))
     }
 
     <span class="kw">fn </span>shift_in_escaping(<span class="kw-2">&amp;</span><span class="self">self</span>, amount: u32) -&gt; <span class="self">Self </span>{
