@@ -749,6 +749,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _, _)
             | BaseTy::Never
             | BaseTy::Infer(_)
+            | BaseTy::Foreign(_)
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
     }
@@ -765,6 +766,7 @@ impl TypeSuperFoldable for BaseTy {
         let bty = match self {
             BaseTy::Adt(adt_def, args) => BaseTy::adt(adt_def.clone(), args.try_fold_with(folder)?),
             BaseTy::FnDef(def_id, args) => BaseTy::fn_def(*def_id, args.try_fold_with(folder)?),
+            BaseTy::Foreign(def_id) => BaseTy::Foreign(*def_id),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),
             BaseTy::Ref(re, ty, mutbl) => {

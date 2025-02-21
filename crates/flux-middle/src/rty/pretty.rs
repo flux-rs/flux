@@ -440,6 +440,9 @@ impl Pretty for BaseTy {
             BaseTy::Infer(ty_vid) => {
                 w!(cx, f, "{ty_vid:?}")
             }
+            BaseTy::Foreign(def_id) => {
+                w!(cx, f, "{def_id:?}")
+            }
         }
     }
 }
@@ -619,7 +622,8 @@ impl PrettyNested for BaseTy {
             | BaseTy::Closure(..)
             | BaseTy::Coroutine(..)
             | BaseTy::Dynamic(..)
-            | BaseTy::Infer(..) => {
+            | BaseTy::Infer(..)
+            | BaseTy::Foreign(..) => {
                 let text = format_cx!(cx, "{:?}", self);
                 Ok(NestedString { text, children: None, key: None })
             }
