@@ -69,7 +69,8 @@ pub fn provide(providers: &mut Providers) {
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtSortDef> {
     let def_id = genv.maybe_extern_id(def_id);
-    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id.local_id())?)
+    let kind = genv.map().refinement_kind(def_id.local_id())?;
+    conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
 fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {

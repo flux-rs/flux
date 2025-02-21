@@ -38,7 +38,10 @@ desugar_unresolved_generic_param =
 desugar_invalid_variant_ret =
     invalid variant return type
 
-desugar_multiple_spreads_in_constructor = 
+desugar_invalid_reflected_variant =
+    reflected types cannot have refinement annotations
+
+desugar_multiple_spreads_in_constructor =
     multiple spreads found in constructor
     .help = previous spread found here. consider removing it
 

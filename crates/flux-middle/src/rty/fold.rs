@@ -866,7 +866,8 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
-            ExprKind::Aggregate(_, flds) => flds.visit_with(visitor),
+            ExprKind::Tuple(flds) => flds.visit_with(visitor),
+            ExprKind::Ctor(_, flds) => flds.visit_with(visitor),
             ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
                 e.visit_with(visitor)
             }
@@ -918,10 +919,17 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj),
-            ExprKind::Aggregate(kind, flds) => {
+
+            ExprKind::Tuple(flds) => {
                 let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                Expr::aggregate(*kind, flds)
+                Expr::tuple(flds)
             }
+
+            ExprKind::Ctor(ctor, flds) => {
+                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
+                Expr::ctor(*ctor, flds)
+            }
+
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
                 Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)

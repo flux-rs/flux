@@ -127,8 +127,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         variant_idx: VariantIdx,
     ) -> QueryResult<rty::PolyVariant> {
         let adt_def = self.adt_def(adt_def_id)?;
-        let fields = adt_def
-            .variant(variant_idx)
+        let variant_def = adt_def.variant(variant_idx);
+        let fields = variant_def
             .fields
             .iter()
             .map(|fld| {
@@ -136,12 +136,19 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 ty.refine(self)
             })
             .try_collect()?;
+
+        let idx = if adt_def.sort_def().is_struct() {
+            rty::Expr::unit_struct(adt_def_id)
+        } else {
+            rty::Expr::ctor_enum(adt_def_id, variant_idx)
+        };
         let value = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
             fields,
-            rty::Expr::unit_adt(adt_def_id),
+            idx,
         );
+
         Ok(rty::Binder::bind_with_vars(value, List::empty()))
     }
 

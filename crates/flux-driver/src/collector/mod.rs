@@ -272,6 +272,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     ) -> Result<&mut surface::EnumDef> {
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
+        let reflected = attrs.reflected();
+
+        if refined_by.is_some() && reflected {
+            let span = self.tcx.def_span(owner_id.to_def_id());
+            return Err(self
+                .errors
+                .emit(errors::ReflectedEnumWithRefinedBy::new(span)));
+        }
 
         let variants = enum_def
             .variants
@@ -291,6 +299,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 refined_by,
                 variants,
                 invariants,
+                reflected,
                 node_id: self.parse_sess.next_node_id(),
             }))
     }
@@ -470,6 +479,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 )
             }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
+            ("reflect", AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             _ => return Err(invalid_attr_err(self)),
@@ -583,6 +593,7 @@ enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
     Opaque,
+    Reflect,
     FnSig(surface::FnSig),
     TraitAssocReft(Vec<surface::TraitAssocReft>),
     ImplAssocReft(Vec<surface::ImplAssocReft>),
@@ -664,6 +675,10 @@ impl FluxAttrs {
         read_flag!(self, Opaque)
     }
 
+    fn reflected(&self) -> bool {
+        read_flag!(self, Reflect)
+    }
+
     fn items(&mut self) -> Vec<surface::Item> {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }
@@ -737,6 +752,7 @@ impl FluxAttrKind {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
             FluxAttrKind::Opaque => attr_name!(Opaque),
+            FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),
             FluxAttrKind::ImplAssocReft(_) => attr_name!(ImplAssocReft),
@@ -916,6 +932,19 @@ mod errors {
         pub(super) fn new(span: Span, field: &rustc_hir::FieldDef) -> Self {
             let field_span = field.ident.span;
             Self { span, field_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
+    pub(super) struct ReflectedEnumWithRefinedBy {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+    impl ReflectedEnumWithRefinedBy {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 

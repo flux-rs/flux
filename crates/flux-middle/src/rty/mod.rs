@@ -18,7 +18,7 @@ use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
 
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EVid, EarlyReftParam, Expr,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 pub use flux_arc_interner::List;
@@ -72,6 +72,54 @@ use crate::{
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct AdtSortVariant {
+    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
+    field_names: Vec<Symbol>,
+    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
+    sorts: List<Sort>,
+}
+
+impl AdtSortVariant {
+    pub fn new(fields: Vec<(Symbol, Sort)>) -> Self {
+        let (field_names, sorts) = fields.into_iter().unzip();
+        AdtSortVariant { field_names, sorts: List::from_vec(sorts) }
+    }
+
+    pub fn fields(&self) -> usize {
+        self.sorts.len()
+    }
+
+    pub fn field_names(&self) -> &Vec<Symbol> {
+        &self.field_names
+    }
+
+    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
+        std::iter::zip(&self.field_names, &self.sorts.fold_with(&mut SortSubst::new(args)))
+            .map(|(name, sort)| (*name, sort.clone()))
+            .collect()
+    }
+
+    pub fn field_by_name(
+        &self,
+        def_id: DefId,
+        args: &[Sort],
+        name: Symbol,
+    ) -> Option<(FieldProj, Sort)> {
+        let idx = self.field_names.iter().position(|it| name == *it)?;
+        let proj = FieldProj::Adt { def_id, field: idx as u32 };
+        let sort = self.sorts[idx].fold_with(&mut SortSubst::new(args));
+        Some((proj, sort))
+    }
+
+    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
+        self.sorts.fold_with(&mut SortSubst::new(args))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
     /// [`DefId`] of the struct or enum this data sort is associated to.
     def_id: DefId,
@@ -82,57 +130,67 @@ struct AdtSortDefData {
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
-    /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
-    field_names: Vec<Symbol>,
-    /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
-    /// to access these sorts guarantee they are properly instantiated.
-    ///
-    /// [sort variables]: Sort::Var
-    sorts: List<Sort>,
+    // The `index` is *either* the user defined indices or the "reflected" ADT
+    // kind: RefinementKind,
+    /// A vec of variants of the ADT;
+    /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
+    /// - a `reflected` sort -- used for `reflected` enums have multiple variants
+    variants: Vec<AdtSortVariant>,
+    is_reflected: bool,
+    is_struct: bool,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<ParamTy>, fields: Vec<(Symbol, Sort)>) -> Self {
-        let (field_names, sorts) = fields.into_iter().unzip();
-        Self(Interned::new(AdtSortDefData {
-            def_id,
-            params,
-            field_names,
-            sorts: List::from_vec(sorts),
-        }))
+    pub fn new(
+        def_id: DefId,
+        params: Vec<ParamTy>,
+        variants: Vec<AdtSortVariant>,
+        is_reflected: bool,
+        is_struct: bool,
+    ) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, variants, is_reflected, is_struct }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.def_id
     }
 
-    pub fn fields(&self) -> usize {
-        self.0.sorts.len()
+    pub fn struct_variant(&self) -> &AdtSortVariant {
+        tracked_span_assert_eq!(self.0.is_struct, true);
+        &self.0.variants[0]
+    }
+
+    pub fn is_reflected(&self) -> bool {
+        self.0.is_reflected
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.0.is_struct
+    }
+
+    pub fn non_enum_fields(&self) -> usize {
+        self.struct_variant().sorts.len()
     }
 
     pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
-        (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+        (0..self.struct_variant().fields())
+            .map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_names(&self) -> &Vec<Symbol> {
-        &self.0.field_names
+    pub fn field_names(&self) -> &[Symbol] {
+        &self.struct_variant().field_names[..]
     }
 
     pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
-            .map(|(name, sort)| (*name, sort.clone()))
-            .collect()
+        self.struct_variant().sort_by_field_name(args)
     }
 
     pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        let idx = self.0.field_names.iter().position(|it| name == *it)?;
-        let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
-        let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
-        Some((proj, sort))
+        self.struct_variant().field_by_name(self.did(), args, name)
     }
 
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        self.0.sorts.fold_with(&mut SortSubst::new(args))
+        self.struct_variant().field_sorts(args)
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
@@ -909,7 +967,8 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && sort_def.fields() == 0
+            && sort_def.is_struct()
+            && sort_def.non_enum_fields() == 0
         {
             Some(sort_def.did())
         } else {
@@ -1187,13 +1246,15 @@ pub type TyCtor = Binder<Ty>;
 impl TyCtor {
     pub fn to_ty(&self) -> Ty {
         match &self.vars()[..] {
-            [] => return self.skip_binder_ref().shift_out_escaping(1),
+            [] => {
+                return self.skip_binder_ref().shift_out_escaping(1);
+            }
             [BoundVariableKind::Refine(sort, ..)] => {
                 if sort.is_unit() {
                     return self.replace_bound_reft(&Expr::unit());
                 }
                 if let Some(def_id) = sort.is_unit_adt() {
-                    return self.replace_bound_reft(&Expr::unit_adt(def_id));
+                    return self.replace_bound_reft(&Expr::unit_struct(def_id));
                 }
             }
             _ => {}
@@ -1318,7 +1379,7 @@ impl Ty {
         let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         let bty = BaseTy::adt(adt_def, args);
-        Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
+        Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
     }
 
     pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
@@ -1892,7 +1953,7 @@ impl SubsetTyCtor {
         if sort.is_unit() {
             self.replace_bound_reft(&Expr::unit()).to_ty()
         } else if let Some(def_id) = sort.is_unit_adt() {
-            self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
+            self.replace_bound_reft(&Expr::unit_struct(def_id)).to_ty()
         } else {
             Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }
@@ -2350,7 +2411,8 @@ impl VariantSig {
 
     pub fn ret(&self) -> Ty {
         let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
-        Ty::indexed(bty, self.idx.clone())
+        let idx = self.idx.clone();
+        Ty::indexed(bty, idx)
     }
 }
 
@@ -2463,6 +2525,10 @@ impl AdtDef {
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
     }
+
+    // pub fn is_reflected(&self) -> bool {
+    //     self.0.sort_def.is_reflected()
+    // }
 }
 
 impl<T> Opaqueness<T> {

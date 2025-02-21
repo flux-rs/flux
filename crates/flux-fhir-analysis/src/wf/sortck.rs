@@ -300,6 +300,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     span_bug!(path.span, "unexpected const in var position")
                 }
             }
+            ExprRes::Variant(def_id) => {
+                let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? else {
+                    span_bug!(path.span, "unexpected variant {def_id:?} in var position")
+                };
+                Ok(sort)
+            }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
             ExprRes::GlobalFunc(_, _) => {

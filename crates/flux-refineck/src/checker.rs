@@ -715,11 +715,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .at(span)
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
-
                 let output = self
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-
                 let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;

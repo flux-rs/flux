@@ -152,7 +152,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                         if sort.is_unit() {
                             ty_ctor.replace_bound_reft(&Expr::unit())
                         } else if let Some(def_id) = sort.is_unit_adt() {
-                            ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id))
+                            ty_ctor.replace_bound_reft(&Expr::unit_struct(def_id))
                         } else {
                             self.delegate.hoist_exists(ty_ctor)
                         }

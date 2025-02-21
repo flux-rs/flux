@@ -43,6 +43,10 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     resolver.into_output()
 }
 
+pub(crate) struct EnumVariants {
+    variants: FxHashMap<Symbol, DefId>,
+}
+
 pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
@@ -54,6 +58,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     prelude: PerNS<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    enum_variants: FxHashMap<DefId, EnumVariants>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
@@ -76,6 +81,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
@@ -144,7 +150,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(..) => DefKind::Enum,
+                ItemKind::Enum(enum_def, _) => {
+                    self.define_enum_variants(&enum_def);
+                    DefKind::Enum
+                }
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
@@ -159,6 +168,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 );
             }
         }
+    }
+
+    fn define_enum_variants(&mut self, enum_def: &rustc_hir::EnumDef) {
+        let Some(v0) = enum_def.variants.first() else { return };
+        let enum_def_id = self.genv.tcx().parent(v0.def_id.to_def_id());
+
+        let mut variants = FxHashMap::default();
+        for variant in enum_def.variants {
+            let name = variant.ident.name;
+            variants.insert(name, variant.def_id.to_def_id());
+        }
+        self.enum_variants
+            .insert(enum_def_id, EnumVariants { variants });
     }
 
     fn define_res_in(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {
@@ -275,7 +297,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
         let mut module: Option<Module> = None;
-
         for (segment_idx, segment) in segments.iter().enumerate() {
             let is_last = segment_idx + 1 == segments.len();
             let ns = if is_last { ns } else { TypeNS };
@@ -457,7 +478,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.define_generics(def_id);
                 self.resolve_type_alias(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Enum(..) => {
+            ItemKind::Enum(_enum_def, ..) => {
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,

@@ -328,8 +328,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         };
 
         let params = self.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(&[]));
+        let refinement = fhir::RefinementKind::Refined(refined_by);
         let struct_def =
-            fhir::StructDef { refined_by: self.genv.alloc(refined_by), params, kind, invariants };
+            fhir::StructDef { refinement: self.genv.alloc(refinement), params, kind, invariants };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", struct_def)
@@ -347,16 +348,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
+        let reflected = enum_def.reflected;
         let variants = try_alloc_slice!(
             self.genv,
             iter::zip(&enum_def.variants, hir_enum.variants),
-            |(variant, hir_variant)| self.desugar_enum_variant_def(variant, hir_variant)
+            |(variant, hir_variant)| self.desugar_enum_variant_def(reflected, variant, hir_variant)
         )?;
 
-        let refined_by = if let Some(refined_by) = &enum_def.refined_by {
-            self.desugar_refined_by(refined_by)?
+        let kind = if enum_def.reflected {
+            fhir::RefinementKind::Reflected
+        } else if let Some(refined_by) = &enum_def.refined_by {
+            fhir::RefinementKind::Refined(self.desugar_refined_by(refined_by)?)
         } else {
-            self.as_lift_cx().lift_refined_by()
+            fhir::RefinementKind::Refined(self.as_lift_cx().lift_refined_by())
         };
 
         let generics = self.desugar_opt_generics(enum_def.generics.as_ref())?;
@@ -367,7 +371,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let params = self.desugar_refine_params(enum_def.refined_by.as_deref().unwrap_or(&[]));
         let enum_def =
-            fhir::EnumDef { refined_by: self.genv.alloc(refined_by), params, variants, invariants };
+            fhir::EnumDef { refinement: self.genv.alloc(kind), params, variants, invariants };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &enum_def).unwrap();
@@ -378,10 +382,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_enum_variant_def(
         &mut self,
+        reflected: bool,
         variant_def: &Option<surface::VariantDef>,
         hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef<'genv>> {
         if let Some(variant_def) = variant_def {
+            if reflected {
+                return Err(self.emit_err(errors::InvalidReflectedVariant::new(hir_variant.span)));
+            }
             let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
                 Ok(fhir::FieldDef { ty: self.desugar_ty(ty)?, lifted: false })
             })?;

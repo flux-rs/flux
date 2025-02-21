@@ -514,6 +514,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         None
     }
 
+    fn try_resolve_enum_variant(&mut self, typ: Ident, variant: Ident) -> Option<ExprRes<NodeId>> {
+        if let fhir::Res::Def(_, enum_def_id) =
+            self.resolver.resolve_ident_with_ribs(typ, TypeNS)?
+        {
+            let enum_variants = self.resolver.enum_variants.get(&enum_def_id)?;
+            let variant_def_id = enum_variants.variants.get(&variant.name)?;
+            return Some(ExprRes::Variant(*variant_def_id));
+        }
+        None
+    }
+
     fn resolve_path(&mut self, path: &surface::ExprPath) {
         if let [segment] = &path.segments[..]
             && let Some(res) = self.try_resolve_param(segment.ident)
@@ -532,12 +543,19 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
+        if let [typ, name] = &path.segments[..]
+            && let Some(res) = self.try_resolve_enum_variant(typ.ident, name.ident)
+        {
+            self.path_res_map.insert(path.node_id, res);
+            return;
+        }
         if let [segment] = &path.segments[..]
             && let Some(res) = self.try_resolve_global_func(segment.ident)
         {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
+
         self.errors.emit(errors::UnresolvedVar::from_path(path));
     }
 
@@ -561,7 +579,9 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<ExprRes<NodeId>> {
-        let res = match self.resolver.resolve_path_with_ribs(segments, ValueNS) {
+        let path = self.resolver.resolve_path_with_ribs(segments, ValueNS);
+
+        let res = match path {
             Some(r) => r.full_res()?,
             _ => {
                 self.resolver
@@ -573,6 +593,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Ctor(def_id)),
+            fhir::Res::Def(DefKind::Variant, def_id) => Some(ExprRes::Variant(def_id)),
             _ => None,
         }
     }

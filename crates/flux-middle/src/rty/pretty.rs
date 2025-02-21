@@ -230,10 +230,8 @@ impl PrettyNested for IdxFmt {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
         let kind = self.0.kind();
         match kind {
-            ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
-                aggregate_nested(cx, *def_id, flds, false)
-            }
-            ExprKind::Aggregate(AggregateKind::Tuple(0), _) => {
+            ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, false),
+            ExprKind::Tuple(flds) if flds.len() == 0 => {
                 Ok(NestedString { text: String::new(), key: None, children: None })
             }
             _ => self.0.fmt_nested(cx),
@@ -244,9 +242,9 @@ impl PrettyNested for IdxFmt {
 impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let e = if cx.simplify_exprs { self.0.simplify() } else { self.0.clone() };
-        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
+        if let ExprKind::Ctor(ctor, flds) = e.kind()
             && let Some(genv) = cx.genv()
-            && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
+            && let Ok(adt_sort_def) = genv.adt_sort_def_of(ctor.def_id())
         {
             let field_binds = iter::zip(adt_sort_def.field_names(), flds)
                 .map(|(name, value)| FieldBind { name: *name, value: value.clone() });

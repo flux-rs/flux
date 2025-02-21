@@ -115,6 +115,7 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
+    pub reflected: bool,
 }
 
 impl EnumDef {
