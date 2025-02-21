@@ -290,7 +290,7 @@ pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignIte
     match &impl_item.kind {
         ForeignItemKind::Fn(fn_sig, generics) => {
             vis.visit_generics(generics);
-            vis.visit_fn_sig(fn_sig)
+            vis.visit_fn_sig(fn_sig);
         }
     }
 }

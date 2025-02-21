@@ -313,9 +313,7 @@ pub trait TypeFoldable: TypeVisitable {
             }
         }
 
-        Ok(self
-            .try_fold_with(&mut Folder(f))?
-            .normalize(&Default::default()))
+        self.try_fold_with(&mut Folder(f))
     }
 
     fn shift_in_escaping(&self, amount: u32) -> Self {

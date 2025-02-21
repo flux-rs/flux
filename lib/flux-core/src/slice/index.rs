@@ -37,17 +37,16 @@ impl<T> SliceIndex<[T]> for ops::Range<usize> {
 #[cfg(flux_sysroot_test)]
 mod tests {
     #![allow(dead_code)]
-    use core::ops::Index;
 
     use flux_attrs::*;
 
     #[sig(fn(&[i32]{n: n > 10}))]
     fn test00(xs: &[i32]) {
-        let y = &xs[0..1];
+        let _y = &xs[0..1];
     }
 
     #[should_fail]
     fn test01(xs: &[i32]) {
-        let y = &xs[0..1];
+        let _y = &xs[0..1];
     }
 }

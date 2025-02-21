@@ -728,7 +728,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })?
                     .refine(&refiner)?
             };
-            clauses.push(clause)
+            clauses.push(clause);
         }
 
         Ok(rty::GenericPredicates {

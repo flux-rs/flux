@@ -269,7 +269,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                 match impl_item.kind {
                     fhir::ForeignItemKind::Fn(fn_sig, generics) => {
                         cx.conv_fn_sig(def_id, &fn_sig)?;
-                        cx.conv_generic_predicates(def_id, &generics)?;
+                        cx.conv_generic_predicates(def_id, generics)?;
                     }
                 }
             }
