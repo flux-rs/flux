@@ -482,11 +482,7 @@
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#484" id="484">484</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -506,11 +502,7 @@
     query_bug, rty,
 };
 
-<span class="kw">pub fn </span>refine_generics(
-    genv: GlobalEnv,
-    def_id: DefId,
-    generics: <span class="kw-2">&amp;</span>ty::Generics,
-) -&gt; QueryResult&lt;rty::Generics&gt; {
+<span class="kw">pub fn </span>refine_generics(genv: GlobalEnv, def_id: DefId, generics: <span class="kw-2">&amp;</span>ty::Generics) -&gt; rty::Generics {
     <span class="kw">let </span>is_box = <span class="kw">if let </span>DefKind::Struct = genv.def_kind(def_id) {
         genv.tcx().adt_def(def_id).is_box()
     } <span class="kw">else </span>{
@@ -529,12 +521,12 @@
         })
         .collect();
 
-    <span class="prelude-val">Ok</span>(rty::Generics {
+    rty::Generics {
         own_params: params,
         parent: generics.parent(),
         parent_count: generics.parent_count(),
         has_self: generics.orig.has_self,
-    })
+    }
 }
 
 <span class="kw">pub fn </span>refine_generic_param_def_kind(
