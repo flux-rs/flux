@@ -2773,7 +2773,73 @@
 <a href="#2772" id="2772">2772</a>
 <a href="#2773" id="2773">2773</a>
 <a href="#2774" id="2774">2774</a>
-<a href="#2775" id="2775">2775</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2775" id="2775">2775</a>
+<a href="#2776" id="2776">2776</a>
+<a href="#2777" id="2777">2777</a>
+<a href="#2778" id="2778">2778</a>
+<a href="#2779" id="2779">2779</a>
+<a href="#2780" id="2780">2780</a>
+<a href="#2781" id="2781">2781</a>
+<a href="#2782" id="2782">2782</a>
+<a href="#2783" id="2783">2783</a>
+<a href="#2784" id="2784">2784</a>
+<a href="#2785" id="2785">2785</a>
+<a href="#2786" id="2786">2786</a>
+<a href="#2787" id="2787">2787</a>
+<a href="#2788" id="2788">2788</a>
+<a href="#2789" id="2789">2789</a>
+<a href="#2790" id="2790">2790</a>
+<a href="#2791" id="2791">2791</a>
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a>
+<a href="#2802" id="2802">2802</a>
+<a href="#2803" id="2803">2803</a>
+<a href="#2804" id="2804">2804</a>
+<a href="#2805" id="2805">2805</a>
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a>
+<a href="#2808" id="2808">2808</a>
+<a href="#2809" id="2809">2809</a>
+<a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
+<a href="#2828" id="2828">2828</a>
+<a href="#2829" id="2829">2829</a>
+<a href="#2830" id="2830">2830</a>
+<a href="#2831" id="2831">2831</a>
+<a href="#2832" id="2832">2832</a>
+<a href="#2833" id="2833">2833</a>
+<a href="#2834" id="2834">2834</a>
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2793,7 +2859,7 @@
 
 <span class="kw">pub use </span>binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 <span class="kw">pub use </span>expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EVid, EarlyReftParam, Expr,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 <span class="kw">pub use </span>flux_arc_interner::List;
@@ -2847,6 +2913,54 @@
 </span><span class="kw">pub struct </span>AdtSortDef(Interned&lt;AdtSortDefData&gt;);
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>AdtSortVariant {
+    <span class="doccomment">/// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
+    </span>field_names: Vec&lt;Symbol&gt;,
+    <span class="doccomment">/// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
+    /// to access these sorts guarantee they are properly instantiated.
+    ///
+    /// [sort variables]: Sort::Var
+    </span>sorts: List&lt;Sort&gt;,
+}
+
+<span class="kw">impl </span>AdtSortVariant {
+    <span class="kw">pub fn </span>new(fields: Vec&lt;(Symbol, Sort)&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(field_names, sorts) = fields.into_iter().unzip();
+        AdtSortVariant { field_names, sorts: List::from_vec(sorts) }
+    }
+
+    <span class="kw">pub fn </span>fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.sorts.len()
+    }
+
+    <span class="kw">pub fn </span>field_names(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;Symbol&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.field_names
+    }
+
+    <span class="kw">pub fn </span>sort_by_field_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FxIndexMap&lt;Symbol, Sort&gt; {
+        std::iter::zip(<span class="kw-2">&amp;</span><span class="self">self</span>.field_names, <span class="kw-2">&amp;</span><span class="self">self</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args)))
+            .map(|(name, sort)| (<span class="kw-2">*</span>name, sort.clone()))
+            .collect()
+    }
+
+    <span class="kw">pub fn </span>field_by_name(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+        args: <span class="kw-2">&amp;</span>[Sort],
+        name: Symbol,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;(FieldProj, Sort)&gt; {
+        <span class="kw">let </span>idx = <span class="self">self</span>.field_names.iter().position(|it| name == <span class="kw-2">*</span>it)<span class="question-mark">?</span>;
+        <span class="kw">let </span>proj = FieldProj::Adt { def_id, field: idx <span class="kw">as </span>u32 };
+        <span class="kw">let </span>sort = <span class="self">self</span>.sorts[idx].fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args));
+        <span class="prelude-val">Some</span>((proj, sort))
+    }
+
+    <span class="kw">pub fn </span>field_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; List&lt;Sort&gt; {
+        <span class="self">self</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args))
+    }
+}
+
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">struct </span>AdtSortDefData {
     <span class="doccomment">/// [`DefId`] of the struct or enum this data sort is associated to.
     </span>def_id: DefId,
@@ -2857,57 +2971,67 @@
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     </span>params: Vec&lt;ParamTy&gt;,
-    <span class="doccomment">/// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
-    </span>field_names: Vec&lt;Symbol&gt;,
-    <span class="doccomment">/// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
-    /// to access these sorts guarantee they are properly instantiated.
-    ///
-    /// [sort variables]: Sort::Var
-    </span>sorts: List&lt;Sort&gt;,
+    <span class="comment">// The `index` is *either* the user defined indices or the "reflected" ADT
+    // kind: RefinementKind,
+    </span><span class="doccomment">/// A vec of variants of the ADT;
+    /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
+    /// - a `reflected` sort -- used for `reflected` enums have multiple variants
+    </span>variants: Vec&lt;AdtSortVariant&gt;,
+    is_reflected: bool,
+    is_struct: bool,
 }
 
 <span class="kw">impl </span>AdtSortDef {
-    <span class="kw">pub fn </span>new(def_id: DefId, params: Vec&lt;ParamTy&gt;, fields: Vec&lt;(Symbol, Sort)&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(field_names, sorts) = fields.into_iter().unzip();
-        <span class="self">Self</span>(Interned::new(AdtSortDefData {
-            def_id,
-            params,
-            field_names,
-            sorts: List::from_vec(sorts),
-        }))
+    <span class="kw">pub fn </span>new(
+        def_id: DefId,
+        params: Vec&lt;ParamTy&gt;,
+        variants: Vec&lt;AdtSortVariant&gt;,
+        is_reflected: bool,
+        is_struct: bool,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(Interned::new(AdtSortDefData { def_id, params, variants, is_reflected, is_struct }))
     }
 
     <span class="kw">pub fn </span>did(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
         <span class="self">self</span>.<span class="number">0</span>.def_id
     }
 
-    <span class="kw">pub fn </span>fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.<span class="number">0</span>.sorts.len()
+    <span class="kw">pub fn </span>struct_variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AdtSortVariant {
+        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.<span class="number">0</span>.is_struct, <span class="bool-val">true</span>);
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.variants[<span class="number">0</span>]
+    }
+
+    <span class="kw">pub fn </span>is_reflected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_reflected
+    }
+
+    <span class="kw">pub fn </span>is_struct(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_struct
+    }
+
+    <span class="kw">pub fn </span>non_enum_fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.struct_variant().sorts.len()
     }
 
     <span class="kw">pub fn </span>projections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = FieldProj&gt; + <span class="lifetime">'_ </span>{
-        (<span class="number">0</span>..<span class="self">self</span>.fields()).map(|i| FieldProj::Adt { def_id: <span class="self">self</span>.did(), field: i <span class="kw">as </span>u32 })
+        (<span class="number">0</span>..<span class="self">self</span>.struct_variant().fields())
+            .map(|i| FieldProj::Adt { def_id: <span class="self">self</span>.did(), field: i <span class="kw">as </span>u32 })
     }
 
-    <span class="kw">pub fn </span>field_names(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;Symbol&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.field_names
+    <span class="kw">pub fn </span>field_names(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Symbol] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.struct_variant().field_names[..]
     }
 
     <span class="kw">pub fn </span>sort_by_field_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FxIndexMap&lt;Symbol, Sort&gt; {
-        std::iter::zip(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.field_names, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args)))
-            .map(|(name, sort)| (<span class="kw-2">*</span>name, sort.clone()))
-            .collect()
+        <span class="self">self</span>.struct_variant().sort_by_field_name(args)
     }
 
     <span class="kw">pub fn </span>field_by_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort], name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;(FieldProj, Sort)&gt; {
-        <span class="kw">let </span>idx = <span class="self">self</span>.<span class="number">0</span>.field_names.iter().position(|it| name == <span class="kw-2">*</span>it)<span class="question-mark">?</span>;
-        <span class="kw">let </span>proj = FieldProj::Adt { def_id: <span class="self">self</span>.did(), field: idx <span class="kw">as </span>u32 };
-        <span class="kw">let </span>sort = <span class="self">self</span>.<span class="number">0</span>.sorts[idx].fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args));
-        <span class="prelude-val">Some</span>((proj, sort))
+        <span class="self">self</span>.struct_variant().field_by_name(<span class="self">self</span>.did(), args, name)
     }
 
     <span class="kw">pub fn </span>field_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; List&lt;Sort&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args))
+        <span class="self">self</span>.struct_variant().field_sorts(args)
     }
 
     <span class="kw">pub fn </span>to_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; Sort {
@@ -3684,7 +3808,8 @@
 
     <span class="kw">pub fn </span>is_unit_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
         <span class="kw">if let </span>Sort::App(SortCtor::Adt(sort_def), <span class="kw">_</span>) = <span class="self">self
-            </span>&amp;&amp; sort_def.fields() == <span class="number">0
+            </span>&amp;&amp; sort_def.is_struct()
+            &amp;&amp; sort_def.non_enum_fields() == <span class="number">0
         </span>{
             <span class="prelude-val">Some</span>(sort_def.did())
         } <span class="kw">else </span>{
@@ -3962,13 +4087,15 @@
 <span class="kw">impl </span>TyCtor {
     <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.vars()[..] {
-            [] =&gt; <span class="kw">return </span><span class="self">self</span>.skip_binder_ref().shift_out_escaping(<span class="number">1</span>),
+            [] =&gt; {
+                <span class="kw">return </span><span class="self">self</span>.skip_binder_ref().shift_out_escaping(<span class="number">1</span>);
+            }
             [BoundVariableKind::Refine(sort, ..)] =&gt; {
                 <span class="kw">if </span>sort.is_unit() {
                     <span class="kw">return </span><span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit());
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = sort.is_unit_adt() {
-                    <span class="kw">return </span><span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit_adt(def_id));
+                    <span class="kw">return </span><span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit_struct(def_id));
                 }
             }
             <span class="kw">_ </span>=&gt; {}
@@ -4093,7 +4220,7 @@
         <span class="kw">let </span>args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         <span class="kw">let </span>bty = BaseTy::adt(adt_def, args);
-        <span class="prelude-val">Ok</span>(Ty::indexed(bty, Expr::unit_adt(def_id)))
+        <span class="prelude-val">Ok</span>(Ty::indexed(bty, Expr::unit_struct(def_id)))
     }
 
     <span class="kw">pub fn </span>mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -&gt; QueryResult&lt;Ty&gt; {
@@ -4667,7 +4794,7 @@
         <span class="kw">if </span>sort.is_unit() {
             <span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit()).to_ty()
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(def_id) = sort.is_unit_adt() {
-            <span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit_adt(def_id)).to_ty()
+            <span class="self">self</span>.replace_bound_reft(<span class="kw-2">&amp;</span>Expr::unit_struct(def_id)).to_ty()
         } <span class="kw">else </span>{
             Ty::exists(<span class="self">self</span>.as_ref().map(SubsetTy::to_ty))
         }
@@ -5125,7 +5252,8 @@
 
     <span class="kw">pub fn </span>ret(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">let </span>bty = BaseTy::Adt(<span class="self">self</span>.adt_def.clone(), <span class="self">self</span>.args.clone());
-        Ty::indexed(bty, <span class="self">self</span>.idx.clone())
+        <span class="kw">let </span>idx = <span class="self">self</span>.idx.clone();
+        Ty::indexed(bty, idx)
     }
 }
 
@@ -5238,7 +5366,11 @@
     <span class="kw">pub fn </span>is_opaque(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.<span class="number">0</span>.opaque
     }
-}
+
+    <span class="comment">// pub fn is_reflected(&amp;self) -&gt; bool {
+    //     self.0.sort_def.is_reflected()
+    // }
+</span>}
 
 <span class="kw">impl</span>&lt;T&gt; Opaqueness&lt;T&gt; {
     <span class="kw">pub fn </span>map&lt;S&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; S) -&gt; Opaqueness&lt;S&gt; {

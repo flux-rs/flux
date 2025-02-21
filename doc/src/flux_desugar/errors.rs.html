@@ -110,7 +110,20 @@
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::E0999;
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::E0999;
 <span class="kw">use </span>flux_macros::Diagnostic;
 <span class="kw">use </span>flux_syntax::surface;
 <span class="kw">use </span>rustc_span::{Span, Symbol};
@@ -205,6 +218,19 @@
 <span class="kw">impl </span>InvalidVariantRet {
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span: path.span }
+    }
+}
+
+<span class="attr">#[derive(Diagnostic)]
+#[diag(desugar_invalid_reflected_variant, code = E0999)]
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidReflectedVariant {
+    <span class="attr">#[primary_span]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) span: Span,
+}
+
+<span class="kw">impl </span>InvalidReflectedVariant {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ span }
     }
 }
 

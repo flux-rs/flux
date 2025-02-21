@@ -276,10 +276,7 @@
 <a href="#275" id="275">275</a>
 <a href="#276" id="276">276</a>
 <a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
+<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 
@@ -306,11 +303,9 @@
     <span class="kw">type </span>Sort: Identifier + Hash + Clone;
     <span class="kw">type </span>KVar: Identifier + Hash;
     <span class="kw">type </span>Var: Identifier + Hash;
-
     <span class="kw">type </span>Numeral: FixpointFmt + Hash;
     <span class="kw">type </span>Decimal: FixpointFmt + Hash;
     <span class="kw">type </span>String: FixpointFmt + Hash;
-
     <span class="kw">type </span>Tag: fmt::Display + FromStr + Hash;
 }
 
@@ -383,7 +378,6 @@
     (   <span class="kw">type </span>Sort = <span class="macro-nonterminal">$sort</span>:ty;
         <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>:ty;
         <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>:ty;
-
         <span class="kw">type </span>Numeral = <span class="macro-nonterminal">$int</span>:ty;
         <span class="kw">type </span>Decimal = <span class="macro-nonterminal">$real</span>:ty;
         <span class="kw">type </span>String = <span class="macro-nonterminal">$str</span>:ty;

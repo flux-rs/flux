@@ -521,7 +521,10 @@
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 
@@ -855,6 +858,9 @@
         <span class="kw">let </span>genv = <span class="self">self</span>.infcx.genv;
         <span class="kw">let </span>enum_id = ret.enum_id;
         <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(enum_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">if </span>adt_sort_def.is_reflected() {
+            <span class="kw">return</span>;
+        }
         <span class="kw">let </span><span class="prelude-val">Ok</span>(args) = rty::GenericArg::identity_for_item(genv, enum_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };

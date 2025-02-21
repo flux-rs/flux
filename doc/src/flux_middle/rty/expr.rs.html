@@ -1581,14 +1581,53 @@
 <a href="#1580" id="1580">1580</a>
 <a href="#1581" id="1581">1581</a>
 <a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
+<a href="#1622" id="1622">1622</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_rustc_bridge::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    ty::{Const, ConstKind, ValTree},
+    ty::{Const, ConstKind, ValTree, VariantIdx},
     ToRustc,
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -1784,15 +1823,6 @@
         </span>}
     }
 
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (DefId, List&lt;Expr&gt;) {
-        <span class="kw">if let </span>ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = <span class="self">self</span>.kind() {
-            (<span class="kw-2">*</span>def_id, flds.clone())
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected record, found {self:?}"</span>)
-        }
-    }
-
     <span class="kw">pub fn </span>unit() -&gt; Expr {
         Expr::tuple(List::empty())
     }
@@ -1833,16 +1863,20 @@
         ExprKind::Var(Var::ConstGeneric(param)).intern()
     }
 
-    <span class="kw">pub fn </span>aggregate(kind: AggregateKind, flds: List&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::Aggregate(kind, flds).intern()
-    }
-
     <span class="kw">pub fn </span>tuple(flds: List&lt;Expr&gt;) -&gt; Expr {
-        Expr::aggregate(AggregateKind::Tuple(flds.len()), flds)
+        ExprKind::Tuple(flds).intern()
     }
 
-    <span class="kw">pub fn </span>adt(def_id: DefId, flds: List&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::Aggregate(AggregateKind::Adt(def_id), flds).intern()
+    <span class="kw">pub fn </span>ctor_struct(def_id: DefId, flds: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::Ctor(Ctor::Struct(def_id), flds).intern()
+    }
+
+    <span class="kw">pub fn </span>ctor_enum(def_id: DefId, idx: VariantIdx) -&gt; Expr {
+        ExprKind::Ctor(Ctor::Enum(def_id, idx), List::empty()).intern()
+    }
+
+    <span class="kw">pub fn </span>ctor(ctor: Ctor, flds: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::Ctor(ctor, flds).intern()
     }
 
     <span class="kw">pub fn </span>from_bits(bty: <span class="kw-2">&amp;</span>BaseTy, bits: u128) -&gt; Expr {
@@ -1890,8 +1924,8 @@
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    <span class="kw">pub fn </span>unit_adt(def_id: DefId) -&gt; Expr {
-        Expr::adt(def_id, List::empty())
+    <span class="kw">pub fn </span>unit_struct(def_id: DefId) -&gt; Expr {
+        Expr::ctor_struct(def_id, List::empty())
     }
 
     <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: List&lt;Expr&gt;) -&gt; Expr {
@@ -2109,7 +2143,8 @@
 
     <span class="doccomment">/// Whether this is an aggregate expression with no fields.
     </span><span class="kw">pub fn </span>is_unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Aggregate(<span class="kw">_</span>, flds) <span class="kw">if </span>flds.is_empty())
+        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Tuple(flds) <span class="kw">if </span>flds.is_empty())
+            || <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Ctor(Ctor::Struct(<span class="kw">_</span>), flds) <span class="kw">if </span>flds.is_empty())
     }
 
     <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>BoundVariableKinds, output: Sort) -&gt; Lambda {
@@ -2123,7 +2158,9 @@
     <span class="doccomment">/// Applies a field projection to an expression and optimistically try to beta reduce it
     </span><span class="kw">pub fn </span>proj_and_reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
         <span class="kw">match </span><span class="self">self</span>.kind() {
-            ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field_idx() <span class="kw">as </span>usize].clone(),
+            ExprKind::Tuple(flds) | ExprKind::Ctor(<span class="kw">_</span>, flds) =&gt; {
+                flds[proj.field_idx() <span class="kw">as </span>usize].clone()
+            }
             <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj),
         }
     }
@@ -2203,6 +2240,29 @@
     Neg,
 }
 
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub enum </span>Ctor {
+    <span class="doccomment">/// for indices represented as `struct` in the refinement logic (e.g. using `refined_by` annotations)
+    </span>Struct(DefId),
+    <span class="doccomment">/// for indices represented as  `enum` in the refinement logic (e.g. using `reflected` annotations)
+    </span>Enum(DefId, VariantIdx),
+}
+
+<span class="kw">impl </span>Ctor {
+    <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Struct(def_id) | <span class="self">Self</span>::Enum(def_id, <span class="kw">_</span>) =&gt; <span class="kw-2">*</span>def_id,
+        }
+    }
+
+    <span class="kw">pub fn </span>variant_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; VariantIdx {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Struct(<span class="kw">_</span>) =&gt; VariantIdx::ZERO,
+            <span class="self">Self</span>::Enum(<span class="kw">_</span>, variant_idx) =&gt; <span class="kw-2">*</span>variant_idx,
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ExprKind {
     Var(Var),
@@ -2213,7 +2273,9 @@
     GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
-    Aggregate(AggregateKind, List&lt;Expr&gt;),
+    <span class="doccomment">/// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
+    </span>Ctor(Ctor, List&lt;Expr&gt;),
+    Tuple(List&lt;Expr&gt;),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
@@ -2282,7 +2344,9 @@
     <span class="kw">pub fn </span>arity(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;usize&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             FieldProj::Tuple { arity, .. } =&gt; <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>arity),
-            FieldProj::Adt { def_id, .. } =&gt; <span class="prelude-val">Ok</span>(genv.adt_sort_def_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.fields()),
+            FieldProj::Adt { def_id, .. } =&gt; {
+                <span class="prelude-val">Ok</span>(genv.adt_sort_def_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.struct_variant().fields())
+            }
         }
     }
 
@@ -2792,14 +2856,15 @@
                         <span class="macro">w!</span>(cx, f, <span class="string">".{:?}"</span>, ^proj.field_idx())
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple(<span class="kw">_</span>), flds) =&gt; {
+                ExprKind::Tuple(flds) =&gt; {
                     <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>flds[..] {
                         <span class="macro">w!</span>(cx, f, <span class="string">"({:?},)"</span>, e)
                     } <span class="kw">else </span>{
                         <span class="macro">w!</span>(cx, f, <span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
+                ExprKind::Ctor(ctor, flds) =&gt; {
+                    <span class="kw">let </span>def_id = ctor.def_id();
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
                         &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
                     {
@@ -2809,9 +2874,23 @@
                             .zip(flds)
                             .map(|(name, value)| FieldBind { name: <span class="kw-2">*</span>name, value: value.clone() })
                             .collect_vec();
-                        <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+                        <span class="kw">match </span>ctor {
+                            Ctor::Struct(<span class="kw">_</span>) =&gt; {
+                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+                            }
+                            Ctor::Enum(<span class="kw">_</span>, idx) =&gt; {
+                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}_{:?}({:?})"</span>, def_id, ^idx.index(), <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+                            }
+                        }
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
+                        <span class="kw">match </span>ctor {
+                            Ctor::Struct(<span class="kw">_</span>) =&gt; {
+                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
+                            }
+                            Ctor::Enum(<span class="kw">_</span>, idx) =&gt; {
+                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}::{:?} {{ {:?} }}"</span>, def_id, ^idx, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
+                            }
+                        }
                     }
                 }
                 ExprKind::PathProj(e, field) =&gt; {
@@ -2987,10 +3066,11 @@
 
     <span class="kw">pub fn </span>aggregate_nested(
         cx: <span class="kw-2">&amp;</span>PrettyCx,
-        def_id: DefId,
+        ctor: <span class="kw-2">&amp;</span>Ctor,
         flds: <span class="kw-2">&amp;</span>[Expr],
         is_named: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+        <span class="kw">let </span>def_id = ctor.def_id();
         <span class="kw">let </span><span class="kw-2">mut </span>text = <span class="kw">if </span>is_named { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, def_id) } <span class="kw">else </span>{ <span class="macro">format_cx!</span>(cx, <span class="string">""</span>) };
         <span class="kw">if </span>flds.is_empty() {
             <span class="comment">// No fields, no index
@@ -3093,7 +3173,7 @@
                     };
                     <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple(<span class="kw">_</span>), flds) =&gt; {
+                ExprKind::Tuple(flds) =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
                     <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
                     <span class="kw">for </span>e <span class="kw">in </span>flds {
@@ -3109,9 +3189,7 @@
                     <span class="kw">let </span>children = float_children(kidss);
                     <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
                 }
-                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
-                    aggregate_nested(cx, <span class="kw-2">*</span>def_id, flds, <span class="bool-val">true</span>)
-                }
+                ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
 
                 ExprKind::PathProj(e, field) =&gt; {
                     <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;

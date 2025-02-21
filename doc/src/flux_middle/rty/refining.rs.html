@@ -479,7 +479,14 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -608,8 +615,8 @@
         variant_idx: VariantIdx,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
         <span class="kw">let </span>adt_def = <span class="self">self</span>.adt_def(adt_def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>fields = adt_def
-            .variant(variant_idx)
+        <span class="kw">let </span>variant_def = adt_def.variant(variant_idx);
+        <span class="kw">let </span>fields = variant_def
             .fields
             .iter()
             .map(|fld| {
@@ -617,12 +624,19 @@
                 ty.refine(<span class="self">self</span>)
             })
             .try_collect()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>idx = <span class="kw">if </span>adt_def.sort_def().is_struct() {
+            rty::Expr::unit_struct(adt_def_id)
+        } <span class="kw">else </span>{
+            rty::Expr::ctor_enum(adt_def_id, variant_idx)
+        };
         <span class="kw">let </span>value = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
             fields,
-            rty::Expr::unit_adt(adt_def_id),
+            idx,
         );
+
         <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(value, List::empty()))
     }
 

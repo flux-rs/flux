@@ -1020,7 +1020,15 @@
 <a href="#1019" id="1019">1019</a>
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1888,7 +1896,8 @@
                 e1.visit_with(visitor)<span class="question-mark">?</span>;
                 e2.visit_with(visitor)
             }
-            ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds.visit_with(visitor),
+            ExprKind::Tuple(flds) =&gt; flds.visit_with(visitor),
+            ExprKind::Ctor(<span class="kw">_</span>, flds) =&gt; flds.visit_with(visitor),
             ExprKind::FieldProj(e, <span class="kw">_</span>) | ExprKind::PathProj(e, <span class="kw">_</span>) | ExprKind::UnaryOp(<span class="kw">_</span>, e) =&gt; {
                 e.visit_with(visitor)
             }
@@ -1940,10 +1949,17 @@
             }
             ExprKind::UnaryOp(op, e) =&gt; Expr::unary_op(<span class="kw-2">*</span>op, e.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::FieldProj(e, proj) =&gt; Expr::field_proj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>proj),
-            ExprKind::Aggregate(kind, flds) =&gt; {
+
+            ExprKind::Tuple(flds) =&gt; {
                 <span class="kw">let </span>flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()<span class="question-mark">?</span>;
-                Expr::aggregate(<span class="kw-2">*</span>kind, flds)
+                Expr::tuple(flds)
             }
+
+            ExprKind::Ctor(ctor, flds) =&gt; {
+                <span class="kw">let </span>flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()<span class="question-mark">?</span>;
+                Expr::ctor(<span class="kw-2">*</span>ctor, flds)
+            }
+
             ExprKind::PathProj(e, field) =&gt; Expr::path_proj(e.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>field),
             ExprKind::App(func, arg) =&gt; {
                 Expr::app(func.try_fold_with(folder)<span class="question-mark">?</span>, arg.try_fold_with(folder)<span class="question-mark">?</span>)

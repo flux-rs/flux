@@ -188,7 +188,14 @@
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
 <a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
 </span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
 <span class="attr">#[cfg(flux_sysroot)]
 </span><span class="kw">use </span>attr_sysroot <span class="kw">as </span>attr_impl;
@@ -232,6 +239,11 @@
 <span class="attr">#[proc_macro_attribute]
 </span><span class="kw">pub fn </span>opaque(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
     attr_impl::opaque(attr, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>reflected(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::reflected(attr, tokens)
 }
 
 <span class="attr">#[proc_macro_attribute]
@@ -323,6 +335,7 @@
         constant,
         invariant,
         opaque,
+        reflected,
         opts,
         trusted,
         trusted_impl,
@@ -368,6 +381,7 @@
         invariant,
         constant,
         opaque,
+        reflected,
         opts,
         trusted,
         trusted_impl,

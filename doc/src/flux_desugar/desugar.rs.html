@@ -1573,7 +1573,15 @@
 <a href="#1572" id="1572">1572</a>
 <a href="#1573" id="1573">1573</a>
 <a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1903,8 +1911,9 @@
         };
 
         <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(<span class="kw-2">&amp;</span>[]));
+        <span class="kw">let </span>refinement = fhir::RefinementKind::Refined(refined_by);
         <span class="kw">let </span>struct_def =
-            fhir::StructDef { refined_by: <span class="self">self</span>.genv.alloc(refined_by), params, kind, invariants };
+            fhir::StructDef { refinement: <span class="self">self</span>.genv.alloc(refinement), params, kind, invariants };
 
         <span class="kw">if </span>config::dump_fhir() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, struct_def)
@@ -1922,16 +1931,19 @@
         <span class="kw">let </span>ItemKind::Enum(hir_enum, <span class="kw">_</span>) = <span class="self">self</span>.genv.hir().expect_item(def_id).kind <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected enum"</span>);
         };
+        <span class="kw">let </span>reflected = enum_def.reflected;
         <span class="kw">let </span>variants = <span class="macro">try_alloc_slice!</span>(
             <span class="self">self</span>.genv,
             iter::zip(<span class="kw-2">&amp;</span>enum_def.variants, hir_enum.variants),
-            |(variant, hir_variant)| <span class="self">self</span>.desugar_enum_variant_def(variant, hir_variant)
+            |(variant, hir_variant)| <span class="self">self</span>.desugar_enum_variant_def(reflected, variant, hir_variant)
         )<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>refined_by = <span class="kw">if let </span><span class="prelude-val">Some</span>(refined_by) = <span class="kw-2">&amp;</span>enum_def.refined_by {
-            <span class="self">self</span>.desugar_refined_by(refined_by)<span class="question-mark">?
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_refined_by()
+        <span class="kw">let </span>kind = <span class="kw">if </span>enum_def.reflected {
+            fhir::RefinementKind::Reflected
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(refined_by) = <span class="kw-2">&amp;</span>enum_def.refined_by {
+            fhir::RefinementKind::Refined(<span class="self">self</span>.desugar_refined_by(refined_by)<span class="question-mark">?</span>)
+        } <span class="kw">else </span>{
+            fhir::RefinementKind::Refined(<span class="self">self</span>.as_lift_cx().lift_refined_by())
         };
 
         <span class="kw">let </span>generics = <span class="self">self</span>.desugar_opt_generics(enum_def.generics.as_ref())<span class="question-mark">?</span>;
@@ -1942,7 +1954,7 @@
 
         <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(enum_def.refined_by.as_deref().unwrap_or(<span class="kw-2">&amp;</span>[]));
         <span class="kw">let </span>enum_def =
-            fhir::EnumDef { refined_by: <span class="self">self</span>.genv.alloc(refined_by), params, variants, invariants };
+            fhir::EnumDef { refinement: <span class="self">self</span>.genv.alloc(kind), params, variants, invariants };
 
         <span class="kw">if </span>config::dump_fhir() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, <span class="kw-2">&amp;</span>enum_def).unwrap();
@@ -1953,10 +1965,14 @@
 
     <span class="kw">fn </span>desugar_enum_variant_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        reflected: bool,
         variant_def: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;surface::VariantDef&gt;,
         hir_variant: <span class="kw-2">&amp;</span>hir::Variant,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantDef&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_def) = variant_def {
+            <span class="kw">if </span>reflected {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidReflectedVariant::new(hir_variant.span)));
+            }
             <span class="kw">let </span>fields = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>variant_def.fields, |ty| {
                 <span class="prelude-val">Ok</span>(fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>, lifted: <span class="bool-val">false </span>})
             })<span class="question-mark">?</span>;

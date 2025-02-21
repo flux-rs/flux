@@ -970,7 +970,7 @@
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
         Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
         VariantIdx, INNERMOST,
     },
@@ -1549,7 +1549,7 @@
 
     <span class="kw">fn </span>join_idx(<span class="kw-2">&amp;</span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr, sort: <span class="kw-2">&amp;</span>Sort, bound_sorts: <span class="kw-2">&amp;mut </span>Vec&lt;Sort&gt;) -&gt; Expr {
         <span class="kw">match </span>(e1.kind(), e2.kind(), sort) {
-            (ExprKind::Aggregate(<span class="kw">_</span>, es1), ExprKind::Aggregate(<span class="kw">_</span>, es2), Sort::Tuple(sorts)) =&gt; {
+            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) =&gt; {
                 <span class="macro">debug_assert_eq3!</span>(es1.len(), es2.len(), sorts.len());
                 Expr::tuple(
                     <span class="macro">izip!</span>(es1, es2, sorts)
@@ -1558,14 +1558,14 @@
                 )
             }
             (
-                ExprKind::Aggregate(<span class="kw">_</span>, flds1),
-                ExprKind::Aggregate(<span class="kw">_</span>, flds2),
+                ExprKind::Ctor(Ctor::Struct(<span class="kw">_</span>), flds1),
+                ExprKind::Ctor(Ctor::Struct(<span class="kw">_</span>), flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) =&gt; {
                 <span class="kw">let </span>sorts = sort_def.field_sorts(args);
                 <span class="macro">debug_assert_eq3!</span>(flds1.len(), flds2.len(), sorts.len());
 
-                Expr::adt(
+                Expr::ctor_struct(
                     sort_def.did(),
                     <span class="macro">izip!</span>(flds1, flds2, <span class="kw-2">&amp;</span>sorts)
                         .map(|(f1, f2, sort)| <span class="self">self</span>.join_idx(f1, f2, sort, bound_sorts))

@@ -998,7 +998,28 @@
 <a href="#997" id="997">997</a>
 <a href="#998" id="998">998</a>
 <a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
 <span class="kw">use </span>flux_errors::Errors;
@@ -1514,6 +1535,17 @@
         <span class="prelude-val">None
     </span>}
 
+    <span class="kw">fn </span>try_resolve_enum_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, typ: Ident, variant: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
+        <span class="kw">if let </span>fhir::Res::Def(<span class="kw">_</span>, enum_def_id) =
+            <span class="self">self</span>.resolver.resolve_ident_with_ribs(typ, TypeNS)<span class="question-mark">?
+        </span>{
+            <span class="kw">let </span>enum_variants = <span class="self">self</span>.resolver.enum_variants.get(<span class="kw-2">&amp;</span>enum_def_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>variant_def_id = enum_variants.variants.get(<span class="kw-2">&amp;</span>variant.name)<span class="question-mark">?</span>;
+            <span class="kw">return </span><span class="prelude-val">Some</span>(ExprRes::Variant(<span class="kw-2">*</span>variant_def_id));
+        }
+        <span class="prelude-val">None
+    </span>}
+
     <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
         <span class="kw">if let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..]
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_param(segment.ident)
@@ -1532,12 +1564,19 @@
             <span class="self">self</span>.path_res_map.insert(path.node_id, res);
             <span class="kw">return</span>;
         }
+        <span class="kw">if let </span>[typ, name] = <span class="kw-2">&amp;</span>path.segments[..]
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_enum_variant(typ.ident, name.ident)
+        {
+            <span class="self">self</span>.path_res_map.insert(path.node_id, res);
+            <span class="kw">return</span>;
+        }
         <span class="kw">if let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..]
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.try_resolve_global_func(segment.ident)
         {
             <span class="self">self</span>.path_res_map.insert(path.node_id, res);
             <span class="kw">return</span>;
         }
+
         <span class="self">self</span>.errors.emit(errors::UnresolvedVar::from_path(path));
     }
 
@@ -1561,7 +1600,9 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         segments: <span class="kw-2">&amp;</span>[S],
     ) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
-        <span class="kw">let </span>res = <span class="kw">match </span><span class="self">self</span>.resolver.resolve_path_with_ribs(segments, ValueNS) {
+        <span class="kw">let </span>path = <span class="self">self</span>.resolver.resolve_path_with_ribs(segments, ValueNS);
+
+        <span class="kw">let </span>res = <span class="kw">match </span>path {
             <span class="prelude-val">Some</span>(r) =&gt; r.full_res()<span class="question-mark">?</span>,
             <span class="kw">_ </span>=&gt; {
                 <span class="self">self</span>.resolver
@@ -1573,6 +1614,7 @@
             fhir::Res::Def(DefKind::ConstParam, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::ConstGeneric(def_id)),
             fhir::Res::Def(DefKind::Const, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Const(def_id)),
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Ctor(def_id)),
+            fhir::Res::Def(DefKind::Variant, def_id) =&gt; <span class="prelude-val">Some</span>(ExprRes::Variant(def_id)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

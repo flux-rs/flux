@@ -967,7 +967,36 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1241,6 +1270,14 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;mut </span>surface::EnumDef&gt; {
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>refined_by = attrs.refined_by();
+        <span class="kw">let </span>reflected = attrs.reflected();
+
+        <span class="kw">if </span>refined_by.is_some() &amp;&amp; reflected {
+            <span class="kw">let </span>span = <span class="self">self</span>.tcx.def_span(owner_id.to_def_id());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
+                </span>.errors
+                .emit(errors::ReflectedEnumWithRefinedBy::new(span)));
+        }
 
         <span class="kw">let </span>variants = enum_def
             .variants
@@ -1260,6 +1297,7 @@
                 refined_by,
                 variants,
                 invariants,
+                reflected,
                 node_id: <span class="self">self</span>.parse_sess.next_node_id(),
             }))
     }
@@ -1439,6 +1477,7 @@
                 )
             }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
+            (<span class="string">"reflect"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Reflect,
             (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
             (<span class="string">"should_fail"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ShouldFail,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)),
@@ -1552,6 +1591,7 @@
     Trusted(Trusted),
     TrustedImpl(Trusted),
     Opaque,
+    Reflect,
     FnSig(surface::FnSig),
     TraitAssocReft(Vec&lt;surface::TraitAssocReft&gt;),
     ImplAssocReft(Vec&lt;surface::ImplAssocReft&gt;),
@@ -1633,6 +1673,10 @@
         <span class="macro">read_flag!</span>(<span class="self">self</span>, Opaque)
     }
 
+    <span class="kw">fn </span>reflected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">read_flag!</span>(<span class="self">self</span>, Reflect)
+    }
+
     <span class="kw">fn </span>items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Vec&lt;surface::Item&gt; {
         <span class="macro">read_attrs!</span>(<span class="self">self</span>, Items).into_iter().flatten().collect()
     }
@@ -1706,6 +1750,7 @@
             FluxAttrKind::Trusted(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Trusted),
             FluxAttrKind::TrustedImpl(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TrustedImpl),
             FluxAttrKind::Opaque =&gt; <span class="macro">attr_name!</span>(Opaque),
+            FluxAttrKind::Reflect =&gt; <span class="macro">attr_name!</span>(Reflect),
             FluxAttrKind::FnSig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(FnSig),
             FluxAttrKind::TraitAssocReft(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TraitAssocReft),
             FluxAttrKind::ImplAssocReft(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(ImplAssocReft),
@@ -1885,6 +1930,19 @@
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, field: <span class="kw-2">&amp;</span>rustc_hir::FieldDef) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>field_span = field.ident.span;
             <span class="self">Self </span>{ span, field_span }
+        }
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ReflectedEnumWithRefinedBy {
+        <span class="attr">#[primary_span]
+        #[label]
+        </span>span: Span,
+    }
+    <span class="kw">impl </span>ReflectedEnumWithRefinedBy {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span }
         }
     }
 

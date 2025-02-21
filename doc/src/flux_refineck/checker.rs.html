@@ -1928,9 +1928,7 @@
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
 <a href="#1929" id="1929">1929</a>
-<a href="#1930" id="1930">1930</a>
-<a href="#1931" id="1931">1931</a>
-<a href="#1932" id="1932">1932</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1930" id="1930">1930</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -2647,11 +2645,9 @@
             .at(span)
             .ensure_resolved_evars(|infcx| {
                 <span class="kw">let </span>ret_place_ty = env.lookup_place(infcx, Place::RETURN)<span class="question-mark">?</span>;
-
                 <span class="kw">let </span>output = <span class="self">self
                     </span>.output
                     .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
-
                 <span class="kw">let </span>obligations = infcx.subtyping(<span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret, ConstrReason::Ret)<span class="question-mark">?</span>;
 
                 env.check_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures, ConstrReason::Ret)<span class="question-mark">?</span>;

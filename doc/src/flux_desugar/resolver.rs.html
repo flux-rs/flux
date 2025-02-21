@@ -829,7 +829,28 @@
 <a href="#828" id="828">828</a>
 <a href="#829" id="829">829</a>
 <a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
     bug,
@@ -874,6 +895,10 @@
     resolver.into_output()
 }
 
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>EnumVariants {
+    variants: FxHashMap&lt;Symbol, DefId&gt;,
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs,
@@ -885,6 +910,7 @@
     prelude: PerNS&lt;Rib&gt;,
     func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
     sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
+    enum_variants: FxHashMap&lt;DefId, EnumVariants&gt;,
     err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
     <span class="doccomment">/// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
@@ -907,6 +933,7 @@
             err: <span class="prelude-val">None</span>,
             func_decls: Default::default(),
             sort_decls: Default::default(),
+            enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
@@ -975,7 +1002,10 @@
                     <span class="kw">continue</span>;
                 }
                 ItemKind::TyAlias(..) =&gt; DefKind::TyAlias,
-                ItemKind::Enum(..) =&gt; DefKind::Enum,
+                ItemKind::Enum(enum_def, <span class="kw">_</span>) =&gt; {
+                    <span class="self">self</span>.define_enum_variants(<span class="kw-2">&amp;</span>enum_def);
+                    DefKind::Enum
+                }
                 ItemKind::Struct(..) =&gt; DefKind::Struct,
                 ItemKind::Trait(..) =&gt; DefKind::Trait,
                 ItemKind::Mod(..) =&gt; DefKind::Mod,
@@ -990,6 +1020,19 @@
                 );
             }
         }
+    }
+
+    <span class="kw">fn </span>define_enum_variants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>rustc_hir::EnumDef) {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(v0) = enum_def.variants.first() <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">let </span>enum_def_id = <span class="self">self</span>.genv.tcx().parent(v0.def_id.to_def_id());
+
+        <span class="kw">let </span><span class="kw-2">mut </span>variants = FxHashMap::default();
+        <span class="kw">for </span>variant <span class="kw">in </span>enum_def.variants {
+            <span class="kw">let </span>name = variant.ident.name;
+            variants.insert(name, variant.def_id.to_def_id());
+        }
+        <span class="self">self</span>.enum_variants
+            .insert(enum_def_id, EnumVariants { variants });
     }
 
     <span class="kw">fn </span>define_res_in(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: fhir::Res, ns: Namespace) {
@@ -1106,7 +1149,6 @@
         ns: Namespace,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;Module&gt; = <span class="prelude-val">None</span>;
-
         <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>segments.iter().enumerate() {
             <span class="kw">let </span>is_last = segment_idx + <span class="number">1 </span>== segments.len();
             <span class="kw">let </span>ns = <span class="kw">if </span>is_last { ns } <span class="kw">else </span>{ TypeNS };
@@ -1288,7 +1330,7 @@
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.resolve_type_alias(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::Enum(..) =&gt; {
+            ItemKind::Enum(_enum_def, ..) =&gt; {
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,

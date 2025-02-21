@@ -2668,7 +2668,62 @@
 <a href="#2667" id="2667">2667</a>
 <a href="#2668" id="2668">2668</a>
 <a href="#2669" id="2669">2669</a>
-<a href="#2670" id="2670">2670</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2670" id="2670">2670</a>
+<a href="#2671" id="2671">2671</a>
+<a href="#2672" id="2672">2672</a>
+<a href="#2673" id="2673">2673</a>
+<a href="#2674" id="2674">2674</a>
+<a href="#2675" id="2675">2675</a>
+<a href="#2676" id="2676">2676</a>
+<a href="#2677" id="2677">2677</a>
+<a href="#2678" id="2678">2678</a>
+<a href="#2679" id="2679">2679</a>
+<a href="#2680" id="2680">2680</a>
+<a href="#2681" id="2681">2681</a>
+<a href="#2682" id="2682">2682</a>
+<a href="#2683" id="2683">2683</a>
+<a href="#2684" id="2684">2684</a>
+<a href="#2685" id="2685">2685</a>
+<a href="#2686" id="2686">2686</a>
+<a href="#2687" id="2687">2687</a>
+<a href="#2688" id="2688">2688</a>
+<a href="#2689" id="2689">2689</a>
+<a href="#2690" id="2690">2690</a>
+<a href="#2691" id="2691">2691</a>
+<a href="#2692" id="2692">2692</a>
+<a href="#2693" id="2693">2693</a>
+<a href="#2694" id="2694">2694</a>
+<a href="#2695" id="2695">2695</a>
+<a href="#2696" id="2696">2696</a>
+<a href="#2697" id="2697">2697</a>
+<a href="#2698" id="2698">2698</a>
+<a href="#2699" id="2699">2699</a>
+<a href="#2700" id="2700">2700</a>
+<a href="#2701" id="2701">2701</a>
+<a href="#2702" id="2702">2702</a>
+<a href="#2703" id="2703">2703</a>
+<a href="#2704" id="2704">2704</a>
+<a href="#2705" id="2705">2705</a>
+<a href="#2706" id="2706">2706</a>
+<a href="#2707" id="2707">2707</a>
+<a href="#2708" id="2708">2708</a>
+<a href="#2709" id="2709">2709</a>
+<a href="#2710" id="2710">2710</a>
+<a href="#2711" id="2711">2711</a>
+<a href="#2712" id="2712">2712</a>
+<a href="#2713" id="2713">2713</a>
+<a href="#2714" id="2714">2714</a>
+<a href="#2715" id="2715">2715</a>
+<a href="#2716" id="2716">2716</a>
+<a href="#2717" id="2717">2717</a>
+<a href="#2718" id="2718">2718</a>
+<a href="#2719" id="2719">2719</a>
+<a href="#2720" id="2720">2720</a>
+<a href="#2721" id="2721">2721</a>
+<a href="#2722" id="2722">2722</a>
+<a href="#2723" id="2723">2723</a>
+<a href="#2724" id="2724">2724</a>
+<a href="#2725" id="2725">2725</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2941,21 +2996,42 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_adt_sort_def(
     genv: GlobalEnv,
     def_id: MaybeExternId,
-    refined_by: <span class="kw-2">&amp;</span>fhir::RefinedBy,
+    kind: <span class="kw-2">&amp;</span>fhir::RefinementKind,
 ) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
     <span class="kw">let </span>wfckresults = <span class="kw-2">&amp;</span>WfckResults::new(OwnerId { def_id: def_id.local_id() });
     <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
-    <span class="kw">let </span>params = refined_by
-        .sort_params
-        .iter()
-        .map(|def_id| def_id_to_param_ty(genv, <span class="kw-2">*</span>def_id))
-        .collect();
-    <span class="kw">let </span>fields = refined_by
-        .fields
-        .iter()
-        .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; { <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, cx.conv_sort(sort)<span class="question-mark">?</span>)) })
-        .try_collect_vec()<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id.resolved_id(), params, fields))
+    <span class="kw">match </span>kind {
+        fhir::RefinementKind::Refined(refined_by) =&gt; {
+            <span class="kw">let </span>params = refined_by
+                .sort_params
+                .iter()
+                .map(|def_id| def_id_to_param_ty(genv, <span class="kw-2">*</span>def_id))
+                .collect();
+            <span class="kw">let </span>fields = refined_by
+                .fields
+                .iter()
+                .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; { <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, cx.conv_sort(sort)<span class="question-mark">?</span>)) })
+                .try_collect_vec()<span class="question-mark">?</span>;
+            <span class="kw">let </span>variants = <span class="macro">vec!</span>[rty::AdtSortVariant::new(fields)];
+            <span class="kw">let </span>def_id = def_id.resolved_id();
+            <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, params, variants, <span class="bool-val">false</span>, <span class="bool-val">true</span>))
+        }
+        fhir::RefinementKind::Reflected =&gt; {
+            <span class="kw">let </span>enum_def_id = def_id.resolved_id();
+            <span class="kw">let </span><span class="kw-2">mut </span>variants = <span class="macro">vec!</span>[];
+            <span class="kw">for </span>variant <span class="kw">in </span>genv.tcx().adt_def(enum_def_id).variants() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(field) = variant.fields.iter().next() {
+                    <span class="kw">let </span>span = genv.tcx().def_span(field.did);
+                    <span class="kw">let </span>err = genv
+                        .sess()
+                        .emit_err(errors::FieldsOnReflectedEnumVariant::new(span));
+                    <span class="prelude-val">Err</span>(err)<span class="question-mark">?</span>;
+                }
+                variants.push(rty::AdtSortVariant::new(<span class="macro">vec!</span>[]));
+            }
+            <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(enum_def_id, <span class="macro">vec!</span>[], variants, <span class="bool-val">true</span>, <span class="bool-val">false</span>))
+        }
+    }
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generics(
@@ -3162,6 +3238,12 @@
     }
 }
 
+<span class="kw">fn </span>variant_idx(tcx: TyCtxt, variant_def_id: DefId) -&gt; rty::VariantIdx {
+    <span class="kw">let </span>enum_def_id = tcx.parent(variant_def_id);
+    tcx.adt_def(enum_def_id)
+        .variant_index_with_id(variant_def_id)
+}
+
 <span class="doccomment">/// Conversion of definitions
 </span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_variants(
@@ -3169,10 +3251,11 @@
         enum_id: MaybeExternId,
         enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
     ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
+        <span class="kw">let </span>reflected = enum_def.refinement.is_reflected();
         enum_def
             .variants
             .iter()
-            .map(|variant| <span class="self">self</span>.conv_enum_variant(enum_id, variant))
+            .map(|variant| <span class="self">self</span>.conv_enum_variant(enum_id, variant, reflected))
             .try_collect_vec()
     }
 
@@ -3180,18 +3263,26 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         enum_id: MaybeExternId,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
+        reflected: bool,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, variant.params));
 
-        <span class="kw">let </span>fields = variant
+        <span class="comment">// TODO(RJ): just "lift" the fields, ignore any `variant` signatures if reflected?
+        </span><span class="kw">let </span>fields = variant
             .fields
             .iter()
             .map(|field| <span class="self">self</span>.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field.ty))
             .try_collect()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_def(enum_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>idxs = <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>idxs = <span class="kw">if </span>reflected {
+            <span class="kw">let </span>enum_def_id = enum_id.resolved_id();
+            <span class="kw">let </span>idx = variant_idx(<span class="self">self</span>.tcx(), variant.def_id.to_def_id());
+            rty::Expr::ctor_enum(enum_def_id, idx)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx)<span class="question-mark">?
+        </span>};
         <span class="kw">let </span>variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), enum_id.resolved_id())<span class="question-mark">?</span>,
@@ -3219,7 +3310,7 @@
                 .try_collect()<span class="question-mark">?</span>;
 
             <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
-            <span class="kw">let </span>idx = rty::Expr::adt(
+            <span class="kw">let </span>idx = rty::Expr::ctor_struct(
                 struct_id.resolved_id(),
                 (<span class="number">0</span>..vars.len())
                     .map(|idx| {
@@ -3618,6 +3709,7 @@
         env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, output.params));
 
         <span class="kw">let </span>ret = <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
+
         <span class="kw">let </span>ensures: List&lt;rty::Ensures&gt; = output
             .ensures
             .iter()
@@ -4594,6 +4686,11 @@
                             rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
                         }
                     }
+                    ExprRes::Variant(variant_def_id) =&gt; {
+                        <span class="kw">let </span>enum_def_id = <span class="self">self</span>.tcx().parent(variant_def_id);
+                        <span class="kw">let </span>idx = variant_idx(<span class="self">self</span>.tcx(), variant_def_id);
+                        rty::Expr::ctor_enum(enum_def_id, idx)
+                    }
                     ExprRes::ConstGeneric(def_id) =&gt; {
                         rty::Expr::const_generic(def_id_to_param_const(<span class="self">self</span>.genv(), def_id))
                             .at(espan)
@@ -4659,7 +4756,7 @@
                     .iter()
                     .map(|expr| <span class="self">self</span>.conv_expr(env, expr))
                     .try_collect()<span class="question-mark">?</span>;
-                rty::Expr::adt(def_id, flds)
+                rty::Expr::ctor_struct(def_id, flds)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) =&gt; {
                 <span class="kw">let </span>def_id = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
@@ -4671,7 +4768,7 @@
                     <span class="self">self</span>.results().record_ctor(expr.fhir_id)
                 };
                 <span class="kw">let </span>assns = <span class="self">self</span>.conv_constructor_exprs(def_id, env, exprs, spread)<span class="question-mark">?</span>;
-                rty::Expr::adt(def_id, assns)
+                rty::Expr::ctor_struct(def_id, assns)
             }
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(expr, fhir_id))
@@ -4734,8 +4831,7 @@
         <span class="kw">for </span>coercion <span class="kw">in </span><span class="self">self</span>.results().coercions_for(fhir_id) {
             expr = <span class="kw">match </span><span class="kw-2">*</span>coercion {
                 rty::Coercion::Inject(def_id) =&gt; {
-                    rty::Expr::aggregate(rty::AggregateKind::Adt(def_id), List::singleton(expr))
-                        .at_opt(span)
+                    rty::Expr::ctor_struct(def_id, List::singleton(expr)).at_opt(span)
                 }
                 rty::Coercion::Project(def_id) =&gt; {
                     rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: <span class="number">0 </span>})
@@ -5255,6 +5351,20 @@
     <span class="kw">impl </span>GenericsOnSelf {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: usize) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, found }
+        }
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_fields_on_reflected_enum_variant, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldsOnReflectedEnumVariant {
+        <span class="attr">#[primary_span]
+        #[label]
+        </span>span: Span,
+    }
+
+    <span class="kw">impl </span>FieldsOnReflectedEnumVariant {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span }
         }
     }
 

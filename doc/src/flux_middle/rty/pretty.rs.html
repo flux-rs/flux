@@ -776,9 +776,7 @@
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
 <a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#778" id="778">778</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{pretty::aggregate_nested, FieldBind};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -1010,10 +1008,8 @@
     <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
         <span class="kw">let </span>kind = <span class="self">self</span>.<span class="number">0</span>.kind();
         <span class="kw">match </span>kind {
-            ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
-                aggregate_nested(cx, <span class="kw-2">*</span>def_id, flds, <span class="bool-val">false</span>)
-            }
-            ExprKind::Aggregate(AggregateKind::Tuple(<span class="number">0</span>), <span class="kw">_</span>) =&gt; {
+            ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">false</span>),
+            ExprKind::Tuple(flds) <span class="kw">if </span>flds.len() == <span class="number">0 </span>=&gt; {
                 <span class="prelude-val">Ok</span>(NestedString { text: String::new(), key: <span class="prelude-val">None</span>, children: <span class="prelude-val">None </span>})
             }
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.<span class="number">0</span>.fmt_nested(cx),
@@ -1024,9 +1020,9 @@
 <span class="kw">impl </span>Pretty <span class="kw">for </span>IdxFmt {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.<span class="number">0</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.<span class="number">0</span>.clone() };
-        <span class="kw">if let </span>ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = e.kind()
+        <span class="kw">if let </span>ExprKind::Ctor(ctor, flds) = e.kind()
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(ctor.def_id())
         {
             <span class="kw">let </span>field_binds = iter::zip(adt_sort_def.field_names(), flds)
                 .map(|(name, value)| FieldBind { name: <span class="kw-2">*</span>name, value: value.clone() });

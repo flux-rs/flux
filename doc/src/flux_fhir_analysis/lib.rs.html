@@ -588,7 +588,8 @@
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -659,7 +660,8 @@
 
 <span class="kw">fn </span>adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id.local_id())<span class="question-mark">?</span>)
+    <span class="kw">let </span>kind = genv.map().refinement_kind(def_id.local_id())<span class="question-mark">?</span>;
+    conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
 <span class="kw">fn </span>spec_func_decl(genv: GlobalEnv, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {

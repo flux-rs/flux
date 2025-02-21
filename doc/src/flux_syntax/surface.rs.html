@@ -638,7 +638,8 @@
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
 <a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
 
@@ -755,6 +756,7 @@
     <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&gt;&gt;,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
     <span class="kw">pub </span>node_id: NodeId,
+    <span class="kw">pub </span>reflected: bool,
 }
 
 <span class="kw">impl </span>EnumDef {

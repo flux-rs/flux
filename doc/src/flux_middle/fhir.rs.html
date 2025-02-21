@@ -1590,7 +1590,23 @@
 <a href="#1589" id="1589">1589</a>
 <a href="#1590" id="1590">1590</a>
 <a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -2023,7 +2039,7 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>StructDef&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>refinement: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinementKind&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>kind: StructKind&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>invariants: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;],
@@ -2045,8 +2061,22 @@
 }
 
 <span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>RefinementKind&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="doccomment">/// User specified indices (e.g. length, elems, etc.)
+    </span>Refined(RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;),
+    <span class="doccomment">/// Singleton refinements e.g. `State[On]`, `State[Off]`
+    </span>Reflected,
+}
+
+<span class="kw">impl </span>RefinementKind&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">pub fn </span>is_reflected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, RefinementKind::Reflected)
+    }
+}
+
+<span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EnumDef&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>refinement: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>RefinementKind&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>variants: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[VariantDef&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>invariants: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;],
@@ -2614,6 +2644,7 @@
     ///
     /// [adt sort]: SortRes::Adt
     </span>Ctor(DefId),
+    Variant(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
@@ -2628,6 +2659,7 @@
             ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
             ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
             ExprRes::Ctor(def_id) =&gt; ExprRes::Ctor(def_id),
+            ExprRes::Variant(def_id) =&gt; ExprRes::Variant(def_id),
         }
     }
 

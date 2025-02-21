@@ -883,7 +883,13 @@
 <a href="#882" id="882">882</a>
 <a href="#883" id="883">883</a>
 <a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1184,6 +1190,12 @@
                 } <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected const in var position"</span>)
                 }
+            }
+            ExprRes::Variant(def_id) =&gt; {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_def_id(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected variant {def_id:?} in var position"</span>)
+                };
+                <span class="prelude-val">Ok</span>(sort)
             }
             ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
