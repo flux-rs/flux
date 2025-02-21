@@ -156,9 +156,7 @@ where
             |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
+        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
     }
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
@@ -166,9 +164,7 @@ where
             |breft| exprs[breft.var.as_usize()].clone(),
             |br| tracked_span_bug!("unexpected escaping region {br:?}"),
         );
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
+        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
     }
 
     pub fn replace_bound_reft(&self, expr: &Expr) -> T {
