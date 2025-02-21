@@ -132,8 +132,8 @@ struct AdtSortDefData {
     /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
     /// - a `reflected` sort -- used for `reflected` enums have multiple variants
     variants: Vec<AdtSortVariant>,
-    reflected: bool,
-    strukt: bool,
+    is_reflected: bool,
+    is_struct: bool,
 }
 
 impl AdtSortDef {
@@ -141,10 +141,10 @@ impl AdtSortDef {
         def_id: DefId,
         params: Vec<ParamTy>,
         variants: Vec<AdtSortVariant>,
-        reflected: bool,
-        strukt: bool,
+        is_reflected: bool,
+        is_struct: bool,
     ) -> Self {
-        Self(Interned::new(AdtSortDefData { def_id, params, variants, reflected, strukt }))
+        Self(Interned::new(AdtSortDefData { def_id, params, variants, is_reflected, is_struct }))
     }
 
     pub fn did(&self) -> DefId {
@@ -152,16 +152,16 @@ impl AdtSortDef {
     }
 
     pub fn struct_variant(&self) -> &AdtSortVariant {
-        tracked_span_assert_eq!(self.0.strukt, true);
+        tracked_span_assert_eq!(self.0.is_struct, true);
         &self.0.variants[0]
     }
 
     pub fn is_reflected(&self) -> bool {
-        self.0.reflected
+        self.0.is_reflected
     }
 
     pub fn is_struct(&self) -> bool {
-        self.0.strukt
+        self.0.is_struct
     }
 
     pub fn non_enum_fields(&self) -> usize {
