@@ -18,11 +18,7 @@ use crate::{
     query_bug, rty,
 };
 
-pub fn refine_generics(
-    genv: GlobalEnv,
-    def_id: DefId,
-    generics: &ty::Generics,
-) -> QueryResult<rty::Generics> {
+pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
     let is_box = if let DefKind::Struct = genv.def_kind(def_id) {
         genv.tcx().adt_def(def_id).is_box()
     } else {
@@ -41,12 +37,12 @@ pub fn refine_generics(
         })
         .collect();
 
-    Ok(rty::Generics {
+    rty::Generics {
         own_params: params,
         parent: generics.parent(),
         parent_count: generics.parent_count(),
         has_self: generics.orig.has_self,
-    })
+    }
 }
 
 pub fn refine_generic_param_def_kind(

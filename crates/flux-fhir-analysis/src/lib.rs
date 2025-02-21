@@ -347,7 +347,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         }
         DefKind::OpaqueTy | DefKind::Closure => {
             let rustc_generics = genv.lower_generics_of(def_id);
-            refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)?
+            refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
         }
         kind => {
             Err(query_bug!(
