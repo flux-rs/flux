@@ -345,7 +345,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias => {
             let rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
         }
