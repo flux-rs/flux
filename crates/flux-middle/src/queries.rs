@@ -487,7 +487,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 def_id,
                 |def_id| (self.providers.generics_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().generics_of(def_id),
-                |def_id| refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)),
+                |def_id| {
+                    Ok(refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)))
+                },
             )
         })
     }
