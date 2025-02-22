@@ -35,7 +35,7 @@ impl Callbacks for FluxCallbacks {
         });
     }
 
-    fn after_analysis<'tcx>(&mut self, compiler: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
+    fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         if self.verify {
             self.verify(compiler, tcx);
         }
@@ -49,7 +49,7 @@ impl Callbacks for FluxCallbacks {
 }
 
 impl FluxCallbacks {
-    fn verify<'tcx>(&self, compiler: &Compiler, tcx: TyCtxt<'tcx>) {
+    fn verify(&self, compiler: &Compiler, tcx: TyCtxt<'_>) {
         if compiler.sess.dcx().has_errors().is_some() {
             return;
         }
