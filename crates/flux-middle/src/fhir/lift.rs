@@ -346,12 +346,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::QPath<'genv>> {
         match qpath {
             hir::QPath::Resolved(qself, path) => {
-                let qself = qself
-                    .map(|ty| {
-                        let ty = self.lift_ty(ty)?;
-                        Ok(self.genv.alloc(ty))
-                    })
-                    .transpose()?;
+                let qself = if let Some(ty) = qself {
+                    let ty = self.lift_ty(ty)?;
+                    Some(self.genv.alloc(ty))
+                } else {
+                    None
+                };
                 let path = self.lift_path(path)?;
                 Ok(fhir::QPath::Resolved(qself, path))
             }

@@ -496,7 +496,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 );
                 self.resolve_struct_def(def_id).collect_err(&mut self.err);
             }
-            ItemKind::Fn(..) => {
+            ItemKind::Fn { .. } => {
                 self.define_generics(def_id);
                 self.resolve_fn_sig(def_id).collect_err(&mut self.err);
             }

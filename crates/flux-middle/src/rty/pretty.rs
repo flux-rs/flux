@@ -231,7 +231,7 @@ impl PrettyNested for IdxFmt {
         let kind = self.0.kind();
         match kind {
             ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, false),
-            ExprKind::Tuple(flds) if flds.len() == 0 => {
+            ExprKind::Tuple(flds) if flds.is_empty() => {
                 Ok(NestedString { text: String::new(), key: None, children: None })
             }
             _ => self.0.fmt_nested(cx),

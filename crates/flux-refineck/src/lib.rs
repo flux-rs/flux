@@ -122,7 +122,7 @@ pub fn check_fn(
         return Ok(());
     }
 
-    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
+    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| -> Result<(), ErrorGuaranteed> {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;

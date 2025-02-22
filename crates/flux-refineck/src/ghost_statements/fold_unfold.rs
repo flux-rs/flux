@@ -16,7 +16,7 @@ use itertools::{repeat_n, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{bit_set::BitSet, Idx, IndexVec};
+use rustc_index::{bit_set::DenseBitSet, Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;
 
 use super::{GhostStatements, StatementsAt};
@@ -121,7 +121,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
-    visited: BitSet<BasicBlock>,
+    visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: UnordMap<Place, Place>,
     point: Point,
@@ -469,7 +469,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             bb_envs,
             discriminants: Default::default(),
             point: Point::FunEntry,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             mode,
         }

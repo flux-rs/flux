@@ -40,7 +40,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     LangItem,
 };
-use rustc_index::bit_set::BitSet;
+use rustc_index::bit_set::DenseBitSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::SwitchTargets,
@@ -72,7 +72,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     /// A marker to the node in the refinement tree at the end of the basic block after applying
     /// the effects of the terminator.
     markers: IndexVec<BasicBlock, Option<Marker>>,
-    visited: BitSet<BasicBlock>,
+    visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
 }
@@ -442,7 +442,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             inherited,
             body: &body,
             resume_ty,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),

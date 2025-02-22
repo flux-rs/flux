@@ -3,7 +3,7 @@ use std::{collections::VecDeque, iter::Peekable};
 pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 use rustc_ast::{
     token::{self, TokenKind},
-    tokenstream::{RefTokenTreeCursor, TokenStream, TokenTree},
+    tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
 use rustc_span::{symbol::kw, BytePos, Symbol};
 
@@ -95,7 +95,7 @@ struct Symbols {
 }
 
 struct Frame<'t> {
-    cursor: Peekable<RefTokenTreeCursor<'t>>,
+    cursor: Peekable<TokenStreamIter<'t>>,
     close: Option<(Location, Token, Location)>,
 }
 
@@ -105,7 +105,7 @@ pub struct Location(pub(crate) BytePos);
 impl<'t> Cursor<'t> {
     pub(crate) fn new(stream: &'t TokenStream, offset: BytePos) -> Self {
         Cursor {
-            stack: vec![Frame { cursor: stream.trees().peekable(), close: None }],
+            stack: vec![Frame { cursor: stream.iter().peekable(), close: None }],
             offset,
             tokens: VecDeque::new(),
             symbs: Symbols {
@@ -222,7 +222,7 @@ impl<'t> Cursor<'t> {
             }
             Some(TokenTree::Delimited(_, _spacing, Delimiter::Invisible(..), tokens)) => {
                 self.stack
-                    .push(Frame { cursor: tokens.trees().peekable(), close: None });
+                    .push(Frame { cursor: tokens.iter().peekable(), close: None });
                 self.advance()
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
@@ -233,7 +233,7 @@ impl<'t> Cursor<'t> {
                 );
 
                 self.stack
-                    .push(Frame { cursor: tokens.trees().peekable(), close: Some(close) });
+                    .push(Frame { cursor: tokens.iter().peekable(), close: Some(close) });
 
                 let token = token::Token { kind: TokenKind::OpenDelim(*delim), span: span.open };
                 self.map_token(&token);

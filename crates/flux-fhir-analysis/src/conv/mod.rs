@@ -654,7 +654,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
-        let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
+        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl)?;
 
         let vars = late_bound_regions
             .iter()
@@ -1553,8 +1553,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             ResolvedArg::Free(scope, id) => {
                 let name = lifetime_name(id.to_def_id());
-                let bound_region = rty::BoundRegionKind::Named(id.to_def_id(), name);
-                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), bound_region })
+                let kind = rty::LateParamRegionKind::Named(id.to_def_id(), name);
+                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), kind })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }

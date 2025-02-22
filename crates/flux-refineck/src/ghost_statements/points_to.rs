@@ -27,7 +27,7 @@ use flux_middle::{
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
-use rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
+use rustc_index::{bit_set::DenseBitSet, IndexSlice, IndexVec};
 use rustc_middle::{
     mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
     ty,
@@ -243,14 +243,6 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     ) {
         self.handle_call_return(return_places, state);
     }
-
-    fn apply_switch_int_edge_effects(
-        &mut self,
-        _block: BasicBlock,
-        _discr: &mir::Operand<'tcx>,
-        _apply_edge_effects: &mut impl rustc_mir_dataflow::SwitchIntEdgeEffects<Self::Domain>,
-    ) {
-    }
 }
 
 struct CollectPointerToBorrows<'a> {
@@ -373,7 +365,7 @@ impl Map {
     }
 
     /// Register all non-excluded places that have scalar layout.
-    fn register(&mut self, body: &mir::Body, exclude: BitSet<mir::Local>) {
+    fn register(&mut self, body: &mir::Body, exclude: DenseBitSet<mir::Local>) {
         let mut worklist = VecDeque::with_capacity(body.local_decls.len());
 
         // Start by constructing the places for each bare local.
@@ -619,9 +611,9 @@ impl Iterator for Children<'_> {
 }
 
 /// Returns all locals with projections that have their reference or address taken.
-fn excluded_locals(body: &mir::Body<'_>) -> BitSet<mir::Local> {
+fn excluded_locals(body: &mir::Body<'_>) -> DenseBitSet<mir::Local> {
     struct Collector {
-        result: BitSet<mir::Local>,
+        result: DenseBitSet<mir::Local>,
     }
 
     impl<'tcx> mir::visit::Visitor<'tcx> for Collector {
@@ -647,7 +639,7 @@ fn excluded_locals(body: &mir::Body<'_>) -> BitSet<mir::Local> {
         }
     }
 
-    let mut collector = Collector { result: BitSet::new_empty(body.local_decls.len()) };
+    let mut collector = Collector { result: DenseBitSet::new_empty(body.local_decls.len()) };
     collector.visit_body(body);
     collector.result
 }

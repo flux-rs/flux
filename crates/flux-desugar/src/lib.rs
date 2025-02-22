@@ -59,7 +59,7 @@ pub fn desugar<'genv>(
     match genv.tcx().hir_node_by_def_id(def_id) {
         rustc_hir::Node::Item(item) => {
             match item.kind {
-                hir::ItemKind::Fn(..) => {
+                hir::ItemKind::Fn { .. } => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
                     let mut opaque_tys = Default::default();
                     let item = cx
