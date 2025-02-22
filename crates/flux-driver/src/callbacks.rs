@@ -13,7 +13,7 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_interface::{interface::Compiler, Queries};
+use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
