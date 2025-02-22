@@ -12,7 +12,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, TypingEnv, TypingMode, ValTree,
+        TyCtxt, TypingMode, ValTree,
     },
 };
 use rustc_span::{Span, Symbol};

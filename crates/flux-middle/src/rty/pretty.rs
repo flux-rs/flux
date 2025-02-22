@@ -24,9 +24,9 @@ impl Pretty for ClauseKind {
 impl Pretty for BoundRegionKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BoundRegionKind::BrAnon => w!(cx, f, "'<annon>"),
-            BoundRegionKind::BrNamed(_, sym) => w!(cx, f, "{sym}"),
-            BoundRegionKind::BrEnv => w!(cx, f, "'<env>"),
+            BoundRegionKind::Anon => w!(cx, f, "'<annon>"),
+            BoundRegionKind::Named(_, sym) => w!(cx, f, "{sym}"),
+            BoundRegionKind::ClosureEnv => w!(cx, f, "'<env>"),
         }
     }
 }

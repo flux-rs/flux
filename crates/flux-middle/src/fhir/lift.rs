@@ -257,7 +257,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
             hir::TyKind::Array(ty, len) => {
                 let ty = self.lift_ty(ty)?;
-                fhir::TyKind::Array(self.genv.alloc(ty), self.lift_array_len(len)?)
+                fhir::TyKind::Array(self.genv.alloc(ty), self.lift_const_arg(len))
             }
             hir::TyKind::Ref(lft, mut_ty) => {
                 fhir::TyKind::Ref(self.lift_lifetime(lft)?, self.lift_mut_ty(mut_ty)?)
@@ -439,13 +439,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             let kind = fhir::AssocItemConstraintKind::Equality { term: self.lift_ty(term)? };
             Ok(fhir::AssocItemConstraint { ident: cstr.ident, kind })
         })
-    }
-
-    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ConstArg> {
-        match len {
-            hir::ArrayLen::Body(const_arg) => Ok(self.lift_const_arg(const_arg)),
-            hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
-        }
     }
 
     fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {
