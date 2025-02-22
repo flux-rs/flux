@@ -6,8 +6,7 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 use rustc_ast::Mutability;
-pub use rustc_borrowck::borrow_set::BorrowData;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, dominators::Dominators, DirectedGraph, StartNode},
@@ -463,7 +462,7 @@ impl<'tcx> Body<'tcx> {
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
         self.body_with_facts
             .borrow_set
-            .location_map
+            .location_map()
             .get_index(idx.as_usize())
             .unwrap()
             .1

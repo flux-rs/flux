@@ -12,7 +12,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, TypingMode, ValTree,
+        TyCtxt, TypingEnv, TypingMode, ValTree,
     },
 };
 use rustc_span::{Span, Symbol};
@@ -264,7 +264,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::ConstEvalCounter => {
+            | rustc_mir::StatementKind::ConstEvalCounter
+            | rustc_mir::StatementKind::BackwardIncompatibleDropHint { .. } => {
                 return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
             }
         };
@@ -651,9 +652,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     }
                     // HACK(RJ) see tests/tests/pos/surface/const09.rs
                     // The const has `args` which makes it unevaluated...
+                    let typing_env = self.selcx.infcx.typing_env(self.param_env);
                     let const_ = constant
                         .const_
-                        .eval(tcx, ParamEnv::empty(), rustc_span::DUMMY_SP)
+                        .eval(tcx, typing_env, rustc_span::DUMMY_SP)
                         .map(|val| Const::Val(val, constant.const_.ty()))
                         .unwrap_or(constant.const_);
                     if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {

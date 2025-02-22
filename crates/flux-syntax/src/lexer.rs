@@ -220,7 +220,7 @@ impl<'t> Cursor<'t> {
                 self.map_token(token);
                 Some(())
             }
-            Some(TokenTree::Delimited(_, _spacing, Delimiter::Invisible, tokens)) => {
+            Some(TokenTree::Delimited(_, _spacing, Delimiter::Invisible(..), tokens)) => {
                 self.stack
                     .push(Frame { cursor: tokens.trees().peekable(), close: None });
                 self.advance()
