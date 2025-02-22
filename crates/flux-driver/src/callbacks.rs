@@ -35,13 +35,9 @@ impl Callbacks for FluxCallbacks {
         });
     }
 
-    fn after_analysis<'tcx>(
-        &mut self,
-        compiler: &Compiler,
-        queries: &'tcx Queries<'tcx>,
-    ) -> Compilation {
+    fn after_analysis<'tcx>(&mut self, compiler: &Compiler, tcx: TyCtxt<'tcx>) -> Compilation {
         if self.verify {
-            self.verify(compiler, queries);
+            self.verify(compiler, tcx);
         }
 
         if self.full_compilation {
@@ -53,32 +49,30 @@ impl Callbacks for FluxCallbacks {
 }
 
 impl FluxCallbacks {
-    fn verify<'tcx>(&self, compiler: &Compiler, queries: &'tcx Queries<'tcx>) {
+    fn verify<'tcx>(&self, compiler: &Compiler, tcx: TyCtxt<'tcx>) {
         if compiler.sess.dcx().has_errors().is_some() {
             return;
         }
 
-        queries.global_ctxt().unwrap().enter(|tcx| {
-            let sess = FluxSession::new(
-                &tcx.sess.opts,
-                tcx.sess.psess.clone_source_map(),
-                rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
-            );
+        let sess = FluxSession::new(
+            &tcx.sess.opts,
+            tcx.sess.psess.clone_source_map(),
+            rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
+        );
 
-            let mut providers = Providers::default();
-            flux_desugar::provide(&mut providers);
-            flux_fhir_analysis::provide(&mut providers);
-            providers.collect_specs = collect_specs;
+        let mut providers = Providers::default();
+        flux_desugar::provide(&mut providers);
+        flux_fhir_analysis::provide(&mut providers);
+        providers.collect_specs = collect_specs;
 
-            let cstore = CStore::load(tcx, &sess);
-            let arena = fhir::Arena::new();
-            GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-                if check_crate(genv).is_ok() {
-                    encode_and_save_metadata(genv);
-                }
-            });
-            sess.finish_diagnostics();
+        let cstore = CStore::load(tcx, &sess);
+        let arena = fhir::Arena::new();
+        GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
+            if check_crate(genv).is_ok() {
+                encode_and_save_metadata(genv);
+            }
         });
+        sess.finish_diagnostics();
     }
 }
 

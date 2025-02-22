@@ -97,7 +97,8 @@ impl<'a> PointsToAnalysis<'a> {
             | mir::StatementKind::FakeRead(..)
             | mir::StatementKind::PlaceMention(..)
             | mir::StatementKind::Coverage(..)
-            | mir::StatementKind::AscribeUserType(..) => (),
+            | mir::StatementKind::AscribeUserType(..)
+            | mir::StatementKind::BackwardIncompatibleDropHint { .. } => {}
         }
     }
 
@@ -216,7 +217,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         }
     }
 
-    fn apply_statement_effect(
+    fn apply_primary_statement_effect(
         &mut self,
         state: &mut Self::Domain,
         statement: &mir::Statement<'tcx>,
@@ -225,7 +226,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         self.handle_statement(statement, state);
     }
 
-    fn apply_terminator_effect<'mir>(
+    fn apply_primary_terminator_effect<'mir>(
         &mut self,
         state: &mut Self::Domain,
         terminator: &'mir mir::Terminator<'tcx>,
@@ -274,10 +275,10 @@ impl<'a> CollectPointerToBorrows<'a> {
     }
 }
 
-impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
-    type Domain = State;
-
-    fn visit_block_start(&mut self, state: &Self::Domain) {
+impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, PointsToAnalysis<'a>>
+    for CollectPointerToBorrows<'_>
+{
+    fn visit_block_start(&mut self, state: &State) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
             let value = state.get_idx(*place_idx, self.map);
@@ -285,10 +286,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         }
     }
 
-    fn visit_statement_after_primary_effect(
+    fn visit_after_primary_statement_effect(
         &mut self,
         _results: &mut Results<'a, 'tcx>,
-        state: &Self::Domain,
+        state: &State,
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
@@ -307,10 +308,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         }
     }
 
-    fn visit_terminator_after_primary_effect(
+    fn visit_after_primary_terminator_effect(
         &mut self,
         results: &mut Results<'a, 'tcx>,
-        _state: &Self::Domain,
+        _state: &State,
         terminator: &'mir mir::Terminator<'tcx>,
         location: mir::Location,
     ) {
@@ -703,7 +704,12 @@ impl Clone for State {
 
 impl JoinSemiLattice for State {
     fn join(&mut self, other: &Self) -> bool {
-        self.values.join(&other.values)
+        assert_eq!(self.values.len(), other.values.len());
+        let mut changed = false;
+        for (a, b) in iter::zip(&mut self.values, &other.values) {
+            changed |= a.join(b);
+        }
+        changed
     }
 }
 

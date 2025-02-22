@@ -57,7 +57,10 @@ fn main() -> io::Result<()> {
     let mut callbacks =
         FluxCallbacks { full_compilation: context.full_compilation(), verify: context.verify() };
 
-    let exit_code = catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run());
+    let exit_code = catch_with_exit_code(move || {
+        RunCompiler::new(&args, &mut callbacks).run();
+        Ok(())
+    });
     resolve_logs()?;
     exit(exit_code)
 }
