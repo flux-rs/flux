@@ -107,7 +107,7 @@ fn emitter(
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
-                    source_map,
+                    Some(source_map),
                     fallback_bundle,
                     pretty,
                     json_rendered,

@@ -11,7 +11,7 @@ use std::{
 };
 
 use flux_driver::callbacks::FluxCallbacks;
-use rustc_driver::{catch_with_exit_code, RunCompiler};
+use rustc_driver::{catch_with_exit_code, run_compiler};
 
 mod logger;
 
@@ -58,7 +58,7 @@ fn main() -> io::Result<()> {
         FluxCallbacks { full_compilation: context.full_compilation(), verify: context.verify() };
 
     let exit_code = catch_with_exit_code(move || {
-        RunCompiler::new(&args, &mut callbacks).run();
+        run_compiler(&args, &mut callbacks);
         Ok(())
     });
     resolve_logs()?;

@@ -18,7 +18,7 @@ use rustc_hir::{
         PerNS,
     },
     def_id::{LocalDefId, CRATE_DEF_ID},
-    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
+    AmbigArg, ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -771,7 +771,7 @@ impl<'sess> OpaqueTypeCollector<'sess> {
 }
 
 impl<'tcx> hir::intravisit::Visitor<'tcx> for OpaqueTypeCollector<'_> {
-    fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx>) {
+    fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx, AmbigArg>) {
         if let hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
             if self.opaque.is_some() {
                 self.errors.emit(errors::UnsupportedSignature::new(
