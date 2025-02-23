@@ -16,7 +16,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{
         BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        ParamTy, RegionVid, ScalarInt, UintTy,
+        LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
@@ -413,18 +413,12 @@ impl<'tcx> ToRustc<'tcx> for Region {
             Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
             Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
-            Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
-                rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
+            Region::ReLateParam(LateParamRegion { scope, kind }) => {
+                rustc_middle::ty::Region::new_late_param(tcx, scope, kind)
             }
             Region::ReErased => tcx.lifetimes.re_erased,
         }
     }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct LateParamRegion {
-    pub scope: DefId,
-    pub bound_region: BoundRegionKind,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -1126,15 +1120,15 @@ pub fn region_to_string(region: Region) -> String {
     match region {
         Region::ReBound(_, region) => {
             match region.kind {
-                BoundRegionKind::BrAnon => "'<annon>".to_string(),
-                BoundRegionKind::BrNamed(_, sym) => {
+                BoundRegionKind::Anon => "'<annon>".to_string(),
+                BoundRegionKind::Named(_, sym) => {
                     if sym == kw::UnderscoreLifetime {
                         format!("{sym}{:?}", region.var)
                     } else {
                         format!("{sym}")
                     }
                 }
-                BoundRegionKind::BrEnv => "'<env>".to_string(),
+                BoundRegionKind::ClosureEnv => "'<env>".to_string(),
             }
         }
         Region::ReEarlyParam(region) => region.name.to_string(),

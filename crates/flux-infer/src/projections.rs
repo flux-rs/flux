@@ -436,8 +436,8 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
-        c.to_rustc(self.tcx())
-            .normalize_internal(self.tcx(), self.rustc_param_env())
+        let c = c.to_rustc(self.tcx());
+        rustc_trait_selection::traits::evaluate_const(self.selcx.infcx, c, self.rustc_param_env())
             .lower(self.tcx())
             .map_err(|e| QueryErr::unsupported(self.def_id(), e.into_err()))
     }

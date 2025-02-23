@@ -257,7 +257,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
             hir::TyKind::Array(ty, len) => {
                 let ty = self.lift_ty(ty)?;
-                fhir::TyKind::Array(self.genv.alloc(ty), self.lift_array_len(len)?)
+                fhir::TyKind::Array(self.genv.alloc(ty), self.lift_const_arg(len))
             }
             hir::TyKind::Ref(lft, mut_ty) => {
                 fhir::TyKind::Ref(self.lift_lifetime(lft)?, self.lift_mut_ty(mut_ty)?)
@@ -285,7 +285,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let opaque_ty = self.insert_opaque_ty(opaque_ty);
                 fhir::TyKind::OpaqueDef(opaque_ty)
             }
-            hir::TyKind::TraitObject(poly_traits, lft, syntax) => {
+            hir::TyKind::TraitObject(poly_traits, lt) => {
                 let poly_traits = try_alloc_slice!(self.genv, poly_traits, |poly_trait| {
                     if poly_trait.modifiers != hir::TraitBoundModifiers::NONE {
                         return self.emit_unsupported(&format!(
@@ -296,8 +296,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     self.lift_poly_trait_ref(*poly_trait)
                 })?;
 
-                let lft = self.lift_lifetime(lft)?;
-                fhir::TyKind::TraitObject(poly_traits, lft, syntax)
+                let lft = self.lift_lifetime(lt.pointer())?;
+                fhir::TyKind::TraitObject(poly_traits, lft, lt.tag())
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -346,12 +346,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::QPath<'genv>> {
         match qpath {
             hir::QPath::Resolved(qself, path) => {
-                let qself = qself
-                    .map(|ty| {
-                        let ty = self.lift_ty(ty)?;
-                        Ok(self.genv.alloc(ty))
-                    })
-                    .transpose()?;
+                let qself = if let Some(ty) = qself {
+                    let ty = self.lift_ty(ty)?;
+                    Some(self.genv.alloc(ty))
+                } else {
+                    None
+                };
                 let path = self.lift_path(path)?;
                 Ok(fhir::QPath::Resolved(qself, path))
             }
@@ -412,11 +412,11 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericArg::Type(ty) => {
-                    let ty = self.lift_ty(ty)?;
+                    let ty = self.lift_ty(ty.as_unambig_ty())?;
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(const_arg) => {
-                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg)))
+                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg.as_unambig_ct())))
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -439,13 +439,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             let kind = fhir::AssocItemConstraintKind::Equality { term: self.lift_ty(term)? };
             Ok(fhir::AssocItemConstraint { ident: cstr.ident, kind })
         })
-    }
-
-    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ConstArg> {
-        match len {
-            hir::ArrayLen::Body(const_arg) => Ok(self.lift_const_arg(const_arg)),
-            hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
-        }
     }
 
     fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {

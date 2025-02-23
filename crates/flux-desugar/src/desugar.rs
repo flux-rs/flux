@@ -1153,12 +1153,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         qself: Option<&surface::Ty>,
         path: &surface::Path,
     ) -> Result<fhir::QPath<'genv>> {
-        let qself = qself
-            .map(|ty| {
-                let ty = self.desugar_ty(ty)?;
-                Ok(self.genv().alloc(ty))
-            })
-            .transpose()?;
+        let qself = if let Some(ty) = qself {
+            let ty = self.desugar_ty(ty)?;
+            Some(self.genv().alloc(ty))
+        } else {
+            None
+        };
         let partial_res = self.resolver_output().path_res_map[&path.node_id];
 
         let unresolved_segments = partial_res.unresolved_segments();

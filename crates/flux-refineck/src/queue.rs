@@ -1,6 +1,6 @@
 use std::collections::BinaryHeap;
 
-use rustc_index::{bit_set::BitSet, IndexVec};
+use rustc_index::{bit_set::DenseBitSet, IndexVec};
 use rustc_middle::mir::BasicBlock;
 
 struct Item<'a> {
@@ -10,7 +10,7 @@ struct Item<'a> {
 
 pub(crate) struct WorkQueue<'a> {
     heap: BinaryHeap<Item<'a>>,
-    set: BitSet<BasicBlock>,
+    set: DenseBitSet<BasicBlock>,
     dominator_order_rank: &'a IndexVec<BasicBlock, u32>,
 }
 
@@ -18,7 +18,7 @@ impl<'a> WorkQueue<'a> {
     pub(crate) fn empty(len: usize, dominator_order_rank: &'a IndexVec<BasicBlock, u32>) -> Self {
         Self {
             heap: BinaryHeap::with_capacity(len),
-            set: BitSet::new_empty(len),
+            set: DenseBitSet::new_empty(len),
             dominator_order_rank,
         }
     }

@@ -27,7 +27,7 @@ use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion,
+    EarlyParamRegion, LateParamRegion, LateParamRegionKind,
     Region::{self, *},
     RegionVid,
 };
@@ -698,18 +698,18 @@ impl FnTraitPredicate {
         let closure_ty = Ty::closure(closure_id, tys, args);
         let env_ty = match self.kind {
             ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
+                    kind: BoundRegionKind::ClosureEnv,
                 };
                 Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
+                    kind: BoundRegionKind::ClosureEnv,
                 };
                 Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }

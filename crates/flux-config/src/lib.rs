@@ -100,7 +100,7 @@ impl Paths {
     fn is_checked_file(&self, file: &str) -> bool {
         self.paths
             .as_ref()
-            .map_or(true, |p| p.iter().any(|p| p.to_str().unwrap() == file))
+            .is_none_or(|p| p.iter().any(|p| p.to_str().unwrap() == file))
     }
 }
 

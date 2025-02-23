@@ -27,7 +27,7 @@ use flux_middle::{
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
-use rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
+use rustc_index::{bit_set::DenseBitSet, IndexSlice, IndexVec};
 use rustc_middle::{
     mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
     ty,
@@ -97,7 +97,8 @@ impl<'a> PointsToAnalysis<'a> {
             | mir::StatementKind::FakeRead(..)
             | mir::StatementKind::PlaceMention(..)
             | mir::StatementKind::Coverage(..)
-            | mir::StatementKind::AscribeUserType(..) => (),
+            | mir::StatementKind::AscribeUserType(..)
+            | mir::StatementKind::BackwardIncompatibleDropHint { .. } => {}
         }
     }
 
@@ -216,7 +217,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         }
     }
 
-    fn apply_statement_effect(
+    fn apply_primary_statement_effect(
         &mut self,
         state: &mut Self::Domain,
         statement: &mir::Statement<'tcx>,
@@ -225,7 +226,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         self.handle_statement(statement, state);
     }
 
-    fn apply_terminator_effect<'mir>(
+    fn apply_primary_terminator_effect<'mir>(
         &mut self,
         state: &mut Self::Domain,
         terminator: &'mir mir::Terminator<'tcx>,
@@ -241,14 +242,6 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
         return_places: mir::CallReturnPlaces<'_, 'tcx>,
     ) {
         self.handle_call_return(return_places, state);
-    }
-
-    fn apply_switch_int_edge_effects(
-        &mut self,
-        _block: BasicBlock,
-        _discr: &mir::Operand<'tcx>,
-        _apply_edge_effects: &mut impl rustc_mir_dataflow::SwitchIntEdgeEffects<Self::Domain>,
-    ) {
     }
 }
 
@@ -274,10 +267,10 @@ impl<'a> CollectPointerToBorrows<'a> {
     }
 }
 
-impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
-    type Domain = State;
-
-    fn visit_block_start(&mut self, state: &Self::Domain) {
+impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, PointsToAnalysis<'a>>
+    for CollectPointerToBorrows<'_>
+{
+    fn visit_block_start(&mut self, state: &State) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
             let value = state.get_idx(*place_idx, self.map);
@@ -285,10 +278,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         }
     }
 
-    fn visit_statement_after_primary_effect(
+    fn visit_after_primary_statement_effect(
         &mut self,
         _results: &mut Results<'a, 'tcx>,
-        state: &Self::Domain,
+        state: &State,
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
@@ -307,10 +300,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         }
     }
 
-    fn visit_terminator_after_primary_effect(
+    fn visit_after_primary_terminator_effect(
         &mut self,
         results: &mut Results<'a, 'tcx>,
-        _state: &Self::Domain,
+        _state: &State,
         terminator: &'mir mir::Terminator<'tcx>,
         location: mir::Location,
     ) {
@@ -372,7 +365,7 @@ impl Map {
     }
 
     /// Register all non-excluded places that have scalar layout.
-    fn register(&mut self, body: &mir::Body, exclude: BitSet<mir::Local>) {
+    fn register(&mut self, body: &mir::Body, exclude: DenseBitSet<mir::Local>) {
         let mut worklist = VecDeque::with_capacity(body.local_decls.len());
 
         // Start by constructing the places for each bare local.
@@ -618,9 +611,9 @@ impl Iterator for Children<'_> {
 }
 
 /// Returns all locals with projections that have their reference or address taken.
-fn excluded_locals(body: &mir::Body<'_>) -> BitSet<mir::Local> {
+fn excluded_locals(body: &mir::Body<'_>) -> DenseBitSet<mir::Local> {
     struct Collector {
-        result: BitSet<mir::Local>,
+        result: DenseBitSet<mir::Local>,
     }
 
     impl<'tcx> mir::visit::Visitor<'tcx> for Collector {
@@ -646,7 +639,7 @@ fn excluded_locals(body: &mir::Body<'_>) -> BitSet<mir::Local> {
         }
     }
 
-    let mut collector = Collector { result: BitSet::new_empty(body.local_decls.len()) };
+    let mut collector = Collector { result: DenseBitSet::new_empty(body.local_decls.len()) };
     collector.visit_body(body);
     collector.result
 }
@@ -703,7 +696,12 @@ impl Clone for State {
 
 impl JoinSemiLattice for State {
     fn join(&mut self, other: &Self) -> bool {
-        self.values.join(&other.values)
+        assert_eq!(self.values.len(), other.values.len());
+        let mut changed = false;
+        for (a, b) in iter::zip(&mut self.values, &other.values) {
+            changed |= a.join(b);
+        }
+        changed
     }
 }
 

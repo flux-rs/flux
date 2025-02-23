@@ -780,7 +780,7 @@ impl PartialRes {
     }
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
-        self.full_res().map_or(false, |res| res.is_box(tcx))
+        self.full_res().is_some_and(|res| res.is_box(tcx))
     }
 }
 

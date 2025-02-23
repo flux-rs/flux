@@ -408,7 +408,7 @@ impl Node {
             NodeKind::Assumption(pred) => {
                 *pred = pred.normalize(defns).simplify();
                 self.children
-                    .extract_if(|child| {
+                    .extract_if(.., |child| {
                         matches!(child.borrow().kind, NodeKind::True)
                             || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
                     })
@@ -416,7 +416,7 @@ impl Node {
             }
             NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
                 self.children
-                    .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
+                    .extract_if(.., |child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
             }
         }

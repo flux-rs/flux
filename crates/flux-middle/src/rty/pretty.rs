@@ -24,9 +24,9 @@ impl Pretty for ClauseKind {
 impl Pretty for BoundRegionKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BoundRegionKind::BrAnon => w!(cx, f, "'<annon>"),
-            BoundRegionKind::BrNamed(_, sym) => w!(cx, f, "{sym}"),
-            BoundRegionKind::BrEnv => w!(cx, f, "'<env>"),
+            BoundRegionKind::Anon => w!(cx, f, "'<annon>"),
+            BoundRegionKind::Named(_, sym) => w!(cx, f, "{sym}"),
+            BoundRegionKind::ClosureEnv => w!(cx, f, "'<env>"),
         }
     }
 }
@@ -231,7 +231,7 @@ impl PrettyNested for IdxFmt {
         let kind = self.0.kind();
         match kind {
             ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, false),
-            ExprKind::Tuple(flds) if flds.len() == 0 => {
+            ExprKind::Tuple(flds) if flds.is_empty() => {
                 Ok(NestedString { text: String::new(), key: None, children: None })
             }
             _ => self.0.fmt_nested(cx),

@@ -14,7 +14,6 @@ use rustc_errors::{
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
     json::JsonEmitter,
-    registry::Registry,
     Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
 };
 use rustc_session::{
@@ -65,7 +64,7 @@ impl FluxSession {
     }
 
     pub fn finish_diagnostics(&self) {
-        self.parse_sess.dcx().print_error_count(&Registry::new(&[]));
+        self.parse_sess.dcx().print_error_count();
         self.abort_if_errors();
     }
 
@@ -108,13 +107,12 @@ fn emitter(
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
-                    source_map,
+                    Some(source_map),
                     fallback_bundle,
                     pretty,
                     json_rendered,
                     color_config,
                 )
-                .registry(Some(Registry::new(&[])))
                 .fluent_bundle(bundle)
                 .track_diagnostics(track_diagnostics)
                 .diagnostic_width(opts.diagnostic_width)

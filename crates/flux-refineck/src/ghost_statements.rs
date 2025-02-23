@@ -91,7 +91,7 @@ impl GhostStatements {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
-                let place = lowering::lower_place(tcx, &borrow.borrowed_place).unwrap();
+                let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
                 GhostStatement::Unblock(place)
             });
             self.at_location.entry(location).or_default().extend(stmts);

@@ -36,7 +36,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId, Safety};
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
+    ty::{self, AssocItem, AssocKind, BoundVar, TyCtxt},
 };
 use rustc_span::{
     symbol::{kw, Ident},
@@ -654,7 +654,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
-        let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
+        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl)?;
 
         let vars = late_bound_regions
             .iter()
@@ -1546,15 +1546,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     span_bug!(span, "late-bound variable at depth 0")
                 };
                 let name = lifetime_name(def_id.to_def_id());
-                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
+                let kind = rty::BoundRegionKind::Named(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
                 let name = lifetime_name(id.to_def_id());
-                let bound_region = rty::BoundRegionKind::BrNamed(id.to_def_id(), name);
-                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), bound_region })
+                let kind = rty::LateParamRegionKind::Named(id.to_def_id(), name);
+                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), kind })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }
@@ -1699,7 +1699,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let name = self.tcx().item_name(def_id);
         match param.kind {
             fhir::GenericParamKind::Lifetime => {
-                Ok(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
+                Ok(rty::BoundVariableKind::Region(rty::BoundRegionKind::Named(def_id, name)))
             }
             fhir::GenericParamKind::Const { .. } | fhir::GenericParamKind::Type { .. } => {
                 Err(query_bug!(def_id, "unsupported param kind `{:?}`", param.kind))
