@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/wf/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/wf/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -642,7 +642,7 @@
 }
 
 <span class="doccomment">/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
-</span><span class="kw">fn </span>resolve_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result </span>{
+</span><span class="kw">fn </span>resolve_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result</span> {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
@@ -650,7 +650,7 @@
     sess: <span class="kw-2">&amp;</span>FluxSession,
     qualifiers: <span class="kw-2">&amp;</span>UnordSet&lt;Symbol&gt;,
     fn_quals: <span class="kw-2">&amp;</span>[Ident],
-) -&gt; <span class="prelude-ty">Result </span>{
+) -&gt; <span class="prelude-ty">Result</span> {
     <span class="kw">for </span>qual <span class="kw">in </span>fn_quals {
         <span class="kw">if </span>!qualifiers.contains(<span class="kw-2">&amp;</span>qual.name) {
             <span class="kw">let </span>span = qual.span;
@@ -687,7 +687,7 @@
     }
 
     <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    </span><span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result </span>{
+    </span><span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">for </span>param <span class="kw">in </span>params {
             <span class="kw">let </span>sort = <span class="self">self
                 </span>.as_conv_ctxt()
@@ -699,7 +699,7 @@
     }
 
     <span class="doccomment">/// Initializes the inference context with all refinement parameters in `node`
-    </span><span class="kw">fn </span>insert_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result </span>{
+    </span><span class="kw">fn </span>insert_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>genv = <span class="self">self</span>.infcx.genv;
         visit_refine_params(node, |param| {
             <span class="kw">let </span>sort = <span class="self">self</span>.as_conv_ctxt().conv_sort(<span class="kw-2">&amp;</span>param.sort).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
@@ -941,7 +941,7 @@
 <span class="kw">fn </span>visit_refine_params(
     node: <span class="kw-2">&amp;</span>fhir::OwnerNode,
     f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>,
-) -&gt; <span class="prelude-ty">Result </span>{
+) -&gt; <span class="prelude-ty">Result</span> {
     <span class="kw">struct </span>RefineParamVisitor&lt;F&gt; {
         f: F,
         err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,

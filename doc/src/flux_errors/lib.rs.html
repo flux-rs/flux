@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-errors/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_errors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_errors/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-errors/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_errors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_errors/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -177,9 +177,7 @@
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, never_type)]
+<a href="#179" id="179">179</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
@@ -195,7 +193,6 @@
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
     json::JsonEmitter,
-    registry::Registry,
     Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
 };
 <span class="kw">use </span>rustc_session::{
@@ -246,7 +243,7 @@
     }
 
     <span class="kw">pub fn </span>finish_diagnostics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="self">self</span>.parse_sess.dcx().print_error_count(<span class="kw-2">&amp;</span>Registry::new(<span class="kw-2">&amp;</span>[]));
+        <span class="self">self</span>.parse_sess.dcx().print_error_count();
         <span class="self">self</span>.abort_if_errors();
     }
 
@@ -289,13 +286,12 @@
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
-                    source_map,
+                    <span class="prelude-val">Some</span>(source_map),
                     fallback_bundle,
                     pretty,
                     json_rendered,
                     color_config,
                 )
-                .registry(<span class="prelude-val">Some</span>(Registry::new(<span class="kw-2">&amp;</span>[])))
                 .fluent_bundle(bundle)
                 .track_diagnostics(track_diagnostics)
                 .diagnostic_width(opts.diagnostic_width)
@@ -350,7 +346,7 @@
 }
 
 <span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span>Errors&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt;;
+    <span class="kw">type </span><span class="prelude-ty">Result</span> = <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt;;
 
     <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {
         <span class="kw-2">*</span><span class="self">self</span>.err.get_mut() = <span class="prelude-val">Some</span>(err);

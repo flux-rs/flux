@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/collector/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/collector/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -962,41 +962,7 @@
 <a href="#961" id="961">961</a>
 <a href="#962" id="962">962</a>
 <a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#964" id="964">964</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1014,9 +980,7 @@
 };
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_ast::{
-    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, MetaItemInner, MetaItemKind,
-};
+<span class="kw">use </span>rustc_ast::{tokenstream::TokenStream, MetaItemInner, MetaItemKind};
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::{
     <span class="self">self </span><span class="kw">as </span>hir,
@@ -1025,7 +989,7 @@
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_span::{symbol::sym, Span, Symbol, SyntaxContext};
+<span class="kw">use </span>rustc_span::{Span, Symbol, SyntaxContext};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
@@ -1080,7 +1044,7 @@
         <span class="prelude-val">Ok</span>(collector.specs)
     }
 
-    <span class="kw">fn </span>collect_crate(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_crate(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(CRATE_DEF_ID)<span class="question-mark">?</span>;
         <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
         <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
@@ -1092,7 +1056,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>Item&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>Item&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>owner_id = item.owner_id;
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
@@ -1100,7 +1064,7 @@
         <span class="self">self</span>.collect_infer_opts(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-            ItemKind::Fn(..) =&gt; {
+            ItemKind::Fn { .. } =&gt; {
                 <span class="self">self</span>.collect_fn_spec(owner_id, attrs)<span class="question-mark">?</span>;
             }
             ItemKind::Struct(variant, ..) =&gt; {
@@ -1139,7 +1103,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>owner_id = trait_item.owner_id;
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
@@ -1152,7 +1116,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>owner_id = impl_item.owner_id;
 
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_attrs_and_report_dups(owner_id.def_id)<span class="question-mark">?</span>;
@@ -1166,7 +1130,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.specs
             .flux_items_by_parent
             .entry(module_id)
@@ -1175,7 +1139,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.trait_assoc_refts();
 
@@ -1186,7 +1150,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.impl_assoc_refts();
 
@@ -1197,7 +1161,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         <span class="prelude-val">Ok</span>(())
     }
@@ -1235,7 +1199,7 @@
             }))
     }
 
-    <span class="kw">fn </span>parse_constant_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>parse_constant_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, <span class="kw-2">mut </span>attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(constant) = attrs.constant() {
             <span class="self">self</span>.specs.constants.insert(owner_id, constant);
         }
@@ -1320,7 +1284,7 @@
         <span class="prelude-val">Ok</span>(variant)
     }
 
-    <span class="kw">fn </span>collect_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.parse_constant_spec(owner_id, attrs)
     }
 
@@ -1368,10 +1332,10 @@
         <span class="kw">let </span>attrs: Vec&lt;<span class="kw">_</span>&gt; = attrs
             .iter()
             .filter_map(|attr| {
-                <span class="kw">if let </span>AttrKind::Normal(attr_item, ..) = <span class="kw-2">&amp;</span>attr.kind {
-                    <span class="kw">match </span><span class="kw-2">&amp;</span>attr_item.item.path.segments[..] {
+                <span class="kw">if let </span>hir::AttrKind::Normal(attr_item) = <span class="kw-2">&amp;</span>attr.kind {
+                    <span class="kw">match </span><span class="kw-2">&amp;</span>attr_item.path.segments[..] {
                         [first, ..] =&gt; {
-                            <span class="kw">let </span>ident = first.ident.as_str();
+                            <span class="kw">let </span>ident = first.as_str();
                             <span class="kw">if </span>ident == <span class="string">"flux" </span>|| ident == <span class="string">"flux_tool" </span>{
                                 <span class="prelude-val">Some</span>(attr_item)
                             } <span class="kw">else </span>{
@@ -1384,28 +1348,32 @@
                     <span class="prelude-val">None
                 </span>}
             })
-            .map(|attr_item| <span class="self">self</span>.parse_flux_attr(<span class="kw-2">&amp;</span>attr_item.item, def_kind))
+            .map(|attr_item| <span class="self">self</span>.parse_flux_attr(attr_item, def_kind))
             .try_collect_exhaust()<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(FluxAttrs::new(attrs))
     }
 
-    <span class="kw">fn </span>parse_flux_attr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attr_item: <span class="kw-2">&amp;</span>AttrItem, def_kind: DefKind) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttr&gt; {
+    <span class="kw">fn </span>parse_flux_attr(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        attr_item: <span class="kw-2">&amp;</span>hir::AttrItem,
+        def_kind: DefKind,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttr&gt; {
         <span class="kw">let </span>invalid_attr_err = |this: <span class="kw-2">&amp;</span><span class="self">Self</span>| {
             this.errors
-                .emit(errors::InvalidAttr { span: attr_item.span() })
+                .emit(errors::InvalidAttr { span: attr_item_span(attr_item) })
         };
 
         <span class="kw">let </span>[<span class="kw">_</span>, segment] = <span class="kw-2">&amp;</span>attr_item.path.segments[..] <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)) };
 
-        <span class="kw">let </span>kind = <span class="kw">match </span>(segment.ident.as_str(), <span class="kw-2">&amp;</span>attr_item.args) {
-            (<span class="string">"alias"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+        <span class="kw">let </span>kind = <span class="kw">match </span>(segment.as_str(), <span class="kw-2">&amp;</span>attr_item.args) {
+            (<span class="string">"alias"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_type_alias, FluxAttrKind::TypeAlias)<span class="question-mark">?
             </span>}
-            (<span class="string">"sig" </span>| <span class="string">"spec"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"sig" </span>| <span class="string">"spec"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)<span class="question-mark">?
             </span>}
-            (<span class="string">"assoc" </span>| <span class="string">"reft"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"assoc" </span>| <span class="string">"reft"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="kw">match </span>def_kind {
                     DefKind::Trait =&gt; {
                         <span class="self">self</span>.parse(
@@ -1424,65 +1392,62 @@
                     <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)),
                 }
             }
-            (<span class="string">"qualifiers"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"qualifiers"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)<span class="question-mark">?
             </span>}
-            (<span class="string">"defs"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"defs"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)<span class="question-mark">?
             </span>}
-            (<span class="string">"refined_by"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"refined_by"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)<span class="question-mark">?
             </span>}
-            (<span class="string">"generics"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"generics"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_generics, FluxAttrKind::Generics)<span class="question-mark">?
             </span>}
-            (<span class="string">"field"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"field"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)<span class="question-mark">?
             </span>}
-            (<span class="string">"variant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"variant"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_variant, FluxAttrKind::Variant)<span class="question-mark">?
             </span>}
-            (<span class="string">"invariant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"invariant"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)<span class="question-mark">?
             </span>}
-            (<span class="string">"constant"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+            (<span class="string">"constant"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)<span class="question-mark">?
             </span>}
-            (<span class="string">"opts"</span>, AttrArgs::Delimited(..)) =&gt; {
+            (<span class="string">"opts"</span>, hir::AttrArgs::Delimited(..)) =&gt; {
                 <span class="kw">let </span>opts = AttrMap::parse(attr_item)
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?
                     </span>.try_into_infer_opts()
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?</span>;
                 FluxAttrKind::InferOpts(opts)
             }
-            (<span class="string">"ignore"</span>, <span class="kw">_</span>) =&gt; {
-                FluxAttrKind::Ignore(
-                    parse_yes_no_with_reason(attr_item)
-                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
-                        </span>.into(),
-                )
-            }
-            (<span class="string">"trusted"</span>, <span class="kw">_</span>) =&gt; {
-                FluxAttrKind::Trusted(
-                    parse_yes_no_with_reason(attr_item)
-                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
-                        </span>.into(),
-                )
-            }
-            (<span class="string">"trusted_impl"</span>, <span class="kw">_</span>) =&gt; {
-                FluxAttrKind::TrustedImpl(
-                    parse_yes_no_with_reason(attr_item)
-                        .map_err(|<span class="kw">_</span>| invalid_attr_err(<span class="self">self</span>))<span class="question-mark">?
-                        </span>.into(),
-                )
-            }
-            (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
-            (<span class="string">"reflect"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Reflect,
-            (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
-            (<span class="string">"should_fail"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ShouldFail,
+            (<span class="string">"ignore"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
+                    FluxAttrKind::Ignore(b.into())
+                })<span class="question-mark">?
+            </span>}
+            (<span class="string">"ignore"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::Ignore(Ignored::Yes),
+            (<span class="string">"trusted"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
+                    FluxAttrKind::Trusted(b.into())
+                })<span class="question-mark">?
+            </span>}
+            (<span class="string">"trusted"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::Trusted(Trusted::Yes),
+            (<span class="string">"trusted_impl"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
+                    FluxAttrKind::TrustedImpl(b.into())
+                })<span class="question-mark">?
+            </span>}
+            (<span class="string">"trusted_impl"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::TrustedImpl(Trusted::Yes),
+            (<span class="string">"opaque"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
+            (<span class="string">"reflect"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::Reflect,
+            (<span class="string">"extern_spec"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
+            (<span class="string">"should_fail"</span>, hir::AttrArgs::Empty) =&gt; FluxAttrKind::ShouldFail,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_attr_err(<span class="self">self</span>)),
         };
-        <span class="prelude-val">Ok</span>(FluxAttr { kind, span: attr_item.span() })
+        <span class="prelude-val">Ok</span>(FluxAttr { kind, span: attr_item_span(attr_item) })
     }
 
     <span class="kw">fn </span>parse&lt;T&gt;(
@@ -1498,7 +1463,7 @@
             .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)
     }
 
-    <span class="kw">fn </span>report_dups(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;</span>FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>report_dups(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;</span>FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
         <span class="kw">for </span>(name, dups) <span class="kw">in </span>attrs.dups() {
             <span class="kw">for </span>attr <span class="kw">in </span>dups {
@@ -1530,48 +1495,6 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(check_overflow) = attrs.infer_opts() {
             <span class="self">self</span>.specs.infer_opts.insert(def_id, check_overflow);
         }
-    }
-}
-
-<span class="kw">fn </span>parse_yes_no_with_reason(attr_item: <span class="kw-2">&amp;</span>AttrItem) -&gt; std::result::Result&lt;bool, ()&gt; {
-    <span class="kw">match </span>attr_item.meta_kind().ok_or(())<span class="question-mark">? </span>{
-        MetaItemKind::Word =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>),
-        MetaItemKind::List(items) =&gt; {
-            <span class="kw">let </span>(b, items) = parse_opt_yes_no(<span class="kw-2">&amp;</span>items, <span class="bool-val">true</span>);
-            <span class="kw">let </span>(<span class="kw">_</span>, items) = parse_opt_reason(items);
-            <span class="kw">if </span>items.is_empty() {
-                <span class="prelude-val">Ok</span>(b)
-            } <span class="kw">else </span>{
-                <span class="prelude-val">Err</span>(())
-            }
-        }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(()),
-    }
-}
-
-<span class="kw">fn </span>parse_opt_yes_no(items: <span class="kw-2">&amp;</span>[MetaItemInner], default: bool) -&gt; (bool, <span class="kw-2">&amp;</span>[MetaItemInner]) {
-    <span class="kw">let </span>[hd, tl @ ..] = items <span class="kw">else </span>{ <span class="kw">return </span>(default, items) };
-    <span class="kw">if </span>hd.is_word() {
-        <span class="kw">if </span>hd.has_name(sym::yes) {
-            (<span class="bool-val">true</span>, tl)
-        } <span class="kw">else if </span>hd.has_name(sym::no) {
-            (<span class="bool-val">false</span>, tl)
-        } <span class="kw">else </span>{
-            (default, items)
-        }
-    } <span class="kw">else </span>{
-        (default, items)
-    }
-}
-
-<span class="kw">fn </span>parse_opt_reason(items: <span class="kw-2">&amp;</span>[MetaItemInner]) -&gt; (<span class="prelude-ty">Option</span>&lt;Symbol&gt;, <span class="kw-2">&amp;</span>[MetaItemInner]) {
-    <span class="kw">let </span>[hd, tl @ ..] = items <span class="kw">else </span>{ <span class="kw">return </span>(<span class="prelude-val">None</span>, items) };
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = hd.value_str()
-        &amp;&amp; hd.has_name(sym::reason)
-    {
-        (<span class="prelude-val">Some</span>(value), tl)
-    } <span class="kw">else </span>{
-        (<span class="prelude-val">None</span>, items)
     }
 }
 
@@ -1809,23 +1732,19 @@
 <span class="kw">type </span>AttrMapErr&lt;T = ()&gt; = std::result::Result&lt;T, errors::AttrMapErr&gt;;
 
 <span class="kw">impl </span>AttrMap {
-    <span class="comment">// TODO: Ugly that we have to access the collector for error reporting
-    </span><span class="kw">fn </span>parse(attr_item: <span class="kw-2">&amp;</span>AttrItem) -&gt; AttrMapErr&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>parse(attr_item: <span class="kw-2">&amp;</span>hir::AttrItem) -&gt; AttrMapErr&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>map = <span class="self">Self </span>{ map: HashMap::new() };
-        <span class="kw">let </span>meta_item_kind = attr_item.meta_kind();
-        <span class="kw">match </span>meta_item_kind {
-            <span class="prelude-val">Some</span>(MetaItemKind::List(items)) =&gt; {
-                <span class="kw">for </span>item <span class="kw">in </span>items {
-                    map.parse_entry(<span class="kw-2">&amp;</span>item)<span class="question-mark">?</span>;
-                }
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
-                    span: attr_item.span(),
-                    message: <span class="string">"bad syntax"</span>.to_string(),
-                })
-            }
+        <span class="kw">let </span>err = || {
+            <span class="prelude-val">Err</span>(errors::AttrMapErr {
+                span: attr_item_span(attr_item),
+                message: <span class="string">"bad syntax"</span>.to_string(),
+            })
         };
+        <span class="kw">let </span>hir::AttrArgs::Delimited(d) = <span class="kw-2">&amp;</span>attr_item.args <span class="kw">else </span>{ <span class="kw">return </span>err() };
+        <span class="kw">let </span><span class="prelude-val">Some</span>(items) = MetaItemKind::list_from_tokens(d.tokens.clone()) <span class="kw">else </span>{ <span class="kw">return </span>err() };
+        <span class="kw">for </span>item <span class="kw">in </span>items {
+            map.parse_entry(<span class="kw-2">&amp;</span>item)<span class="question-mark">?</span>;
+        }
         <span class="prelude-val">Ok</span>(map)
     }
 
@@ -1876,6 +1795,19 @@
         }
 
         <span class="prelude-val">Ok</span>(infer_opts)
+    }
+}
+
+<span class="kw">fn </span>attr_item_span(attr_item: <span class="kw-2">&amp;</span>hir::AttrItem) -&gt; Span {
+    attr_args_span(<span class="kw-2">&amp;</span>attr_item.args)
+        .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
+}
+
+<span class="kw">fn </span>attr_args_span(attr_args: <span class="kw-2">&amp;</span>hir::AttrArgs) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+    <span class="kw">match </span>attr_args {
+        hir::AttrArgs::Empty =&gt; <span class="prelude-val">None</span>,
+        hir::AttrArgs::Delimited(args) =&gt; <span class="prelude-val">Some</span>(args.dspan.entire()),
+        hir::AttrArgs::Eq { eq_span, expr } =&gt; <span class="prelude-val">Some</span>(eq_span.to(expr.span)),
     }
 }
 

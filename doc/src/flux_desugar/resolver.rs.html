@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/</div>resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/</div>resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -870,7 +870,7 @@
         PerNS,
     },
     def_id::{LocalDefId, CRATE_DEF_ID},
-    ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
+    AmbigArg, ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
 };
 <span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
@@ -1084,12 +1084,12 @@
         }
     }
 
-    <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>trait_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.traits[<span class="kw-2">&amp;</span>owner_id.local_id()];
         RefinementResolver::resolve_trait(<span class="self">self</span>, trait_)
     }
 
-    <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>impl_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.impls[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
@@ -1097,7 +1097,7 @@
         RefinementResolver::resolve_impl(<span class="self">self</span>, impl_)
     }
 
-    <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(ty_alias) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.ty_aliases[<span class="kw-2">&amp;</span>owner_id.local_id()] {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
@@ -1107,7 +1107,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>resolve_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>struct_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.structs[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
@@ -1115,7 +1115,7 @@
         RefinementResolver::resolve_struct_def(<span class="self">self</span>, struct_def)
     }
 
-    <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>enum_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.enums[<span class="kw-2">&amp;</span>owner_id.local_id()];
         ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
@@ -1123,7 +1123,7 @@
         RefinementResolver::resolve_enum_def(<span class="self">self</span>, enum_def)
     }
 
-    <span class="kw">fn </span>resolve_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_constant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(constant) = <span class="self">self</span>.specs.constants.get(<span class="kw-2">&amp;</span>owner_id.local_id()) {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_constant(constant);
@@ -1133,7 +1133,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id.local_id()].fn_sig {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
@@ -1348,7 +1348,7 @@
                 );
                 <span class="self">self</span>.resolve_struct_def(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
-            ItemKind::Fn(..) =&gt; {
+            ItemKind::Fn { .. } =&gt; {
                 <span class="self">self</span>.define_generics(def_id);
                 <span class="self">self</span>.resolve_fn_sig(def_id).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
             }
@@ -1507,7 +1507,7 @@
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: MaybeExternId&lt;OwnerId&gt;,
         f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ItemResolver),
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span><span class="kw-2">mut </span>item_resolver = ItemResolver::new(resolver, owner_id)<span class="question-mark">?</span>;
         f(<span class="kw-2">&amp;mut </span>item_resolver);
         item_resolver.errors.into_result()
@@ -1623,7 +1623,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>OpaqueTypeCollector&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Ty&lt;<span class="lifetime">'tcx</span>&gt;) {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Ty&lt;<span class="lifetime">'tcx</span>, AmbigArg&gt;) {
         <span class="kw">if let </span>hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
             <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
                 <span class="self">self</span>.errors.emit(errors::UnsupportedSignature::new(

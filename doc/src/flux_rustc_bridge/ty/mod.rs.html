@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/ty/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_rustc_bridge/ty/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-rustc-bridge/src/ty/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_rustc_bridge" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_rustc_bridge/ty/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -1138,13 +1138,7 @@
 <a href="#1137" id="1137">1137</a>
 <a href="#1138" id="1138">1138</a>
 <a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a>
-<a href="#1141" id="1141">1141</a>
-<a href="#1142" id="1142">1142</a>
-<a href="#1143" id="1143">1143</a>
-<a href="#1144" id="1144">1144</a>
-<a href="#1145" id="1145">1145</a>
-<a href="#1146" id="1146">1146</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
+<a href="#1140" id="1140">1140</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
 
@@ -1162,7 +1156,7 @@
     mir::Mutability,
     ty::{
         BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        ParamTy, RegionVid, ScalarInt, UintTy,
+        LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 <span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
@@ -1559,18 +1553,12 @@
             Region::ReEarlyParam(epr) =&gt; rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic =&gt; tcx.lifetimes.re_static,
             Region::ReVar(rvid) =&gt; rustc_middle::ty::Region::new_var(tcx, rvid),
-            Region::ReLateParam(LateParamRegion { scope, bound_region }) =&gt; {
-                rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
+            Region::ReLateParam(LateParamRegion { scope, kind }) =&gt; {
+                rustc_middle::ty::Region::new_late_param(tcx, scope, kind)
             }
             Region::ReErased =&gt; tcx.lifetimes.re_erased,
         }
     }
-}
-
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub struct </span>LateParamRegion {
-    <span class="kw">pub </span>scope: DefId,
-    <span class="kw">pub </span>bound_region: BoundRegionKind,
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -2272,15 +2260,15 @@
     <span class="kw">match </span>region {
         Region::ReBound(<span class="kw">_</span>, region) =&gt; {
             <span class="kw">match </span>region.kind {
-                BoundRegionKind::BrAnon =&gt; <span class="string">"'&lt;annon&gt;"</span>.to_string(),
-                BoundRegionKind::BrNamed(<span class="kw">_</span>, sym) =&gt; {
+                BoundRegionKind::Anon =&gt; <span class="string">"'&lt;annon&gt;"</span>.to_string(),
+                BoundRegionKind::Named(<span class="kw">_</span>, sym) =&gt; {
                     <span class="kw">if </span>sym == kw::UnderscoreLifetime {
                         <span class="macro">format!</span>(<span class="string">"{sym}{:?}"</span>, region.var)
                     } <span class="kw">else </span>{
                         <span class="macro">format!</span>(<span class="string">"{sym}"</span>)
                     }
                 }
-                BoundRegionKind::BrEnv =&gt; <span class="string">"'&lt;env&gt;"</span>.to_string(),
+                BoundRegionKind::ClosureEnv =&gt; <span class="string">"'&lt;env&gt;"</span>.to_string(),
             }
         }
         Region::ReEarlyParam(region) =&gt; region.name.to_string(),

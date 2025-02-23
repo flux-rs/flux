@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/</div>checker.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/</div>checker.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -1970,7 +1970,7 @@
     def_id::{DefId, LocalDefId},
     LangItem,
 };
-<span class="kw">use </span>rustc_index::bit_set::BitSet;
+<span class="kw">use </span>rustc_index::bit_set::DenseBitSet;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_middle::{
     mir::SwitchTargets,
@@ -2002,7 +2002,7 @@
     <span class="doccomment">/// A marker to the node in the refinement tree at the end of the basic block after applying
     /// the effects of the terminator.
     </span>markers: IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Marker&gt;&gt;,
-    visited: BitSet&lt;BasicBlock&gt;,
+    visited: DenseBitSet&lt;BasicBlock&gt;,
     queue: WorkQueue&lt;<span class="lifetime">'ck</span>&gt;,
     default_refiner: Refiner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
@@ -2345,7 +2345,7 @@
         def_id: LocalDefId,
         inherited: Inherited&lt;<span class="lifetime">'ck</span>, M&gt;,
         poly_sig: PolyFnSig,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>genv = infcx.genv;
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
 
@@ -2372,7 +2372,7 @@
             inherited,
             body: <span class="kw-2">&amp;</span>body,
             resume_ty,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             markers: IndexVec::from_fn_n(|<span class="kw">_</span>| <span class="prelude-val">None</span>, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), <span class="kw-2">&amp;</span>body.dominator_order_rank),
@@ -2404,7 +2404,7 @@
         <span class="kw-2">mut </span>infcx: InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         <span class="kw-2">mut </span>env: TypeEnv,
         bb: BasicBlock,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="macro">dbg::basic_block_start!</span>(bb, infcx, env);
 
         <span class="self">self</span>.visited.insert(bb);
@@ -2472,7 +2472,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         stmt: <span class="kw-2">&amp;</span>Statement,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>stmt_span = stmt.source_info.span;
         <span class="kw">match </span><span class="kw-2">&amp;</span>stmt.kind {
             StatementKind::Assign(place, rvalue) =&gt; {
@@ -2640,7 +2640,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>obligations = infcx
             .at(span)
             .ensure_resolved_evars(|infcx| {
@@ -2744,7 +2744,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         obligs: Vec&lt;Binder&lt;CoroutineObligPredicate&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">for </span>oblig <span class="kw">in </span>obligs {
             <span class="comment">// FIXME(nilehmann) we shouldn't be skipping this binder
             </span><span class="kw">let </span>oblig = oblig.skip_binder();
@@ -2768,7 +2768,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         fn_trait_pred: <span class="kw-2">&amp;</span>FnTraitPredicate,
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         <span class="kw">match </span>self_ty {
             <span class="prelude-val">Some</span>(BaseTy::Closure(closure_id, tys, args)) =&gt; {
@@ -2806,7 +2806,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         clauses: <span class="kw-2">&amp;</span>[Binder&lt;FnTraitPredicate&gt;],
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
             <span class="comment">// FIXME(nilehmann) we shouldn't be skipping this binder
             </span><span class="kw">let </span>clause = clause.skip_binder_ref();
@@ -2910,7 +2910,7 @@
         from: BasicBlock,
         terminator_span: Span,
         successors: Vec&lt;(BasicBlock, Guard)&gt;,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">for </span>(target, guard) <span class="kw">in </span>successors {
             <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx.branch();
             <span class="kw">let </span><span class="kw-2">mut </span>env = env.clone();
@@ -2941,7 +2941,7 @@
         <span class="kw-2">mut </span>env: TypeEnv,
         span: Span,
         target: BasicBlock,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">if </span><span class="self">self</span>.is_exit_block(target) {
             <span class="kw">let </span>location = <span class="self">self</span>.body.terminator_loc(target);
             <span class="self">self</span>.check_ghost_statements_at(
@@ -3406,7 +3406,7 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         point: Point,
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         bug::track_span(span, || {
             <span class="kw">for </span>stmt <span class="kw">in </span><span class="self">self</span>.ghost_stmts().statements_at(point) {
                 <span class="self">self</span>.check_ghost_statement(infcx, env, stmt, span)
@@ -3552,7 +3552,7 @@
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(proj_pred) = clause.as_projection_clause() {
-            <span class="kw">let </span>assoc_id = proj_pred.projection_def_id();
+            <span class="kw">let </span>assoc_id = proj_pred.item_def_id();
             <span class="kw">if </span>genv.is_fn_once_output(assoc_id) {
                 <span class="kw">continue</span>;
             }

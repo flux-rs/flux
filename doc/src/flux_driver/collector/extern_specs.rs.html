@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/extern_specs.rs`."><title>extern_specs.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-590a400c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0-nightly (b3f75cc87 2024-11-02)" data-channel="nightly" data-search-js="search-c5a66128.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/collector/</div>extern_specs.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/extern_specs.rs`."><title>extern_specs.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (f85c6de55 2025-01-26)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/collector/</div>extern_specs.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -620,7 +620,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; ExternSpecCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>collect(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;, body_id: BodyId) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>collect(inner: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SpecCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt;, body_id: BodyId) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">Self</span>::new(inner, body_id)<span class="question-mark">?</span>.run()
     }
 
@@ -635,7 +635,7 @@
         }
     }
 
-    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>item = <span class="self">self</span>.item_at(<span class="number">0</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>attrs = <span class="self">self
@@ -643,7 +643,7 @@
             .parse_attrs_and_report_dups(item.owner_id.def_id)<span class="question-mark">?</span>;
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-            hir::ItemKind::Fn(..) =&gt; <span class="self">self</span>.collect_extern_fn(item, attrs),
+            hir::ItemKind::Fn { .. } =&gt; <span class="self">self</span>.collect_extern_fn(item, attrs),
             hir::ItemKind::Enum(enum_def, <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.collect_extern_enum(item.owner_id, enum_def, attrs)
             }
@@ -658,7 +658,7 @@
         }
     }
 
-    <span class="kw">fn </span>collect_extern_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>hir::Item, attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_extern_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>hir::Item, attrs: FluxAttrs) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.inner.collect_fn_spec(item.owner_id, attrs)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>extern_id = <span class="self">self</span>.extract_extern_id_from_fn(item)<span class="question-mark">?</span>;
@@ -673,7 +673,7 @@
         struct_id: OwnerId,
         variant: <span class="kw-2">&amp;</span>hir::VariantData,
         attrs: FluxAttrs,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>dummy_struct = <span class="self">self</span>.item_at(<span class="number">1</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.inner.specs.insert_dummy(dummy_struct.owner_id);
 
@@ -691,7 +691,7 @@
         enum_id: OwnerId,
         enum_def: <span class="kw-2">&amp;</span>hir::EnumDef,
         attrs: FluxAttrs,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>dummy_struct = <span class="self">self</span>.item_at(<span class="number">1</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.inner.specs.insert_dummy(dummy_struct.owner_id);
 
@@ -709,7 +709,7 @@
         impl_id: OwnerId,
         impl_: <span class="kw-2">&amp;</span>hir::Impl,
         attrs: FluxAttrs,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.inner.collect_impl(impl_id, attrs)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>dummy_item = <span class="self">self</span>.item_at(<span class="number">1</span>)<span class="question-mark">?</span>;
@@ -769,7 +769,7 @@
         bounds: <span class="kw-2">&amp;</span>hir::GenericBounds,
         items: <span class="kw-2">&amp;</span>[hir::TraitItemRef],
         attrs: FluxAttrs,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.inner.collect_trait(trait_id, attrs)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>extern_trait_id = <span class="self">self</span>.extract_extern_id_from_trait(bounds)<span class="question-mark">?</span>;
@@ -794,7 +794,7 @@
         extern_trait_id: DefId,
         item: <span class="kw-2">&amp;</span>hir::TraitItemRef,
         attrs: FluxAttrs,
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>item_id = item.id.owner_id;
         <span class="self">self</span>.inner.collect_fn_spec(item_id, attrs)<span class="question-mark">?</span>;
 
@@ -818,8 +818,8 @@
     }
 
     <span class="kw">fn </span>extract_extern_id_from_fn(<span class="kw-2">&amp;</span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; <span class="prelude-ty">Result</span>&lt;DefId&gt; {
-        <span class="kw">if let </span>hir::ItemKind::Fn(<span class="kw">_</span>, <span class="kw">_</span>, body_id) = item.kind {
-            <span class="self">self</span>.extract_callee_from_body(body_id)
+        <span class="kw">if let </span>hir::ItemKind::Fn { body, .. } = item.kind {
+            <span class="self">self</span>.extract_callee_from_body(body)
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<span class="self">self</span>.malformed())
         }
@@ -937,7 +937,7 @@
         }
     }
 
-    <span class="kw">fn </span>insert_extern_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: LocalDefId, extern_id: DefId) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>insert_extern_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: LocalDefId, extern_id: DefId) -&gt; <span class="prelude-ty">Result</span> {
         <span class="self">self</span>.inner
             .specs
             .insert_extern_spec_id_mapping(local_id, extern_id)
@@ -961,7 +961,7 @@
             })
     }
 
-    <span class="kw">fn </span>check_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: OwnerId, extern_id: DefId) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>check_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: OwnerId, extern_id: DefId) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
         <span class="kw">let </span>local_params = <span class="kw-2">&amp;</span>tcx.generics_of(local_id).own_params;
         <span class="kw">let </span>extern_params = <span class="kw-2">&amp;</span>tcx.generics_of(extern_id).own_params;
