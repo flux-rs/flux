@@ -2595,20 +2595,12 @@ impl EarlyBinder<PolyVariant> {
     pub fn to_poly_fn_sig(&self, field_idx: Option<crate::FieldIdx>) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
-                // CUT-FIXME let ret = variant.ret();
-                // CUT-FIXME let TyKind::Indexed(_, ret_index) = ret.kind() else { bug!() };
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
                 let inputs = match field_idx {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
-
-                // CUT-FIXME let requires = variant
-                // CUT-FIXME     .requires
-                // CUT-FIXME     .iter()
-                // CUT-FIXME     .map(|inv| inv.apply(ret_index))
-                // CUT-FIXME     .collect_vec();
                 FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
             })
         })
