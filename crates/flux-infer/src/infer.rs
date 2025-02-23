@@ -517,7 +517,7 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             }
 
             // Check invariants
-            println!("TRACE:TODO:check invariants too?");
+            // TODO(struct-inv): check-invariants-here?
             Ok(variant.ret())
         })?;
         Ok(self.fully_resolve_evars(&ret))
