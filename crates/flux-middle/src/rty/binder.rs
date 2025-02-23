@@ -1,11 +1,11 @@
 use std::slice;
 
-pub use flux_arc_interner::{impl_slice_internable, List};
+pub use flux_arc_interner::{List, impl_slice_internable};
 use flux_common::tracked_span_bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
-    ty::{BoundRegion, Region},
     ToRustc,
+    ty::{BoundRegion, Region},
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -14,9 +14,9 @@ use rustc_middle::ty::{BoundRegionKind, TyCtxt};
 use rustc_span::Symbol;
 
 use super::{
+    Expr, GenericArg, InferMode, RefineParam, Sort,
     fold::TypeFoldable,
     subst::{self, BoundVarReplacer, FnMutDelegate},
-    Expr, GenericArg, InferMode, RefineParam, Sort,
 };
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]

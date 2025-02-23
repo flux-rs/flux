@@ -14,13 +14,13 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
+    MaybeExternId,
     big_int::BigInt,
     def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
-    MaybeExternId,
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -1103,7 +1103,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(self.register_uif(*sym, scx).into())
             }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
-                span_bug!(self.def_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
+                span_bug!(
+                    self.def_span,
+                    "unexpected global function `{sym}`. Function must be normalized away at this point"
+                )
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
@@ -1170,13 +1173,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 return Ok(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Eq,
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),
-                ))
+                ));
             }
             rty::BinOp::Ne => {
                 return Ok(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Ne,
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),
-                ))
+                ));
             }
             rty::BinOp::Gt(sort) => {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, scx);
@@ -1194,25 +1197,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 return Ok(fixpoint::Expr::And(vec![
                     self.expr_to_fixpoint(e1, scx)?,
                     self.expr_to_fixpoint(e2, scx)?,
-                ]))
+                ]));
             }
             rty::BinOp::Or => {
                 return Ok(fixpoint::Expr::Or(vec![
                     self.expr_to_fixpoint(e1, scx)?,
                     self.expr_to_fixpoint(e2, scx)?,
-                ]))
+                ]));
             }
             rty::BinOp::Imp => {
                 return Ok(fixpoint::Expr::Imp(Box::new([
                     self.expr_to_fixpoint(e1, scx)?,
                     self.expr_to_fixpoint(e2, scx)?,
-                ])))
+                ])));
             }
             rty::BinOp::Iff => {
                 return Ok(fixpoint::Expr::Iff(Box::new([
                     self.expr_to_fixpoint(e1, scx)?,
                     self.expr_to_fixpoint(e2, scx)?,
-                ])))
+                ])));
             }
             rty::BinOp::Add => fixpoint::BinOp::Add,
             rty::BinOp::Sub => fixpoint::BinOp::Sub,
@@ -1272,10 +1275,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             _ => {
                 let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));
-                fixpoint::Expr::App(
-                    Box::new(rel),
-                    vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
-                )
+                fixpoint::Expr::App(Box::new(rel), vec![
+                    self.expr_to_fixpoint(e1, scx)?,
+                    self.expr_to_fixpoint(e2, scx)?,
+                ])
             }
         };
         Ok(e)

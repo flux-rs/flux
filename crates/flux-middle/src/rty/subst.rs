@@ -296,11 +296,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
-        if let ReEarlyParam(ebr) = *re {
-            Ok(self.delegate.region_for_param(ebr))
-        } else {
-            Ok(*re)
-        }
+        if let ReEarlyParam(ebr) = *re { Ok(self.delegate.region_for_param(ebr)) } else { Ok(*re) }
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {

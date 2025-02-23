@@ -28,15 +28,15 @@ use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
+    FnHeader, OwnerId, ParamName, Safety,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    FnHeader, OwnerId, ParamName, Safety,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-use rustc_span::{symbol::Ident, Span, Symbol};
+use rustc_span::{Span, Symbol, symbol::Ident};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
@@ -60,11 +60,7 @@ impl Ignored {
 
 impl From<bool> for Ignored {
     fn from(value: bool) -> Self {
-        if value {
-            Ignored::Yes
-        } else {
-            Ignored::No
-        }
+        if value { Ignored::Yes } else { Ignored::No }
     }
 }
 
@@ -86,11 +82,7 @@ impl Trusted {
 
 impl From<bool> for Trusted {
     fn from(value: bool) -> Self {
-        if value {
-            Trusted::Yes
-        } else {
-            Trusted::No
-        }
+        if value { Trusted::Yes } else { Trusted::No }
     }
 }
 
@@ -146,11 +138,7 @@ impl<'fhir> Node<'fhir> {
     }
 
     pub fn expect_opaque_ty(&self) -> &'fhir OpaqueTy<'fhir> {
-        if let Node::OpaqueTy(opaque_ty) = &self {
-            opaque_ty
-        } else {
-            bug!("expected opaque type")
-        }
+        if let Node::OpaqueTy(opaque_ty) = &self { opaque_ty } else { bug!("expected opaque type") }
     }
 }
 
@@ -207,11 +195,7 @@ pub struct Item<'fhir> {
 
 impl<'fhir> Item<'fhir> {
     pub fn expect_enum(&self) -> &EnumDef<'fhir> {
-        if let ItemKind::Enum(enum_def) = &self.kind {
-            enum_def
-        } else {
-            bug!("expected enum")
-        }
+        if let ItemKind::Enum(enum_def) = &self.kind { enum_def } else { bug!("expected enum") }
     }
 
     pub fn expect_struct(&self) -> &StructDef<'fhir> {
@@ -231,19 +215,11 @@ impl<'fhir> Item<'fhir> {
     }
 
     pub fn expect_impl(&self) -> &Impl<'fhir> {
-        if let ItemKind::Impl(impl_) = &self.kind {
-            impl_
-        } else {
-            bug!("expected impl")
-        }
+        if let ItemKind::Impl(impl_) = &self.kind { impl_ } else { bug!("expected impl") }
     }
 
     pub fn expect_trait(&self) -> &Trait<'fhir> {
-        if let ItemKind::Trait(trait_) = &self.kind {
-            trait_
-        } else {
-            bug!("expected trait")
-        }
+        if let ItemKind::Trait(trait_) = &self.kind { trait_ } else { bug!("expected trait") }
     }
 }
 
@@ -714,11 +690,7 @@ pub enum GenericArg<'fhir> {
 
 impl<'fhir> GenericArg<'fhir> {
     pub fn expect_type(&self) -> &'fhir Ty<'fhir> {
-        if let GenericArg::Type(ty) = self {
-            ty
-        } else {
-            bug!("expected `GenericArg::Type`")
-        }
+        if let GenericArg::Type(ty) = self { ty } else { bug!("expected `GenericArg::Type`") }
     }
 }
 
@@ -1056,11 +1028,7 @@ impl<Id> ExprRes<Id> {
     }
 
     pub fn expect_param(self) -> (ParamKind, Id) {
-        if let ExprRes::Param(kind, id) = self {
-            (kind, id)
-        } else {
-            bug!("expected param")
-        }
+        if let ExprRes::Param(kind, id) = self { (kind, id) } else { bug!("expected param") }
     }
 }
 

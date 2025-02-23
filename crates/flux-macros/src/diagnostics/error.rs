@@ -1,7 +1,7 @@
 use proc_macro::{Diagnostic, Level, MultiSpan};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, Attribute, Error as SynError, Meta};
+use syn::{Attribute, Error as SynError, Meta, spanned::Spanned};
 
 #[derive(Debug)]
 pub(crate) enum DiagnosticDeriveError {
@@ -63,9 +63,7 @@ pub(crate) fn span_err<T: Into<String>>(span: impl MultiSpan, msg: T) -> Diagnos
 ///
 /// For methods that return a `Result<_, DiagnosticDeriveError>`:
 macro_rules! throw_span_err {
-    ($span:expr, $msg:expr) => {{
-        throw_span_err!($span, $msg, |diag| diag)
-    }};
+    ($span:expr, $msg:expr) => {{ throw_span_err!($span, $msg, |diag| diag) }};
     ($span:expr, $msg:expr, $f:expr) => {{
         let diag = span_err($span, $msg);
         return Err(crate::diagnostics::error::_throw_err(diag, $f));
@@ -90,9 +88,7 @@ pub(crate) fn invalid_attr(attr: &Attribute) -> Diagnostic {
 ///
 /// For methods that return a `Result<_, DiagnosticDeriveError>`:
 macro_rules! throw_invalid_attr {
-    ($attr:expr) => {{
-        throw_invalid_attr!($attr, |diag| diag)
-    }};
+    ($attr:expr) => {{ throw_invalid_attr!($attr, |diag| diag) }};
     ($attr:expr, $f:expr) => {{
         let diag = crate::diagnostics::error::invalid_attr($attr);
         return Err(crate::diagnostics::error::_throw_err(diag, $f));

@@ -3,9 +3,9 @@ use std::fmt::{self, Write};
 use itertools::Itertools;
 
 use crate::{
-    constraint::DEFAULT_QUALIFIERS, BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor,
-    DataDecl, DataField, Expr, FixpointFmt, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor,
-    Task, Types,
+    BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FixpointFmt, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::DEFAULT_QUALIFIERS,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(

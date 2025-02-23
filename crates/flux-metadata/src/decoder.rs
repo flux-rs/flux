@@ -13,11 +13,11 @@ use rustc_middle::{
     implement_ty_decoder,
     ty::{self, TyCtxt},
 };
-use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder as _};
+use rustc_serialize::{Decodable, Decoder as _, opaque::MemDecoder};
 use rustc_session::StableCrateId;
 use rustc_span::{
-    def_id::{CrateNum, DefIndex},
     BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
+    def_id::{CrateNum, DefIndex},
 };
 use rustc_type_ir::TyDecoder;
 

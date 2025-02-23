@@ -1,6 +1,6 @@
 use std::collections::BinaryHeap;
 
-use rustc_index::{bit_set::DenseBitSet, IndexVec};
+use rustc_index::{IndexVec, bit_set::DenseBitSet};
 use rustc_middle::mir::BasicBlock;
 
 struct Item<'a> {

@@ -14,31 +14,30 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::{Refine, Refiner},
-        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        refining::{Refine, Refiner},
     },
 };
 use flux_rustc_bridge::{
     self,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-        Terminator, TerminatorKind, START_BLOCK,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{self, GenericArgsExt as _},
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
-    def_id::{DefId, LocalDefId},
     LangItem,
+    def_id::{DefId, LocalDefId},
 };
 use rustc_index::bit_set::DenseBitSet;
 use rustc_infer::infer::TyCtxtInferExt;
@@ -46,7 +45,7 @@ use rustc_middle::{
     mir::SwitchTargets,
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
-use rustc_span::{sym, Span};
+use rustc_span::{Span, sym};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
@@ -1868,9 +1867,9 @@ fn marker_at_dominator<'a>(
 }
 
 pub(crate) mod errors {
-    use flux_errors::{ErrorGuaranteed, E0999};
+    use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
+    use flux_middle::{MaybeExternId, def_id_to_string, global_env::GlobalEnv};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_span::Span;

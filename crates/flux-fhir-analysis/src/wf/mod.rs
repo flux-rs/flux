@@ -9,21 +9,21 @@ mod sortck;
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{self, visit::Visitor, FhirId, FluxOwnerId},
+    MaybeExternId,
+    fhir::{self, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, WfckResults},
-    MaybeExternId,
 };
 use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
+    OwnerId,
     def::DefKind,
     def_id::{CrateNum, DefId, DefIndex},
-    OwnerId,
 };
-use rustc_span::{symbol::Ident, Symbol};
+use rustc_span::{Symbol, symbol::Ident};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
 use crate::conv::{ConvPhase, WfckResultsProvider};

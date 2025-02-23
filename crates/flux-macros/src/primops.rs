@@ -4,11 +4,11 @@ use itertools::Itertools;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    braced, bracketed, parenthesized,
+    Ident, Lifetime, Token, braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token, Ident, Lifetime, Token,
+    token,
 };
 
 macro_rules! unwrap_result {

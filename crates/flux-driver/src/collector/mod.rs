@@ -11,18 +11,17 @@ use flux_common::{
 use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{Ignored, Trusted},
     Specs,
+    fhir::{Ignored, Trusted},
 };
-use flux_syntax::{surface, ParseResult, ParseSess};
+use flux_syntax::{ParseResult, ParseSess, surface};
 use itertools::Itertools;
-use rustc_ast::{tokenstream::TokenStream, MetaItemInner, MetaItemKind};
+use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir,
+    self as hir, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
     def::DefKind,
-    def_id::{LocalDefId, CRATE_DEF_ID},
-    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
+    def_id::{CRATE_DEF_ID, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -570,9 +569,7 @@ enum FluxAttrKind {
 }
 
 macro_rules! read_flag {
-    ($self:expr, $kind:ident) => {{
-        $self.map.get(attr_name!($kind)).is_some()
-    }};
+    ($self:expr, $kind:ident) => {{ $self.map.get(attr_name!($kind)).is_some() }};
 }
 
 macro_rules! read_attrs {
@@ -852,7 +849,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
-    use rustc_span::{symbol::Ident, Span};
+    use rustc_span::{Span, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]

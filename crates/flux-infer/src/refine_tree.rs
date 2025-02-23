@@ -8,12 +8,12 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
+        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -21,7 +21,7 @@ use serde::Serialize;
 
 use crate::{
     evars::EVarStore,
-    fixpoint_encoding::{fixpoint, FixpointCtxt},
+    fixpoint_encoding::{FixpointCtxt, fixpoint},
     infer::{Tag, TypeTrace},
 };
 

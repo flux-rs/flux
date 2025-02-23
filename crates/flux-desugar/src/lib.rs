@@ -25,10 +25,9 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    fhir,
+    ResolverOutput, Specs, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
-    ResolverOutput, Specs,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;

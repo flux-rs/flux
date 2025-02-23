@@ -16,23 +16,22 @@ mod wf;
 
 use std::rc::Rc;
 
-use conv::{struct_compat, AfterSortck, ConvPhase};
+use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    MaybeExternId,
     fhir::{self},
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self,
+        self, AssocReftId, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        AssocReftId, WfckResults,
     },
-    MaybeExternId,
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;

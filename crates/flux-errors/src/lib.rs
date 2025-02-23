@@ -11,10 +11,10 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
-    emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
-    json::JsonEmitter,
     Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
+    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
+    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, stderr_destination},
+    json::JsonEmitter,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
@@ -151,11 +151,7 @@ impl<'sess> Errors<'sess> {
     }
 
     pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = self.err.into_inner() {
-            Err(err)
-        } else {
-            Ok(())
-        }
+        if let Some(err) = self.err.into_inner() { Err(err) } else { Ok(()) }
     }
 }
 

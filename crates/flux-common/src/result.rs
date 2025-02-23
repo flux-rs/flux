@@ -23,11 +23,7 @@ impl ErrorCollector<ErrorGuaranteed> for Option<ErrorGuaranteed> {
     }
 
     fn into_result(self) -> Self::Result {
-        if let Some(err) = self {
-            Err(err)
-        } else {
-            Ok(())
-        }
+        if let Some(err) = self { Err(err) } else { Ok(()) }
     }
 }
 

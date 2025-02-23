@@ -1,12 +1,12 @@
 use std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
+use flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 use flux_common::bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
+    ToRustc,
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind, ValTree, VariantIdx},
-    ToRustc,
 };
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -31,11 +31,11 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
+        BoundVariableKind,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
         },
-        BoundVariableKind,
     },
 };
 
@@ -114,11 +114,7 @@ impl Expr {
     }
 
     pub fn at_base(self, base: ESpan) -> Expr {
-        if let Some(espan) = self.espan {
-            self.at(espan.with_base(base))
-        } else {
-            self
-        }
+        if let Some(espan) = self.espan { self.at(espan.with_base(base)) } else { self }
     }
 
     pub fn span(&self) -> Option<ESpan> {
@@ -862,11 +858,7 @@ impl Path {
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
-        if self.projection.is_empty() {
-            Some(self.loc)
-        } else {
-            None
-        }
+        if self.projection.is_empty() { Some(self.loc) } else { None }
     }
 }
 

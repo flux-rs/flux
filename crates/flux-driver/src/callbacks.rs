@@ -3,7 +3,7 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
-use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
+use flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers};
 use flux_refineck as refineck;
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -18,7 +18,7 @@ use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
-use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
+use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 
 #[derive(Default)]
 pub struct FluxCallbacks {
@@ -40,11 +40,7 @@ impl Callbacks for FluxCallbacks {
             self.verify(compiler, tcx);
         }
 
-        if self.full_compilation {
-            Compilation::Continue
-        } else {
-            Compilation::Stop
-        }
+        if self.full_compilation { Compilation::Continue } else { Compilation::Stop }
     }
 }
 

@@ -27,15 +27,15 @@ use flux_middle::{
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
-use rustc_index::{bit_set::DenseBitSet, IndexSlice, IndexVec};
+use rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::{
-    mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
+    mir::{self, BasicBlock, TerminatorEdges, visit::Visitor},
     ty,
 };
 use rustc_mir_dataflow::{
+    Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
-    Analysis, JoinSemiLattice, ResultsVisitor,
 };
 use rustc_target::abi::FieldIdx;
 

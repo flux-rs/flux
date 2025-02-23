@@ -38,11 +38,7 @@ impl GlobalEnv<'_, '_> {
 
     pub fn sort_of_def_id(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
         let ty = self.tcx().type_of(def_id).no_bound_vars().unwrap();
-        if ty.is_integral() {
-            Ok(Some(rty::Sort::Int))
-        } else {
-            self.sort_of_rust_ty(def_id, ty)
-        }
+        if ty.is_integral() { Ok(Some(rty::Sort::Int)) } else { self.sort_of_rust_ty(def_id, ty) }
     }
 
     pub fn sort_of_rust_ty(
