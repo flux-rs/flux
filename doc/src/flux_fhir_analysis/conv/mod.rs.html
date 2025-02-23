@@ -2723,7 +2723,16 @@
 <a href="#2722" id="2722">2722</a>
 <a href="#2723" id="2723">2723</a>
 <a href="#2724" id="2724">2724</a>
-<a href="#2725" id="2725">2725</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2725" id="2725">2725</a>
+<a href="#2726" id="2726">2726</a>
+<a href="#2727" id="2727">2727</a>
+<a href="#2728" id="2728">2728</a>
+<a href="#2729" id="2729">2729</a>
+<a href="#2730" id="2730">2730</a>
+<a href="#2731" id="2731">2731</a>
+<a href="#2732" id="2732">2732</a>
+<a href="#2733" id="2733">2733</a>
+<a href="#2734" id="2734">2734</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3288,6 +3297,7 @@
             rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), enum_id.resolved_id())<span class="question-mark">?</span>,
             fields,
             idxs,
+            List::empty(),
         );
 
         <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>))
@@ -3322,11 +3332,19 @@
                     })
                     .collect(),
             );
+
+            <span class="kw">let </span>requires = adt_def
+                .invariants()
+                .iter()
+                .map(|inv| inv.apply(<span class="kw-2">&amp;</span>idx))
+                .collect();
+
             <span class="kw">let </span>variant = rty::VariantSig::new(
                 adt_def,
                 rty::GenericArg::identity_for_item(<span class="self">self</span>.genv(), struct_id.resolved_id())<span class="question-mark">?</span>,
                 fields,
                 idx,
+                requires,
             );
             <span class="kw">let </span>variant = rty::Binder::bind_with_vars(variant, vars);
             <span class="prelude-val">Ok</span>(rty::Opaqueness::Transparent(variant))

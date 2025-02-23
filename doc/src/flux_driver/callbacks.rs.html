@@ -262,13 +262,7 @@
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#264" id="264">264</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_infer::fixpoint_encoding::FixQueryCache;
@@ -471,24 +465,18 @@
                 )
             }
             DefKind::Struct =&gt; {
-                <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="comment">// We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
+                // However, we leave the below code in to force the queries that do the conversions that check
+                // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
+                </span><span class="kw">let </span>_adt_def = <span class="self">self</span>.genv.adt_def(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
                 <span class="kw">let _ </span>= <span class="self">self</span>.genv.variants_of(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
-                <span class="kw">let </span>struct_def = <span class="self">self
+                <span class="kw">let </span>_struct_def = <span class="self">self
                     </span>.genv
                     .map()
                     .expect_item(def_id.local_id())
                     .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?
                     </span>.expect_struct();
-                <span class="kw">if </span>struct_def.is_opaque() {
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                }
-                refineck::invariants::check_invariants(
-                    <span class="self">self</span>.genv,
-                    <span class="kw-2">&amp;mut </span><span class="self">self</span>.cache,
-                    def_id,
-                    struct_def.invariants,
-                    <span class="kw-2">&amp;</span>adt_def,
-                )
+                <span class="prelude-val">Ok</span>(())
             }
             DefKind::Impl { of_trait } =&gt; {
                 <span class="kw">if </span>of_trait {

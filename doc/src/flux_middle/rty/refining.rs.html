@@ -482,7 +482,8 @@
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -627,6 +628,7 @@
             rty::GenericArg::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
             fields,
             idx,
+            List::empty(),
         );
 
         <span class="prelude-val">Ok</span>(rty::Binder::bind_with_vars(value, List::empty()))

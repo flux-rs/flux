@@ -1044,7 +1044,12 @@
 <a href="#1043" id="1043">1043</a>
 <a href="#1044" id="1044">1044</a>
 <a href="#1045" id="1045">1045</a>
-<a href="#1046" id="1046">1046</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1560,6 +1565,11 @@
             <span class="comment">// Check arguments
             </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(fields, variant.fields()) {
                 this.subtyping(actual, formal, reason)<span class="question-mark">?</span>;
+            }
+
+            <span class="comment">// Check requires predicates
+            </span><span class="kw">for </span>require <span class="kw">in </span><span class="kw-2">&amp;</span>variant.requires {
+                this.check_pred(require, ConstrReason::Fold);
             }
 
             <span class="prelude-val">Ok</span>(variant.ret())

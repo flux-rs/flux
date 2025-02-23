@@ -1026,7 +1026,8 @@
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1579,7 +1580,8 @@
         <span class="kw">let </span>args = <span class="self">self</span>.args.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = <span class="self">self</span>.fields.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="kw">let </span>idx = <span class="self">self</span>.idx.try_fold_with(folder)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(VariantSig::new(<span class="self">self</span>.adt_def.clone(), args, fields, idx))
+        <span class="kw">let </span>requires = <span class="self">self</span>.requires.try_fold_with(folder)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(VariantSig::new(<span class="self">self</span>.adt_def.clone(), args, fields, idx, requires))
     }
 }
 

@@ -2839,7 +2839,13 @@
 <a href="#2838" id="2838">2838</a>
 <a href="#2839" id="2839">2839</a>
 <a href="#2840" id="2840">2840</a>
-<a href="#2841" id="2841">2841</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a>
+<a href="#2843" id="2843">2843</a>
+<a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -4036,6 +4042,7 @@
     <span class="kw">pub </span>args: GenericArgs,
     <span class="kw">pub </span>fields: List&lt;Ty&gt;,
     <span class="kw">pub </span>idx: Expr,
+    <span class="kw">pub </span>requires: List&lt;Expr&gt;,
 }
 
 <span class="kw">pub type </span>PolyFnSig = Binder&lt;FnSig&gt;;
@@ -5242,8 +5249,14 @@
 }
 
 <span class="kw">impl </span>VariantSig {
-    <span class="kw">pub fn </span>new(adt_def: AdtDef, args: GenericArgs, fields: List&lt;Ty&gt;, idx: Expr) -&gt; <span class="self">Self </span>{
-        VariantSig { adt_def, args, fields, idx }
+    <span class="kw">pub fn </span>new(
+        adt_def: AdtDef,
+        args: GenericArgs,
+        fields: List&lt;Ty&gt;,
+        idx: Expr,
+        requires: List&lt;Expr&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        VariantSig { adt_def, args, fields, idx, requires }
     }
 
     <span class="kw">pub fn </span>fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
@@ -5435,8 +5448,7 @@
                     <span class="prelude-val">None </span>=&gt; variant.fields.clone(),
                     <span class="prelude-val">Some</span>(i) =&gt; List::singleton(variant.fields[i.index()].clone()),
                 };
-                <span class="kw">let </span>requires = List::empty();
-                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
+                FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
             })
         })
     }
