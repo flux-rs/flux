@@ -170,12 +170,12 @@
 <span class="kw">use </span>rustc_span::Symbol;
 <span class="kw">use </span>toposort_scc::IndexGraph;
 
-<span class="kw">use super</span>::{fold::TypeSuperFoldable, ESpan};
+<span class="kw">use super</span>::{ESpan, fold::TypeSuperFoldable};
 <span class="kw">use crate</span>::{
     fhir::SpecFuncKind,
     rty::{
-        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
         Binder, Expr, ExprKind, SpecFunc,
+        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 

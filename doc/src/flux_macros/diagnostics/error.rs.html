@@ -96,14 +96,10 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a></pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro::{Diagnostic, Level, MultiSpan};
+<a href="#98" id="98">98</a></pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro::{Diagnostic, Level, MultiSpan};
 <span class="kw">use </span>proc_macro2::TokenStream;
 <span class="kw">use </span>quote::quote;
-<span class="kw">use </span>syn::{spanned::Spanned, Attribute, Error <span class="kw">as </span>SynError, Meta};
+<span class="kw">use </span>syn::{Attribute, Error <span class="kw">as </span>SynError, Meta, spanned::Spanned};
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>DiagnosticDeriveError {
@@ -165,9 +161,7 @@
 ///
 /// For methods that return a `Result&lt;_, DiagnosticDeriveError&gt;`:
 </span><span class="macro">macro_rules!</span> throw_span_err {
-    (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$msg</span>:expr) =&gt; {{
-        <span class="macro">throw_span_err!</span>(<span class="macro-nonterminal">$span</span>, <span class="macro-nonterminal">$msg</span>, |diag| diag)
-    }};
+    (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$msg</span>:expr) =&gt; {{ <span class="macro">throw_span_err!</span>(<span class="macro-nonterminal">$span</span>, <span class="macro-nonterminal">$msg</span>, |diag| diag) }};
     (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$msg</span>:expr, <span class="macro-nonterminal">$f</span>:expr) =&gt; {{
         <span class="kw">let </span>diag = span_err(<span class="macro-nonterminal">$span</span>, <span class="macro-nonterminal">$msg</span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::diagnostics::error::_throw_err(diag, <span class="macro-nonterminal">$f</span>));
@@ -192,9 +186,7 @@
 ///
 /// For methods that return a `Result&lt;_, DiagnosticDeriveError&gt;`:
 </span><span class="macro">macro_rules!</span> throw_invalid_attr {
-    (<span class="macro-nonterminal">$attr</span>:expr) =&gt; {{
-        <span class="macro">throw_invalid_attr!</span>(<span class="macro-nonterminal">$attr</span>, |diag| diag)
-    }};
+    (<span class="macro-nonterminal">$attr</span>:expr) =&gt; {{ <span class="macro">throw_invalid_attr!</span>(<span class="macro-nonterminal">$attr</span>, |diag| diag) }};
     (<span class="macro-nonterminal">$attr</span>:expr, <span class="macro-nonterminal">$f</span>:expr) =&gt; {{
         <span class="kw">let </span>diag = <span class="kw">crate</span>::diagnostics::error::invalid_attr(<span class="macro-nonterminal">$attr</span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="kw">crate</span>::diagnostics::error::_throw_err(diag, <span class="macro-nonterminal">$f</span>));

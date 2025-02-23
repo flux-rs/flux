@@ -264,12 +264,12 @@
 <a href="#263" id="263">263</a>
 <a href="#264" id="264">264</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
 
-<span class="kw">pub use </span>flux_arc_interner::{impl_slice_internable, List};
+<span class="kw">pub use </span>flux_arc_interner::{List, impl_slice_internable};
 <span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_rustc_bridge::{
-    ty::{BoundRegion, Region},
     ToRustc,
+    ty::{BoundRegion, Region},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -278,9 +278,9 @@
 <span class="kw">use </span>rustc_span::Symbol;
 
 <span class="kw">use super</span>::{
+    Expr, GenericArg, InferMode, RefineParam, Sort,
     fold::TypeFoldable,
     subst::{<span class="self">self</span>, BoundVarReplacer, FnMutDelegate},
-    Expr, GenericArg, InferMode, RefineParam, Sort,
 };
 
 <span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]

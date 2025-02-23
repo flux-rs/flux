@@ -57,7 +57,8 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a></pre></div><pre class="rust"><code><span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a></pre></div><pre class="rust"><code><span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -92,7 +93,8 @@
     body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
 ) {
     <span class="comment">// SAFETY: See the module level comment.
-    </span><span class="kw">let </span>body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'static</span>&gt; = std::mem::transmute(body_with_facts);
+    </span><span class="kw">let </span>body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'static</span>&gt; =
+        <span class="kw">unsafe </span>{ std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
         <span class="kw">let </span><span class="kw-2">mut </span>map = state.borrow_mut();
         <span class="macro">assert!</span>(map.insert(def_id, body_with_facts).is_none());
@@ -114,6 +116,6 @@
         }
     });
     <span class="comment">// SAFETY: See the module level comment.
-    </span>std::mem::transmute(body_with_facts)
+    </span><span class="kw">unsafe </span>{ std::mem::transmute(body_with_facts) }
 }
 </code></pre></div></section></main></body></html>

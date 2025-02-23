@@ -880,21 +880,21 @@
 
 <span class="kw">use </span>flux_common::{tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt <span class="kw">as _</span>,
+    PlaceExt <span class="kw">as _</span>, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
 <span class="kw">use </span>flux_rustc_bridge::{
     mir::{
-        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
-        Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-        VariantIdx, FIRST_VARIANT,
+        BasicBlock, Body, BorrowKind, FIRST_VARIANT, FieldIdx, Local, Location,
+        NonDivergingIntrinsic, Operand, Place, PlaceElem, PlaceRef, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind, VariantIdx,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt <span class="kw">as _</span>, List, Mutability, Ty, TyKind},
 };
-<span class="kw">use </span>itertools::{repeat_n, Itertools};
+<span class="kw">use </span>itertools::{Itertools, repeat_n};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_index::{bit_set::DenseBitSet, Idx, IndexVec};
+<span class="kw">use </span>rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
 <span class="kw">use </span>rustc_middle::mir::START_BLOCK;
 
 <span class="kw">use super</span>::{GhostStatements, StatementsAt};

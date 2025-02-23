@@ -277,7 +277,7 @@
 <a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::E0999;
 <span class="kw">use </span>flux_macros::Diagnostic;
 <span class="kw">use </span>flux_middle::{fhir, rty};
-<span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
+<span class="kw">use </span>rustc_span::{Span, Symbol, symbol::Ident};
 
 <span class="attr">#[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = E0999)]

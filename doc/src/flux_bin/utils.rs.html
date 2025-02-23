@@ -87,7 +87,7 @@
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{env, ffi::OsString, fs, path::PathBuf};
 
-<span class="kw">use </span>anyhow::{anyhow, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>anyhow::{<span class="prelude-ty">Result</span>, anyhow};
 <span class="kw">use </span>serde::Deserialize;
 
 <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]

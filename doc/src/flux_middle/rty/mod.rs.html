@@ -2829,23 +2829,7 @@
 <a href="#2828" id="2828">2828</a>
 <a href="#2829" id="2829">2829</a>
 <a href="#2830" id="2830">2830</a>
-<a href="#2831" id="2831">2831</a>
-<a href="#2832" id="2832">2832</a>
-<a href="#2833" id="2833">2833</a>
-<a href="#2834" id="2834">2834</a>
-<a href="#2835" id="2835">2835</a>
-<a href="#2836" id="2836">2836</a>
-<a href="#2837" id="2837">2837</a>
-<a href="#2838" id="2838">2838</a>
-<a href="#2839" id="2839">2839</a>
-<a href="#2840" id="2840">2840</a>
-<a href="#2841" id="2841">2841</a>
-<a href="#2842" id="2842">2842</a>
-<a href="#2843" id="2843">2843</a>
-<a href="#2844" id="2844">2844</a>
-<a href="#2845" id="2845">2845</a>
-<a href="#2846" id="2846">2846</a>
-<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2831" id="2831">2831</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2863,13 +2847,14 @@
 <span class="kw">pub mod </span>subst;
 <span class="kw">use </span>std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
 
+<span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 <span class="kw">pub use </span>expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 <span class="kw">pub use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+<span class="kw">use </span>flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">pub use </span>flux_rustc_bridge::ty::{
@@ -2879,31 +2864,30 @@
     RegionVid,
 };
 <span class="kw">use </span>flux_rustc_bridge::{
+    ToRustc,
     mir::Place,
     ty::{<span class="self">self</span>, VariantDef},
-    ToRustc,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>refining::{Refine <span class="kw">as _</span>, Refiner};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 <span class="kw">use </span>rustc_hir::{
-    def_id::{DefId, DefIndex},
     LangItem, Safety,
+    def_id::{DefId, DefIndex},
 };
-<span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
-<span class="kw">use </span>rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_index::{IndexSlice, newtype_index};
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-<span class="kw">use </span>rustc_span::{sym, symbol::kw, Symbol};
-<span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};
+<span class="kw">use </span>rustc_span::{Symbol, sym, symbol::kw};
+<span class="kw">pub use </span>rustc_target::abi::{FIRST_VARIANT, VariantIdx};
 <span class="kw">use </span>rustc_target::spec::abi;
 <span class="kw">use </span>rustc_type_ir::Upcast <span class="kw">as _</span>;
-<span class="kw">pub use </span>rustc_type_ir::{TyVid, INNERMOST};
-<span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>rustc_type_ir::{INNERMOST, TyVid};
 
 <span class="kw">use </span><span class="self">self</span>::fold::TypeFoldable;
 <span class="kw">pub use </span><span class="kw">crate</span>::fhir::InferMode;
@@ -3797,11 +3781,7 @@
 
     <span class="attr">#[track_caller]
     </span><span class="kw">pub fn </span>expect_func(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PolyFuncSort {
-        <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{
-            sort
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>)
-        }
+        <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{ sort } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>) }
     }
 
     <span class="kw">pub fn </span>is_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -5478,11 +5458,7 @@
             },
         ]
     });
-    <span class="kw">if </span>overflow_checking {
-        <span class="kw-2">&amp;*</span>OVERFLOW
-    } <span class="kw">else </span>{
-        <span class="kw-2">&amp;*</span>DEFAULT
-    }
+    <span class="kw">if </span>overflow_checking { <span class="kw-2">&amp;*</span>OVERFLOW } <span class="kw">else </span>{ <span class="kw-2">&amp;*</span>DEFAULT }
 }
 
 <span class="kw">fn </span>uint_invariants(uint_ty: UintTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
@@ -5509,11 +5485,7 @@
             })
             .collect()
     });
-    <span class="kw">if </span>overflow_checking {
-        <span class="kw-2">&amp;</span>OVERFLOW[<span class="kw-2">&amp;</span>uint_ty]
-    } <span class="kw">else </span>{
-        <span class="kw-2">&amp;*</span>DEFAULT
-    }
+    <span class="kw">if </span>overflow_checking { <span class="kw-2">&amp;</span>OVERFLOW[<span class="kw-2">&amp;</span>uint_ty] } <span class="kw">else </span>{ <span class="kw-2">&amp;*</span>DEFAULT }
 }
 
 <span class="kw">fn </span>int_invariants(int_ty: IntTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
@@ -5541,11 +5513,7 @@
             })
             .collect()
     });
-    <span class="kw">if </span>overflow_checking {
-        <span class="kw-2">&amp;</span>OVERFLOW[<span class="kw-2">&amp;</span>int_ty]
-    } <span class="kw">else </span>{
-        <span class="kw-2">&amp;</span>DEFAULT
-    }
+    <span class="kw">if </span>overflow_checking { <span class="kw-2">&amp;</span>OVERFLOW[<span class="kw-2">&amp;</span>int_ty] } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>DEFAULT }
 }
 
 <span class="macro">impl_internable!</span>(AdtDefData, AdtSortDefData, TyKind);

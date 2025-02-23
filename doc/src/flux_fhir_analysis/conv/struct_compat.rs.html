@@ -874,8 +874,7 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a></pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
+<a href="#876" id="876">876</a></pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
 //! infer types annotated with `_` in the surface syntax.
@@ -885,7 +884,7 @@
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
-    fhir,
+    MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -893,12 +892,11 @@
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine <span class="kw">as _</span>, Refiner},
     },
-    MaybeExternId,
 };
 <span class="kw">use </span>flux_rustc_bridge::ty::{<span class="self">self</span>, FieldIdx, VariantIdx};
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
+<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_alias(
     genv: GlobalEnv,
@@ -1511,12 +1509,12 @@
     <span class="kw">use </span>flux_common::span_bug;
     <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
-    <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+    <span class="kw">use </span>flux_middle::{MaybeExternId, fhir, global_env::GlobalEnv, rty};
     <span class="kw">use </span>flux_rustc_bridge::{
-        ty::{FieldIdx, VariantIdx},
         ToRustc,
+        ty::{FieldIdx, VariantIdx},
     };
-    <span class="kw">use </span>rustc_span::{Span, DUMMY_SP};
+    <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]

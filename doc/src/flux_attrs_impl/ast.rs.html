@@ -2845,27 +2845,17 @@
 <a href="#2844" id="2844">2844</a>
 <a href="#2845" id="2845">2845</a>
 <a href="#2846" id="2846">2846</a>
-<a href="#2847" id="2847">2847</a>
-<a href="#2848" id="2848">2848</a>
-<a href="#2849" id="2849">2849</a>
-<a href="#2850" id="2850">2850</a>
-<a href="#2851" id="2851">2851</a>
-<a href="#2852" id="2852">2852</a>
-<a href="#2853" id="2853">2853</a>
-<a href="#2854" id="2854">2854</a>
-<a href="#2855" id="2855">2855</a>
-<a href="#2856" id="2856">2856</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
+<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
 <span class="kw">use </span>proc_macro2::{TokenStream, TokenTree};
-<span class="kw">use </span>quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
+<span class="kw">use </span>quote::{ToTokens, TokenStreamExt, quote, quote_spanned};
 <span class="kw">use </span>syn::{
-    braced, bracketed,
+    Attribute, Ident, <span class="prelude-ty">Result</span>, Token, Visibility, braced, bracketed,
     ext::IdentExt,
     parenthesized,
-    parse::{discouraged::Speculative, Parse, ParseStream, Peek},
+    parse::{Parse, ParseStream, Peek, discouraged::Speculative},
     punctuated::Punctuated,
     token::{<span class="self">self</span>, Mut, Paren},
-    Attribute, Ident, <span class="prelude-ty">Result</span>, Token, Visibility,
 };
 
 <span class="kw">use crate</span>::{flux_tool_attrs, parse_inner, tokens_or_default};
@@ -4255,11 +4245,7 @@
 }
 
 <span class="kw">fn </span>parse_opt_variant_ret(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;VariantRet&gt;&gt; {
-    <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[-&gt;]) {
-        input.parse().map(<span class="prelude-val">Some</span>)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
-    }
+    <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[-&gt;]) { input.parse().map(<span class="prelude-val">Some</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) }
 }
 
 <span class="kw">impl </span>Parse <span class="kw">for </span>VariantRet {
@@ -4806,11 +4792,7 @@
 }
 
 <span class="kw">fn </span>parse_ident_or_self(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;Ident&gt; {
-    <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[<span class="self">self</span>]) {
-        input.call(Ident::parse_any)
-    } <span class="kw">else </span>{
-        input.parse()
-    }
+    <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[<span class="self">self</span>]) { input.call(Ident::parse_any) } <span class="kw">else </span>{ input.parse() }
 }
 
 <span class="kw">mod </span>kw {

@@ -198,11 +198,11 @@
     implement_ty_decoder,
     ty::{<span class="self">self</span>, TyCtxt},
 };
-<span class="kw">use </span>rustc_serialize::{opaque::MemDecoder, Decodable, Decoder <span class="kw">as _</span>};
+<span class="kw">use </span>rustc_serialize::{Decodable, Decoder <span class="kw">as _</span>, opaque::MemDecoder};
 <span class="kw">use </span>rustc_session::StableCrateId;
 <span class="kw">use </span>rustc_span::{
-    def_id::{CrateNum, DefIndex},
     BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
+    def_id::{CrateNum, DefIndex},
 };
 <span class="kw">use </span>rustc_type_ir::TyDecoder;
 

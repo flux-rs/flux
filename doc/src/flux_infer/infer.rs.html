@@ -1055,19 +1055,19 @@
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_middle::{
+    MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        <span class="self">self</span>, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
-        BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr,
-        ExprKind, FieldProj, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc,
-        Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
-        TyKind, Var,
+        <span class="self">self</span>, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
+        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, GenericArgs,
+        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind,
+        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var, canonicalize::Hoister,
+        fold::TypeFoldable,
     },
-    MaybeExternId,
 };
-<span class="kw">use </span>itertools::{izip, Itertools};
+<span class="kw">use </span>itertools::{Itertools, izip};
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_macros::extension;
 <span class="kw">use </span>rustc_middle::{

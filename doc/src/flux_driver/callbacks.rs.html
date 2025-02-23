@@ -258,16 +258,12 @@
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#260" id="260">260</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_infer::fixpoint_encoding::FixQueryCache;
 <span class="kw">use </span>flux_metadata::CStore;
-<span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
+<span class="kw">use </span>flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers};
 <span class="kw">use </span>flux_refineck <span class="kw">as </span>refineck;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::ConsumerOptions;
@@ -282,7 +278,7 @@
 <span class="kw">use </span>rustc_session::config::OutputType;
 <span class="kw">use </span>rustc_span::FileName;
 
-<span class="kw">use crate</span>::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
+<span class="kw">use crate</span>::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>FluxCallbacks {
@@ -304,11 +300,7 @@
             <span class="self">self</span>.verify(compiler, tcx);
         }
 
-        <span class="kw">if </span><span class="self">self</span>.full_compilation {
-            Compilation::Continue
-        } <span class="kw">else </span>{
-            Compilation::Stop
-        }
+        <span class="kw">if </span><span class="self">self</span>.full_compilation { Compilation::Continue } <span class="kw">else </span>{ Compilation::Stop }
     }
 }
 

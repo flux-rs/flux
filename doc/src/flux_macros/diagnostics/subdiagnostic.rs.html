@@ -635,17 +635,17 @@
 
 </span><span class="kw">use </span>proc_macro2::TokenStream;
 <span class="kw">use </span>quote::{format_ident, quote};
-<span class="kw">use </span>syn::{spanned::Spanned, Attribute, Meta, MetaList, Path};
+<span class="kw">use </span>syn::{Attribute, Meta, MetaList, Path, spanned::Spanned};
 <span class="kw">use </span>synstructure::{BindingInfo, Structure, VariantInfo};
 
 <span class="kw">use </span><span class="kw">super</span>::utils::SubdiagnosticVariant;
 <span class="kw">use </span><span class="kw">crate</span>::diagnostics::{
-    error::{invalid_attr, span_err, throw_invalid_attr, throw_span_err, DiagnosticDeriveError},
+    error::{DiagnosticDeriveError, invalid_attr, span_err, throw_invalid_attr, throw_span_err},
     utils::{
-        build_field_mapping, build_suggestion_code, is_doc_comment, new_code_ident,
-        report_error_if_not_applied_to_applicability, report_error_if_not_applied_to_span,
-        should_generate_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
-        HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
+        AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce,
+        SpannedOption, SubdiagnosticKind, build_field_mapping, build_suggestion_code,
+        is_doc_comment, new_code_ident, report_error_if_not_applied_to_applicability,
+        report_error_if_not_applied_to_span, should_generate_arg,
     },
 };
 

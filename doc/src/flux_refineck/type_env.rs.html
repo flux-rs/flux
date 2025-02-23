@@ -963,25 +963,25 @@
 };
 <span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
+    PlaceExt <span class="kw">as _</span>,
     global_env::GlobalEnv,
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
+        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
+        TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
-        VariantIdx, INNERMOST,
     },
-    PlaceExt <span class="kw">as _</span>,
 };
 <span class="kw">use </span>flux_rustc_bridge::{
     <span class="self">self</span>,
     mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
-<span class="kw">use </span>itertools::{izip, Itertools};
+<span class="kw">use </span>itertools::{Itertools, izip};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
 <span class="kw">use </span>rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};

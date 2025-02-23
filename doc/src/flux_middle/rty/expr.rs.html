@@ -1612,23 +1612,15 @@
 <a href="#1611" id="1611">1611</a>
 <a href="#1612" id="1612">1612</a>
 <a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a>
-<a href="#1615" id="1615">1615</a>
-<a href="#1616" id="1616">1616</a>
-<a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a>
-<a href="#1620" id="1620">1620</a>
-<a href="#1621" id="1621">1621</a>
-<a href="#1622" id="1622">1622</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1614" id="1614">1614</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
-<span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned, List};
+<span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
 <span class="kw">use </span>flux_rustc_bridge::{
+    ToRustc,
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     ty::{Const, ConstKind, ValTree, VariantIdx},
-    ToRustc,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
@@ -1653,11 +1645,11 @@
     pretty::<span class="kw-2">*</span>,
     queries::QueryResult,
     rty::{
+        BoundVariableKind,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable <span class="kw">as _</span>,
             TypeVisitor,
         },
-        BoundVariableKind,
     },
 };
 
@@ -1736,11 +1728,7 @@
     }
 
     <span class="kw">pub fn </span>at_base(<span class="self">self</span>, base: ESpan) -&gt; Expr {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan {
-            <span class="self">self</span>.at(espan.with_base(base))
-        } <span class="kw">else </span>{
-            <span class="self">self
-        </span>}
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan { <span class="self">self</span>.at(espan.with_base(base)) } <span class="kw">else </span>{ <span class="self">self </span>}
     }
 
     <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;ESpan&gt; {
@@ -2484,11 +2472,7 @@
     }
 
     <span class="kw">pub fn </span>to_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Loc&gt; {
-        <span class="kw">if </span><span class="self">self</span>.projection.is_empty() {
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.loc)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
+        <span class="kw">if </span><span class="self">self</span>.projection.is_empty() { <span class="prelude-val">Some</span>(<span class="self">self</span>.loc) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
     }
 }
 

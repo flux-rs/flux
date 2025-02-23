@@ -166,18 +166,16 @@
 <a href="#165" id="165">165</a>
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
+<a href="#168" id="168">168</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
 <span class="kw">use </span>flux_infer::{
     infer::{GlobalEnvExt <span class="kw">as _</span>, InferCtxt},
     projections::NormalizeExt <span class="kw">as _</span>,
 };
 <span class="kw">use </span>flux_middle::{
-    def_id_to_string,
+    MaybeExternId, def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{AssocReftId, TraitRef},
-    MaybeExternId,
 };
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;

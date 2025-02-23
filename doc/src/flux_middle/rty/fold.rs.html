@@ -1023,11 +1023,7 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1039,12 +1035,12 @@
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    normalize::{Normalizer, SpecFuncDefns},
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
     TyKind,
+    normalize::{Normalizer, SpecFuncDefns},
 };
-<span class="kw">use </span><span class="kw">crate</span>::rty::{expr::HoleKind, Var, VariantSig};
+<span class="kw">use </span><span class="kw">crate</span>::rty::{Var, VariantSig, expr::HoleKind};
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
     <span class="kw">type </span>BreakTy = !;
@@ -1331,11 +1327,7 @@
 
             <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, <span class="self">Self</span>::Error&gt; {
                 <span class="kw">if let </span>ExprKind::Var(Var::EVar(evid)) = expr.kind() {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(sol) = (<span class="self">self</span>.<span class="number">0</span>)(<span class="kw-2">*</span>evid) {
-                        <span class="prelude-val">Ok</span>(sol.clone())
-                    } <span class="kw">else </span>{
-                        <span class="prelude-val">Err</span>(<span class="kw-2">*</span>evid)
-                    }
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(sol) = (<span class="self">self</span>.<span class="number">0</span>)(<span class="kw-2">*</span>evid) { <span class="prelude-val">Ok</span>(sol.clone()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(<span class="kw-2">*</span>evid) }
                 } <span class="kw">else </span>{
                     expr.try_super_fold_with(<span class="self">self</span>)
                 }

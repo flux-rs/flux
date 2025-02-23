@@ -370,7 +370,7 @@
 <span class="kw">use </span>proc_macro::{Diagnostic, Level, Span};
 <span class="kw">use </span>proc_macro2::TokenStream;
 <span class="kw">use </span>quote::quote;
-<span class="kw">use </span>syn::{parse_macro_input, Ident, LitStr};
+<span class="kw">use </span>syn::{Ident, LitStr, parse_macro_input};
 <span class="kw">use </span>unic_langid::langid;
 
 <span class="doccomment">/// Helper function for returning an absolute path for macro-invocation relative file paths.

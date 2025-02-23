@@ -1579,33 +1579,32 @@
 <a href="#1578" id="1578">1578</a>
 <a href="#1579" id="1579">1579</a>
 <a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1581" id="1581">1581</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
+    MaybeExternId, ResolverOutput,
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, Res, lift::LiftCtxt},
     global_env::GlobalEnv,
-    try_alloc_slice, MaybeExternId, ResolverOutput,
+    try_alloc_slice,
 };
 <span class="kw">use </span>flux_syntax::{
-    surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ConstructorArg, NodeId},
+    surface::{<span class="self">self</span>, ConstructorArg, NodeId, visit::Visitor <span class="kw">as _</span>},
     walk_list,
 };
-<span class="kw">use </span>hir::{def::DefKind, ItemKind};
+<span class="kw">use </span>hir::{ItemKind, def::DefKind};
 <span class="kw">use </span>itertools::{Either, Itertools};
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexSet;
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, OwnerId};
 <span class="kw">use </span>rustc_span::{
+    DUMMY_SP, Span, Symbol,
     def_id::{DefId, LocalDefId},
     sym,
     symbol::kw,
-    Span, Symbol, DUMMY_SP,
 };
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
@@ -2153,14 +2152,11 @@
         }
 
         <span class="kw">let </span>qual_names = fn_spec.qual_names.as_ref().map_or(<span class="kw-2">&amp;</span>[][..], |it| <span class="kw-2">&amp;</span>it.names);
-        <span class="prelude-val">Ok</span>((
-            generics,
-            fhir::FnSig {
-                header,
-                qualifiers: <span class="self">self</span>.genv.alloc_slice(qual_names),
-                decl: <span class="self">self</span>.genv.alloc(decl),
-            },
-        ))
+        <span class="prelude-val">Ok</span>((generics, fhir::FnSig {
+            header,
+            qualifiers: <span class="self">self</span>.genv.alloc_slice(qual_names),
+            decl: <span class="self">self</span>.genv.alloc(decl),
+        }))
     }
 
     <span class="kw">fn </span>desugar_fn_sig_refine_params(

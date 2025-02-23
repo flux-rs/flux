@@ -611,11 +611,7 @@
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#613" id="613">613</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -639,11 +635,9 @@
 
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _format_args_cx {
-    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {{
-        <span class="attr">#[allow(unused_variables)]
-        </span><span class="kw">let </span>cx = <span class="macro-nonterminal">$cx</span>;
-        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">go </span>(cx, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
-    }};
+    (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(@<span class="macro-nonterminal">go </span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
+    };
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
         <span class="macro">format_args!</span>(<span class="macro-nonterminal">$fmt</span>)
     };
@@ -673,9 +667,11 @@
 
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _w {
-    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
-        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
-    };
+    (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {{
+        <span class="attr">#[allow(unused_variables)]
+        </span><span class="kw">let </span>cx = <span class="macro-nonterminal">$cx</span>;
+        <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(<span class="macro-nonterminal">cx</span>, <span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
+    }};
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$f</span>:expr, <span class="macro-nonterminal">$fmt</span>:literal) =&gt; {
         <span class="macro-nonterminal">$f</span>.write_fmt(<span class="macro-nonterminal">$</span><span class="macro">crate::_format_args_cx!</span>(<span class="macro-nonterminal">$cx</span>, <span class="macro-nonterminal">$fmt</span>))
     };
@@ -851,23 +847,19 @@
     }
 
     <span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opts: <span class="kw-2">&amp;</span>config::Value) {
-        <span class="macro">set_opts!</span>(
-            <span class="self">self</span>,
-            opts,
-            [
-                kvar_args,
-                fully_qualified_paths,
-                simplify_exprs,
-                tags,
-                bindings_chain,
-                preds_chain,
-                full_spans,
-                hide_uninit,
-                hide_refinements,
-                hide_regions,
-                hide_sorts,
-            ]
-        );
+        <span class="macro">set_opts!</span>(<span class="self">self</span>, opts, [
+            kvar_args,
+            fully_qualified_paths,
+            simplify_exprs,
+            tags,
+            bindings_chain,
+            preds_chain,
+            full_spans,
+            hide_uninit,
+            hide_refinements,
+            hide_regions,
+            hide_sorts,
+        ]);
     }
 
     <span class="kw">pub fn </span>with_bound_vars&lt;R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind], f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {

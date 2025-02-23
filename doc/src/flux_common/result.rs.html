@@ -67,11 +67,7 @@
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#69" id="69">69</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
 
@@ -96,11 +92,7 @@
     }
 
     <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Result {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self </span>{
-            <span class="prelude-val">Err</span>(err)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(())
-        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self </span>{ <span class="prelude-val">Err</span>(err) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
     }
 }
 

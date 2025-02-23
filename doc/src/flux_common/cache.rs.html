@@ -71,11 +71,7 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fs::File, path::PathBuf};
+<a href="#73" id="73">73</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fs::File, path::PathBuf};
 
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>rustc_hash::FxHashMap;
@@ -108,11 +104,7 @@
 
     <span class="kw">pub fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>String, constr_hash: u64) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>R&gt; {
         <span class="kw">let </span>val = <span class="self">self</span>.entries.get(key)<span class="question-mark">?</span>;
-        <span class="kw">if </span>val.constr_hash == constr_hash {
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>val.result)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
+        <span class="kw">if </span>val.constr_hash == constr_hash { <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>val.result) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
     }
 
     <span class="kw">fn </span>path() -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf, std::io::Error&gt; {

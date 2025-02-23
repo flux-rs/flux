@@ -2730,9 +2730,7 @@
 <a href="#2729" id="2729">2729</a>
 <a href="#2730" id="2730">2730</a>
 <a href="#2731" id="2731">2731</a>
-<a href="#2732" id="2732">2732</a>
-<a href="#2733" id="2733">2733</a>
-<a href="#2734" id="2734">2734</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2732" id="2732">2732</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2747,34 +2745,33 @@
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_middle::{
+    MaybeExternId,
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        <span class="self">self</span>,
+        <span class="self">self</span>, ESpan, INNERMOST, List, RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{<span class="self">self</span>, Refine, Refiner},
-        ESpan, List, RefineArgsExt, WfckResults, INNERMOST,
     },
-    MaybeExternId,
 };
 <span class="kw">use </span>flux_rustc_bridge::{
-    lowering::{Lower, UnsupportedErr},
     ToRustc,
+    lowering::{Lower, UnsupportedErr},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId, OwnerId, Safety};
+<span class="kw">use </span>rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundVar, TyCtxt},
 };
 <span class="kw">use </span>rustc_span::{
-    symbol::{kw, Ident},
-    ErrorGuaranteed, Span, Symbol, DUMMY_SP,
+    DUMMY_SP, ErrorGuaranteed, Span, Symbol,
+    symbol::{Ident, kw},
 };
 <span class="kw">use </span>rustc_target::spec::abi;
 <span class="kw">use </span>rustc_trait_selection::traits;
@@ -3800,9 +3797,10 @@
         <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[<span class="self">self
-            </span>.try_to_ty_or_base(self_param.kind, span, bounded_ty)<span class="question-mark">?
-            </span>.into()];
+        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[
+            <span class="self">self</span>.try_to_ty_or_base(self_param.kind, span, bounded_ty)<span class="question-mark">?
+                </span>.into(),
+        ];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>vars = env.top_layer().to_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
@@ -4345,7 +4343,7 @@
                     </span>.param_at(param_ty.index <span class="kw">as </span>usize, <span class="self">self</span>.genv())<span class="question-mark">?</span>;
                 <span class="kw">match </span>param.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)))
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)));
                     }
                     rty::GenericParamDefKind::Base { .. } =&gt; rty::BaseTy::Param(param_ty),
                     <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"unexpected param kind"</span>)),
@@ -4356,7 +4354,7 @@
                 <span class="kw">let </span>param = <span class="kw-2">&amp;</span><span class="self">self</span>.genv().generics_of(trait_)<span class="question-mark">?</span>.own_params[<span class="number">0</span>];
                 <span class="kw">match </span>param.kind {
                     rty::GenericParamDefKind::Type { .. } =&gt; {
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)))
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)));
                     }
                     rty::GenericParamDefKind::Base { .. } =&gt; rty::BaseTy::Param(rty::SELF_PARAM_TY),
                     <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"unexpected param kind"</span>)),
@@ -4367,14 +4365,11 @@
                 <span class="kw">if </span>P::EXPAND_TYPE_ALIASES {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv().type_of(alias_to)<span class="question-mark">?</span>.instantiate_identity());
                 } <span class="kw">else </span>{
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
-                        rty::AliasTy {
-                            def_id: alias_to,
-                            args: List::empty(),
-                            refine_args: List::empty(),
-                        },
-                    )
+                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
+                        def_id: alias_to,
+                        args: List::empty(),
+                        refine_args: List::empty(),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
@@ -4417,10 +4412,11 @@
                         .type_of(def_id)<span class="question-mark">?
                         </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>refine_args));
                 } <span class="kw">else </span>{
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
-                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
-                    )
+                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
+                        def_id,
+                        args,
+                        refine_args: List::from(refine_args),
+                    })
                 }
             }
             fhir::Res::Def(kind, def_id) =&gt; <span class="self">self</span>.report_expected_type(path.span, kind, def_id)<span class="question-mark">?</span>,
@@ -5169,7 +5165,7 @@
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv};
     <span class="kw">use </span>rustc_hir::def_id::DefId;
-    <span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
+    <span class="kw">use </span>rustc_span::{Span, Symbol, symbol::Ident};
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]

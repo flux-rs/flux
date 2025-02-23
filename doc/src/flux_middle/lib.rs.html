@@ -676,15 +676,7 @@
 <a href="#675" id="675">675</a>
 <a href="#676" id="676">676</a>
 <a href="#677" id="677">677</a>
-<a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a>
-<a href="#680" id="680">680</a>
-<a href="#681" id="681">681</a>
-<a href="#682" id="682">682</a>
-<a href="#683" id="683">683</a>
-<a href="#684" id="684">684</a>
-<a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
+<a href="#678" id="678">678</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 </span><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -745,9 +737,9 @@
 <span class="kw">use </span>rustc_hir::OwnerId;
 <span class="kw">use </span>rustc_macros::extension;
 <span class="kw">use </span>rustc_span::{
+    Symbol,
     def_id::{DefId, LocalDefId},
     symbol::Ident,
-    Symbol,
 };
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
 
@@ -1225,19 +1217,11 @@
     }
 
     <span class="kw">pub fn </span>as_local(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Id&gt; {
-        <span class="kw">if let </span>MaybeExternId::Local(local_id) = <span class="self">self </span>{
-            <span class="prelude-val">Some</span>(local_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
+        <span class="kw">if let </span>MaybeExternId::Local(local_id) = <span class="self">self </span>{ <span class="prelude-val">Some</span>(local_id) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
     }
 
     <span class="kw">pub fn </span>as_extern(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="kw">if let </span>MaybeExternId::Extern(<span class="kw">_</span>, def_id) = <span class="self">self </span>{
-            <span class="prelude-val">Some</span>(def_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
+        <span class="kw">if let </span>MaybeExternId::Extern(<span class="kw">_</span>, def_id) = <span class="self">self </span>{ <span class="prelude-val">Some</span>(def_id) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
     }
 }
 

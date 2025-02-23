@@ -370,11 +370,7 @@
 <a href="#369" id="369">369</a>
 <a href="#370" id="370">370</a>
 <a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
+<a href="#372" id="372">372</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -672,11 +668,7 @@
     }
 
     <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, D::Error&gt; {
-        <span class="kw">if let </span>ReEarlyParam(ebr) = <span class="kw-2">*</span>re {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.region_for_param(ebr))
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re)
-        }
+        <span class="kw">if let </span>ReEarlyParam(ebr) = <span class="kw-2">*</span>re { <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.region_for_param(ebr)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re) }
     }
 
     <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, D::Error&gt; {

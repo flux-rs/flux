@@ -1145,12 +1145,12 @@
 <span class="kw">use </span>std::fmt;
 
 <span class="kw">pub use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+<span class="kw">use </span>flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_hir::{def_id::DefId, Safety};
+<span class="kw">use </span>rustc_hir::{Safety, def_id::DefId};
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
-<span class="kw">use </span>rustc_macros::{extension, TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable, extension};
 <span class="kw">use </span>rustc_middle::ty::{<span class="self">self </span><span class="kw">as </span>rustc_ty, AdtFlags, ParamConst, TyCtxt};
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
@@ -1159,8 +1159,8 @@
         LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
-<span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
-<span class="kw">pub use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+<span class="kw">use </span>rustc_span::{Symbol, symbol::kw};
+<span class="kw">pub use </span>rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 <span class="kw">use </span>rustc_target::spec::abi;
 <span class="kw">pub use </span>rustc_type_ir::InferConst;
 
@@ -1705,7 +1705,7 @@
 
     <span class="kw">fn </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CoroutineArgsParts {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.args[..] {
-            [<span class="kw-2">ref </span>parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] =&gt; {
+            [parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] =&gt; {
                 CoroutineArgsParts {
                     parent_args,
                     resume_ty: resume_ty.expect_type(),

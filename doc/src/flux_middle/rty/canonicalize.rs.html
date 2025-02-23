@@ -391,9 +391,9 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
     TyKind, TyOrBase,
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 
 <span class="doccomment">/// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.

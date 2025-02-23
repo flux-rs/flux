@@ -41,13 +41,13 @@
 <a href="#40" id="40">40</a>
 <a href="#41" id="41">41</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
-    process::{exit, Command},
+    process::{Command, exit},
 };
 
 <span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>flux_bin::utils::{
-    get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path, prepend_path_to_env_var,
-    sysroot_dir, EXIT_ERR, LIB_PATH,
+    EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
+    prepend_path_to_env_var, sysroot_dir,
 };
 
 <span class="kw">fn </span>main() {

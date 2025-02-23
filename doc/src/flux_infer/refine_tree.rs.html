@@ -804,12 +804,12 @@
 <span class="kw">use </span>flux_macros::DebugAsJson;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
+        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -817,7 +817,7 @@
 
 <span class="kw">use crate</span>::{
     evars::EVarStore,
-    fixpoint_encoding::{fixpoint, FixpointCtxt},
+    fixpoint_encoding::{FixpointCtxt, fixpoint},
     infer::{Tag, TypeTrace},
 };
 

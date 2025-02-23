@@ -598,11 +598,11 @@
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::{
-    def_id::{DefId, LocalDefId},
     BodyId, OwnerId,
+    def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_middle::ty::{<span class="self">self</span>, TyCtxt};
-<span class="kw">use </span>rustc_span::{symbol::kw, ErrorGuaranteed, Span};
+<span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span, symbol::kw};
 
 <span class="kw">use super</span>::{FluxAttrs, SpecCollector};
 

@@ -64,13 +64,7 @@
 <a href="#63" id="63">63</a>
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a></pre></div><pre class="rust"><code><span class="kw">use </span>quote::quote;
+<a href="#66" id="66">66</a></pre></div><pre class="rust"><code><span class="kw">use </span>quote::quote;
 <span class="comment">// use syn::parse_quote;
 
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_foldable_derive(<span class="kw-2">mut </span>s: synstructure::Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; proc_macro2::TokenStream {
@@ -95,18 +89,15 @@
         })
     });
 
-    s.bound_impl(
-        <span class="macro">quote!</span>(::flux_middle::rty::fold::TypeFoldable),
-        <span class="macro">quote!</span> {
-            <span class="kw">fn </span>try_fold_with&lt;__F: ::flux_middle::rty::fold::FallibleTypeFolder&gt;(
-                <span class="comment">// self,
-                </span><span class="kw-2">&amp;</span><span class="self">self</span>,
-                __folder: <span class="kw-2">&amp;mut </span>__F
-            ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, __F::Error&gt; {
-                <span class="prelude-val">Ok</span>(<span class="kw">match </span><span class="self">self </span>{ #body_fold })
-            }
-        },
-    )
+    s.bound_impl(<span class="macro">quote!</span>(::flux_middle::rty::fold::TypeFoldable), <span class="macro">quote!</span> {
+        <span class="kw">fn </span>try_fold_with&lt;__F: ::flux_middle::rty::fold::FallibleTypeFolder&gt;(
+            <span class="comment">// self,
+            </span><span class="kw-2">&amp;</span><span class="self">self</span>,
+            __folder: <span class="kw-2">&amp;mut </span>__F
+        ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, __F::Error&gt; {
+            <span class="prelude-val">Ok</span>(<span class="kw">match </span><span class="self">self </span>{ #body_fold })
+        }
+    })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_visitable_derive(
@@ -129,17 +120,14 @@
     });
     s.bind_with(|<span class="kw">_</span>| synstructure::BindStyle::Move);
 
-    s.bound_impl(
-        <span class="macro">quote!</span>(::flux_middle::rty::fold::TypeVisitable),
-        <span class="macro">quote!</span> {
-            <span class="kw">fn </span>visit_with&lt;__V: ::flux_middle::rty::fold::TypeVisitor&gt;(
-                <span class="kw-2">&amp;</span><span class="self">self</span>,
-                __visitor: <span class="kw-2">&amp;mut </span>__V
-            ) -&gt; ::core::ops::ControlFlow&lt;__V::BreakTy&gt; {
-                <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{ #body_visit }
-                ::core::ops::ControlFlow::Continue(())
-            }
-        },
-    )
+    s.bound_impl(<span class="macro">quote!</span>(::flux_middle::rty::fold::TypeVisitable), <span class="macro">quote!</span> {
+        <span class="kw">fn </span>visit_with&lt;__V: ::flux_middle::rty::fold::TypeVisitor&gt;(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+            __visitor: <span class="kw-2">&amp;mut </span>__V
+        ) -&gt; ::core::ops::ControlFlow&lt;__V::BreakTy&gt; {
+            <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{ #body_visit }
+            ::core::ops::ControlFlow::Continue(())
+        }
+    })
 }
 </code></pre></div></section></main></body></html>

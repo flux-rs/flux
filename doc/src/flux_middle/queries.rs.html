@@ -909,15 +909,13 @@
 <a href="#908" id="908">908</a>
 <a href="#909" id="909">909</a>
 <a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#911" id="911">911</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
 
 <span class="kw">use </span>flux_arc_interner::List;
-<span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
+<span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
 <span class="kw">use </span>flux_rustc_bridge::{
     <span class="self">self</span>, def_id_to_string,
     lowering::{<span class="self">self</span>, Lower, UnsupportedErr},
@@ -934,14 +932,12 @@
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 
 <span class="kw">use crate</span>::{
-    fhir,
+    MaybeExternId, ResolvedDefId, fhir,
     global_env::GlobalEnv,
     rty::{
-        <span class="self">self</span>,
+        <span class="self">self</span>, AssocReftId,
         refining::{<span class="self">self</span>, Refine, Refiner},
-        AssocReftId,
     },
-    MaybeExternId, ResolvedDefId,
 };
 
 <span class="kw">type </span>Cache&lt;K, V&gt; = RefCell&lt;UnordMap&lt;K, V&gt;&gt;;

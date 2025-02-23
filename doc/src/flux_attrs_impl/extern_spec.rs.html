@@ -674,20 +674,18 @@
 <a href="#673" id="673">673</a>
 <a href="#674" id="674">674</a>
 <a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a>
-<a href="#677" id="677">677</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
+<a href="#676" id="676">676</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
 <span class="kw">use </span>proc_macro2::{Span, TokenStream};
-<span class="kw">use </span>quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
+<span class="kw">use </span>quote::{ToTokens, TokenStreamExt, format_ident, quote, quote_spanned};
 <span class="kw">use </span>syn::{
-    braced,
+    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
+    TypePath, braced,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
     token::Brace,
-    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
-    TypePath,
 };
 
 <span class="kw">use crate</span>::{flux_tool_attrs, inner, outer, parse_inner, tokens_or_default};

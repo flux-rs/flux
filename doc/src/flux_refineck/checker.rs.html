@@ -1927,8 +1927,7 @@
 <a href="#1926" id="1926">1926</a>
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
-<a href="#1929" id="1929">1929</a>
-<a href="#1930" id="1930">1930</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1929" id="1929">1929</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1944,31 +1943,30 @@
     queries::QueryResult,
     query_bug,
     rty::{
-        <span class="self">self</span>,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::{Refine, Refiner},
-        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, RefineArgs, RefineArgsExt,
+        <span class="self">self</span>, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        refining::{Refine, Refiner},
     },
 };
 <span class="kw">use </span>flux_rustc_bridge::{
     <span class="self">self</span>,
     mir::{
         <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
-        Terminator, TerminatorKind, START_BLOCK,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>},
 };
-<span class="kw">use </span>itertools::{izip, Itertools};
+<span class="kw">use </span>itertools::{Itertools, izip};
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::{
-    def_id::{DefId, LocalDefId},
     LangItem,
+    def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_index::bit_set::DenseBitSet;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
@@ -1976,7 +1974,7 @@
     mir::SwitchTargets,
     ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>, TypingMode},
 };
-<span class="kw">use </span>rustc_span::{sym, Span};
+<span class="kw">use </span>rustc_span::{Span, sym};
 
 <span class="kw">use </span><span class="self">self</span>::errors::{CheckerError, ResultExt};
 <span class="kw">use crate</span>::{
@@ -3798,9 +3796,9 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
-    <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
+    <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv, MaybeExternId};
+    <span class="kw">use </span>flux_middle::{MaybeExternId, def_id_to_string, global_env::GlobalEnv};
     <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_span::Span;

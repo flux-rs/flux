@@ -407,11 +407,11 @@
 <span class="kw">use </span>proc_macro2::{Span, TokenStream};
 <span class="kw">use </span>quote::quote;
 <span class="kw">use </span>syn::{
-    braced, bracketed, parenthesized,
+    Ident, Lifetime, Token, braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token, Ident, Lifetime, Token,
+    token,
 };
 
 <span class="macro">macro_rules!</span> unwrap_result {

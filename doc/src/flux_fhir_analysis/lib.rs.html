@@ -588,8 +588,7 @@
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#590" id="590">590</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -607,23 +606,22 @@
 
 <span class="kw">use </span>std::rc::Rc;
 
-<span class="kw">use </span>conv::{struct_compat, AfterSortck, ConvPhase};
+<span class="kw">use </span>conv::{AfterSortck, ConvPhase, struct_compat};
 <span class="kw">use </span>flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
+    MaybeExternId,
     fhir::{<span class="self">self</span>},
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        <span class="self">self</span>,
+        <span class="self">self</span>, AssocReftId, WfckResults,
         fold::TypeFoldable,
         refining::{<span class="self">self</span>, Refiner},
-        AssocReftId, WfckResults,
     },
-    MaybeExternId,
 };
 <span class="kw">use </span>flux_rustc_bridge::lowering::Lower;
 <span class="kw">use </span>itertools::Itertools;

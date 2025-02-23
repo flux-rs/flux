@@ -609,34 +609,22 @@
 <a href="#608" id="608">608</a>
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#611" id="611">611</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::{
-        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
-        refining::Refiner,
-        subst::{GenericsSubstDelegate, GenericsSubstFolder},
         AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
         Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
+        refining::Refiner,
+        subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
 };
-<span class="kw">use </span>flux_rustc_bridge::{lowering::Lower, ToRustc};
+<span class="kw">use </span>flux_rustc_bridge::{ToRustc, lowering::Lower};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::traits::Obligation;
 <span class="kw">use </span>rustc_middle::{
@@ -990,11 +978,7 @@
             Sort::Alias(AliasKind::Projection, alias_ty) =&gt; {
                 <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sort = ctor.sort();
-                <span class="kw">if </span>changed {
-                    sort.try_fold_with(<span class="self">self</span>)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(sort)
-                }
+                <span class="kw">if </span>changed { sort.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(sort) }
             }
             <span class="kw">_ </span>=&gt; sort.try_super_fold_with(<span class="self">self</span>),
         }
@@ -1018,11 +1002,7 @@
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) =&gt; {
                 <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = ctor.replace_bound_reft(idx).to_ty();
-                <span class="kw">if </span>changed {
-                    ty.try_fold_with(<span class="self">self</span>)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(ty)
-                }
+                <span class="kw">if </span>changed { ty.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(ty) }
             }
             <span class="kw">_ </span>=&gt; ty.try_super_fold_with(<span class="self">self</span>),
         }
@@ -1040,11 +1020,7 @@
             BaseTy::Alias(AliasKind::Projection, alias_ty) =&gt; {
                 <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = ctor.replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx);
-                <span class="kw">if </span>changed {
-                    ty.try_fold_with(<span class="self">self</span>)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(ty)
-                }
+                <span class="kw">if </span>changed { ty.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(ty) }
             }
             <span class="kw">_ </span>=&gt; sty.try_super_fold_with(<span class="self">self</span>),
         }

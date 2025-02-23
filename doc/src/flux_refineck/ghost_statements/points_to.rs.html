@@ -878,15 +878,15 @@
 };
 <span class="kw">use </span>rustc_data_structures::stack::ensure_sufficient_stack;
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_index::{bit_set::DenseBitSet, IndexSlice, IndexVec};
+<span class="kw">use </span>rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
 <span class="kw">use </span>rustc_middle::{
-    mir::{<span class="self">self</span>, visit::Visitor, BasicBlock, TerminatorEdges},
+    mir::{<span class="self">self</span>, BasicBlock, TerminatorEdges, visit::Visitor},
     ty,
 };
 <span class="kw">use </span>rustc_mir_dataflow::{
+    Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
-    Analysis, JoinSemiLattice, ResultsVisitor,
 };
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
 

@@ -173,11 +173,7 @@
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, never_type)]
+<a href="#175" id="175">175</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
@@ -190,10 +186,10 @@
 <span class="kw">use </span>rustc_data_structures::sync;
 <span class="kw">pub use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_errors::{
-    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
-    emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
-    json::JsonEmitter,
     Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
+    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
+    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, stderr_destination},
+    json::JsonEmitter,
 };
 <span class="kw">use </span>rustc_session::{
     config::{<span class="self">self</span>, ErrorOutputType},
@@ -330,11 +326,7 @@
     }
 
     <span class="kw">pub fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self</span>.err.into_inner() {
-            <span class="prelude-val">Err</span>(err)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(())
-        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self</span>.err.into_inner() { <span class="prelude-val">Err</span>(err) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
     }
 }
 

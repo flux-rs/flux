@@ -1232,8 +1232,8 @@
     mir::{<span class="self">self </span><span class="kw">as </span>rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
     ty::{
-        <span class="self">self </span><span class="kw">as </span>rustc_ty, adjustment <span class="kw">as </span>rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, TypingMode, ValTree,
+        <span class="self">self </span><span class="kw">as </span>rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode, ValTree,
+        adjustment <span class="kw">as </span>rustc_adjustment,
     },
 };
 <span class="kw">use </span>rustc_span::{Span, Symbol};
@@ -1241,9 +1241,9 @@
 
 <span class="kw">use super</span>::{
     mir::{
-        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem,
-        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, Constant,
+        LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind, replicate_infer_ctxt,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -1834,7 +1834,7 @@
         constant: <span class="kw-2">&amp;</span>rustc_mir::ConstOperand&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Constant, UnsupportedReason&gt; {
         <span class="kw">use </span>rustc_middle::ty::TyKind;
-        <span class="kw">use </span>rustc_mir::{interpret::Scalar, Const};
+        <span class="kw">use </span>rustc_mir::{Const, interpret::Scalar};
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx;
         <span class="kw">let </span>const_ = constant.const_;
         <span class="kw">let </span>ty = constant.ty();

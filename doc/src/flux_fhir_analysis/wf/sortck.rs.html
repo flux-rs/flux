@@ -888,27 +888,25 @@
 <a href="#887" id="887">887</a>
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
-<a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#890" id="890">890</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ExprRes, FhirId, FluxOwnerId},
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, visit::Visitor <span class="kw">as _</span>},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        <span class="self">self</span>,
+        <span class="self">self</span>, AdtSortDef, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
-        AdtSortDef, WfckResults,
     },
 };
-<span class="kw">use </span>itertools::{izip, Itertools};
+<span class="kw">use </span>itertools::{Itertools, izip};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_span::{def_id::DefId, symbol::Ident, Span};
+<span class="kw">use </span>rustc_span::{Span, def_id::DefId, symbol::Ident};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
 

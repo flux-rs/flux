@@ -189,10 +189,10 @@
 <span class="kw">mod </span>extern_spec;
 
 <span class="kw">use </span>proc_macro2::{Ident, TokenStream, TokenTree};
-<span class="kw">use </span>quote::{quote, quote_spanned, ToTokens};
+<span class="kw">use </span>quote::{ToTokens, quote, quote_spanned};
 <span class="kw">use </span>syn::{
-    bracketed, parse::ParseStream, parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct,
-    Token,
+    Attribute, ItemEnum, ItemStruct, Token, bracketed, parse::ParseStream, parse_quote,
+    spanned::Spanned,
 };
 
 <span class="kw">pub const </span>FLUX_ATTRS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[

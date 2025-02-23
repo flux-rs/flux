@@ -815,7 +815,7 @@
 <span class="kw">use </span>rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 <span class="kw">use </span>rustc_data_structures::{
     fx::FxIndexMap,
-    graph::{<span class="self">self</span>, dominators::Dominators, DirectedGraph, StartNode},
+    graph::{<span class="self">self</span>, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
@@ -829,17 +829,17 @@
 <span class="kw">pub use </span>rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
-        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        RETURN_PLACE, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
 <span class="kw">use </span>rustc_span::{Span, Symbol};
-<span class="kw">pub use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+<span class="kw">pub use </span>rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 
 <span class="kw">use </span><span class="kw">super</span>::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 <span class="kw">use crate</span>::{
     def_id_to_string,
-    ty::{region_to_string, Binder, FnSig},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 <span class="kw">pub struct </span>Body&lt;<span class="lifetime">'tcx</span>&gt; {

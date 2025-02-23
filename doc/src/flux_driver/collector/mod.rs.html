@@ -959,10 +959,7 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#961" id="961">961</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -975,18 +972,17 @@
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, PartialInferOpts, SmtSolver};
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
-    fhir::{Ignored, Trusted},
     Specs,
+    fhir::{Ignored, Trusted},
 };
-<span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
+<span class="kw">use </span>flux_syntax::{ParseResult, ParseSess, surface};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_ast::{tokenstream::TokenStream, MetaItemInner, MetaItemKind};
+<span class="kw">use </span>rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::{
-    <span class="self">self </span><span class="kw">as </span>hir,
+    <span class="self">self </span><span class="kw">as </span>hir, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
     def::DefKind,
-    def_id::{LocalDefId, CRATE_DEF_ID},
-    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData, CRATE_OWNER_ID,
+    def_id::{CRATE_DEF_ID, LocalDefId},
 };
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Span, Symbol, SyntaxContext};
@@ -1534,9 +1530,7 @@
 }
 
 <span class="macro">macro_rules!</span> read_flag {
-    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$kind</span>:ident) =&gt; {{
-        <span class="macro-nonterminal">$self</span>.map.get(<span class="macro">attr_name!</span>(<span class="macro-nonterminal">$kind</span>)).is_some()
-    }};
+    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$kind</span>:ident) =&gt; {{ <span class="macro-nonterminal">$self</span>.map.get(<span class="macro">attr_name!</span>(<span class="macro-nonterminal">$kind</span>)).is_some() }};
 }
 
 <span class="macro">macro_rules!</span> read_attrs {
@@ -1816,7 +1810,7 @@
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-    <span class="kw">use </span>rustc_span::{symbol::Ident, Span};
+    <span class="kw">use </span>rustc_span::{Span, symbol::Ident};
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]

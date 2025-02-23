@@ -315,19 +315,7 @@
 <a href="#314" id="314">314</a>
 <a href="#315" id="315">315</a>
 <a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#317" id="317">317</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -361,7 +349,7 @@
 <span class="kw">mod </span>queue;
 <span class="kw">mod </span>type_env;
 
-<span class="kw">use </span>checker::{trait_impl_subtyping, Checker};
+<span class="kw">use </span>checker::{Checker, trait_impl_subtyping};
 <span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
@@ -369,10 +357,10 @@
 };
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
+    MaybeExternId,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{<span class="self">self</span>, ESpan},
-    MaybeExternId,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
@@ -390,17 +378,9 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="attr">#[expect(clippy::collapsible_else_if, reason = <span class="string">"it looks better"</span>)]
     </span><span class="kw">if </span>genv.should_fail(local_id) {
-        <span class="kw">if </span>errors.is_empty() {
-            report_expected_neg(genv, local_id)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(())
-        }
+        <span class="kw">if </span>errors.is_empty() { report_expected_neg(genv, local_id) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
     } <span class="kw">else </span>{
-        <span class="kw">if </span>errors.is_empty() {
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            report_errors(genv, errors)
-        }
+        <span class="kw">if </span>errors.is_empty() { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ report_errors(genv, errors) }
     }
 }
 
@@ -523,11 +503,7 @@
         });
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(e) = e {
-        <span class="prelude-val">Err</span>(e)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(())
-    }
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(e) = e { <span class="prelude-val">Err</span>(e) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
 }
 
 <span class="kw">fn </span>report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {

@@ -527,19 +527,21 @@
 <a href="#526" id="526">526</a>
 <a href="#527" id="527">527</a>
 <a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_errors::Diagnostic;
-<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, def_id::LocalDefId, FnHeader, OwnerId};
+<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, FnHeader, OwnerId, def_id::LocalDefId};
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use super</span>::{FhirId, FluxOwnerId};
 <span class="kw">use crate</span>::{
+    MaybeExternId,
     fhir::{<span class="self">self</span>},
     global_env::GlobalEnv,
-    try_alloc_slice, MaybeExternId,
+    try_alloc_slice,
 };
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;

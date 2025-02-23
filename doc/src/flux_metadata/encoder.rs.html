@@ -215,12 +215,12 @@
     bug,
     ty::{<span class="self">self</span>, TyCtxt},
 };
-<span class="kw">use </span>rustc_serialize::{opaque, Encodable, Encoder};
+<span class="kw">use </span>rustc_serialize::{Encodable, Encoder, opaque};
 <span class="kw">use </span>rustc_session::config::CrateType;
 <span class="kw">use </span>rustc_span::{
+    ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
-    ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol, SyntaxContext,
 };
 <span class="kw">use </span>rustc_type_ir::TyEncoder;
 

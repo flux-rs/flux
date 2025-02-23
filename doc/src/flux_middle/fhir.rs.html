@@ -1574,39 +1574,7 @@
 <a href="#1573" id="1573">1573</a>
 <a href="#1574" id="1574">1574</a>
 <a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1576" id="1576">1576</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1636,15 +1604,15 @@
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">pub use </span>rustc_hir::PrimTy;
 <span class="kw">use </span>rustc_hir::{
+    FnHeader, OwnerId, ParamName, Safety,
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    FnHeader, OwnerId, ParamName, Safety,
 };
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">pub use </span>rustc_middle::mir::Mutability;
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-<span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
+<span class="kw">use </span>rustc_span::{Span, Symbol, symbol::Ident};
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 <span class="kw">use </span>rustc_target::spec::abi;
 
@@ -1668,11 +1636,7 @@
 
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Ignored {
     <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>value {
-            Ignored::Yes
-        } <span class="kw">else </span>{
-            Ignored::No
-        }
+        <span class="kw">if </span>value { Ignored::Yes } <span class="kw">else </span>{ Ignored::No }
     }
 }
 
@@ -1694,11 +1658,7 @@
 
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Trusted {
     <span class="kw">fn </span>from(value: bool) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>value {
-            Trusted::Yes
-        } <span class="kw">else </span>{
-            Trusted::No
-        }
+        <span class="kw">if </span>value { Trusted::Yes } <span class="kw">else </span>{ Trusted::No }
     }
 }
 
@@ -1754,11 +1714,7 @@
     }
 
     <span class="kw">pub fn </span>expect_opaque_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>Node::OpaqueTy(opaque_ty) = <span class="kw-2">&amp;</span><span class="self">self </span>{
-            opaque_ty
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>)
-        }
+        <span class="kw">if let </span>Node::OpaqueTy(opaque_ty) = <span class="kw-2">&amp;</span><span class="self">self </span>{ opaque_ty } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected opaque type"</span>) }
     }
 }
 
@@ -1815,11 +1771,7 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Item&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub fn </span>expect_enum(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>EnumDef&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            enum_def
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected enum"</span>)
-        }
+        <span class="kw">if let </span>ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind { enum_def } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected enum"</span>) }
     }
 
     <span class="kw">pub fn </span>expect_struct(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>StructDef&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -1839,19 +1791,11 @@
     }
 
     <span class="kw">pub fn </span>expect_impl(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Impl&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>ItemKind::Impl(impl_) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            impl_
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected impl"</span>)
-        }
+        <span class="kw">if let </span>ItemKind::Impl(impl_) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind { impl_ } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected impl"</span>) }
     }
 
     <span class="kw">pub fn </span>expect_trait(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Trait&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>ItemKind::Trait(trait_) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            trait_
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected trait"</span>)
-        }
+        <span class="kw">if let </span>ItemKind::Trait(trait_) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind { trait_ } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected trait"</span>) }
     }
 }
 
@@ -2322,11 +2266,7 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; GenericArg&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub fn </span>expect_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>GenericArg::Type(ty) = <span class="self">self </span>{
-            ty
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected `GenericArg::Type`"</span>)
-        }
+        <span class="kw">if let </span>GenericArg::Type(ty) = <span class="self">self </span>{ ty } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected `GenericArg::Type`"</span>) }
     }
 }
 
@@ -2664,11 +2604,7 @@
     }
 
     <span class="kw">pub fn </span>expect_param(<span class="self">self</span>) -&gt; (ParamKind, Id) {
-        <span class="kw">if let </span>ExprRes::Param(kind, id) = <span class="self">self </span>{
-            (kind, id)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected param"</span>)
-        }
+        <span class="kw">if let </span>ExprRes::Param(kind, id) = <span class="self">self </span>{ (kind, id) } <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected param"</span>) }
     }
 }
 
