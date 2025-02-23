@@ -12,7 +12,7 @@ ARG FIXPOINT_BUILDER="docker.io/library/haskell:9.10.1-bullseye"
 # ARG BASE_IMAGE requirements:
 # - debian-based because it uses apt-get to install z3
 # - cargo is available
-ARG BASE_IMAGE="docker.io/library/rust"
+ARG BASE_IMAGE="docker.io/library/rust:1-bookworm"
 
 FROM $FIXPOINT_BUILDER as fixpoint-builder
 WORKDIR /
@@ -28,18 +28,21 @@ FROM $BASE_IMAGE AS with-deps
 
 COPY --from=fixpoint-builder /root/.local/bin/fixpoint /usr/bin/
 
-ENV Z3_VERSION="4.13.4"
 RUN \
-  if [ "$(uname -m)" = 'arm64' ]; then \ 
-    ARCH_COMPONENT="arm64"; \
-    GLIBC="2.34"; \
+  fixpoint --version && \
+  if [ "$(uname -m)" = 'x86_64' ]; then \ 
+    Z3_VERSION="4.13.4" && \
+    ARCH_COMPONENT="x64" && \
+    GLIBC_COMPONENT="2.35"; \
   else \
-    ARCH_COMPONENT="x64"; \
-    GLIBC="2.35"; \
+    Z3_VERSION="4.14.0" && \
+    ARCH_COMPONENT="arm64" && \
+    GLIBC_COMPONENT="2.34"; \
   fi \
-  && ADDR="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${ARCH_COMPONENT}-glibc-${GLIBC}.zip" \
+  && ADDR="https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/z3-${Z3_VERSION}-${ARCH_COMPONENT}-glibc-${GLIBC_COMPONENT}.zip" \
   && curl -L -o z3.zip "$ADDR" \
-  && unzip z3.zip -d ~/ && rm z3.zip && ln -s ~/z3*/bin/z3 /usr/bin/z3
+  && unzip z3.zip -d ~/ && rm z3.zip && ln -s ~/z3*/bin/z3 /usr/bin/z3 \
+  && z3 --version
 
 FROM with-deps AS flux-builder
 COPY . /flux
