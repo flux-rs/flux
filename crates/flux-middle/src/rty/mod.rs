@@ -2409,7 +2409,7 @@ impl VariantSig {
         idx: Expr,
         invariants: Vec<Invariant>,
     ) -> Self {
-        VariantSig { adt_def, args, fields, idx, invariants: invariants.to_vec() }
+        VariantSig { adt_def, args, fields, idx, invariants: invariants.clone() }
     }
 
     pub fn fields(&self) -> &[Ty] {

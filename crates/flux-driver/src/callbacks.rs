@@ -218,7 +218,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     .expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_struct();
-                return Ok(());
+                Ok(())
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {
