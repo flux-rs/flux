@@ -604,7 +604,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .iter()
                 .map(|inv| inv.apply(&idx))
                 .collect();
-            let requires = List::from_vec(requires);
 
             let variant = rty::VariantSig::new(
                 adt_def,
