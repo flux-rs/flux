@@ -516,6 +516,11 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
                 this.subtyping(actual, formal, reason)?;
             }
 
+            // Check requires predicates
+            for require in &variant.requires {
+                this.check_pred(require, ConstrReason::Fold);
+            }
+
             Ok(variant.ret())
         })?;
         Ok(self.fully_resolve_evars(&ret))

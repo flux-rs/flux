@@ -201,24 +201,18 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
+                // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
+                // However, we leave the below code in to force the queries that do the conversions that check
+                // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
+                let _adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
                 let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
-                let struct_def = self
+                let _struct_def = self
                     .genv
                     .map()
                     .expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_struct();
-                if struct_def.is_opaque() {
-                    return Ok(());
-                }
-                refineck::invariants::check_invariants(
-                    self.genv,
-                    &mut self.cache,
-                    def_id,
-                    struct_def.invariants,
-                    &adt_def,
-                )
+                Ok(())
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {

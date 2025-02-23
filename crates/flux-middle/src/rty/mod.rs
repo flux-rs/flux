@@ -1195,6 +1195,7 @@ pub struct VariantSig {
     pub args: GenericArgs,
     pub fields: List<Ty>,
     pub idx: Expr,
+    pub requires: List<Expr>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
@@ -2401,8 +2402,14 @@ impl EarlyBinder<FuncSort> {
 }
 
 impl VariantSig {
-    pub fn new(adt_def: AdtDef, args: GenericArgs, fields: List<Ty>, idx: Expr) -> Self {
-        VariantSig { adt_def, args, fields, idx }
+    pub fn new(
+        adt_def: AdtDef,
+        args: GenericArgs,
+        fields: List<Ty>,
+        idx: Expr,
+        requires: List<Expr>,
+    ) -> Self {
+        VariantSig { adt_def, args, fields, idx, requires }
     }
 
     pub fn fields(&self) -> &[Ty] {
@@ -2594,8 +2601,7 @@ impl EarlyBinder<PolyVariant> {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
-                let requires = List::empty();
-                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
+                FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
             })
         })
     }

@@ -563,6 +563,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             rty::GenericArg::identity_for_item(self.genv(), enum_id.resolved_id())?,
             fields,
             idxs,
+            List::empty(),
         );
 
         Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(self.genv())?))
@@ -597,11 +598,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })
                     .collect(),
             );
+
+            let requires = adt_def
+                .invariants()
+                .iter()
+                .map(|inv| inv.apply(&idx))
+                .collect();
+
             let variant = rty::VariantSig::new(
                 adt_def,
                 rty::GenericArg::identity_for_item(self.genv(), struct_id.resolved_id())?,
                 fields,
                 idx,
+                requires,
             );
             let variant = rty::Binder::bind_with_vars(variant, vars);
             Ok(rty::Opaqueness::Transparent(variant))

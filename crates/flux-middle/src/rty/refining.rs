@@ -143,6 +143,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
             fields,
             idx,
+            List::empty(),
         );
 
         Ok(rty::Binder::bind_with_vars(value, List::empty()))

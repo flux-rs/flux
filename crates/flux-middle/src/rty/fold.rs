@@ -551,7 +551,8 @@ impl TypeFoldable for VariantSig {
         let args = self.args.try_fold_with(folder)?;
         let fields = self.fields.try_fold_with(folder)?;
         let idx = self.idx.try_fold_with(folder)?;
-        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
+        let requires = self.requires.try_fold_with(folder)?;
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx, requires))
     }
 }
 
