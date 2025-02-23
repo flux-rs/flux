@@ -22,11 +22,9 @@ pub use crate::_with_cx as with_cx;
 
 #[macro_export]
 macro_rules! _format_args_cx {
-    ($cx:expr, $fmt:literal, $($args:tt)*) => {{
-        #[allow(unused_variables)]
-        let cx = $cx;
-        $crate::_format_args_cx!(@go (cx, $fmt; $($args)*) -> ())
-    }};
+    ($cx:ident, $fmt:literal, $($args:tt)*) => {
+        $crate::_format_args_cx!(@go ($cx, $fmt; $($args)*) -> ())
+    };
     ($cx:expr, $fmt:literal) => {
         format_args!($fmt)
     };
@@ -56,9 +54,11 @@ pub use crate::_format_cx as format_cx;
 
 #[macro_export]
 macro_rules! _w {
-    ($cx:expr, $f:expr, $fmt:literal, $($args:tt)*) => {
-        $f.write_fmt($crate::_format_args_cx!($cx, $fmt, $($args)*))
-    };
+    ($cx:expr, $f:expr, $fmt:literal, $($args:tt)*) => {{
+        #[allow(unused_variables)]
+        let cx = $cx;
+        $f.write_fmt($crate::_format_args_cx!(cx, $fmt, $($args)*))
+    }};
     ($cx:expr, $f:expr, $fmt:literal) => {
         $f.write_fmt($crate::_format_args_cx!($cx, $fmt))
     };
@@ -234,23 +234,19 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn merge(&mut self, opts: &config::Value) {
-        set_opts!(
-            self,
-            opts,
-            [
-                kvar_args,
-                fully_qualified_paths,
-                simplify_exprs,
-                tags,
-                bindings_chain,
-                preds_chain,
-                full_spans,
-                hide_uninit,
-                hide_refinements,
-                hide_regions,
-                hide_sorts,
-            ]
-        );
+        set_opts!(self, opts, [
+            kvar_args,
+            fully_qualified_paths,
+            simplify_exprs,
+            tags,
+            bindings_chain,
+            preds_chain,
+            full_spans,
+            hide_uninit,
+            hide_refinements,
+            hide_regions,
+            hide_sorts,
+        ]);
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {

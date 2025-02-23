@@ -5,23 +5,22 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{fhir, global_env::GlobalEnv, MaybeExternId, ResolverOutput, Specs};
-use flux_syntax::surface::{self, visit::Visitor as _, Ident};
-use hir::{def::DefKind, ItemId, ItemKind, OwnerId};
+use flux_middle::{MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv};
+use flux_syntax::surface::{self, Ident, visit::Visitor as _};
+use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    self as hir,
+    self as hir, AmbigArg, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
         Namespace::{self, *},
         PerNS,
     },
-    def_id::{LocalDefId, CRATE_DEF_ID},
-    AmbigArg, ParamName, PrimTy, CRATE_HIR_ID, CRATE_OWNER_ID,
+    def_id::{CRATE_DEF_ID, LocalDefId},
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
-use rustc_span::{def_id::DefId, sym, symbol::kw, Span, Symbol};
+use rustc_span::{Span, Symbol, def_id::DefId, sym, symbol::kw};
 
 use self::refinement_resolver::RefinementResolver;
 
@@ -99,10 +98,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     self.func_decls.insert(defn.name.name, kind);
                 }
                 surface::Item::SortDecl(sort_decl) => {
-                    self.sort_decls.insert(
-                        sort_decl.name.name,
-                        fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-                    );
+                    self.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
+                        name: sort_decl.name.name,
+                        span: sort_decl.name.span,
+                    });
                 }
             }
         }
@@ -351,7 +350,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         None
     }
 
-    fn glob_imports(&self, path: &hir::UsePath) -> impl Iterator<Item = &'tcx ModChild> {
+    fn glob_imports(
+        &self,
+        path: &hir::UsePath,
+    ) -> impl Iterator<Item = &'tcx ModChild> + use<'tcx> {
         let res = path.segments.last().unwrap().res;
 
         let tcx = self.genv.tcx();
@@ -425,11 +427,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(ValueNS, RibKind::Normal);
 
         let item_ids = block.stmts.iter().filter_map(|stmt| {
-            if let hir::StmtKind::Item(item_id) = &stmt.kind {
-                Some(item_id)
-            } else {
-                None
-            }
+            if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
         });
         self.define_items(item_ids);
         self.resolve_flux_items(self.genv.hir().get_parent_item(block.hir_id));
