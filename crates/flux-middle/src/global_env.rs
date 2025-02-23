@@ -14,19 +14,18 @@ use rustc_middle::{
     query::IntoQueryParam,
     ty::{TyCtxt, Variance},
 };
-pub use rustc_span::{symbol::Ident, Symbol};
+pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
+    MaybeExternId, ResolvedDefId,
     cstore::CrateStoreDyn,
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
-        self,
+        self, AssocReftId,
         normalize::SpecFuncDefns,
         refining::{Refine as _, Refiner},
-        AssocReftId,
     },
-    MaybeExternId, ResolvedDefId,
 };
 
 #[derive(Clone, Copy)]
@@ -563,31 +562,20 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
         self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Func(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
+            if let fhir::FluxItem::Func(defn) = item { Some(defn) } else { None }
         })
     }
 
     pub fn spec_func(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
-        self.fhir.items.get(&name).and_then(|item| {
-            if let fhir::FluxItem::Func(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
-        })
+        self.fhir
+            .items
+            .get(&name)
+            .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(defn) } else { None })
     }
 
     pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
         self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Qualifier(qual) = item {
-                Some(qual)
-            } else {
-                None
-            }
+            if let fhir::FluxItem::Qualifier(qual) = item { Some(qual) } else { None }
         })
     }
 

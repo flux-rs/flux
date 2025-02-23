@@ -3,14 +3,15 @@
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use rustc_errors::Diagnostic;
-use rustc_hir::{self as hir, def_id::LocalDefId, FnHeader, OwnerId};
+use rustc_hir::{self as hir, FnHeader, OwnerId, def_id::LocalDefId};
 use rustc_span::Span;
 
 use super::{FhirId, FluxOwnerId};
 use crate::{
+    MaybeExternId,
     fhir::{self},
     global_env::GlobalEnv,
-    try_alloc_slice, MaybeExternId,
+    try_alloc_slice,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;

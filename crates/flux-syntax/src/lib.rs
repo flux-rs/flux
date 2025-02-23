@@ -9,7 +9,7 @@ pub mod surface;
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
-use rustc_span::{def_id::LocalDefId, BytePos, Span, SyntaxContext};
+use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
 
 lalrpop_mod!(

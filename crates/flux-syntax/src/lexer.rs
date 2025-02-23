@@ -5,7 +5,7 @@ use rustc_ast::{
     token::{self, TokenKind},
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
-use rustc_span::{symbol::kw, BytePos, Symbol};
+use rustc_span::{BytePos, Symbol, symbol::kw};
 
 #[derive(Clone, Debug)]
 pub enum Token {

@@ -1,15 +1,14 @@
 use std::mem;
 
 use proc_macro2::{TokenStream, TokenTree};
-use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote, quote_spanned};
 use syn::{
-    braced, bracketed,
+    Attribute, Ident, Result, Token, Visibility, braced, bracketed,
     ext::IdentExt,
     parenthesized,
-    parse::{discouraged::Speculative, Parse, ParseStream, Peek},
+    parse::{Parse, ParseStream, Peek, discouraged::Speculative},
     punctuated::Punctuated,
     token::{self, Mut, Paren},
-    Attribute, Ident, Result, Token, Visibility,
 };
 
 use crate::{flux_tool_attrs, parse_inner, tokens_or_default};
@@ -1399,11 +1398,7 @@ impl Parse for Variant {
 }
 
 fn parse_opt_variant_ret(input: ParseStream) -> Result<Option<VariantRet>> {
-    if input.peek(Token![->]) {
-        input.parse().map(Some)
-    } else {
-        Ok(None)
-    }
+    if input.peek(Token![->]) { input.parse().map(Some) } else { Ok(None) }
 }
 
 impl Parse for VariantRet {
@@ -1950,11 +1945,7 @@ where
 }
 
 fn parse_ident_or_self(input: ParseStream) -> Result<Ident> {
-    if input.peek(Token![self]) {
-        input.call(Ident::parse_any)
-    } else {
-        input.parse()
-    }
+    if input.peek(Token![self]) { input.call(Ident::parse_any) } else { input.parse() }
 }
 
 mod kw {

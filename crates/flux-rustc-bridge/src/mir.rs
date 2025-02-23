@@ -9,7 +9,7 @@ use rustc_ast::Mutability;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
-    graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+    graph::{self, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -23,17 +23,17 @@ use rustc_middle::{
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
-        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        RETURN_PLACE, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
 use rustc_span::{Span, Symbol};
-pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+pub use rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{region_to_string, Binder, FnSig},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 pub struct Body<'tcx> {

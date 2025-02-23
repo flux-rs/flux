@@ -3,17 +3,17 @@
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{spanned::Spanned, Attribute, Meta, MetaList, Path};
+use syn::{Attribute, Meta, MetaList, Path, spanned::Spanned};
 use synstructure::{BindingInfo, Structure, VariantInfo};
 
 use super::utils::SubdiagnosticVariant;
 use crate::diagnostics::{
-    error::{invalid_attr, span_err, throw_invalid_attr, throw_span_err, DiagnosticDeriveError},
+    error::{DiagnosticDeriveError, invalid_attr, span_err, throw_invalid_attr, throw_span_err},
     utils::{
-        build_field_mapping, build_suggestion_code, is_doc_comment, new_code_ident,
-        report_error_if_not_applied_to_applicability, report_error_if_not_applied_to_span,
-        should_generate_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
-        HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
+        AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce,
+        SpannedOption, SubdiagnosticKind, build_field_mapping, build_suggestion_code,
+        is_doc_comment, new_code_ident, report_error_if_not_applied_to_applicability,
+        report_error_if_not_applied_to_span, should_generate_arg,
     },
 };
 

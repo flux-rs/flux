@@ -32,7 +32,7 @@ mod primops;
 mod queue;
 mod type_env;
 
-use checker::{trait_impl_subtyping, Checker};
+use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
@@ -40,10 +40,10 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
+    MaybeExternId,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, ESpan},
-    MaybeExternId,
 };
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -61,17 +61,9 @@ fn report_fixpoint_errors(
 ) -> Result<(), ErrorGuaranteed> {
     #[expect(clippy::collapsible_else_if, reason = "it looks better")]
     if genv.should_fail(local_id) {
-        if errors.is_empty() {
-            report_expected_neg(genv, local_id)
-        } else {
-            Ok(())
-        }
+        if errors.is_empty() { report_expected_neg(genv, local_id) } else { Ok(()) }
     } else {
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            report_errors(genv, errors)
-        }
+        if errors.is_empty() { Ok(()) } else { report_errors(genv, errors) }
     }
 }
 
@@ -194,11 +186,7 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
         });
     }
 
-    if let Some(e) = e {
-        Err(e)
-    } else {
-        Ok(())
-    }
+    if let Some(e) = e { Err(e) } else { Ok(()) }
 }
 
 fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {

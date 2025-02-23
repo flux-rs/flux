@@ -5,11 +5,11 @@ use flux_rustc_bridge::lowering;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::{
-    def_id::{DefId, LocalDefId},
     BodyId, OwnerId,
+    def_id::{DefId, LocalDefId},
 };
 use rustc_middle::ty::{self, TyCtxt};
-use rustc_span::{symbol::kw, ErrorGuaranteed, Span};
+use rustc_span::{ErrorGuaranteed, Span, symbol::kw};
 
 use super::{FluxAttrs, SpecCollector};
 

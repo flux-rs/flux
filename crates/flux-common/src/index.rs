@@ -21,9 +21,9 @@ impl<I: Idx> IndexGen<I> {
     }
 
     pub fn skipping(skip: usize) -> Self {
-        let gen = IndexGen::new();
-        gen.skip(skip);
-        gen
+        let gn = IndexGen::new();
+        gn.skip(skip);
+        gn
     }
 
     /// Generate a fresh index of type `I`.

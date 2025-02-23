@@ -1,13 +1,13 @@
 use std::{
     env,
     path::PathBuf,
-    process::{exit, Command},
+    process::{Command, exit},
 };
 
 use anyhow::Result;
 use flux_bin::utils::{
-    get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path, prepend_path_to_env_var,
-    EXIT_ERR, LIB_PATH,
+    EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
+    prepend_path_to_env_var,
 };
 
 fn main() {

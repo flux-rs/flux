@@ -15,7 +15,7 @@ use std::{
 };
 
 use dashmap::{DashMap, SharedValue};
-use hashbrown::{hash_map::RawEntryMut, HashMap};
+use hashbrown::{HashMap, hash_map::RawEntryMut};
 use rustc_hash::FxHasher;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use rustc_target::abi::FieldIdx;

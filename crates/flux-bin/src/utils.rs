@@ -1,6 +1,6 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
 
 #[cfg(target_os = "windows")]

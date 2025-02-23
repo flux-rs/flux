@@ -11,7 +11,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
 use rustc_target::abi::VariantIdx;
 
-use super::{fold::TypeFoldable, RefineArgsExt};
+use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},

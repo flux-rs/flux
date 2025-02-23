@@ -7,16 +7,16 @@ use std::{
 
 use proc_macro::Span;
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
-    meta::ParseNestedMeta, parenthesized, punctuated::Punctuated, spanned::Spanned, Attribute,
-    Field, LitStr, Meta, Path, Token, Type, TypeTuple,
+    Attribute, Field, LitStr, Meta, Path, Token, Type, TypeTuple, meta::ParseNestedMeta,
+    parenthesized, punctuated::Punctuated, spanned::Spanned,
 };
 use synstructure::{BindingInfo, VariantInfo};
 
 use super::error::invalid_attr;
 use crate::diagnostics::error::{
-    span_err, throw_invalid_attr, throw_span_err, DiagnosticDeriveError,
+    DiagnosticDeriveError, span_err, throw_invalid_attr, throw_span_err,
 };
 
 thread_local! {
@@ -52,11 +52,7 @@ pub(crate) fn type_matches_path(ty: &Type, name: &[&str]) -> bool {
 
 /// Checks whether the type `ty` is `()`.
 pub(crate) fn type_is_unit(ty: &Type) -> bool {
-    if let Type::Tuple(TypeTuple { elems, .. }) = ty {
-        elems.is_empty()
-    } else {
-        false
-    }
+    if let Type::Tuple(TypeTuple { elems, .. }) = ty { elems.is_empty() } else { false }
 }
 
 /// Checks whether the type `ty` is `bool`.
@@ -774,8 +770,8 @@ impl SubdiagnosticVariant {
                 }
                 (
                     "applicability",
-                    SubdiagnosticKind::Suggestion { ref mut applicability, .. }
-                    | SubdiagnosticKind::MultipartSuggestion { ref mut applicability, .. },
+                    SubdiagnosticKind::Suggestion { applicability, .. }
+                    | SubdiagnosticKind::MultipartSuggestion { applicability, .. },
                 ) => {
                     let value = get_string!();
                     let value = Applicability::from_str(&value.value()).unwrap_or_else(|()| {

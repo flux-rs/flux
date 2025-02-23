@@ -3,9 +3,9 @@
 
 use std::{env, path::PathBuf};
 
-use compiletest_rs::{common::Mode, Config};
+use compiletest_rs::{Config, common::Mode};
 use itertools::Itertools;
-use tests::{default_rustc_flags, FLUX_FULL_COMPILATION, FLUX_SYSROOT};
+use tests::{FLUX_FULL_COMPILATION, FLUX_SYSROOT, default_rustc_flags};
 
 #[derive(Debug)]
 struct Args {
@@ -64,9 +64,12 @@ fn test_runner(_: &[&()]) {
     config.clean_rlib();
     config.strict_headers = true;
 
-    // Force full compilation to make sure we generate artifacts when annotating tests with `@aux-build`
-    env::set_var(FLUX_FULL_COMPILATION, "1");
-    env::set_var(FLUX_SYSROOT, &args.sysroot);
+    // SAFETY: this is safe because this part of the code is single threaded
+    unsafe {
+        // Force full compilation to make sure we generate artifacts when annotating tests with `@aux-build`
+        env::set_var(FLUX_FULL_COMPILATION, "1");
+        env::set_var(FLUX_SYSROOT, &args.sysroot);
+    }
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
     if path.exists() {

@@ -5,12 +5,12 @@ mod subst;
 use std::fmt;
 
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use itertools::Itertools;
-use rustc_hir::{def_id::DefId, Safety};
+use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{extension, TyDecodable, TyEncodable};
+use rustc_macros::{TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
@@ -19,8 +19,8 @@ pub use rustc_middle::{
         LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
-use rustc_span::{symbol::kw, Symbol};
-pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+use rustc_span::{Symbol, symbol::kw};
+pub use rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_target::spec::abi;
 pub use rustc_type_ir::InferConst;
 
@@ -565,7 +565,7 @@ impl CoroutineArgs {
 
     fn split(&self) -> CoroutineArgsParts {
         match &self.args[..] {
-            [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+            [parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
                 CoroutineArgsParts {
                     parent_args,
                     resume_ty: resume_ty.expect_type(),

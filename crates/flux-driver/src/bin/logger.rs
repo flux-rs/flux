@@ -6,7 +6,7 @@ use std::{
 
 use flux_config as config;
 use tracing::{Dispatch, Level};
-use tracing_subscriber::{filter::Targets, fmt::writer::BoxMakeWriter, prelude::*, Registry};
+use tracing_subscriber::{Registry, filter::Targets, fmt::writer::BoxMakeWriter, prelude::*};
 use tracing_timing::TimingLayer;
 
 const ONE_MILLIS: u64 = 1_000_000;

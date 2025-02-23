@@ -4,25 +4,26 @@ use flux_common::{bug, dbg, index::IndexGen, iter::IterExt, span_bug};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_middle::{
-    fhir::{self, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
+    MaybeExternId, ResolverOutput,
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, Res, lift::LiftCtxt},
     global_env::GlobalEnv,
-    try_alloc_slice, MaybeExternId, ResolverOutput,
+    try_alloc_slice,
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, ConstructorArg, NodeId},
+    surface::{self, ConstructorArg, NodeId, visit::Visitor as _},
     walk_list,
 };
-use hir::{def::DefKind, ItemKind};
+use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
 use rustc_data_structures::fx::FxIndexSet;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId};
 use rustc_span::{
+    DUMMY_SP, Span, Symbol,
     def_id::{DefId, LocalDefId},
     sym,
     symbol::kw,
-    Span, Symbol, DUMMY_SP,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -570,14 +571,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
 
         let qual_names = fn_spec.qual_names.as_ref().map_or(&[][..], |it| &it.names);
-        Ok((
-            generics,
-            fhir::FnSig {
-                header,
-                qualifiers: self.genv.alloc_slice(qual_names),
-                decl: self.genv.alloc(decl),
-            },
-        ))
+        Ok((generics, fhir::FnSig {
+            header,
+            qualifiers: self.genv.alloc_slice(qual_names),
+            decl: self.genv.alloc(decl),
+        }))
     }
 
     fn desugar_fn_sig_refine_params(

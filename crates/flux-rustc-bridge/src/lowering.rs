@@ -11,8 +11,8 @@ use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
     ty::{
-        self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, TypingMode, ValTree,
+        self as rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode, ValTree,
+        adjustment as rustc_adjustment,
     },
 };
 use rustc_span::{Span, Symbol};
@@ -20,9 +20,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     mir::{
-        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem,
-        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, Constant,
+        LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind, replicate_infer_ctxt,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -613,7 +613,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         constant: &rustc_mir::ConstOperand<'tcx>,
     ) -> Result<Constant, UnsupportedReason> {
         use rustc_middle::ty::TyKind;
-        use rustc_mir::{interpret::Scalar, Const};
+        use rustc_mir::{Const, interpret::Scalar};
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();

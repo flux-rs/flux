@@ -3,11 +3,11 @@ pub mod visit;
 use std::fmt;
 
 pub use rustc_ast::{
-    token::{Lit, LitKind},
     Mutability,
+    token::{Lit, LitKind},
 };
-pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
+pub use rustc_span::symbol::Ident;
 
 use crate::surface::visit::Visitor;
 

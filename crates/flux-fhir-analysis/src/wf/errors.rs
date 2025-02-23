@@ -1,7 +1,7 @@
 use flux_errors::E0999;
 use flux_macros::Diagnostic;
 use flux_middle::{fhir, rty};
-use rustc_span::{symbol::Ident, Span, Symbol};
+use rustc_span::{Span, Symbol, symbol::Ident};
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = E0999)]

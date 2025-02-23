@@ -1,8 +1,8 @@
 use std::{fmt, iter};
 
-use expr::{pretty::aggregate_nested, FieldBind};
+use expr::{FieldBind, pretty::aggregate_nested};
 use rustc_type_ir::DebruijnIndex;
-use ty::{region_to_string, UnevaluatedConst, ValTree};
+use ty::{UnevaluatedConst, ValTree, region_to_string};
 
 use super::*;
 use crate::pretty::*;
