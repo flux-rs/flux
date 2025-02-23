@@ -207,24 +207,26 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
-                let struct_def = self
-                    .genv
-                    .map()
-                    .expect_item(def_id.local_id())
-                    .emit(&self.genv)?
-                    .expect_struct();
-                if struct_def.is_opaque() {
-                    return Ok(());
-                }
-                refineck::invariants::check_invariants(
-                    self.genv,
-                    &mut self.cache,
-                    def_id,
-                    struct_def.invariants,
-                    &adt_def,
-                )
+                // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
+                // CUT let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
+                // CUT let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
+                // CUT let struct_def = self
+                // CUT     .genv
+                // CUT     .map()
+                // CUT     .expect_item(def_id.local_id())
+                // CUT     .emit(&self.genv)?
+                // CUT     .expect_struct();
+                return Ok(());
+                // CUT if struct_def.is_opaque() {
+                // CUT     return Ok(());
+                // CUT }
+                // CUT refineck::invariants::check_invariants(
+                // CUT     self.genv,
+                // CUT     &mut self.cache,
+                // CUT     def_id,
+                // CUT     struct_def.invariants,
+                // CUT     &adt_def,
+                // CUT )
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {

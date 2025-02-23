@@ -516,6 +516,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
                 this.subtyping(actual, formal, reason)?;
             }
 
+            // Check invariants
+            println!("TRACE:TODO:check invariants too?");
             Ok(variant.ret())
         })?;
         Ok(self.fully_resolve_evars(&ret))

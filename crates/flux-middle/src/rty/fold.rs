@@ -551,7 +551,11 @@ impl TypeFoldable for VariantSig {
         let args = self.args.try_fold_with(folder)?;
         let fields = self.fields.try_fold_with(folder)?;
         let idx = self.idx.try_fold_with(folder)?;
-        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
+        let mut invariants = vec![];
+        for i in self.invariants.iter() {
+            invariants.push(i.try_fold_with(folder)?);
+        }
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx, invariants))
     }
 }
 

@@ -530,7 +530,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         enum_def
             .variants
             .iter()
-            .map(|variant| self.conv_enum_variant(enum_id, variant, reflected))
+            .map(|variant| self.conv_enum_variant(enum_id, variant, reflected, &[]))
             .try_collect_vec()
     }
 
@@ -539,6 +539,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         enum_id: MaybeExternId,
         variant: &fhir::VariantDef,
         reflected: bool,
+        invariants: &[rty::Invariant],
     ) -> QueryResult<rty::PolyVariant> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(self.results(), 0, variant.params));
@@ -558,11 +559,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         } else {
             self.conv_expr(&mut env, &variant.ret.idx)?
         };
+        let invariants = invariants.to_vec();
         let variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv(), enum_id.resolved_id())?,
             fields,
             idxs,
+            invariants,
         );
 
         Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(self.genv())?))
@@ -597,11 +600,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })
                     .collect(),
             );
+            let invariants = adt_def.invariants().to_vec();
             let variant = rty::VariantSig::new(
                 adt_def,
                 rty::GenericArg::identity_for_item(self.genv(), struct_id.resolved_id())?,
                 fields,
                 idx,
+                invariants,
             );
             let variant = rty::Binder::bind_with_vars(variant, vars);
             Ok(rty::Opaqueness::Transparent(variant))
