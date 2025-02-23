@@ -1195,7 +1195,7 @@ pub struct VariantSig {
     pub args: GenericArgs,
     pub fields: List<Ty>,
     pub idx: Expr,
-    pub invariants: Vec<Invariant>,
+    pub requires: List<Expr>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
@@ -2407,9 +2407,9 @@ impl VariantSig {
         args: GenericArgs,
         fields: List<Ty>,
         idx: Expr,
-        invariants: Vec<Invariant>,
+        requires: List<Expr>,
     ) -> Self {
-        VariantSig { adt_def, args, fields, idx, invariants: invariants.clone() }
+        VariantSig { adt_def, args, fields, idx, requires }
     }
 
     pub fn fields(&self) -> &[Ty] {
@@ -2595,21 +2595,21 @@ impl EarlyBinder<PolyVariant> {
     pub fn to_poly_fn_sig(&self, field_idx: Option<crate::FieldIdx>) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_variant| {
             poly_variant.as_ref().map(|variant| {
-                let ret = variant.ret();
-                let TyKind::Indexed(_, ret_index) = ret.kind() else { bug!() };
-                let ret = ret.shift_in_escaping(1);
+                // CUT-FIXME let ret = variant.ret();
+                // CUT-FIXME let TyKind::Indexed(_, ret_index) = ret.kind() else { bug!() };
+                let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
                 let inputs = match field_idx {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
 
-                let requires = variant
-                    .invariants
-                    .iter()
-                    .map(|inv| inv.apply(ret_index))
-                    .collect_vec();
-                FnSig::new(Safety::Safe, abi::Abi::Rust, requires.into(), inputs, output)
+                // CUT-FIXME let requires = variant
+                // CUT-FIXME     .requires
+                // CUT-FIXME     .iter()
+                // CUT-FIXME     .map(|inv| inv.apply(ret_index))
+                // CUT-FIXME     .collect_vec();
+                FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
             })
         })
     }
