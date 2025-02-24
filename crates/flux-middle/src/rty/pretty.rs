@@ -441,7 +441,7 @@ impl Pretty for BaseTy {
                 w!(cx, f, "{ty_vid:?}")
             }
             BaseTy::Foreign(def_id) => {
-                w!(cx, f, "{def_id:?}")
+                w!(cx, f, "{:?}", def_id)
             }
         }
     }
