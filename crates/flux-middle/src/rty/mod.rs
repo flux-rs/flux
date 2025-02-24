@@ -161,6 +161,10 @@ impl AdtSortDef {
         &self.0.variants[idx]
     }
 
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, AdtSortVariant> {
+        &self.0.variants
+    }
+
     pub fn opt_struct_variant(&self) -> Option<&AdtSortVariant> {
         if self.is_struct() { Some(self.struct_variant()) } else { None }
     }
