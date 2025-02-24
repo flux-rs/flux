@@ -2,21 +2,21 @@ use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::{tracked_span_assert_eq, tracked_span_bug};
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt as _,
+    PlaceExt as _, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
 use flux_rustc_bridge::{
     mir::{
-        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
-        Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-        VariantIdx, FIRST_VARIANT,
+        BasicBlock, Body, BorrowKind, FIRST_VARIANT, FieldIdx, Local, Location,
+        NonDivergingIntrinsic, Operand, Place, PlaceElem, PlaceRef, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind, VariantIdx,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Mutability, Ty, TyKind},
 };
-use itertools::{repeat_n, Itertools};
+use itertools::{Itertools, repeat_n};
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{bit_set::BitSet, Idx, IndexVec};
+use rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
 use rustc_middle::mir::START_BLOCK;
 
 use super::{GhostStatements, StatementsAt};
@@ -121,7 +121,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
-    visited: BitSet<BasicBlock>,
+    visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: UnordMap<Place, Place>,
     point: Point,
@@ -469,7 +469,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             bb_envs,
             discriminants: Default::default(),
             point: Point::FunEntry,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             mode,
         }

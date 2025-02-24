@@ -3,11 +3,11 @@ use std::ops::ControlFlow;
 use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
-    fhir::{self, ExprRes},
     ResolverOutput,
+    fhir::{self, ExprRes},
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, Ident, NodeId},
+    surface::{self, Ident, NodeId, visit::Visitor as _},
     walk_list,
 };
 use rustc_data_structures::{
@@ -20,7 +20,7 @@ use rustc_hir::def::{
     Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{sym, ErrorGuaranteed, Symbol};
+use rustc_span::{ErrorGuaranteed, Symbol, sym};
 
 use super::{CrateResolver, Segment};
 
@@ -339,11 +339,7 @@ impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
-        if self.kind == kind {
-            ControlFlow::Continue(())
-        } else {
-            ControlFlow::Break(())
-        }
+        if self.kind == kind { ControlFlow::Continue(()) } else { ControlFlow::Break(()) }
     }
 
     fn on_implicit_param(&mut self, ident: Ident, param: fhir::ParamKind, node_id: NodeId) {
@@ -919,7 +915,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
-    use rustc_span::{symbol::Ident, Span, Symbol};
+    use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(desugar_duplicate_param, code = E0999)]

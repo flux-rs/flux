@@ -5,11 +5,11 @@ use flux_rustc_bridge::lowering;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::{
-    def_id::{DefId, LocalDefId},
     BodyId, OwnerId,
+    def_id::{DefId, LocalDefId},
 };
 use rustc_middle::ty::{self, TyCtxt};
-use rustc_span::{symbol::kw, ErrorGuaranteed, Span};
+use rustc_span::{ErrorGuaranteed, Span, symbol::kw};
 
 use super::{FluxAttrs, SpecCollector};
 
@@ -50,7 +50,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             .parse_attrs_and_report_dups(item.owner_id.def_id)?;
 
         match &item.kind {
-            hir::ItemKind::Fn(..) => self.collect_extern_fn(item, attrs),
+            hir::ItemKind::Fn { .. } => self.collect_extern_fn(item, attrs),
             hir::ItemKind::Enum(enum_def, _) => {
                 self.collect_extern_enum(item.owner_id, enum_def, attrs)
             }
@@ -225,8 +225,8 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn extract_extern_id_from_fn(&self, item: &hir::Item) -> Result<DefId> {
-        if let hir::ItemKind::Fn(_, _, body_id) = item.kind {
-            self.extract_callee_from_body(body_id)
+        if let hir::ItemKind::Fn { body, .. } = item.kind {
+            self.extract_callee_from_body(body)
         } else {
             Err(self.malformed())
         }

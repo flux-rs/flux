@@ -19,7 +19,7 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone;
@@ -81,11 +81,7 @@ impl Identifier for &str {
 
 impl FixpointFmt for i128 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if *self < 0 {
-            write!(f, "(- {})", self.unsigned_abs())
-        } else {
-            write!(f, "{self}")
-        }
+        if *self < 0 { write!(f, "(- {})", self.unsigned_abs()) } else { write!(f, "{self}") }
     }
 }
 

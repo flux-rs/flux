@@ -9,9 +9,9 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, FIRST_VARIANT, GenericArg, GenericArgsExt, List,
+        Loc, Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, GenericArgsExt, List, Loc,
-        Mutability, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
 };
 use flux_rustc_bridge::mir::{FieldIdx, Place, PlaceElem};

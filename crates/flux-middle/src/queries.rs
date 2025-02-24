@@ -4,7 +4,7 @@ use std::{
 };
 
 use flux_arc_interner::List;
-use flux_errors::{ErrorGuaranteed, E0999};
+use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -21,14 +21,12 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    fhir,
+    MaybeExternId, ResolvedDefId, fhir,
     global_env::GlobalEnv,
     rty::{
-        self,
+        self, AssocReftId,
         refining::{self, Refine, Refiner},
-        AssocReftId,
     },
-    MaybeExternId, ResolvedDefId,
 };
 
 type Cache<K, V> = RefCell<UnordMap<K, V>>;

@@ -6,11 +6,10 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 use rustc_ast::Mutability;
-pub use rustc_borrowck::borrow_set::BorrowData;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
-    graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+    graph::{self, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -24,17 +23,17 @@ use rustc_middle::{
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
-        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        RETURN_PLACE, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
 use rustc_span::{Span, Symbol};
-pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+pub use rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{region_to_string, Binder, FnSig},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 pub struct Body<'tcx> {
@@ -463,7 +462,7 @@ impl<'tcx> Body<'tcx> {
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
         self.body_with_facts
             .borrow_set
-            .location_map
+            .location_map()
             .get_index(idx.as_usize())
             .unwrap()
             .1

@@ -4,7 +4,7 @@ members = ["crates/*", "lib/*", "tests", "xtask"]
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
 flux-arc-interner = { path = "./crates/flux-arc-interner", version = "0.1.0" }

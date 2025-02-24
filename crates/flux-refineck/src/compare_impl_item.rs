@@ -4,11 +4,10 @@ use flux_infer::{
     projections::NormalizeExt as _,
 };
 use flux_middle::{
-    def_id_to_string,
+    MaybeExternId, def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{AssocReftId, TraitRef},
-    MaybeExternId,
 };
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;

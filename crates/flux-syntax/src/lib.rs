@@ -9,7 +9,7 @@ pub mod surface;
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
-use rustc_span::{def_id::LocalDefId, BytePos, Span, SyntaxContext};
+use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
 
 lalrpop_mod!(
@@ -119,6 +119,14 @@ impl ParseSess {
         span: Span,
     ) -> ParseResult<surface::ConstantInfo> {
         parse!(self, grammar::ConstantInfoParser, tokens, span)
+    }
+
+    pub fn parse_yes_or_no_with_reason(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<bool> {
+        parse!(self, grammar::YesOrNoWithReasonParser, tokens, span)
     }
 
     pub fn next_node_id(&mut self) -> NodeId {

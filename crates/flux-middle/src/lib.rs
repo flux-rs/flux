@@ -59,9 +59,9 @@ use rustc_data_structures::{
 use rustc_hir::OwnerId;
 use rustc_macros::extension;
 use rustc_span::{
+    Symbol,
     def_id::{DefId, LocalDefId},
     symbol::Ident,
-    Symbol,
 };
 use rustc_target::abi::FieldIdx;
 
@@ -539,19 +539,11 @@ impl<Id> MaybeExternId<Id> {
     }
 
     pub fn as_local(self) -> Option<Id> {
-        if let MaybeExternId::Local(local_id) = self {
-            Some(local_id)
-        } else {
-            None
-        }
+        if let MaybeExternId::Local(local_id) = self { Some(local_id) } else { None }
     }
 
     pub fn as_extern(self) -> Option<DefId> {
-        if let MaybeExternId::Extern(_, def_id) = self {
-            Some(def_id)
-        } else {
-            None
-        }
+        if let MaybeExternId::Extern(_, def_id) = self { Some(def_id) } else { None }
     }
 }
 

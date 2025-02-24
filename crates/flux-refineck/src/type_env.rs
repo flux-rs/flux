@@ -10,25 +10,25 @@ use flux_infer::{
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
+    PlaceExt as _,
     global_env::GlobalEnv,
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
+        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
+        TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
-        VariantIdx, INNERMOST,
     },
-    PlaceExt as _,
 };
 use flux_rustc_bridge::{
     self,
     mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};

@@ -13,34 +13,33 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
+    MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
+        self, ESpan, INNERMOST, List, RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
-        ESpan, List, RefineArgsExt, WfckResults, INNERMOST,
     },
-    MaybeExternId,
 };
 use flux_rustc_bridge::{
-    lowering::{Lower, UnsupportedErr},
     ToRustc,
+    lowering::{Lower, UnsupportedErr},
 };
 use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, def_id::DefId, OwnerId, Safety};
+use rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundRegionKind::BrNamed, BoundVar, TyCtxt},
+    ty::{self, AssocItem, AssocKind, BoundVar, TyCtxt},
 };
 use rustc_span::{
-    symbol::{kw, Ident},
-    ErrorGuaranteed, Span, Symbol, DUMMY_SP,
+    DUMMY_SP, ErrorGuaranteed, Span, Symbol,
+    symbol::{Ident, kw},
 };
 use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
@@ -563,6 +562,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             rty::GenericArg::identity_for_item(self.genv(), enum_id.resolved_id())?,
             fields,
             idxs,
+            List::empty(),
         );
 
         Ok(rty::Binder::bind_with_vars(variant, env.pop_layer().into_bound_vars(self.genv())?))
@@ -597,11 +597,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })
                     .collect(),
             );
+
+            let requires = adt_def
+                .invariants()
+                .iter()
+                .map(|inv| inv.apply(&idx))
+                .collect();
+
             let variant = rty::VariantSig::new(
                 adt_def,
                 rty::GenericArg::identity_for_item(self.genv(), struct_id.resolved_id())?,
                 fields,
                 idx,
+                requires,
             );
             let variant = rty::Binder::bind_with_vars(variant, vars);
             Ok(rty::Opaqueness::Transparent(variant))
@@ -654,7 +662,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
-        let fn_sig = self.conv_fn_decl(&mut env, header.safety, header.abi, decl)?;
+        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl)?;
 
         let vars = late_bound_regions
             .iter()
@@ -1057,9 +1065,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         let self_param = generics.param_at(0, self.genv())?;
-        let mut args = vec![self
-            .try_to_ty_or_base(self_param.kind, span, bounded_ty)?
-            .into()];
+        let mut args = vec![
+            self.try_to_ty_or_base(self_param.kind, span, bounded_ty)?
+                .into(),
+        ];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
 
         let vars = env.top_layer().to_bound_vars(self.genv())?;
@@ -1546,15 +1555,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     span_bug!(span, "late-bound variable at depth 0")
                 };
                 let name = lifetime_name(def_id.to_def_id());
-                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
+                let kind = rty::BoundRegionKind::Named(def_id.to_def_id(), name);
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
                 let name = lifetime_name(id.to_def_id());
-                let bound_region = rty::BoundRegionKind::BrNamed(id.to_def_id(), name);
-                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), bound_region })
+                let kind = rty::LateParamRegionKind::Named(id.to_def_id(), name);
+                rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), kind })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }
@@ -1602,7 +1611,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .param_at(param_ty.index as usize, self.genv())?;
                 match param.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)))
+                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(param_ty)));
                     }
                     rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(param_ty),
                     _ => return Err(query_bug!("unexpected param kind")),
@@ -1613,7 +1622,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let param = &self.genv().generics_of(trait_)?.own_params[0];
                 match param.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)))
+                        return Ok(rty::TyOrCtor::Ty(rty::Ty::param(rty::SELF_PARAM_TY)));
                     }
                     rty::GenericParamDefKind::Base { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
                     _ => return Err(query_bug!("unexpected param kind")),
@@ -1624,14 +1633,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
-                        rty::AliasTy {
-                            def_id: alias_to,
-                            args: List::empty(),
-                            refine_args: List::empty(),
-                        },
-                    )
+                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
+                        def_id: alias_to,
+                        args: List::empty(),
+                        refine_args: List::empty(),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
@@ -1674,10 +1680,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .type_of(def_id)?
                         .instantiate(tcx, &args, &refine_args));
                 } else {
-                    rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
-                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
-                    )
+                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
+                        def_id,
+                        args,
+                        refine_args: List::from(refine_args),
+                    })
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) => rty::BaseTy::Foreign(def_id),
@@ -1700,7 +1707,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let name = self.tcx().item_name(def_id);
         match param.kind {
             fhir::GenericParamKind::Lifetime => {
-                Ok(rty::BoundVariableKind::Region(BrNamed(def_id, name)))
+                Ok(rty::BoundVariableKind::Region(rty::BoundRegionKind::Named(def_id, name)))
             }
             fhir::GenericParamKind::Const { .. } | fhir::GenericParamKind::Type { .. } => {
                 Err(query_bug!(def_id, "unsupported param kind `{:?}`", param.kind))
@@ -2427,7 +2434,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use flux_middle::{fhir, global_env::GlobalEnv};
     use rustc_hir::def_id::DefId;
-    use rustc_span::{symbol::Ident, Span, Symbol};
+    use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]

@@ -2,10 +2,10 @@ mod ast;
 mod extern_spec;
 
 use proc_macro2::{Ident, TokenStream, TokenTree};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    bracketed, parse::ParseStream, parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct,
-    Token,
+    Attribute, ItemEnum, ItemStruct, Token, bracketed, parse::ParseStream, parse_quote,
+    spanned::Spanned,
 };
 
 pub const FLUX_ATTRS: &[&str] = &[

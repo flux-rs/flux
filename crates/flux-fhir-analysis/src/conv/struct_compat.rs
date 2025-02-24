@@ -8,7 +8,7 @@ use std::{fmt, iter};
 use flux_common::bug;
 use flux_errors::Errors;
 use flux_middle::{
-    fhir,
+    MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -16,12 +16,11 @@ use flux_middle::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine as _, Refiner},
     },
-    MaybeExternId,
 };
 use flux_rustc_bridge::ty::{self, FieldIdx, VariantIdx};
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
-use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
+use rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
 
 pub(crate) fn type_alias(
     genv: GlobalEnv,
@@ -634,12 +633,12 @@ mod errors {
     use flux_common::span_bug;
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+    use flux_middle::{MaybeExternId, fhir, global_env::GlobalEnv, rty};
     use flux_rustc_bridge::{
-        ty::{FieldIdx, VariantIdx},
         ToRustc,
+        ty::{FieldIdx, VariantIdx},
     };
-    use rustc_span::{Span, DUMMY_SP};
+    use rustc_span::{DUMMY_SP, Span};
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]

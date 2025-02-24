@@ -11,7 +11,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
 use rustc_target::abi::VariantIdx;
 
-use super::{fold::TypeFoldable, RefineArgsExt};
+use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -143,6 +143,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
             fields,
             idx,
+            List::empty(),
         );
 
         Ok(rty::Binder::bind_with_vars(value, List::empty()))

@@ -31,11 +31,7 @@ impl<R> QueryCache<R> {
 
     pub fn lookup(&self, key: &String, constr_hash: u64) -> Option<&R> {
         let val = self.entries.get(key)?;
-        if val.constr_hash == constr_hash {
-            Some(&val.result)
-        } else {
-            None
-        }
+        if val.constr_hash == constr_hash { Some(&val.result) } else { None }
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {

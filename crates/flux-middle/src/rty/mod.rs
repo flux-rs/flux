@@ -16,47 +16,47 @@ pub mod region_matching;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
 
+pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion,
+    EarlyParamRegion, LateParamRegion, LateParamRegionKind,
     Region::{self, *},
     RegionVid,
 };
 use flux_rustc_bridge::{
+    ToRustc,
     mir::Place,
     ty::{self, VariantDef},
-    ToRustc,
 };
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use refining::{Refine as _, Refiner};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{
-    def_id::{DefId, DefIndex},
     LangItem, Safety,
+    def_id::{DefId, DefIndex},
 };
-use rustc_index::{newtype_index, IndexSlice};
-use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_index::{IndexSlice, newtype_index};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{sym, symbol::kw, Symbol};
-pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
+use rustc_span::{Symbol, sym, symbol::kw};
+pub use rustc_target::abi::{FIRST_VARIANT, VariantIdx};
 use rustc_target::spec::abi;
 use rustc_type_ir::Upcast as _;
-pub use rustc_type_ir::{TyVid, INNERMOST};
-pub use SortInfer::*;
+pub use rustc_type_ir::{INNERMOST, TyVid};
 
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
@@ -698,18 +698,18 @@ impl FnTraitPredicate {
         let closure_ty = Ty::closure(closure_id, tys, args);
         let env_ty = match self.kind {
             ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
+                    kind: BoundRegionKind::ClosureEnv,
                 };
                 Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
+                    kind: BoundRegionKind::ClosureEnv,
                 };
                 Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }
@@ -950,11 +950,7 @@ impl Sort {
 
     #[track_caller]
     pub fn expect_func(&self) -> &PolyFuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            bug!("expected `Sort::Func`")
-        }
+        if let Sort::Func(sort) = self { sort } else { bug!("expected `Sort::Func`") }
     }
 
     pub fn is_loc(&self) -> bool {
@@ -1195,6 +1191,7 @@ pub struct VariantSig {
     pub args: GenericArgs,
     pub fields: List<Ty>,
     pub idx: Expr,
+    pub requires: List<Expr>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
@@ -2403,8 +2400,14 @@ impl EarlyBinder<FuncSort> {
 }
 
 impl VariantSig {
-    pub fn new(adt_def: AdtDef, args: GenericArgs, fields: List<Ty>, idx: Expr) -> Self {
-        VariantSig { adt_def, args, fields, idx }
+    pub fn new(
+        adt_def: AdtDef,
+        args: GenericArgs,
+        fields: List<Ty>,
+        idx: Expr,
+        requires: List<Expr>,
+    ) -> Self {
+        VariantSig { adt_def, args, fields, idx, requires }
     }
 
     pub fn fields(&self) -> &[Ty] {
@@ -2596,8 +2599,7 @@ impl EarlyBinder<PolyVariant> {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
-                let requires = List::empty();
-                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
+                FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
             })
         })
     }
@@ -2627,11 +2629,7 @@ fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
             },
         ]
     });
-    if overflow_checking {
-        &*OVERFLOW
-    } else {
-        &*DEFAULT
-    }
+    if overflow_checking { &*OVERFLOW } else { &*DEFAULT }
 }
 
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
@@ -2658,11 +2656,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             })
             .collect()
     });
-    if overflow_checking {
-        &OVERFLOW[&uint_ty]
-    } else {
-        &*DEFAULT
-    }
+    if overflow_checking { &OVERFLOW[&uint_ty] } else { &*DEFAULT }
 }
 
 fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
@@ -2690,11 +2684,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             })
             .collect()
     });
-    if overflow_checking {
-        &OVERFLOW[&int_ty]
-    } else {
-        &DEFAULT
-    }
+    if overflow_checking { &OVERFLOW[&int_ty] } else { &DEFAULT }
 }
 
 impl_internable!(AdtDefData, AdtSortDefData, TyKind);

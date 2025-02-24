@@ -1,16 +1,15 @@
 use std::mem;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote, quote_spanned};
 use syn::{
-    braced,
+    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
+    TypePath, braced,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
     token::Brace,
-    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
-    TypePath,
 };
 
 use crate::{flux_tool_attrs, inner, outer, parse_inner, tokens_or_default};

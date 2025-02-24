@@ -10,12 +10,12 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    normalize::{Normalizer, SpecFuncDefns},
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
     TyKind,
+    normalize::{Normalizer, SpecFuncDefns},
 };
-use crate::rty::{expr::HoleKind, Var, VariantSig};
+use crate::rty::{Var, VariantSig, expr::HoleKind};
 
 pub trait TypeVisitor: Sized {
     type BreakTy = !;
@@ -302,11 +302,7 @@ pub trait TypeFoldable: TypeVisitable {
 
             fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
                 if let ExprKind::Var(Var::EVar(evid)) = expr.kind() {
-                    if let Some(sol) = (self.0)(*evid) {
-                        Ok(sol.clone())
-                    } else {
-                        Err(*evid)
-                    }
+                    if let Some(sol) = (self.0)(*evid) { Ok(sol.clone()) } else { Err(*evid) }
                 } else {
                     expr.try_super_fold_with(self)
                 }
@@ -551,7 +547,8 @@ impl TypeFoldable for VariantSig {
         let args = self.args.try_fold_with(folder)?;
         let fields = self.fields.try_fold_with(folder)?;
         let idx = self.idx.try_fold_with(folder)?;
-        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
+        let requires = self.requires.try_fold_with(folder)?;
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx, requires))
     }
 }
 

@@ -4,20 +4,19 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
-    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self,
+        self, AdtSortDef, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
-        AdtSortDef, WfckResults,
     },
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
-use rustc_span::{def_id::DefId, symbol::Ident, Span};
+use rustc_span::{Span, def_id::DefId, symbol::Ident};
 
 use super::errors;
 

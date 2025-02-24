@@ -36,9 +36,9 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
     TyKind, TyOrBase,
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.

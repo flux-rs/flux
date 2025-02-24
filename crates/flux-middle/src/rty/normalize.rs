@@ -5,12 +5,12 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use super::{fold::TypeSuperFoldable, ESpan};
+use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
     fhir::SpecFuncKind,
     rty::{
-        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
         Binder, Expr, ExprKind, SpecFunc,
+        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 

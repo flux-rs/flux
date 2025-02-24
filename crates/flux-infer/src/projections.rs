@@ -5,15 +5,15 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::{
-        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
-        refining::Refiner,
-        subst::{GenericsSubstDelegate, GenericsSubstFolder},
         AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
         Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
+        refining::Refiner,
+        subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
 };
-use flux_rustc_bridge::{lowering::Lower, ToRustc};
+use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
@@ -367,11 +367,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             Sort::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let sort = ctor.sort();
-                if changed {
-                    sort.try_fold_with(self)
-                } else {
-                    Ok(sort)
-                }
+                if changed { sort.try_fold_with(self) } else { Ok(sort) }
             }
             _ => sort.try_super_fold_with(self),
         }
@@ -395,11 +391,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), idx) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(idx).to_ty();
-                if changed {
-                    ty.try_fold_with(self)
-                } else {
-                    Ok(ty)
-                }
+                if changed { ty.try_fold_with(self) } else { Ok(ty) }
             }
             _ => ty.try_super_fold_with(self),
         }
@@ -417,11 +409,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
                 let ty = ctor.replace_bound_reft(&sty.idx);
-                if changed {
-                    ty.try_fold_with(self)
-                } else {
-                    Ok(ty)
-                }
+                if changed { ty.try_fold_with(self) } else { Ok(ty) }
             }
             _ => sty.try_super_fold_with(self),
         }
@@ -436,8 +424,8 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
-        c.to_rustc(self.tcx())
-            .normalize_internal(self.tcx(), self.rustc_param_env())
+        let c = c.to_rustc(self.tcx());
+        rustc_trait_selection::traits::evaluate_const(self.selcx.infcx, c, self.rustc_param_env())
             .lower(self.tcx())
             .map_err(|e| QueryErr::unsupported(self.def_id(), e.into_err()))
     }

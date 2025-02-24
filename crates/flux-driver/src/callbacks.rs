@@ -3,7 +3,7 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
-use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
+use flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers};
 use flux_refineck as refineck;
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -13,12 +13,12 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_interface::{interface::Compiler, Queries};
+use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
-use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
+use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 
 #[derive(Default)]
 pub struct FluxCallbacks {
@@ -35,50 +35,40 @@ impl Callbacks for FluxCallbacks {
         });
     }
 
-    fn after_analysis<'tcx>(
-        &mut self,
-        compiler: &Compiler,
-        queries: &'tcx Queries<'tcx>,
-    ) -> Compilation {
+    fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         if self.verify {
-            self.verify(compiler, queries);
+            self.verify(compiler, tcx);
         }
 
-        if self.full_compilation {
-            Compilation::Continue
-        } else {
-            Compilation::Stop
-        }
+        if self.full_compilation { Compilation::Continue } else { Compilation::Stop }
     }
 }
 
 impl FluxCallbacks {
-    fn verify<'tcx>(&self, compiler: &Compiler, queries: &'tcx Queries<'tcx>) {
+    fn verify(&self, compiler: &Compiler, tcx: TyCtxt<'_>) {
         if compiler.sess.dcx().has_errors().is_some() {
             return;
         }
 
-        queries.global_ctxt().unwrap().enter(|tcx| {
-            let sess = FluxSession::new(
-                &tcx.sess.opts,
-                tcx.sess.psess.clone_source_map(),
-                rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
-            );
+        let sess = FluxSession::new(
+            &tcx.sess.opts,
+            tcx.sess.psess.clone_source_map(),
+            rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
+        );
 
-            let mut providers = Providers::default();
-            flux_desugar::provide(&mut providers);
-            flux_fhir_analysis::provide(&mut providers);
-            providers.collect_specs = collect_specs;
+        let mut providers = Providers::default();
+        flux_desugar::provide(&mut providers);
+        flux_fhir_analysis::provide(&mut providers);
+        providers.collect_specs = collect_specs;
 
-            let cstore = CStore::load(tcx, &sess);
-            let arena = fhir::Arena::new();
-            GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-                if check_crate(genv).is_ok() {
-                    encode_and_save_metadata(genv);
-                }
-            });
-            sess.finish_diagnostics();
+        let cstore = CStore::load(tcx, &sess);
+        let arena = fhir::Arena::new();
+        GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
+            if check_crate(genv).is_ok() {
+                encode_and_save_metadata(genv);
+            }
         });
+        sess.finish_diagnostics();
     }
 }
 
@@ -207,24 +197,18 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
+                // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
+                // However, we leave the below code in to force the queries that do the conversions that check
+                // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
+                let _adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
                 let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
-                let struct_def = self
+                let _struct_def = self
                     .genv
                     .map()
                     .expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_struct();
-                if struct_def.is_opaque() {
-                    return Ok(());
-                }
-                refineck::invariants::check_invariants(
-                    self.genv,
-                    &mut self.cache,
-                    def_id,
-                    struct_def.invariants,
-                    &adt_def,
-                )
+                Ok(())
             }
             DefKind::Impl { of_trait } => {
                 if of_trait {

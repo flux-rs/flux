@@ -2,8 +2,8 @@ use std::fmt;
 
 use flux_common::index::IndexVec;
 use flux_middle::{
-    pretty::{impl_debug_with_default_cx, w, Pretty, PrettyCx},
-    rty::{fold::TypeFoldable, EVid, Expr},
+    pretty::{Pretty, PrettyCx, impl_debug_with_default_cx, w},
+    rty::{EVid, Expr, fold::TypeFoldable},
 };
 
 use crate::refine_tree::Marker;

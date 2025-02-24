@@ -25,10 +25,9 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    fhir,
+    ResolverOutput, Specs, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
-    ResolverOutput, Specs,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -59,7 +58,7 @@ pub fn desugar<'genv>(
     match genv.tcx().hir_node_by_def_id(def_id) {
         rustc_hir::Node::Item(item) => {
             match item.kind {
-                hir::ItemKind::Fn(..) => {
+                hir::ItemKind::Fn { .. } => {
                     let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
                     let mut opaque_tys = Default::default();
                     let item = cx

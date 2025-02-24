@@ -5,10 +5,10 @@ use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+use flux_middle::{MaybeExternId, fhir, global_env::GlobalEnv, rty};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::{DUMMY_SP, Span};
 
 pub fn check_invariants(
     genv: GlobalEnv,
@@ -73,11 +73,7 @@ fn check_invariant(
         .execute_fixpoint_query(cache, def_id, "fluxc")
         .emit(&genv)?;
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(genv.sess().emit_err(errors::Invalid { span }))
-    }
+    if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }
 }
 
 mod errors {

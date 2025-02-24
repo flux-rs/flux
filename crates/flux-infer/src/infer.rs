@@ -4,19 +4,19 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
+    MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
-        BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr,
-        ExprKind, FieldProj, GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc,
-        Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty,
-        TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
+        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, GenericArgs,
+        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind,
+        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var, canonicalize::Hoister,
+        fold::TypeFoldable,
     },
-    MaybeExternId,
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
 use rustc_middle::{
@@ -514,6 +514,11 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             // Check arguments
             for (actual, formal) in iter::zip(fields, variant.fields()) {
                 this.subtyping(actual, formal, reason)?;
+            }
+
+            // Check requires predicates
+            for require in &variant.requires {
+                this.check_pred(require, ConstrReason::Fold);
             }
 
             Ok(variant.ret())

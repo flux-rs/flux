@@ -10,7 +10,7 @@ use synstructure::Structure;
 
 use crate::diagnostics::{
     diagnostic_builder::DiagnosticDeriveKind,
-    error::{span_err, DiagnosticDeriveError},
+    error::{DiagnosticDeriveError, span_err},
     utils::SetOnce,
 };
 

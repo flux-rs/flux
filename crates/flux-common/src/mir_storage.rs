@@ -33,7 +33,8 @@ pub unsafe fn store_mir_body<'tcx>(
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
 ) {
     // SAFETY: See the module level comment.
-    let body_with_facts: BodyWithBorrowckFacts<'static> = std::mem::transmute(body_with_facts);
+    let body_with_facts: BodyWithBorrowckFacts<'static> =
+        unsafe { std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
         let mut map = state.borrow_mut();
         assert!(map.insert(def_id, body_with_facts).is_none());
@@ -55,5 +56,5 @@ pub unsafe fn retrieve_mir_body<'tcx>(
         }
     });
     // SAFETY: See the module level comment.
-    std::mem::transmute(body_with_facts)
+    unsafe { std::mem::transmute(body_with_facts) }
 }
