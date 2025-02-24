@@ -230,25 +230,25 @@ impl SortEncodingCtxt {
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
 
-            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) if !sort_def.is_struct() => {
-                debug_assert!(args.is_empty());
-                let refl_sort = self.declare_refl_decl(sort_def.did());
-                fixpoint::Sort::App(
-                    fixpoint::SortCtor::Data(fixpoint::DataSort::ReflectedData(refl_sort)),
-                    vec![],
-                )
-            }
-
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
-                let sorts = sort_def.field_sorts(args);
-                // do not generate 1-tuples
-                if let [sort] = &sorts[..] {
-                    self.sort_to_fixpoint(sort)
+                if let Some(variant) = sort_def.opt_struct_variant() {
+                    let sorts = variant.field_sorts(args);
+                    // do not generate 1-tuples
+                    if let [sort] = &sorts[..] {
+                        self.sort_to_fixpoint(sort)
+                    } else {
+                        self.declare_tuple(sorts.len());
+                        let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                        let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                        fixpoint::Sort::App(ctor, args)
+                    }
                 } else {
-                    self.declare_tuple(sorts.len());
-                    let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                    let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                    fixpoint::Sort::App(ctor, args)
+                    debug_assert!(args.is_empty());
+                    let refl_sort = self.declare_refl_decl(sort_def.did());
+                    fixpoint::Sort::App(
+                        fixpoint::SortCtor::Data(fixpoint::DataSort::ReflectedData(refl_sort)),
+                        vec![],
+                    )
                 }
             }
             rty::Sort::Tuple(sorts) => {
@@ -1266,9 +1266,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     rty::FieldProj::Tuple { arity, field }
                 })?
             }
-            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
+            rty::Sort::App(rty::SortCtor::Adt(sort_def), args)
+                if let Some(variant) = sort_def.opt_struct_variant() =>
+            {
                 let def_id = sort_def.did();
-                let sorts = sort_def.field_sorts(args);
+                let sorts = variant.field_sorts(args);
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?

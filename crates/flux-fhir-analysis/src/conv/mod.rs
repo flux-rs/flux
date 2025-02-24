@@ -2066,14 +2066,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         if !P::HAS_ELABORATED_INFORMATION {
             return Ok(List::default());
         };
-        let struct_adt = self.genv().adt_sort_def_of(struct_def_id)?;
+        let adt_def = self.genv().adt_sort_def_of(struct_def_id)?;
+        let struct_variant = adt_def.struct_variant();
         let spread = spread
             .map(|spread| self.conv_expr(env, &spread.expr))
             .transpose()?;
         let field_exprs_by_name: FxIndexMap<Symbol, &fhir::FieldExpr> =
             exprs.iter().map(|e| (e.ident.name, e)).collect();
         let mut assns = Vec::new();
-        for (idx, field_name) in struct_adt.field_names().iter().enumerate() {
+        for (idx, field_name) in struct_variant.field_names().iter().enumerate() {
             if let Some(field_expr) = field_exprs_by_name.get(field_name) {
                 assns.push(self.conv_expr(env, &field_expr.expr)?);
             } else if let Some(spread) = &spread {

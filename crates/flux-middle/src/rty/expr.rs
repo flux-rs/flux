@@ -635,6 +635,10 @@ impl Ctor {
             Self::Enum(_, variant_idx) => *variant_idx,
         }
     }
+
+    fn is_enum(&self) -> bool {
+        matches!(self, Self::Enum(..))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1176,6 +1180,19 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for Ctor {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Ctor::Struct(def_id) => {
+                    w!(cx, f, "{:?}", def_id)
+                }
+                Ctor::Enum(def_id, variant_idx) => {
+                    w!(cx, f, "{:?}::{:?}", def_id, ^variant_idx)
+                }
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
@@ -1210,20 +1227,10 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) => {
-                    // base
                     if e.is_atom() {
-                        w!(cx, f, "{:?}", e)?;
+                        w!(cx, f, "{:?}.{}", e, ^fmt_field_proj(cx, *proj))
                     } else {
-                        w!(cx, f, "({:?})", e)?;
-                    };
-                    // proj
-                    if let Some(genv) = cx.genv()
-                        && let FieldProj::Adt { def_id, field } = proj
-                        && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                    {
-                        w!(cx, f, ".{}", ^adt_sort_def.field_names()[*field as usize])
-                    } else {
-                        w!(cx, f, ".{:?}", ^proj.field_idx())
+                        w!(cx, f, "({:?}).{}", e, ^fmt_field_proj(cx, *proj))
                     }
                 }
                 ExprKind::Tuple(flds) => {
@@ -1235,21 +1242,21 @@ pub(crate) mod pretty {
                 }
                 ExprKind::Ctor(ctor, flds) => {
                     let def_id = ctor.def_id();
-                    if let Some(genv) = cx.genv()
-                        && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                    {
-                        let field_binds = adt_sort_def
-                            .field_names()
-                            .iter()
-                            .zip(flds)
+                    if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
+                        let variant = adt_sort_def.variant(ctor.variant_idx()).field_names();
+                        let fields = iter::zip(variant, flds)
                             .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                             .collect_vec();
                         match ctor {
                             Ctor::Struct(_) => {
-                                w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", field_binds))
+                                w!(cx, f, "{:?} {{ {:?} }}", def_id, join!(", ", fields))
                             }
                             Ctor::Enum(_, idx) => {
-                                w!(cx, f, "{:?}_{:?}({:?})", def_id, ^idx.index(), join!(", ", field_binds))
+                                if fields.is_empty() {
+                                    w!(cx, f, "{:?}::{:?}", def_id, ^idx.index())
+                                } else {
+                                    w!(cx, f, "{:?}::{:?}({:?})", def_id, ^idx.index(), join!(", ", fields))
+                                }
                             }
                         }
                     } else {
@@ -1304,6 +1311,16 @@ pub(crate) mod pretty {
                     })
                 }
             }
+        }
+    }
+
+    fn fmt_field_proj(cx: &PrettyCx, proj: FieldProj) -> String {
+        if let FieldProj::Adt { def_id, field } = proj
+            && let Some(adt_sort_def) = cx.adt_sort_def_of(def_id)
+        {
+            format!("{}", adt_sort_def.struct_variant().field_names()[field as usize])
+        } else {
+            format!("{}", proj.field_idx())
         }
     }
 
@@ -1441,7 +1458,8 @@ pub(crate) mod pretty {
         is_named: bool,
     ) -> Result<NestedString, fmt::Error> {
         let def_id = ctor.def_id();
-        let mut text = if is_named { format_cx!(cx, "{:?}", def_id) } else { format_cx!(cx, "") };
+        let mut text =
+            if is_named && ctor.is_enum() { format_cx!(cx, "{:?}", ctor) } else { "".to_string() };
         if flds.is_empty() {
             // No fields, no index
             Ok(NestedString { text, children: None, key: None })
@@ -1450,10 +1468,9 @@ pub(crate) mod pretty {
             text += &format_cx!(cx, "{:?} ", flds[0].clone());
             Ok(NestedString { text, children: None, key: None })
         } else {
-            let keys = if let Some(genv) = cx.genv()
-                && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
-            {
+            let keys = if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
                 adt_sort_def
+                    .variant(ctor.variant_idx())
                     .field_names()
                     .iter()
                     .map(|name| format!("{}", name))
@@ -1527,19 +1544,10 @@ pub(crate) mod pretty {
                 }
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
-                    let proj_text =   // proj
-                if let Some(genv) = cx.genv()
-                    && let FieldProj::Adt { def_id, field } = proj
-                    && let Ok(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                {
-                    format!("{}", adt_sort_def.field_names()[*field as usize])
-                } else {
-                    format!("{}", proj.field_idx())
-                };
                     let text = if e.is_atom() {
-                        format!("{}.{}", e_d.text, proj_text)
+                        format!("{}.{}", e_d.text, fmt_field_proj(cx, *proj))
                     } else {
-                        format!("({}).{}", e_d.text, proj_text)
+                        format!("({}).{}", e_d.text, fmt_field_proj(cx, *proj))
                     };
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
@@ -1560,7 +1568,6 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, true),
-
                 ExprKind::PathProj(e, field) => {
                     let e_d = e.fmt_nested(cx)?;
                     let text = if e.is_atom() {

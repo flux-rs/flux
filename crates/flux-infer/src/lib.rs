@@ -1,4 +1,4 @@
-#![feature(extract_if, let_chains, never_type, rustc_private)]
+#![feature(extract_if, let_chains, never_type, rustc_private, if_let_guard)]
 
 extern crate rustc_data_structures;
 extern crate rustc_hir;
