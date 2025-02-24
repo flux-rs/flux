@@ -136,7 +136,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
-    rty::{BoundReft, BoundReftKind, BoundVariableKind},
+    rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind},
 };
 
 #[derive(Copy, Clone)]
@@ -231,6 +231,11 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn genv(&self) -> Option<GlobalEnv<'genv, 'tcx>> {
         self.cx.genv()
+    }
+
+    pub fn adt_sort_def_of(&self, def_id: DefId) -> Option<AdtSortDef> {
+        self.genv()
+            .and_then(|genv| genv.adt_sort_def_of(def_id).ok())
     }
 
     pub fn merge(&mut self, opts: &config::Value) {

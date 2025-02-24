@@ -774,9 +774,9 @@ fn downcast(
 
 /// `downcast` on struct works as follows
 /// Given a struct definition
-///     struct S<A..>[(i...)] { fld : T, ...}
+///     struct S<A..>[{i, ...}] { fld : T, ...}
 /// and a
-///     * "place" `x: S<t..>[e..]`
+///     * "place" `x: S<t..>[{e,..}]`
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
@@ -787,9 +787,10 @@ fn downcast_struct(
     idx: &Expr,
 ) -> InferResult<Vec<Ty>> {
     let tcx = infcx.genv.tcx();
-    let flds = adt
-        .sort_def()
-        .projections()
+    let sort_def = adt.sort_def();
+    let flds = sort_def
+        .struct_variant()
+        .projections(sort_def.did())
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     Ok(struct_variant(infcx.genv, adt.did())?

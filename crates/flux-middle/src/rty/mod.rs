@@ -45,7 +45,7 @@ use rustc_hir::{
     LangItem, Safety,
     def_id::{DefId, DefIndex},
 };
-use rustc_index::{IndexSlice, newtype_index};
+use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
@@ -117,6 +117,10 @@ impl AdtSortVariant {
     pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         self.sorts.fold_with(&mut SortSubst::new(args))
     }
+
+    pub fn projections(&self, def_id: DefId) -> impl Iterator<Item = FieldProj> {
+        (0..self.fields()).map(move |i| FieldProj::Adt { def_id, field: i as u32 })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -130,12 +134,10 @@ struct AdtSortDefData {
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     params: Vec<ParamTy>,
-    // The `index` is *either* the user defined indices or the "reflected" ADT
-    // kind: RefinementKind,
     /// A vec of variants of the ADT;
     /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
     /// - a `reflected` sort -- used for `reflected` enums have multiple variants
-    variants: Vec<AdtSortVariant>,
+    variants: IndexVec<VariantIdx, AdtSortVariant>,
     is_reflected: bool,
     is_struct: bool,
 }
@@ -144,7 +146,7 @@ impl AdtSortDef {
     pub fn new(
         def_id: DefId,
         params: Vec<ParamTy>,
-        variants: Vec<AdtSortVariant>,
+        variants: IndexVec<VariantIdx, AdtSortVariant>,
         is_reflected: bool,
         is_struct: bool,
     ) -> Self {
@@ -155,9 +157,22 @@ impl AdtSortDef {
         self.0.def_id
     }
 
+    pub fn variant(&self, idx: VariantIdx) -> &AdtSortVariant {
+        &self.0.variants[idx]
+    }
+
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, AdtSortVariant> {
+        &self.0.variants
+    }
+
+    pub fn opt_struct_variant(&self) -> Option<&AdtSortVariant> {
+        if self.is_struct() { Some(self.struct_variant()) } else { None }
+    }
+
+    #[track_caller]
     pub fn struct_variant(&self) -> &AdtSortVariant {
         tracked_span_assert_eq!(self.0.is_struct, true);
-        &self.0.variants[0]
+        &self.0.variants[FIRST_VARIANT]
     }
 
     pub fn is_reflected(&self) -> bool {
@@ -166,31 +181,6 @@ impl AdtSortDef {
 
     pub fn is_struct(&self) -> bool {
         self.0.is_struct
-    }
-
-    pub fn non_enum_fields(&self) -> usize {
-        self.struct_variant().sorts.len()
-    }
-
-    pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
-        (0..self.struct_variant().fields())
-            .map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
-    }
-
-    pub fn field_names(&self) -> &[Symbol] {
-        &self.struct_variant().field_names[..]
-    }
-
-    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        self.struct_variant().sort_by_field_name(args)
-    }
-
-    pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        self.struct_variant().field_by_name(self.did(), args, name)
-    }
-
-    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        self.struct_variant().field_sorts(args)
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
@@ -963,8 +953,8 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && sort_def.is_struct()
-            && sort_def.non_enum_fields() == 0
+            && let Some(variant) = sort_def.opt_struct_variant()
+            && variant.fields() == 0
         {
             Some(sort_def.did())
         } else {
@@ -999,8 +989,9 @@ impl Sort {
                         proj.pop();
                     }
                 }
-                Sort::App(SortCtor::Adt(sort_def), args) => {
-                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
+                Sort::App(SortCtor::Adt(sort_def), args) if sort_def.is_struct() => {
+                    let field_sorts = sort_def.struct_variant().field_sorts(args);
+                    for (i, sort) in field_sorts.iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
                         proj.pop();

@@ -609,7 +609,7 @@ impl BasicBlockEnvShape {
                 ExprKind::Ctor(Ctor::Struct(_), flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) => {
-                let sorts = sort_def.field_sorts(args);
+                let sorts = sort_def.struct_variant().field_sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
                 Expr::ctor_struct(

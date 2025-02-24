@@ -243,12 +243,13 @@ impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let e = if cx.simplify_exprs { self.0.simplify() } else { self.0.clone() };
         if let ExprKind::Ctor(ctor, flds) = e.kind()
-            && let Some(genv) = cx.genv()
-            && let Ok(adt_sort_def) = genv.adt_sort_def_of(ctor.def_id())
+            && let Some(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
+            && let Some(variant) = adt_sort_def.opt_struct_variant()
         {
-            let field_binds = iter::zip(adt_sort_def.field_names(), flds)
-                .map(|(name, value)| FieldBind { name: *name, value: value.clone() });
-            w!(cx, f, "{{ {:?} }}", join!(", ", field_binds))
+            let fields = iter::zip(variant.field_names(), flds)
+                .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
+                .collect_vec();
+            w!(cx, f, "{{ {:?} }}", join!(", ", fields))
         } else {
             w!(cx, f, "{:?}", e)
         }

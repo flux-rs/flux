@@ -95,7 +95,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         spread: &Option<&fhir::Spread>,
         expected: &rty::Sort,
     ) -> Result {
-        let sort_by_field_name = sort_def.sort_by_field_name(sort_args);
+        let sort_by_field_name = sort_def.struct_variant().sort_by_field_name(sort_args);
         let mut used_fields = FxHashMap::default();
         for expr in field_exprs {
             // make sure that the field is actually a field
@@ -148,7 +148,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            let sorts = sort_def.field_sorts(sort_args);
+            let sorts = sort_def.struct_variant().field_sorts(sort_args);
             if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
                     Some(arg.span),
@@ -239,7 +239,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         let (proj, sort) = sort_def
-                            .field_by_name(sort_args, fld.name)
+                            .struct_variant()
+                            .field_by_name(sort_def.did(), sort_args, fld.name)
                             .ok_or_else(|| self.emit_field_not_found(&sort, *fld))?;
                         self.wfckresults
                             .field_projs_mut()
@@ -518,11 +519,11 @@ impl InferCtxt<'_, '_> {
         let mut sort2 = sort2.clone();
 
         let mut coercions = vec![];
-        if let Some((def_id, sort)) = self.is_single_field_record(&sort1) {
+        if let Some((def_id, sort)) = self.is_single_field_struct(&sort1) {
             coercions.push(rty::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
-        if let Some((def_id, sort)) = self.is_single_field_record(&sort2) {
+        if let Some((def_id, sort)) = self.is_single_field_struct(&sort2) {
             coercions.push(rty::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
@@ -537,7 +538,7 @@ impl InferCtxt<'_, '_> {
     ) -> Option<rty::PolyFuncSort> {
         if let rty::Sort::Func(fsort) = sort {
             Some(fsort.clone())
-        } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
+        } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_struct(sort) {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![rty::Coercion::Inject(def_id)]);
@@ -554,7 +555,7 @@ impl InferCtxt<'_, '_> {
     ) -> Option<rty::PolyFuncSort> {
         if let rty::Sort::Func(fsort) = sort {
             Some(fsort.clone())
-        } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
+        } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_struct(sort) {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![rty::Coercion::Project(def_id)]);
@@ -689,9 +690,10 @@ impl InferCtxt<'_, '_> {
             .map_err(|_| self.emit_err(errors::CannotInferSort::new(path.span)))
     }
 
-    fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
+    fn is_single_field_struct(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
-            && let [sort] = &sort_def.field_sorts(sort_args)[..]
+            && let Some(variant) = sort_def.opt_struct_variant()
+            && let [sort] = &variant.field_sorts(sort_args)[..]
         {
             Some((sort_def.did(), sort.clone()))
         } else {
@@ -754,7 +756,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
             }
             fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-                    let sorts = sort_def.field_sorts(sort_args);
+                    let sorts = sort_def.struct_variant().field_sorts(sort_args);
                     if flds.len() != sorts.len() {
                         self.errors.emit(errors::ArgCountMismatch::new(
                             Some(idx.span),
