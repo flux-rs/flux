@@ -2820,16 +2820,7 @@
 <a href="#2819" id="2819">2819</a>
 <a href="#2820" id="2820">2820</a>
 <a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a>
-<a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a>
-<a href="#2825" id="2825">2825</a>
-<a href="#2826" id="2826">2826</a>
-<a href="#2827" id="2827">2827</a>
-<a href="#2828" id="2828">2828</a>
-<a href="#2829" id="2829">2829</a>
-<a href="#2830" id="2830">2830</a>
-<a href="#2831" id="2831">2831</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2822" id="2822">2822</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2876,7 +2867,7 @@
     LangItem, Safety,
     def_id::{DefId, DefIndex},
 };
-<span class="kw">use </span>rustc_index::{IndexSlice, newtype_index};
+<span class="kw">use </span>rustc_index::{IndexSlice, IndexVec, newtype_index};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">pub use </span>rustc_middle::{
@@ -2948,6 +2939,10 @@
     <span class="kw">pub fn </span>field_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; List&lt;Sort&gt; {
         <span class="self">self</span>.sorts.fold_with(<span class="kw-2">&amp;mut </span>SortSubst::new(args))
     }
+
+    <span class="kw">pub fn </span>projections(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="kw">impl </span>Iterator&lt;Item = FieldProj&gt; {
+        (<span class="number">0</span>..<span class="self">self</span>.fields()).map(<span class="kw">move </span>|i| FieldProj::Adt { def_id, field: i <span class="kw">as </span>u32 })
+    }
 }
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2961,12 +2956,10 @@
     ///
     /// The length of this list corresponds to the number of sort variables bound by this definition.
     </span>params: Vec&lt;ParamTy&gt;,
-    <span class="comment">// The `index` is *either* the user defined indices or the "reflected" ADT
-    // kind: RefinementKind,
-    </span><span class="doccomment">/// A vec of variants of the ADT;
+    <span class="doccomment">/// A vec of variants of the ADT;
     /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
     /// - a `reflected` sort -- used for `reflected` enums have multiple variants
-    </span>variants: Vec&lt;AdtSortVariant&gt;,
+    </span>variants: IndexVec&lt;VariantIdx, AdtSortVariant&gt;,
     is_reflected: bool,
     is_struct: bool,
 }
@@ -2975,7 +2968,7 @@
     <span class="kw">pub fn </span>new(
         def_id: DefId,
         params: Vec&lt;ParamTy&gt;,
-        variants: Vec&lt;AdtSortVariant&gt;,
+        variants: IndexVec&lt;VariantIdx, AdtSortVariant&gt;,
         is_reflected: bool,
         is_struct: bool,
     ) -&gt; <span class="self">Self </span>{
@@ -2986,9 +2979,22 @@
         <span class="self">self</span>.<span class="number">0</span>.def_id
     }
 
-    <span class="kw">pub fn </span>struct_variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AdtSortVariant {
+    <span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: VariantIdx) -&gt; <span class="kw-2">&amp;</span>AdtSortVariant {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.variants[idx]
+    }
+
+    <span class="kw">pub fn </span>variants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>IndexSlice&lt;VariantIdx, AdtSortVariant&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.variants
+    }
+
+    <span class="kw">pub fn </span>opt_struct_variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AdtSortVariant&gt; {
+        <span class="kw">if </span><span class="self">self</span>.is_struct() { <span class="prelude-val">Some</span>(<span class="self">self</span>.struct_variant()) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>struct_variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AdtSortVariant {
         <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.<span class="number">0</span>.is_struct, <span class="bool-val">true</span>);
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.variants[<span class="number">0</span>]
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.variants[FIRST_VARIANT]
     }
 
     <span class="kw">pub fn </span>is_reflected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -2997,31 +3003,6 @@
 
     <span class="kw">pub fn </span>is_struct(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.<span class="number">0</span>.is_struct
-    }
-
-    <span class="kw">pub fn </span>non_enum_fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.struct_variant().sorts.len()
-    }
-
-    <span class="kw">pub fn </span>projections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = FieldProj&gt; + <span class="lifetime">'_ </span>{
-        (<span class="number">0</span>..<span class="self">self</span>.struct_variant().fields())
-            .map(|i| FieldProj::Adt { def_id: <span class="self">self</span>.did(), field: i <span class="kw">as </span>u32 })
-    }
-
-    <span class="kw">pub fn </span>field_names(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Symbol] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.struct_variant().field_names[..]
-    }
-
-    <span class="kw">pub fn </span>sort_by_field_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FxIndexMap&lt;Symbol, Sort&gt; {
-        <span class="self">self</span>.struct_variant().sort_by_field_name(args)
-    }
-
-    <span class="kw">pub fn </span>field_by_name(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort], name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;(FieldProj, Sort)&gt; {
-        <span class="self">self</span>.struct_variant().field_by_name(<span class="self">self</span>.did(), args, name)
-    }
-
-    <span class="kw">pub fn </span>field_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; List&lt;Sort&gt; {
-        <span class="self">self</span>.struct_variant().field_sorts(args)
     }
 
     <span class="kw">pub fn </span>to_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; Sort {
@@ -3794,8 +3775,8 @@
 
     <span class="kw">pub fn </span>is_unit_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
         <span class="kw">if let </span>Sort::App(SortCtor::Adt(sort_def), <span class="kw">_</span>) = <span class="self">self
-            </span>&amp;&amp; sort_def.is_struct()
-            &amp;&amp; sort_def.non_enum_fields() == <span class="number">0
+            </span>&amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant()
+            &amp;&amp; variant.fields() == <span class="number">0
         </span>{
             <span class="prelude-val">Some</span>(sort_def.did())
         } <span class="kw">else </span>{
@@ -3830,8 +3811,9 @@
                         proj.pop();
                     }
                 }
-                Sort::App(SortCtor::Adt(sort_def), args) =&gt; {
-                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>sort_def.field_sorts(args).iter().enumerate() {
+                Sort::App(SortCtor::Adt(sort_def), args) <span class="kw">if </span>sort_def.is_struct() =&gt; {
+                    <span class="kw">let </span>field_sorts = sort_def.struct_variant().field_sorts(args);
+                    <span class="kw">for </span>(i, sort) <span class="kw">in </span>field_sorts.iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i <span class="kw">as </span>u32 });
                         go(sort, f, proj);
                         proj.pop();

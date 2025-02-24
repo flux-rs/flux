@@ -1612,7 +1612,15 @@
 <a href="#1611" id="1611">1611</a>
 <a href="#1612" id="1612">1612</a>
 <a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
+<a href="#1622" id="1622">1622</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::bug;
@@ -1623,6 +1631,7 @@
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_abi::FIRST_VARIANT;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -2245,9 +2254,13 @@
 
     <span class="kw">pub fn </span>variant_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; VariantIdx {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Struct(<span class="kw">_</span>) =&gt; VariantIdx::ZERO,
+            <span class="self">Self</span>::Struct(<span class="kw">_</span>) =&gt; FIRST_VARIANT,
             <span class="self">Self</span>::Enum(<span class="kw">_</span>, variant_idx) =&gt; <span class="kw-2">*</span>variant_idx,
         }
+    }
+
+    <span class="kw">fn </span>is_enum(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Enum(..))
     }
 }
 
@@ -2790,6 +2803,19 @@
         </span>}
     }
 
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>Ctor {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+            <span class="kw">match </span><span class="self">self </span>{
+                Ctor::Struct(def_id) =&gt; {
+                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, def_id)
+                }
+                Ctor::Enum(def_id, variant_idx) =&gt; {
+                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?}::{:?}"</span>, def_id, ^variant_idx)
+                }
+            }
+        }
+    }
+
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Expr {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.clone() };
@@ -2824,20 +2850,10 @@
                     }
                 }
                 ExprKind::FieldProj(e, proj) =&gt; {
-                    <span class="comment">// base
-                    </span><span class="kw">if </span>e.is_atom() {
-                        <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, e)<span class="question-mark">?</span>;
+                    <span class="kw">if </span>e.is_atom() {
+                        <span class="macro">w!</span>(cx, f, <span class="string">"{:?}.{}"</span>, e, ^fmt_field_proj(cx, <span class="kw-2">*</span>proj))
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(cx, f, <span class="string">"({:?})"</span>, e)<span class="question-mark">?</span>;
-                    };
-                    <span class="comment">// proj
-                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-                        &amp;&amp; <span class="kw">let </span>FieldProj::Adt { def_id, field } = proj
-                        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                    {
-                        <span class="macro">w!</span>(cx, f, <span class="string">".{}"</span>, ^adt_sort_def.field_names()[<span class="kw-2">*</span>field <span class="kw">as </span>usize])
-                    } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(cx, f, <span class="string">".{:?}"</span>, ^proj.field_idx())
+                        <span class="macro">w!</span>(cx, f, <span class="string">"({:?}).{}"</span>, e, ^fmt_field_proj(cx, <span class="kw-2">*</span>proj))
                     }
                 }
                 ExprKind::Tuple(flds) =&gt; {
@@ -2849,21 +2865,21 @@
                 }
                 ExprKind::Ctor(ctor, flds) =&gt; {
                     <span class="kw">let </span>def_id = ctor.def_id();
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-                        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                    {
-                        <span class="kw">let </span>field_binds = adt_sort_def
-                            .field_names()
-                            .iter()
-                            .zip(flds)
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id) {
+                        <span class="kw">let </span>variant = adt_sort_def.variant(ctor.variant_idx()).field_names();
+                        <span class="kw">let </span>fields = iter::zip(variant, flds)
                             .map(|(name, value)| FieldBind { name: <span class="kw-2">*</span>name, value: value.clone() })
                             .collect_vec();
                         <span class="kw">match </span>ctor {
                             Ctor::Struct(<span class="kw">_</span>) =&gt; {
-                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, fields))
                             }
                             Ctor::Enum(<span class="kw">_</span>, idx) =&gt; {
-                                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}_{:?}({:?})"</span>, def_id, ^idx.index(), <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+                                <span class="kw">if </span>fields.is_empty() {
+                                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?}::{:?}"</span>, def_id, ^idx.index())
+                                } <span class="kw">else </span>{
+                                    <span class="macro">w!</span>(cx, f, <span class="string">"{:?}::{:?}({:?})"</span>, def_id, ^idx.index(), <span class="macro">join!</span>(<span class="string">", "</span>, fields))
+                                }
                             }
                         }
                     } <span class="kw">else </span>{
@@ -2918,6 +2934,16 @@
                     })
                 }
             }
+        }
+    }
+
+    <span class="kw">fn </span>fmt_field_proj(cx: <span class="kw-2">&amp;</span>PrettyCx, proj: FieldProj) -&gt; String {
+        <span class="kw">if let </span>FieldProj::Adt { def_id, field } = proj
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id)
+        {
+            <span class="macro">format!</span>(<span class="string">"{}"</span>, adt_sort_def.struct_variant().field_names()[field <span class="kw">as </span>usize])
+        } <span class="kw">else </span>{
+            <span class="macro">format!</span>(<span class="string">"{}"</span>, proj.field_idx())
         }
     }
 
@@ -3055,7 +3081,8 @@
         is_named: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
         <span class="kw">let </span>def_id = ctor.def_id();
-        <span class="kw">let </span><span class="kw-2">mut </span>text = <span class="kw">if </span>is_named { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, def_id) } <span class="kw">else </span>{ <span class="macro">format_cx!</span>(cx, <span class="string">""</span>) };
+        <span class="kw">let </span><span class="kw-2">mut </span>text =
+            <span class="kw">if </span>is_named &amp;&amp; ctor.is_enum() { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, ctor) } <span class="kw">else </span>{ <span class="string">""</span>.to_string() };
         <span class="kw">if </span>flds.is_empty() {
             <span class="comment">// No fields, no index
             </span><span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
@@ -3064,10 +3091,9 @@
             </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?} "</span>, flds[<span class="number">0</span>].clone());
             <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
         } <span class="kw">else </span>{
-            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
-            {
+            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id) {
                 adt_sort_def
+                    .variant(ctor.variant_idx())
                     .field_names()
                     .iter()
                     .map(|name| <span class="macro">format!</span>(<span class="string">"{}"</span>, name))
@@ -3141,19 +3167,10 @@
                 }
                 ExprKind::FieldProj(e, proj) =&gt; {
                     <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>proj_text =   <span class="comment">// proj
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-                    &amp;&amp; <span class="kw">let </span>FieldProj::Adt { def_id, field } = proj
-                    &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(def_id)
-                {
-                    <span class="macro">format!</span>(<span class="string">"{}"</span>, adt_sort_def.field_names()[<span class="kw-2">*</span>field <span class="kw">as </span>usize])
-                } <span class="kw">else </span>{
-                    <span class="macro">format!</span>(<span class="string">"{}"</span>, proj.field_idx())
-                };
                     <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, proj_text)
+                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
                     } <span class="kw">else </span>{
-                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, proj_text)
+                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
                     };
                     <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
                 }
@@ -3174,7 +3191,6 @@
                     <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
                 }
                 ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
-
                 ExprKind::PathProj(e, field) =&gt; {
                     <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
                     <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {

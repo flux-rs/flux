@@ -1493,11 +1493,15 @@
 <a href="#1492" id="1492">1492</a>
 <a href="#1493" id="1493">1493</a>
 <a href="#1494" id="1494">1494</a>
-<a href="#1495" id="1495">1495</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
-<span class="kw">use </span>fixpoint::DeclData;
+<span class="kw">use </span>fixpoint::AdtId;
 <span class="kw">use </span>flux_common::{
     bug,
     cache::QueryCache,
@@ -1525,7 +1529,6 @@
 };
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::newtype_index;
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize};
@@ -1538,6 +1541,7 @@
         rty::{EarlyReftParam, Real},
     };
     <span class="kw">use </span>liquid_fixpoint::{FixpointFmt, Identifier};
+    <span class="kw">use </span>rustc_abi::VariantIdx;
     <span class="kw">use </span>rustc_index::newtype_index;
     <span class="kw">use </span>rustc_middle::ty::ParamConst;
     <span class="kw">use </span>rustc_span::Symbol;
@@ -1560,16 +1564,18 @@
         <span class="kw">pub struct </span>GlobalVar {}
     }
 
-    <span class="doccomment">/// To represent SMT "declared-datatypes" each with a unique `usize` id.
-    </span><span class="attr">#[derive(Hash, Debug, Copy, Clone)]
-    </span><span class="kw">pub struct </span>DeclData(<span class="kw">pub </span>usize);
+    <span class="macro">newtype_index!</span> {
+        <span class="doccomment">/// Unique id assigned to each [`flux_middle::rty::AdtSortDef`] that needs to be encoded
+        /// into fixpoint
+        </span><span class="kw">pub struct </span>AdtId {}
+    }
 
     <span class="attr">#[derive(Hash, Copy, Clone)]
     </span><span class="kw">pub enum </span>Var {
         Underscore,
         Global(GlobalVar),
         Local(LocalVar),
-        Variant(DeclData, usize),
+        DataCtor(AdtId, VariantIdx),
         TupleCtor {
             arity: usize,
         },
@@ -1602,6 +1608,9 @@
             <span class="kw">match </span><span class="self">self </span>{
                 Var::Global(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"c{}"</span>, v.as_u32()),
                 Var::Local(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"a{}"</span>, v.as_u32()),
+                Var::DataCtor(adt_id, variant_idx) =&gt; {
+                    <span class="macro">write!</span>(f, <span class="string">"mkadt{}${}"</span>, adt_id.as_u32(), variant_idx.as_u32())
+                }
                 Var::TupleCtor { arity } =&gt; <span class="macro">write!</span>(f, <span class="string">"mktuple{arity}"</span>),
                 Var::TupleProj { arity, field } =&gt; <span class="macro">write!</span>(f, <span class="string">"tuple{arity}${field}"</span>),
                 Var::Itf(name) =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
@@ -1619,7 +1628,6 @@
                 Var::Param(param) =&gt; {
                     <span class="macro">write!</span>(f, <span class="string">"reftgen${}${}"</span>, param.name, param.index)
                 }
-                Var::Variant(refl_data, i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}_{i}"</span>, refl_data.display()),
             }
         }
     }
@@ -1627,13 +1635,7 @@
     <span class="attr">#[derive(Clone, Hash)]
     </span><span class="kw">pub enum </span>DataSort {
         Tuple(usize),
-        ReflectedData(DeclData),
-    }
-
-    <span class="kw">impl </span>Identifier <span class="kw">for </span>DeclData {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">write!</span>(f, <span class="string">"RD_{:?}"</span>, <span class="self">self</span>.<span class="number">0</span>)
-        }
+        Adt(AdtId),
     }
 
     <span class="kw">impl </span>Identifier <span class="kw">for </span>DataSort {
@@ -1642,8 +1644,8 @@
                 DataSort::Tuple(arity) =&gt; {
                     <span class="macro">write!</span>(f, <span class="string">"Tuple{arity}"</span>)
                 }
-                DataSort::ReflectedData(refl_data) =&gt; {
-                    <span class="macro">write!</span>(f, <span class="string">"{}"</span>, refl_data.display())
+                DataSort::Adt(adt_id) =&gt; {
+                    <span class="macro">write!</span>(f, <span class="string">"Adt{}"</span>, adt_id.as_u32())
                 }
             }
         }
@@ -1689,13 +1691,13 @@
 }
 
 <span class="doccomment">/// Keep track of all the data sorts that we need to define in fixpoint to encode the constraint.
-/// Currently, we encode all aggregate sorts as tuples.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>SortEncodingCtxt {
     <span class="doccomment">/// Set of all the tuple arities that need to be defined
     </span>tuples: UnordSet&lt;usize&gt;,
-    <span class="doccomment">/// Set of all the reflected ADT (enum) definitions that need to be declared as Fixpoint data-decls
-    </span>refl_decls: FxIndexSet&lt;DefId&gt;,
+    <span class="doccomment">/// Set of all the [`AdtDefSortDef`](flux_middle::rty::AdtSortDef) that need to be declared as
+    /// Fixpoint data-decls
+    </span>adt_sorts: FxIndexSet&lt;DefId&gt;,
 }
 
 <span class="kw">impl </span>SortEncodingCtxt {
@@ -1725,25 +1727,25 @@
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
 
-            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) <span class="kw">if </span>!sort_def.is_struct() =&gt; {
-                <span class="macro">debug_assert!</span>(args.is_empty());
-                <span class="kw">let </span>refl_sort = <span class="self">self</span>.declare_refl_decl(sort_def.did());
-                fixpoint::Sort::App(
-                    fixpoint::SortCtor::Data(fixpoint::DataSort::ReflectedData(refl_sort)),
-                    <span class="macro">vec!</span>[],
-                )
-            }
-
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
-                <span class="kw">let </span>sorts = sort_def.field_sorts(args);
-                <span class="comment">// do not generate 1-tuples
-                </span><span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
-                    <span class="self">self</span>.sort_to_fixpoint(sort)
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant() {
+                    <span class="kw">let </span>sorts = variant.field_sorts(args);
+                    <span class="comment">// do not generate 1-tuples
+                    </span><span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
+                        <span class="self">self</span>.sort_to_fixpoint(sort)
+                    } <span class="kw">else </span>{
+                        <span class="self">self</span>.declare_tuple(sorts.len());
+                        <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                        <span class="kw">let </span>args = sorts.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect_vec();
+                        fixpoint::Sort::App(ctor, args)
+                    }
                 } <span class="kw">else </span>{
-                    <span class="self">self</span>.declare_tuple(sorts.len());
-                    <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                    <span class="kw">let </span>args = sorts.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect_vec();
-                    fixpoint::Sort::App(ctor, args)
+                    <span class="macro">debug_assert!</span>(args.is_empty());
+                    <span class="kw">let </span>adt_id = <span class="self">self</span>.declare_adt(sort_def.did());
+                    fixpoint::Sort::App(
+                        fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)),
+                        <span class="macro">vec!</span>[],
+                    )
                 }
             }
             rty::Sort::Tuple(sorts) =&gt; {
@@ -1783,67 +1785,74 @@
         <span class="self">self</span>.tuples.insert(arity);
     }
 
-    <span class="kw">pub fn </span>declare_refl_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, did: DefId) -&gt; DeclData {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(refl_data) = <span class="self">self</span>.refl_decls.get_index_of(<span class="kw-2">&amp;</span>did) {
-            DeclData(refl_data)
+    <span class="kw">pub fn </span>declare_adt(<span class="kw-2">&amp;mut </span><span class="self">self</span>, did: DefId) -&gt; AdtId {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = <span class="self">self</span>.adt_sorts.get_index_of(<span class="kw-2">&amp;</span>did) {
+            AdtId::from_usize(idx)
         } <span class="kw">else </span>{
-            <span class="kw">let </span>refl_data = DeclData(<span class="self">self</span>.refl_decls.len());
-            <span class="self">self</span>.refl_decls.insert(did);
-            refl_data
+            <span class="kw">let </span>adt_id = AdtId::from_usize(<span class="self">self</span>.adt_sorts.len());
+            <span class="self">self</span>.adt_sorts.insert(did);
+            adt_id
         }
     }
 
-    <span class="kw">fn </span>refl_data_decls(tcx: TyCtxt, refls: FxIndexSet&lt;DefId&gt;) -&gt; Vec&lt;fixpoint::DataDecl&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>(refl_data, enum_def_id) <span class="kw">in </span>refls.iter().enumerate() {
-            <span class="kw">let </span>variants = tcx.adt_def(enum_def_id).variants().len();
-            <span class="kw">let </span>ctors = (<span class="number">0</span>..variants)
-                .map(|variant| {
-                    fixpoint::DataCtor {
-                        name: fixpoint::Var::Variant(DeclData(refl_data), variant),
-                        fields: <span class="macro">vec!</span>[],
+    <span class="kw">fn </span>append_adt_decls(
+        genv: GlobalEnv,
+        adt_sorts: FxIndexSet&lt;DefId&gt;,
+        decls: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::DataDecl&gt;,
+    ) -&gt; QueryResult {
+        <span class="kw">for </span>(idx, adt_def_id) <span class="kw">in </span>adt_sorts.iter().enumerate() {
+            <span class="kw">let </span>adt_id = AdtId::from_usize(idx);
+            <span class="kw">let </span>adt_sort_def = genv.adt_sort_def_of(adt_def_id)<span class="question-mark">?</span>;
+            decls.push(fixpoint::DataDecl {
+                name: fixpoint::DataSort::Adt(adt_id),
+                vars: adt_sort_def.param_count(),
+                ctors: adt_sort_def
+                    .variants()
+                    .iter_enumerated()
+                    .map(|(idx, variant)| {
+                        <span class="macro">debug_assert_eq!</span>(variant.fields(), <span class="number">0</span>);
+                        fixpoint::DataCtor {
+                            name: fixpoint::Var::DataCtor(adt_id, idx),
+                            fields: <span class="macro">vec!</span>[],
+                        }
+                    })
+                    .collect(),
+            });
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>append_tuple_decls(tuples: UnordSet&lt;usize&gt;, decls: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::DataDecl&gt;) {
+        decls.extend(
+            tuples
+                .into_items()
+                .into_sorted_stable_ord()
+                .into_iter()
+                .map(|arity| {
+                    fixpoint::DataDecl {
+                        name: fixpoint::DataSort::Tuple(arity),
+                        vars: arity,
+                        ctors: <span class="macro">vec!</span>[fixpoint::DataCtor {
+                            name: fixpoint::Var::TupleCtor { arity },
+                            fields: (<span class="number">0</span>..(arity <span class="kw">as </span>u32))
+                                .map(|field| {
+                                    fixpoint::DataField {
+                                        name: fixpoint::Var::TupleProj { arity, field },
+                                        sort: fixpoint::Sort::Var(field <span class="kw">as </span>usize),
+                                    }
+                                })
+                                .collect(),
+                        }],
                     }
-                })
-                .collect();
-            <span class="kw">let </span>decl = fixpoint::DataDecl {
-                name: fixpoint::DataSort::ReflectedData(DeclData(refl_data)),
-                vars: <span class="number">0</span>,
-                ctors,
-            };
-            res.push(decl);
-        }
-        res
+                }),
+        )
     }
 
-    <span class="kw">fn </span>tuples_data_decls(tuples: UnordSet&lt;usize&gt;) -&gt; Vec&lt;fixpoint::DataDecl&gt; {
-        tuples
-            .into_items()
-            .into_sorted_stable_ord()
-            .into_iter()
-            .map(|arity| {
-                fixpoint::DataDecl {
-                    name: fixpoint::DataSort::Tuple(arity),
-                    vars: arity,
-                    ctors: <span class="macro">vec!</span>[fixpoint::DataCtor {
-                        name: fixpoint::Var::TupleCtor { arity },
-                        fields: (<span class="number">0</span>..(arity <span class="kw">as </span>u32))
-                            .map(|field| {
-                                fixpoint::DataField {
-                                    name: fixpoint::Var::TupleProj { arity, field },
-                                    sort: fixpoint::Sort::Var(field <span class="kw">as </span>usize),
-                                }
-                            })
-                            .collect(),
-                    }],
-                }
-            })
-            .collect()
-    }
-
-    <span class="kw">fn </span>into_data_decls(<span class="self">self</span>, tcx: TyCtxt) -&gt; Vec&lt;fixpoint::DataDecl&gt; {
-        <span class="kw">let </span>tuples = <span class="self">Self</span>::tuples_data_decls(<span class="self">self</span>.tuples);
-        <span class="kw">let </span>refls = <span class="self">Self</span>::refl_data_decls(tcx, <span class="self">self</span>.refl_decls);
-        tuples.into_iter().chain(refls).collect()
+    <span class="kw">fn </span>into_data_decls(<span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;fixpoint::DataDecl&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>decls = <span class="macro">vec!</span>[];
+        <span class="self">Self</span>::append_tuple_decls(<span class="self">self</span>.tuples, <span class="kw-2">&amp;mut </span>decls);
+        <span class="self">Self</span>::append_adt_decls(genv, <span class="self">self</span>.adt_sorts, <span class="kw-2">&amp;mut </span>decls)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(decls)
     }
 }
 
@@ -1960,7 +1969,7 @@
             qualifiers,
             scrape_quals,
             solver,
-            data_decls: <span class="self">self</span>.scx.into_data_decls(<span class="self">self</span>.genv.tcx()),
+            data_decls: <span class="self">self</span>.scx.into_data_decls(<span class="self">self</span>.genv)<span class="question-mark">?</span>,
         };
         <span class="kw">if </span>config::dump_constraint() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.def_id.resolved_id(), <span class="string">"smt2"</span>, <span class="kw-2">&amp;</span>task).unwrap();
@@ -2513,8 +2522,8 @@
         enum_def_id: <span class="kw-2">&amp;</span>DefId,
         idx: VariantIdx,
     ) -&gt; fixpoint::Expr {
-        <span class="kw">let </span>refl_data = scx.declare_refl_decl(<span class="kw-2">*</span>enum_def_id);
-        <span class="kw">let </span>var = fixpoint::Var::Variant(refl_data, idx.as_usize());
+        <span class="kw">let </span>adt_id = scx.declare_adt(<span class="kw-2">*</span>enum_def_id);
+        <span class="kw">let </span>var = fixpoint::Var::DataCtor(adt_id, idx);
         fixpoint::Expr::Var(var)
     }
 
@@ -2549,15 +2558,12 @@
             rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, scx)<span class="question-mark">?</span>,
             rty::ExprKind::FieldProj(e, proj) =&gt; <span class="self">self</span>.proj_to_fixpoint(e, <span class="kw-2">*</span>proj, scx)<span class="question-mark">?</span>,
             rty::ExprKind::Tuple(flds) =&gt; <span class="self">self</span>.fields_to_fixpoint(flds, scx)<span class="question-mark">?</span>,
-
             rty::ExprKind::Ctor(rty::Ctor::Struct(<span class="kw">_</span>), flds) =&gt; {
                 <span class="self">self</span>.fields_to_fixpoint(flds, scx)<span class="question-mark">?
             </span>}
-
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.variant_to_fixpoint(scx, did, <span class="kw-2">*</span>idx)
             }
-
             rty::ExprKind::ConstDefId(did, info) =&gt; {
                 <span class="kw">let </span>var = <span class="self">self</span>.register_rust_const(<span class="kw-2">*</span>did, scx, info);
                 fixpoint::Expr::Var(var.into())
@@ -2761,9 +2767,11 @@
                     rty::FieldProj::Tuple { arity, field }
                 })<span class="question-mark">?
             </span>}
-            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
+            rty::Sort::App(rty::SortCtor::Adt(sort_def), args)
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant() =&gt;
+            {
                 <span class="kw">let </span>def_id = sort_def.did();
-                <span class="kw">let </span>sorts = sort_def.field_sorts(args);
+                <span class="kw">let </span>sorts = variant.field_sorts(args);
                 <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })<span class="question-mark">?

@@ -951,7 +951,8 @@
 <a href="#950" id="950">950</a>
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
@@ -1727,9 +1728,9 @@
 
 <span class="doccomment">/// `downcast` on struct works as follows
 /// Given a struct definition
-///     struct S&lt;A..&gt;[(i...)] { fld : T, ...}
+///     struct S&lt;A..&gt;[{i, ...}] { fld : T, ...}
 /// and a
-///     * "place" `x: S&lt;t..&gt;[e..]`
+///     * "place" `x: S&lt;t..&gt;[{e,..}]`
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
@@ -1740,9 +1741,10 @@
     idx: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">let </span>tcx = infcx.genv.tcx();
-    <span class="kw">let </span>flds = adt
-        .sort_def()
-        .projections()
+    <span class="kw">let </span>sort_def = adt.sort_def();
+    <span class="kw">let </span>flds = sort_def
+        .struct_variant()
+        .projections(sort_def.did())
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     <span class="prelude-val">Ok</span>(struct_variant(infcx.genv, adt.did())<span class="question-mark">?

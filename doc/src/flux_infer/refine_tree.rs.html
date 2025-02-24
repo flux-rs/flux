@@ -792,9 +792,7 @@
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
 <a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#794" id="794">794</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -1284,18 +1282,16 @@
                 })<span class="question-mark">?
             </span>}
             NodeKind::Assumption(pred) =&gt; {
-                <span class="kw">let </span>(bindings, pred) = cx.assumption_to_fixpoint(pred)<span class="question-mark">?</span>;
+                <span class="kw">let </span>(<span class="kw-2">mut </span>bindings, pred) = cx.assumption_to_fixpoint(pred)<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="prelude-val">Some</span>(cstr) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
                 };
-                <span class="prelude-val">Some</span>(fixpoint::Constraint::ForAll(
-                    fixpoint::Bind {
-                        name: fixpoint::Var::Underscore,
-                        sort: fixpoint::Sort::Int,
-                        pred,
-                    },
-                    Box::new(fixpoint::Constraint::foralls(bindings, cstr)),
-                ))
+                bindings.push(fixpoint::Bind {
+                    name: fixpoint::Var::Underscore,
+                    sort: fixpoint::Sort::Int,
+                    pred,
+                });
+                <span class="prelude-val">Some</span>(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) =&gt; {
                 <span class="prelude-val">Some</span>(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))<span class="question-mark">?</span>)

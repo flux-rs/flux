@@ -2730,7 +2730,9 @@
 <a href="#2729" id="2729">2729</a>
 <a href="#2730" id="2730">2730</a>
 <a href="#2731" id="2731">2731</a>
-<a href="#2732" id="2732">2732</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2732" id="2732">2732</a>
+<a href="#2733" id="2733">2733</a>
+<a href="#2734" id="2734">2734</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2765,6 +2767,7 @@
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
+<span class="kw">use </span>rustc_index::IndexVec;
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundVar, TyCtxt},
@@ -3018,13 +3021,13 @@
                 .iter()
                 .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; { <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, cx.conv_sort(sort)<span class="question-mark">?</span>)) })
                 .try_collect_vec()<span class="question-mark">?</span>;
-            <span class="kw">let </span>variants = <span class="macro">vec!</span>[rty::AdtSortVariant::new(fields)];
+            <span class="kw">let </span>variants = IndexVec::from([rty::AdtSortVariant::new(fields)]);
             <span class="kw">let </span>def_id = def_id.resolved_id();
             <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, params, variants, <span class="bool-val">false</span>, <span class="bool-val">true</span>))
         }
         fhir::RefinementKind::Reflected =&gt; {
             <span class="kw">let </span>enum_def_id = def_id.resolved_id();
-            <span class="kw">let </span><span class="kw-2">mut </span>variants = <span class="macro">vec!</span>[];
+            <span class="kw">let </span><span class="kw-2">mut </span>variants = IndexVec::new();
             <span class="kw">for </span>variant <span class="kw">in </span>genv.tcx().adt_def(enum_def_id).variants() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(field) = variant.fields.iter().next() {
                     <span class="kw">let </span>span = genv.tcx().def_span(field.did);
@@ -4798,14 +4801,15 @@
         <span class="kw">if </span>!P::HAS_ELABORATED_INFORMATION {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(List::default());
         };
-        <span class="kw">let </span>struct_adt = <span class="self">self</span>.genv().adt_sort_def_of(struct_def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>adt_def = <span class="self">self</span>.genv().adt_sort_def_of(struct_def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>struct_variant = adt_def.struct_variant();
         <span class="kw">let </span>spread = spread
             .map(|spread| <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>spread.expr))
             .transpose()<span class="question-mark">?</span>;
         <span class="kw">let </span>field_exprs_by_name: FxIndexMap&lt;Symbol, <span class="kw-2">&amp;</span>fhir::FieldExpr&gt; =
             exprs.iter().map(|e| (e.ident.name, e)).collect();
         <span class="kw">let </span><span class="kw-2">mut </span>assns = Vec::new();
-        <span class="kw">for </span>(idx, field_name) <span class="kw">in </span>struct_adt.field_names().iter().enumerate() {
+        <span class="kw">for </span>(idx, field_name) <span class="kw">in </span>struct_variant.field_names().iter().enumerate() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(field_expr) = field_exprs_by_name.get(field_name) {
                 assns.push(<span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>field_expr.expr)<span class="question-mark">?</span>);
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(spread) = <span class="kw-2">&amp;</span>spread {

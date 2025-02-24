@@ -611,7 +611,12 @@
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -749,7 +754,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_impl_debug_with_default_cx <span class="kw">as </span>impl_debug_with_default_cx;
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
-    rty::{BoundReft, BoundReftKind, BoundVariableKind},
+    rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind},
 };
 
 <span class="attr">#[derive(Copy, Clone)]
@@ -844,6 +849,11 @@
 
     <span class="kw">pub fn </span>genv(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
         <span class="self">self</span>.cx.genv()
+    }
+
+    <span class="kw">pub fn </span>adt_sort_def_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;AdtSortDef&gt; {
+        <span class="self">self</span>.genv()
+            .and_then(|genv| genv.adt_sort_def_of(def_id).ok())
     }
 
     <span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opts: <span class="kw-2">&amp;</span>config::Value) {

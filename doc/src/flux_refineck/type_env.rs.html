@@ -1562,7 +1562,7 @@
                 ExprKind::Ctor(Ctor::Struct(<span class="kw">_</span>), flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) =&gt; {
-                <span class="kw">let </span>sorts = sort_def.field_sorts(args);
+                <span class="kw">let </span>sorts = sort_def.struct_variant().field_sorts(args);
                 <span class="macro">debug_assert_eq3!</span>(flds1.len(), flds2.len(), sorts.len());
 
                 Expr::ctor_struct(

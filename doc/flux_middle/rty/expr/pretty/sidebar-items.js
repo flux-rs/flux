@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Precedence"],"fn":["aggregate_nested","should_parenthesize"]};
+window.SIDEBAR_ITEMS = {"enum":["Precedence"],"fn":["aggregate_nested","fmt_field_proj","should_parenthesize"]};

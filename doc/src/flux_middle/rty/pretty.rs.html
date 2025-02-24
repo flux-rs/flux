@@ -776,7 +776,8 @@
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
 <a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{FieldBind, pretty::aggregate_nested};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -1021,12 +1022,13 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.<span class="number">0</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.<span class="number">0</span>.clone() };
         <span class="kw">if let </span>ExprKind::Ctor(ctor, flds) = e.kind()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(genv) = cx.genv()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(adt_sort_def) = genv.adt_sort_def_of(ctor.def_id())
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = adt_sort_def.opt_struct_variant()
         {
-            <span class="kw">let </span>field_binds = iter::zip(adt_sort_def.field_names(), flds)
-                .map(|(name, value)| FieldBind { name: <span class="kw-2">*</span>name, value: value.clone() });
-            <span class="macro">w!</span>(cx, f, <span class="string">"{{ {:?} }}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, field_binds))
+            <span class="kw">let </span>fields = iter::zip(variant.field_names(), flds)
+                .map(|(name, value)| FieldBind { name: <span class="kw-2">*</span>name, value: value.clone() })
+                .collect_vec();
+            <span class="macro">w!</span>(cx, f, <span class="string">"{{ {:?} }}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, fields))
         } <span class="kw">else </span>{
             <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, e)
         }
