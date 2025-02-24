@@ -9,6 +9,7 @@ use flux_rustc_bridge::{
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
 use itertools::Itertools;
+use rustc_abi::FIRST_VARIANT;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -631,7 +632,7 @@ impl Ctor {
 
     pub fn variant_idx(&self) -> VariantIdx {
         match self {
-            Self::Struct(_) => VariantIdx::ZERO,
+            Self::Struct(_) => FIRST_VARIANT,
             Self::Enum(_, variant_idx) => *variant_idx,
         }
     }

@@ -17,6 +17,7 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
+use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
@@ -412,13 +413,15 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
-            let variants = vec![rty::AdtSortVariant::new(vec![])];
             dispatch_query(
                 genv,
                 def_id,
                 |def_id| (self.providers.adt_sort_def_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().adt_sort_def(def_id),
-                |def_id| Ok(rty::AdtSortDef::new(def_id, vec![], variants, false, true)),
+                |def_id| {
+                    let variants = IndexVec::from([rty::AdtSortVariant::new(vec![])]);
+                    Ok(rty::AdtSortDef::new(def_id, vec![], variants, false, true))
+                },
             )
         })
     }

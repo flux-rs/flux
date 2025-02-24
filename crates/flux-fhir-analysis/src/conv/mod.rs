@@ -33,6 +33,7 @@ use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
+use rustc_index::IndexVec;
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{self, AssocItem, AssocKind, BoundVar, TyCtxt},
@@ -286,13 +287,13 @@ pub(crate) fn conv_adt_sort_def(
                 .iter()
                 .map(|(name, sort)| -> QueryResult<_> { Ok((*name, cx.conv_sort(sort)?)) })
                 .try_collect_vec()?;
-            let variants = vec![rty::AdtSortVariant::new(fields)];
+            let variants = IndexVec::from([rty::AdtSortVariant::new(fields)]);
             let def_id = def_id.resolved_id();
             Ok(rty::AdtSortDef::new(def_id, params, variants, false, true))
         }
         fhir::RefinementKind::Reflected => {
             let enum_def_id = def_id.resolved_id();
-            let mut variants = vec![];
+            let mut variants = IndexVec::new();
             for variant in genv.tcx().adt_def(enum_def_id).variants() {
                 if let Some(field) = variant.fields.iter().next() {
                     let span = genv.tcx().def_span(field.did);

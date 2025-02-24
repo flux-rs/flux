@@ -45,7 +45,7 @@ use rustc_hir::{
     LangItem, Safety,
     def_id::{DefId, DefIndex},
 };
-use rustc_index::{IndexSlice, newtype_index};
+use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
@@ -137,7 +137,7 @@ struct AdtSortDefData {
     /// A vec of variants of the ADT;
     /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
     /// - a `reflected` sort -- used for `reflected` enums have multiple variants
-    variants: Vec<AdtSortVariant>,
+    variants: IndexVec<VariantIdx, AdtSortVariant>,
     is_reflected: bool,
     is_struct: bool,
 }
@@ -146,7 +146,7 @@ impl AdtSortDef {
     pub fn new(
         def_id: DefId,
         params: Vec<ParamTy>,
-        variants: Vec<AdtSortVariant>,
+        variants: IndexVec<VariantIdx, AdtSortVariant>,
         is_reflected: bool,
         is_struct: bool,
     ) -> Self {
@@ -158,7 +158,7 @@ impl AdtSortDef {
     }
 
     pub fn variant(&self, idx: VariantIdx) -> &AdtSortVariant {
-        &self.0.variants[idx.as_usize()]
+        &self.0.variants[idx]
     }
 
     pub fn opt_struct_variant(&self) -> Option<&AdtSortVariant> {
@@ -168,7 +168,7 @@ impl AdtSortDef {
     #[track_caller]
     pub fn struct_variant(&self) -> &AdtSortVariant {
         tracked_span_assert_eq!(self.0.is_struct, true);
-        &self.0.variants[0]
+        &self.0.variants[FIRST_VARIANT]
     }
 
     pub fn is_reflected(&self) -> bool {
