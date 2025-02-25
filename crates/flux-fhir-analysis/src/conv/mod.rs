@@ -1688,7 +1688,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     })
                 }
             }
-            fhir::Res::Def(DefKind::ForeignTy, def_id) => rty::BaseTy::Foreign(def_id),
+            fhir::Res::Def(DefKind::ForeignTy, def_id) => {
+                self.check_self_ty_generics(path)?;
+                rty::BaseTy::Foreign(def_id)
+            }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
             fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
