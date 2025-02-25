@@ -264,6 +264,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Bool => rty::BaseTy::Bool,
             ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
+            ty::TyKind::Foreign(def_id) => rty::BaseTy::Foreign(*def_id),
             ty::TyKind::Str => rty::BaseTy::Str,
             ty::TyKind::Slice(ty) => rty::BaseTy::Slice(ty.refine(self)?),
             ty::TyKind::Char => rty::BaseTy::Char,

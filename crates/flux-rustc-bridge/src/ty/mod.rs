@@ -209,6 +209,7 @@ pub enum TyKind {
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
+    Foreign(DefId),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -781,6 +782,10 @@ impl Ty {
         TyKind::Char.intern()
     }
 
+    pub fn mk_foreign(def_id: DefId) -> Ty {
+        TyKind::Foreign(def_id).intern()
+    }
+
     pub fn deref(&self) -> Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
@@ -890,6 +895,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Str => tcx.types.str_,
             TyKind::Char => tcx.types.char,
             TyKind::Never => tcx.types.never,
+            TyKind::Foreign(def_id) => rustc_ty::Ty::new_foreign(tcx, *def_id),
             TyKind::Float(float_ty) => rustc_ty::Ty::new_float(tcx, *float_ty),
             TyKind::Int(int_ty) => rustc_ty::Ty::new_int(tcx, *int_ty),
             TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
@@ -1091,6 +1097,9 @@ impl fmt::Debug for Ty {
             }
             TyKind::Dynamic(preds, r) => {
                 write!(f, "dyn {:?} + {r:?}", preds.iter().format(", "))
+            }
+            TyKind::Foreign(def_id) => {
+                write!(f, "Foreign {:?}", def_id)
             }
         }
     }
