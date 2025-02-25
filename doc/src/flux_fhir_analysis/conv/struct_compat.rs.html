@@ -874,7 +874,10 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a></pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a></pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
 //! infer types annotated with `_` in the surface syntax.
@@ -1232,6 +1235,9 @@
                 }
                 <span class="self">self</span>.zip_region(re_a, re_b);
                 <span class="prelude-val">Ok</span>(())
+            }
+            (rty::BaseTy::Foreign(def_id_a), rty::BaseTy::Foreign(def_id_b)) =&gt; {
+                assert_eq_or_incompatible(def_id_a, def_id_b)
             }
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected type `{a:?}`"</span>);

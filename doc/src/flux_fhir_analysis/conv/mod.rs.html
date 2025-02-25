@@ -2732,7 +2732,11 @@
 <a href="#2731" id="2731">2731</a>
 <a href="#2732" id="2732">2732</a>
 <a href="#2733" id="2733">2733</a>
-<a href="#2734" id="2734">2734</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2734" id="2734">2734</a>
+<a href="#2735" id="2735">2735</a>
+<a href="#2736" id="2736">2736</a>
+<a href="#2737" id="2737">2737</a>
+<a href="#2738" id="2738">2738</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4421,6 +4425,10 @@
                         refine_args: List::from(refine_args),
                     })
                 }
+            }
+            fhir::Res::Def(DefKind::ForeignTy, def_id) =&gt; {
+                <span class="self">self</span>.check_self_ty_generics(path)<span class="question-mark">?</span>;
+                rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) =&gt; <span class="self">self</span>.report_expected_type(path.span, kind, def_id)<span class="question-mark">?</span>,
             fhir::Res::Err =&gt; {

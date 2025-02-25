@@ -2820,7 +2820,9 @@
 <a href="#2819" id="2819">2819</a>
 <a href="#2820" id="2820">2820</a>
 <a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -4420,6 +4422,7 @@
     Dynamic(List&lt;Binder&lt;ExistentialPredicate&gt;&gt;, Region),
     Param(ParamTy),
     Infer(TyVid),
+    Foreign(DefId),
 }
 
 <span class="kw">impl </span>BaseTy {
@@ -4677,6 +4680,7 @@
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             </span>}
             BaseTy::Infer(ty_vid) =&gt; ty::Ty::new_var(tcx, <span class="kw-2">*</span>ty_vid),
+            BaseTy::Foreign(def_id) =&gt; ty::Ty::new_foreign(tcx, <span class="kw-2">*</span>def_id),
         }
     }
 }

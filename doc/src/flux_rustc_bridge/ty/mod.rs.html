@@ -1138,7 +1138,16 @@
 <a href="#1137" id="1137">1137</a>
 <a href="#1138" id="1138">1138</a>
 <a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
+<a href="#1149" id="1149">1149</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
 
@@ -1349,6 +1358,7 @@
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
     Dynamic(List&lt;Binder&lt;ExistentialPredicate&gt;&gt;, Region),
+    Foreign(DefId),
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1921,6 +1931,10 @@
         TyKind::Char.intern()
     }
 
+    <span class="kw">pub fn </span>mk_foreign(def_id: DefId) -&gt; Ty {
+        TyKind::Foreign(def_id).intern()
+    }
+
     <span class="kw">pub fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() =&gt; args[<span class="number">0</span>].expect_type().clone(),
@@ -2030,6 +2044,7 @@
             TyKind::Str =&gt; tcx.types.str_,
             TyKind::Char =&gt; tcx.types.char,
             TyKind::Never =&gt; tcx.types.never,
+            TyKind::Foreign(def_id) =&gt; rustc_ty::Ty::new_foreign(tcx, <span class="kw-2">*</span>def_id),
             TyKind::Float(float_ty) =&gt; rustc_ty::Ty::new_float(tcx, <span class="kw-2">*</span>float_ty),
             TyKind::Int(int_ty) =&gt; rustc_ty::Ty::new_int(tcx, <span class="kw-2">*</span>int_ty),
             TyKind::Uint(uint_ty) =&gt; rustc_ty::Ty::new_uint(tcx, <span class="kw-2">*</span>uint_ty),
@@ -2231,6 +2246,9 @@
             }
             TyKind::Dynamic(preds, r) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"dyn {:?} + {r:?}"</span>, preds.iter().format(<span class="string">", "</span>))
+            }
+            TyKind::Foreign(def_id) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"Foreign {:?}"</span>, def_id)
             }
         }
     }

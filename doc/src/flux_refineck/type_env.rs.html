@@ -951,7 +951,8 @@
 <a href="#950" id="950">950</a>
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -1455,6 +1456,7 @@
             | BaseTy::Dynamic(..)
             | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
+            | BaseTy::Foreign(..)
             | BaseTy::Coroutine(..) =&gt; {
                 <span class="macro">assert!</span>(!scope.has_free_vars(bty));
                 bty.clone()

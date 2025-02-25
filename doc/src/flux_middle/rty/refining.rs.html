@@ -483,7 +483,8 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -749,6 +750,7 @@
             ty::TyKind::Bool =&gt; rty::BaseTy::Bool,
             ty::TyKind::Int(int_ty) =&gt; rty::BaseTy::Int(<span class="kw-2">*</span>int_ty),
             ty::TyKind::Uint(uint_ty) =&gt; rty::BaseTy::Uint(<span class="kw-2">*</span>uint_ty),
+            ty::TyKind::Foreign(def_id) =&gt; rty::BaseTy::Foreign(<span class="kw-2">*</span>def_id),
             ty::TyKind::Str =&gt; rty::BaseTy::Str,
             ty::TyKind::Slice(ty) =&gt; rty::BaseTy::Slice(ty.refine(<span class="self">self</span>)<span class="question-mark">?</span>),
             ty::TyKind::Char =&gt; rty::BaseTy::Char,

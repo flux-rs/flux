@@ -1023,7 +1023,9 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1771,6 +1773,7 @@
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never
             | BaseTy::Infer(<span class="kw">_</span>)
+            | BaseTy::Foreign(<span class="kw">_</span>)
             | BaseTy::Param(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
         }
     }
@@ -1787,6 +1790,7 @@
         <span class="kw">let </span>bty = <span class="kw">match </span><span class="self">self </span>{
             BaseTy::Adt(adt_def, args) =&gt; BaseTy::adt(adt_def.clone(), args.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::FnDef(def_id, args) =&gt; BaseTy::fn_def(<span class="kw-2">*</span>def_id, args.try_fold_with(folder)<span class="question-mark">?</span>),
+            BaseTy::Foreign(def_id) =&gt; BaseTy::Foreign(<span class="kw-2">*</span>def_id),
             BaseTy::Slice(ty) =&gt; BaseTy::Slice(ty.try_fold_with(folder)<span class="question-mark">?</span>),
             BaseTy::RawPtr(ty, mu) =&gt; BaseTy::RawPtr(ty.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>mu),
             BaseTy::Ref(re, ty, mutbl) =&gt; {

@@ -1219,7 +1219,8 @@
 <a href="#1218" id="1218">1218</a>
 <a href="#1219" id="1219">1219</a>
 <a href="#1220" id="1220">1220</a>
-<a href="#1221" id="1221">1221</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -2109,6 +2110,7 @@
 
                 <span class="prelude-val">Ok</span>(Ty::mk_dynamic(exi_preds, region))
             }
+            rustc_ty::Foreign(def_id) =&gt; <span class="prelude-val">Ok</span>(Ty::mk_foreign(<span class="kw-2">*</span>def_id)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported type `{self:?}`"</span>))),
         }
     }
