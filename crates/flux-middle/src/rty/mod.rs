@@ -1598,6 +1598,7 @@ pub enum BaseTy {
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
     Infer(TyVid),
+    Foreign(DefId),
 }
 
 impl BaseTy {
@@ -1855,6 +1856,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
+            BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
         }
     }
 }

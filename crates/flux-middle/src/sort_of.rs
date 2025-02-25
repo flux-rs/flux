@@ -152,7 +152,8 @@ impl rty::BaseTy {
             | rty::BaseTy::Closure(..)
             | rty::BaseTy::Coroutine(..)
             | rty::BaseTy::Dynamic(_, _)
-            | rty::BaseTy::Never => rty::Sort::unit(),
+            | rty::BaseTy::Never
+            | rty::BaseTy::Foreign(..) => rty::Sort::unit(),
             rty::BaseTy::Infer(_) => tracked_span_bug!(),
         }
     }

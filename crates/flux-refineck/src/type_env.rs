@@ -502,6 +502,7 @@ impl BasicBlockEnvShape {
             | BaseTy::Dynamic(..)
             | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
+            | BaseTy::Foreign(..)
             | BaseTy::Coroutine(..) => {
                 assert!(!scope.has_free_vars(bty));
                 bty.clone()

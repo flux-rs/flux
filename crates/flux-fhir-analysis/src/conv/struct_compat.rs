@@ -357,6 +357,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_region(re_a, re_b);
                 Ok(())
             }
+            (rty::BaseTy::Foreign(def_id_a), rty::BaseTy::Foreign(def_id_b)) => {
+                assert_eq_or_incompatible(def_id_a, def_id_b)
+            }
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
             }
