@@ -1689,7 +1689,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) => {
-                self.check_self_ty_generics(path)?;
+                self.check_foreign_ty_generics(path)?;
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
@@ -1934,6 +1934,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn check_self_ty_generics(&mut self, path: &fhir::Path<'_>) -> QueryResult {
         if !path.last_segment().args.is_empty() {
             let err = errors::GenericsOnSelfTy { span: path.span };
+            Err(self.emit(err))?;
+        }
+        Ok(())
+    }
+
+    fn check_foreign_ty_generics(&mut self, path: &fhir::Path<'_>) -> QueryResult {
+        if !path.last_segment().args.is_empty() {
+            let err = errors::GenericsOnForeignTy { span: path.span };
             Err(self.emit(err))?;
         }
         Ok(())
@@ -2690,6 +2698,13 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_generics_on_self_ty, code = E0999)]
     pub(super) struct GenericsOnSelfTy {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_foreign_ty, code = E0999)]
+    pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
     }

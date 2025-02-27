@@ -1,4 +1,6 @@
-use flux_rs::*;
+#![feature(extern_types)]
+
+use flux_rs::attrs::*;
 
 #[refined_by(n: int)]
 struct S {
@@ -52,3 +54,10 @@ flux_rs::defs! {
 #[flux_rs::opaque]
 #[flux_rs::refined_by(f: MyOpaqueSort<int>)] //~ Error user defined opaque sorts have no generics but found 1
 struct Y {}
+
+unsafe extern "C" {
+    type A;
+}
+
+#[sig(fn(x: &A<i32>))] //~ ERROR generic arguments are not allowed on foreign types
+fn test00(x: &A) {}
