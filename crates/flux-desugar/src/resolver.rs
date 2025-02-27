@@ -157,6 +157,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
                 ItemKind::Const(..) => DefKind::Const,
+                ItemKind::ForeignMod { items, .. } => {
+                    self.define_foreign_items(items);
+                    continue;
+                }
                 _ => continue,
             };
             if let Some(ns) = def_kind.ns() {
@@ -165,6 +169,22 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
                     ns,
                 );
+            }
+        }
+    }
+
+    fn define_foreign_items(&mut self, items: &[rustc_hir::ForeignItemRef]) {
+        for item_ref in items {
+            let item = self.genv.hir().foreign_item(item_ref.id);
+            match item.kind {
+                rustc_hir::ForeignItemKind::Type => {
+                    self.define_res_in(
+                        item.ident.name,
+                        fhir::Res::Def(DefKind::ForeignTy, item.owner_id.to_def_id()),
+                        TypeNS,
+                    );
+                }
+                rustc_hir::ForeignItemKind::Fn(..) | rustc_hir::ForeignItemKind::Static(..) => {}
             }
         }
     }
