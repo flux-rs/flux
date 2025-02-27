@@ -2736,7 +2736,22 @@
 <a href="#2735" id="2735">2735</a>
 <a href="#2736" id="2736">2736</a>
 <a href="#2737" id="2737">2737</a>
-<a href="#2738" id="2738">2738</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2738" id="2738">2738</a>
+<a href="#2739" id="2739">2739</a>
+<a href="#2740" id="2740">2740</a>
+<a href="#2741" id="2741">2741</a>
+<a href="#2742" id="2742">2742</a>
+<a href="#2743" id="2743">2743</a>
+<a href="#2744" id="2744">2744</a>
+<a href="#2745" id="2745">2745</a>
+<a href="#2746" id="2746">2746</a>
+<a href="#2747" id="2747">2747</a>
+<a href="#2748" id="2748">2748</a>
+<a href="#2749" id="2749">2749</a>
+<a href="#2750" id="2750">2750</a>
+<a href="#2751" id="2751">2751</a>
+<a href="#2752" id="2752">2752</a>
+<a href="#2753" id="2753">2753</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4427,7 +4442,7 @@
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) =&gt; {
-                <span class="self">self</span>.check_self_ty_generics(path)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_foreign_ty_generics(path)<span class="question-mark">?</span>;
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) =&gt; <span class="self">self</span>.report_expected_type(path.span, kind, def_id)<span class="question-mark">?</span>,
@@ -4672,6 +4687,14 @@
     <span class="kw">fn </span>check_self_ty_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'_</span>&gt;) -&gt; QueryResult {
         <span class="kw">if </span>!path.last_segment().args.is_empty() {
             <span class="kw">let </span>err = errors::GenericsOnSelfTy { span: path.span };
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>check_foreign_ty_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'_</span>&gt;) -&gt; QueryResult {
+        <span class="kw">if </span>!path.last_segment().args.is_empty() {
+            <span class="kw">let </span>err = errors::GenericsOnForeignTy { span: path.span };
             <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(err))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -5428,6 +5451,13 @@
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_generics_on_self_ty, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnSelfTy {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub </span>span: Span,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_generics_on_foreign_ty, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnForeignTy {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
