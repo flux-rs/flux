@@ -258,6 +258,9 @@ fhir_analysis_generics_on_ty_param =
 fhir_analysis_generics_on_self_ty =
     generic arguments are not allowed on self type
 
+fhir_analysis_generics_on_foreign_ty =
+    generic arguments are not allowed on foreign types
+
 fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
 
