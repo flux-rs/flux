@@ -14,13 +14,13 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
+    MaybeExternId, THEORY_FUNCS,
     big_int::BigInt,
     def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{self, BinOp, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -1163,6 +1163,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn bv_op_to_fixpoint(&self, op: &BinOp) -> fixpoint::Expr {
+        let name = match op {
+            BinOp::Add(_) => "bv_add",
+            BinOp::Sub(_) => "bv_sub",
+            BinOp::Mul(_) => "bv_mul",
+            BinOp::Div(_) => "bv_sdiv",
+            _ => span_bug!(self.def_span, "not a bv-op!"),
+        };
+        let sym = Symbol::intern(name);
+        let func = THEORY_FUNCS.get(&sym).unwrap();
+        fixpoint::Expr::Var(fixpoint::Var::Itf(func.fixpoint_name))
+    }
+
     fn bin_op_to_fixpoint(
         &mut self,
         op: &rty::BinOp,
@@ -1219,11 +1232,23 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, scx)?,
                 ])));
             }
-            rty::BinOp::Add => fixpoint::BinOp::Add,
-            rty::BinOp::Sub => fixpoint::BinOp::Sub,
-            rty::BinOp::Mul => fixpoint::BinOp::Mul,
-            rty::BinOp::Div => fixpoint::BinOp::Div,
-            rty::BinOp::Mod => fixpoint::BinOp::Mod,
+
+            rty::BinOp::Add(rty::Sort::BitVec(_))
+            | rty::BinOp::Sub(rty::Sort::BitVec(_))
+            | rty::BinOp::Mul(rty::Sort::BitVec(_))
+            | rty::BinOp::Div(rty::Sort::BitVec(_))
+            | rty::BinOp::Mod(rty::Sort::BitVec(_)) => {
+                let bv_func = self.bv_op_to_fixpoint(op);
+                return Ok(fixpoint::Expr::App(Box::new(bv_func), vec![
+                    self.expr_to_fixpoint(e1, scx)?,
+                    self.expr_to_fixpoint(e2, scx)?,
+                ]));
+            }
+            rty::BinOp::Add(_) => fixpoint::BinOp::Add,
+            rty::BinOp::Sub(_) => fixpoint::BinOp::Sub,
+            rty::BinOp::Mul(_) => fixpoint::BinOp::Mul,
+            rty::BinOp::Div(_) => fixpoint::BinOp::Div,
+            rty::BinOp::Mod(_) => fixpoint::BinOp::Mod,
         };
         Ok(fixpoint::Expr::BinaryOp(
             op,

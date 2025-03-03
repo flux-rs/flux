@@ -602,11 +602,11 @@ pub enum BinOp {
     Ge(Sort),
     Lt(Sort),
     Le(Sort),
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
+    Add(Sort),
+    Sub(Sort),
+    Mul(Sort),
+    Div(Sort),
+    Mod(Sort),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -885,7 +885,8 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs)
+                let sort = crate::rty::Sort::Int;
+                Expr::binary_op(BinOp::$op(sort), self, rhs)
             }
         }
 
@@ -896,7 +897,8 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs)
+                let sort = crate::rty::Sort::Int;
+                Expr::binary_op(BinOp::$op(sort), self, rhs)
             }
         }
     )*};
@@ -1160,8 +1162,8 @@ pub(crate) mod pretty {
                 | BinOp::Lt(_)
                 | BinOp::Ge(_)
                 | BinOp::Le(_) => Precedence::Cmp,
-                BinOp::Add | BinOp::Sub => Precedence::AddSub,
-                BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
+                BinOp::Add(_) | BinOp::Sub(_) => Precedence::AddSub,
+                BinOp::Mul(_) | BinOp::Div(_) | BinOp::Mod(_) => Precedence::MulDiv,
             }
         }
     }
@@ -1208,7 +1210,7 @@ pub(crate) mod pretty {
                     } else {
                         w!(cx, f, "{:?}", e1)?;
                     }
-                    if matches!(op, BinOp::Div) {
+                    if matches!(op, BinOp::Div(_)) {
                         w!(cx, f, "{:?}", op)?;
                     } else {
                         w!(cx, f, " {:?} ", op)?;
@@ -1422,11 +1424,11 @@ pub(crate) mod pretty {
                 BinOp::Ge(_) => w!(cx, f, "≥"),
                 BinOp::Lt(_) => w!(cx, f, "<"),
                 BinOp::Le(_) => w!(cx, f, "≤"),
-                BinOp::Add => w!(cx, f, "+"),
-                BinOp::Sub => w!(cx, f, "-"),
-                BinOp::Mul => w!(cx, f, "*"),
-                BinOp::Div => w!(cx, f, "/"),
-                BinOp::Mod => w!(cx, f, "mod"),
+                BinOp::Add(_) => w!(cx, f, "+"),
+                BinOp::Sub(_) => w!(cx, f, "-"),
+                BinOp::Mul(_) => w!(cx, f, "*"),
+                BinOp::Div(_) => w!(cx, f, "/"),
+                BinOp::Mod(_) => w!(cx, f, "mod"),
             }
         }
     }
@@ -1524,7 +1526,7 @@ pub(crate) mod pretty {
                         e2_d.text
                     };
                     let op_d = debug_nested(cx, op)?;
-                    let op_text = if matches!(op, BinOp::Div) {
+                    let op_text = if matches!(op, BinOp::Div(_)) {
                         op_d.text
                     } else {
                         format!(" {} ", op_d.text)

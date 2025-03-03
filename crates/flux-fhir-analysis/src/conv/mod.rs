@@ -2114,11 +2114,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BinOp::Ge => rty::BinOp::Ge(self.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Lt => rty::BinOp::Lt(self.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Le => rty::BinOp::Le(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Add => rty::BinOp::Add,
-            fhir::BinOp::Sub => rty::BinOp::Sub,
-            fhir::BinOp::Mod => rty::BinOp::Mod,
-            fhir::BinOp::Mul => rty::BinOp::Mul,
-            fhir::BinOp::Div => rty::BinOp::Div,
+            fhir::BinOp::Add => rty::BinOp::Add(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Sub => rty::BinOp::Sub(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_rel_sort(fhir_id)),
         }
     }
 

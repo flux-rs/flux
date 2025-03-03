@@ -197,9 +197,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Literal(..)
             | fhir::ExprKind::Constructor(..) => {
                 let found = self.synth_expr(expr)?;
+                // println!("TRACE: sort-ck panic(0): {expr:?} => found={found:?}");
                 let found = self.resolve_vars_if_possible(&found);
+                // println!("TRACE: sort-ck panic(1): {expr:?} => found={found:?}");
+
                 let expected = self.resolve_vars_if_possible(expected);
                 if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                    // println!(
+                    //     "TRACE: sort-ck panic(2): {expr:?} => found={found:?}; expected={expected:?}"
+                    // );
                     return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
@@ -360,6 +366,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
+
+                // Elaborate sort of operator
+                let sort = self
+                    .fully_resolve(&sort)
+                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
+                self.wfckresults
+                    .bin_rel_sorts_mut()
+                    .insert(expr.fhir_id, sort.clone());
+
                 Ok(sort)
             }
         }
@@ -601,6 +616,13 @@ impl InferCtxt<'_, '_> {
                     .unify_var_value(*vid, Some(rty::NumVarValue::Real))
                     .ok()?;
             }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::BitVec(sz))
+            | (rty::Sort::BitVec(sz), rty::Sort::Infer(rty::NumVar(vid))) => {
+                self.num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::BitVec(*sz)))
+                    .ok()?;
+            }
+
             (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) => {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
