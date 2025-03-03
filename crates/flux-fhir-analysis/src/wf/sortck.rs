@@ -323,6 +323,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn check_integral(&self, op: fhir::BinOp, sort: &rty::Sort) {
+        if !matches!(op, fhir::BinOp::Mod) {
+            return;
+        }
+        if !matches!(sort, rty::Sort::Int | rty::Sort::BitVec(_)) {
+            span_bug!(Span::default(), "unexpected sort {sort:?} for operator {op:?}");
+        }
+    }
+
     fn synth_binary_op(
         &mut self,
         expr: &fhir::Expr,
@@ -342,11 +351,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e2, &sort)?;
                 Ok(rty::Sort::Bool)
             }
-            fhir::BinOp::Mod => {
-                self.check_expr(e1, &rty::Sort::Int)?;
-                self.check_expr(e2, &rty::Sort::Int)?;
-                Ok(rty::Sort::Int)
-            }
+
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
@@ -362,7 +367,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
                 Ok(rty::Sort::Bool)
             }
-            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
+            fhir::BinOp::Add
+            | fhir::BinOp::Sub
+            | fhir::BinOp::Mul
+            | fhir::BinOp::Div
+            | fhir::BinOp::Mod => {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
@@ -374,6 +383,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.wfckresults
                     .bin_rel_sorts_mut()
                     .insert(expr.fhir_id, sort.clone());
+
+                self.check_integral(op, &sort);
 
                 Ok(sort)
             }
