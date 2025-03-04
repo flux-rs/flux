@@ -407,7 +407,7 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);
             vis.visit_lifetime(&lft);
         }
-        TyKind::Never | TyKind::Infer => {}
+        TyKind::Never | TyKind::Infer | TyKind::Err(_) => {}
     }
 }
 
@@ -415,6 +415,7 @@ pub fn walk_bty<'v, V: Visitor<'v>>(vis: &mut V, bty: &BaseTy<'v>) {
     match &bty.kind {
         BaseTyKind::Path(path) => vis.visit_qpath(path),
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::Err(_) => {}
     }
 }
 
@@ -458,7 +459,7 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
     match sort {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
-        Sort::Loc | Sort::BitVec(_) | Sort::Infer => {}
+        Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }
 

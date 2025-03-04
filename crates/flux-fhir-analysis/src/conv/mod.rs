@@ -800,6 +800,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Sort::Loc => rty::Sort::Loc,
             fhir::Sort::Func(fsort) => rty::Sort::Func(self.conv_poly_func_sort(fsort)?),
             fhir::Sort::Infer => rty::Sort::Infer(rty::SortVar(self.next_sort_vid())),
+            fhir::Sort::Err(_) => rty::Sort::Err,
         };
         Ok(sort)
     }
@@ -1227,6 +1228,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::TyKind::Infer => Ok(rty::Ty::infer(self.next_type_vid())),
+            fhir::TyKind::Err(err) => Err(QueryErr::Emitted(*err)),
         }
     }
 
@@ -1391,6 +1393,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
+            fhir::BaseTyKind::Err(err) => Err(QueryErr::Emitted(*err)),
         }
     }
 
