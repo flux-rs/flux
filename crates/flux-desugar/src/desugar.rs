@@ -978,7 +978,20 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         sort: &surface::Sort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
-        desugar_sort(self.genv(), self.resolver_output(), sort, generic_id_to_var_idx)
+        match sort {
+            surface::Sort::Base(bsort) => self.desugar_base_sort(bsort, generic_id_to_var_idx),
+            surface::Sort::Func { inputs, output } => {
+                let inputs_and_output = self.genv().alloc_slice_with_capacity(
+                    inputs.len() + 1,
+                    inputs
+                        .iter()
+                        .chain(iter::once(output))
+                        .map(|sort| self.desugar_base_sort(sort, generic_id_to_var_idx)),
+                );
+                fhir::Sort::Func(fhir::PolyFuncSort::new(0, inputs_and_output))
+            }
+            surface::Sort::Infer => fhir::Sort::Infer,
+        }
     }
 
     fn desugar_base_sort(
@@ -986,7 +999,31 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         sort: &surface::BaseSort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
-        desugar_base_sort(self.genv(), self.resolver_output(), sort, generic_id_to_var_idx)
+        let genv = self.genv();
+        match sort {
+            surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
+            surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) => {
+                let res = self.resolver_output().sort_path_res_map[node_id];
+
+                // In a `RefinedBy` we resolve type parameters to a sort var
+                let res = if let fhir::SortRes::TyParam(def_id) = res
+                    && let Some(generic_id_to_var_idx) = generic_id_to_var_idx
+                {
+                    let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
+                    fhir::SortRes::SortParam(idx)
+                } else {
+                    res
+                };
+
+                let args = genv.alloc_slice_fill_iter(
+                    args.iter()
+                        .map(|s| self.desugar_base_sort(s, generic_id_to_var_idx)),
+                );
+
+                let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
+                fhir::Sort::Path(path)
+            }
+        }
     }
 
     fn desugar_generic_args(
@@ -1468,61 +1505,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     #[track_caller]
     fn emit_err(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.sess().emit_err(err)
-    }
-}
-
-fn desugar_sort<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput,
-    sort: &surface::Sort,
-    generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
-) -> fhir::Sort<'genv> {
-    match sort {
-        surface::Sort::Base(bsort) => {
-            desugar_base_sort(genv, resolver_output, bsort, generic_id_to_var_idx)
-        }
-        surface::Sort::Func { inputs, output } => {
-            let inputs_and_output = genv.alloc_slice_with_capacity(
-                inputs.len() + 1,
-                inputs.iter().chain(iter::once(output)).map(|sort| {
-                    desugar_base_sort(genv, resolver_output, sort, generic_id_to_var_idx)
-                }),
-            );
-            fhir::Sort::Func(fhir::PolyFuncSort::new(0, inputs_and_output))
-        }
-        surface::Sort::Infer => fhir::Sort::Infer,
-    }
-}
-
-fn desugar_base_sort<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput,
-    bsort: &surface::BaseSort,
-    generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
-) -> fhir::Sort<'genv> {
-    match bsort {
-        surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
-        surface::BaseSort::Path(surface::SortPath { segments, args, node_id }) => {
-            let res = resolver_output.sort_path_res_map[node_id];
-
-            // In a `RefinedBy` we resolve type parameters to a sort var
-            let res = if let fhir::SortRes::TyParam(def_id) = res
-                && let Some(generic_id_to_var_idx) = generic_id_to_var_idx
-            {
-                let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
-                fhir::SortRes::SortParam(idx)
-            } else {
-                res
-            };
-
-            let args = genv.alloc_slice_fill_iter(
-                args.iter()
-                    .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
-            );
-
-            let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
-            fhir::Sort::Path(path)
-        }
     }
 }
 
