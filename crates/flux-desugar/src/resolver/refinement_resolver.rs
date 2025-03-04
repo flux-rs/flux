@@ -807,6 +807,7 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
                 self.resolve_sort_path(path);
             }
             surface::BaseSort::BitVec(_) => {}
+            surface::BaseSort::SortOf(ty, path) => todo!(),
         }
     }
 }

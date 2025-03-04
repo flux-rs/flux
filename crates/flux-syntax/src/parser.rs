@@ -42,7 +42,7 @@ pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<boo
     }
 }
 
-/// ⟨reason⟩ = reason = ⟨literal⟩
+/// ⟨reason⟩ := reason = ⟨literal⟩
 fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
     cx.expect("reason")?;
     cx.expect(Tok::Eq)?;
@@ -764,6 +764,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
 ///         | ⟨epath⟩
+///         | ⟨bounded_quant⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
@@ -804,6 +805,8 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     }
 }
 
+/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
 fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
     let quant = if cx.advance_if(Tok::Forall) {
@@ -960,14 +963,26 @@ fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
 
 /// ⟨base_sort⟩ := bitvec < ⟨u32⟩ >
 ///              | ⟨sort_path⟩ < ⟨base_sort⟩,* >
+///              | < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* < (⟨base_sort⟩,*) >
 fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
     if cx.advance_if(Tok::BitVec) {
+        // bitvec < ⟨u32⟩ >
         cx.expect(LAngle)?;
         let len = parse_int(cx)?;
         cx.expect(RAngle)?;
         Ok(BaseSort::BitVec(len))
+    } else if cx.advance_if(LAngle) {
+        // < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
+        let qself = parse_type(cx)?;
+        cx.expect(Tok::As)?;
+        let mut path = parse_path(cx)?;
+        cx.expect(RAngle)?;
+        cx.expect(Tok::PathSep)?;
+        path.segments.push(parse_segment(cx)?);
+        Ok(BaseSort::SortOf(Box::new(qself), path))
     } else {
+        // ⟨sort_path⟩ < ⟨base_sort⟩,* >
         let segments = sep1(cx, Tok::PathSep, parse_ident)?;
         let args = opt_angle(cx, Comma, parse_base_sort)?;
         let path = SortPath { segments, args, node_id: cx.next_node_id() };

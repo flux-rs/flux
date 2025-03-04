@@ -256,6 +256,10 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
     match bsort {
         BaseSort::BitVec(_len) => {}
         BaseSort::Path(path) => vis.visit_sort_path(path),
+        BaseSort::SortOf(qself, path) => {
+            vis.visit_ty(qself);
+            vis.visit_path(path);
+        }
     }
 }
 
