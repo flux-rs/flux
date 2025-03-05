@@ -979,6 +979,7 @@ pub enum ExprKind<'fhir> {
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
+    Err(ErrorGuaranteed),
 }
 
 impl Expr<'_> {
@@ -1488,6 +1489,7 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
             }
+            ExprKind::Err(_) => write!(f, "err"),
         }
     }
 }

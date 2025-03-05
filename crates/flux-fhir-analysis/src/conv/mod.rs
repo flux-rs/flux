@@ -2068,6 +2068,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
             }
+            fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(*err))?,
         };
         Ok(self.add_coercions(expr, fhir_id))
     }
