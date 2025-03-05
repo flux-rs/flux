@@ -890,7 +890,10 @@
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1095,6 +1098,9 @@
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, <span class="kw-2">&amp;</span>expected, <span class="kw-2">&amp;</span>found));
                 }
             }
+            fhir::ExprKind::Err(<span class="kw">_</span>) =&gt; {
+                <span class="comment">// an error has already been reported so we can just skip
+            </span>}
         }
         <span class="prelude-val">Ok</span>(())
     }

@@ -1574,7 +1574,15 @@
 <a href="#1573" id="1573">1573</a>
 <a href="#1574" id="1574">1574</a>
 <a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1612,7 +1620,7 @@
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">pub use </span>rustc_middle::mir::Mutability;
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-<span class="kw">use </span>rustc_span::{Span, Symbol, symbol::Ident};
+<span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 <span class="kw">use </span>rustc_target::spec::abi;
 
@@ -2120,6 +2128,7 @@
     TraitObject(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
+    <span class="prelude-val">Err</span>(ErrorGuaranteed),
 }
 
 <span class="kw">pub struct </span>BareFnTy&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -2215,6 +2224,7 @@
 </span><span class="kw">pub enum </span>BaseTyKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Path(QPath&lt;<span class="lifetime">'fhir</span>&gt;),
     Slice(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
+    <span class="prelude-val">Err</span>(ErrorGuaranteed),
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2480,6 +2490,7 @@
     </span>Func(PolyFuncSort&lt;<span class="lifetime">'fhir</span>&gt;),
     <span class="doccomment">/// A sort that needs to be inferred.
     </span>Infer,
+    <span class="prelude-val">Err</span>(ErrorGuaranteed),
 }
 
 <span class="doccomment">/// See [`flux_syntax::surface::SortPath`]
@@ -2552,6 +2563,7 @@
     Abs(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     Record(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Expr&lt;<span class="lifetime">'fhir</span>&gt;]),
     Constructor(<span class="prelude-ty">Option</span>&lt;PathExpr&lt;<span class="lifetime">'fhir</span>&gt;&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FieldExpr&lt;<span class="lifetime">'fhir</span>&gt;], <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Spread&lt;<span class="lifetime">'fhir</span>&gt;&gt;),
+    <span class="prelude-val">Err</span>(ErrorGuaranteed),
 }
 
 <span class="kw">impl </span>Expr&lt;<span class="lifetime">'_</span>&gt; {
@@ -2904,6 +2916,7 @@
             TyKind::TraitObject(poly_traits, _lft, _syntax) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"dyn {poly_traits:?}"</span>)
             }
+            TyKind::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
         }
     }
 }
@@ -2954,6 +2967,7 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             BaseTyKind::Path(qpath) =&gt; <span class="macro">write!</span>(f, <span class="string">"{qpath:?}"</span>),
             BaseTyKind::Slice(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{ty:?}]"</span>),
+            BaseTyKind::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
         }
     }
 }
@@ -3059,6 +3073,7 @@
                     <span class="macro">write!</span>(f, <span class="string">"{{ {:?} }}"</span>, exprs.iter().format(<span class="string">", "</span>))
                 }
             }
+            ExprKind::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
         }
     }
 }
@@ -3089,6 +3104,7 @@
             Sort::Loc =&gt; <span class="macro">write!</span>(f, <span class="string">"loc"</span>),
             Sort::Func(fsort) =&gt; <span class="macro">write!</span>(f, <span class="string">"{fsort:?}"</span>),
             Sort::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
+            Sort::Err(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"err"</span>),
         }
     }
 }

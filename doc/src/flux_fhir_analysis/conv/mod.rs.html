@@ -2751,7 +2751,11 @@
 <a href="#2750" id="2750">2750</a>
 <a href="#2751" id="2751">2751</a>
 <a href="#2752" id="2752">2752</a>
-<a href="#2753" id="2753">2753</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2753" id="2753">2753</a>
+<a href="#2754" id="2754">2754</a>
+<a href="#2755" id="2755">2755</a>
+<a href="#2756" id="2756">2756</a>
+<a href="#2757" id="2757">2757</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3553,6 +3557,7 @@
             fhir::Sort::Loc =&gt; rty::Sort::Loc,
             fhir::Sort::Func(fsort) =&gt; rty::Sort::Func(<span class="self">self</span>.conv_poly_func_sort(fsort)<span class="question-mark">?</span>),
             fhir::Sort::Infer =&gt; rty::Sort::Infer(rty::SortVar(<span class="self">self</span>.next_sort_vid())),
+            fhir::Sort::Err(<span class="kw">_</span>) =&gt; rty::Sort::Err,
         };
         <span class="prelude-val">Ok</span>(sort)
     }
@@ -3980,6 +3985,7 @@
                 }
             }
             fhir::TyKind::Infer =&gt; <span class="prelude-val">Ok</span>(rty::Ty::infer(<span class="self">self</span>.next_type_vid())),
+            fhir::TyKind::Err(err) =&gt; <span class="prelude-val">Err</span>(QueryErr::Emitted(<span class="kw-2">*</span>err)),
         }
     }
 
@@ -4144,6 +4150,7 @@
                 <span class="kw">let </span>ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 <span class="prelude-val">Ok</span>(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
+            fhir::BaseTyKind::Err(err) =&gt; <span class="prelude-val">Err</span>(QueryErr::Emitted(<span class="kw-2">*</span>err)),
         }
     }
 
@@ -4818,6 +4825,7 @@
                 <span class="kw">let </span>assns = <span class="self">self</span>.conv_constructor_exprs(def_id, env, exprs, spread)<span class="question-mark">?</span>;
                 rty::Expr::ctor_struct(def_id, assns)
             }
+            fhir::ExprKind::Err(err) =&gt; <span class="prelude-val">Err</span>(QueryErr::Emitted(<span class="kw-2">*</span>err))<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(expr, fhir_id))
     }

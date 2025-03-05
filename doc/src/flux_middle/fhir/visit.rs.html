@@ -526,7 +526,9 @@
 <a href="#525" id="525">525</a>
 <a href="#526" id="526">526</a>
 <a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, ForeignItemKind,
     FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind,
@@ -935,7 +937,7 @@
             <span class="macro">walk_list!</span>(vis, visit_poly_trait_ref, poly_traits);
             vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
         }
-        TyKind::Never | TyKind::Infer =&gt; {}
+        TyKind::Never | TyKind::Infer | TyKind::Err(<span class="kw">_</span>) =&gt; {}
     }
 }
 
@@ -943,6 +945,7 @@
     <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
         BaseTyKind::Path(path) =&gt; vis.visit_qpath(path),
         BaseTyKind::Slice(ty) =&gt; vis.visit_ty(ty),
+        BaseTyKind::Err(<span class="kw">_</span>) =&gt; {}
     }
 }
 
@@ -986,7 +989,7 @@
     <span class="kw">match </span>sort {
         Sort::Path(path) =&gt; vis.visit_sort_path(path),
         Sort::Func(func) =&gt; vis.visit_poly_func_sort(func),
-        Sort::Loc | Sort::BitVec(<span class="kw">_</span>) | Sort::Infer =&gt; {}
+        Sort::Loc | Sort::BitVec(<span class="kw">_</span>) | Sort::Infer | Sort::Err(<span class="kw">_</span>) =&gt; {}
     }
 }
 
@@ -1052,6 +1055,7 @@
                 vis.visit_expr(<span class="kw-2">&amp;</span>s.expr);
             }
         }
+        ExprKind::Err(<span class="kw">_</span>) =&gt; {}
     }
 }
 </code></pre></div></section></main></body></html>
