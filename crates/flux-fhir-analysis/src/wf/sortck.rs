@@ -202,6 +202,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 // println!("TRACE: sort-ck panic(1): {expr:?} => found={found:?}");
 
                 let expected = self.resolve_vars_if_possible(expected);
+
                 if !self.is_coercible(&found, &expected, expr.fhir_id) {
                     // println!(
                     //     "TRACE: sort-ck panic(2): {expr:?} => found={found:?}; expected={expected:?}"
@@ -222,10 +223,20 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn synth_lit(&mut self, lit: fhir::Lit) -> rty::Sort {
+        match lit {
+            fhir::Lit::Int(_) => rty::Sort::Int,
+            fhir::Lit::Bool(_) => rty::Sort::Bool,
+            fhir::Lit::Real(_) => rty::Sort::Real,
+            fhir::Lit::Str(_) => rty::Sort::Str,
+            fhir::Lit::Char(_) => rty::Sort::Char,
+        }
+    }
+
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_var(var),
-            fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
+            fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
@@ -332,6 +343,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    // CUT fn elab_lit_sort(&mut self, expr: &fhir::Expr, sort: &rty::Sort) {
+    // CUT     if let fhir::ExprKind::Literal(fhir::Lit::Int(_)) = &expr.kind {
+    // CUT         self.wfckresults
+    // CUT             .bin_rel_sorts_mut()
+    // CUT             .insert(expr.fhir_id, sort.clone());
+    // CUT     }
+    // CUT }
+
     fn synth_binary_op(
         &mut self,
         expr: &fhir::Expr,
@@ -380,10 +399,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self
                     .fully_resolve(&sort)
                     .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
+
                 self.wfckresults
                     .bin_rel_sorts_mut()
                     .insert(expr.fhir_id, sort.clone());
 
+                // check that the sort is integral for mod (and div?)
                 self.check_integral(op, &sort);
 
                 Ok(sort)
@@ -536,6 +557,7 @@ impl InferCtxt<'_, '_> {
     /// [`rty::SortCtor::Adt`] sort with a single field of sort `s` can be coerced to a value of sort
     /// `s` and vice versa, i.e., we can automatically project the field out of the record or inject
     /// a value into a record.
+    /// Additionally, an `Int` can be coerced into a `BitVec` via the `int_to_bitvec` function.
     fn is_coercible(&mut self, sort1: &rty::Sort, sort2: &rty::Sort, fhir_id: FhirId) -> bool {
         if self.try_equate(sort1, sort2).is_some() {
             return true;
@@ -553,6 +575,14 @@ impl InferCtxt<'_, '_> {
             coercions.push(rty::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
+        if let rty::Sort::Int = sort1
+            && let rty::Sort::BitVec(rty::BvSize::Fixed(size)) = sort2
+            && (size == 32 || size == 64)
+        {
+            coercions.push(rty::Coercion::IntToBitVec(size));
+            sort1 = sort2.clone();
+        }
+
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         self.try_equate(&sort1, &sort2).is_some()
     }
@@ -846,16 +876,6 @@ impl InferCtxt<'_, '_> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.genv.sess().emit_err(err)
-    }
-}
-
-fn synth_lit(lit: fhir::Lit) -> rty::Sort {
-    match lit {
-        fhir::Lit::Int(_) => rty::Sort::Int,
-        fhir::Lit::Bool(_) => rty::Sort::Bool,
-        fhir::Lit::Real(_) => rty::Sort::Real,
-        fhir::Lit::Str(_) => rty::Sort::Str,
-        fhir::Lit::Char(_) => rty::Sort::Char,
     }
 }
 

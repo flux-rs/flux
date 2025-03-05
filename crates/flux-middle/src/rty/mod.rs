@@ -2743,6 +2743,7 @@ pub struct WfckResults {
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),
+    IntToBitVec(usize),
 }
 
 pub type ItemLocalMap<T> = UnordMap<fhir::ItemLocalId, T>;

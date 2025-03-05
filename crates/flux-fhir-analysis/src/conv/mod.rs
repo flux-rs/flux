@@ -112,6 +112,7 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
 /// An interface to the information elaborated during sort checking. We mock these results in
 /// the first conversion phase during sort checking.
 pub trait WfckResultsProvider: Sized {
+    // TODO(RJ:bitvector-specs) rename or split?
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion];
@@ -1963,6 +1964,16 @@ fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
 
 /// Conversion of expressions
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
+    fn conv_lit(&self, lit: fhir::Lit) -> rty::Constant {
+        match lit {
+            fhir::Lit::Int(n) => rty::Constant::from(n),
+            fhir::Lit::Real(r) => rty::Constant::Real(rty::Real(r)),
+            fhir::Lit::Bool(b) => rty::Constant::from(b),
+            fhir::Lit::Str(s) => rty::Constant::from(s),
+            fhir::Lit::Char(c) => rty::Constant::from(c),
+        }
+    }
+
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
@@ -2001,7 +2012,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)).at(espan),
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant(self.conv_lit(*lit)).at(espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 rty::Expr::binary_op(
                     self.conv_bin_op(*op, expr.fhir_id),
@@ -2122,6 +2133,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
+    fn int_to_bv(size: usize) -> rty::Expr {
+        let func = Symbol::intern(&format!("bv_int_to_bv{}", size));
+        let name = flux_middle::THEORY_FUNCS.get(&func).unwrap().fixpoint_name;
+        rty::Expr::global_func(func, fhir::SpecFuncKind::Thy(name))
+    }
+
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
         let span = expr.span();
         for coercion in self.results().coercions_for(fhir_id) {
@@ -2132,6 +2149,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::Coercion::Project(def_id) => {
                     rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 })
                         .at_opt(span)
+                }
+                rty::Coercion::IntToBitVec(n) => {
+                    rty::Expr::app(Self::int_to_bv(n), List::singleton(expr)).at_opt(span)
                 }
             };
         }
@@ -2396,15 +2416,6 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
     Ok(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
 
-fn conv_lit(lit: fhir::Lit) -> rty::Constant {
-    match lit {
-        fhir::Lit::Int(n) => rty::Constant::from(n),
-        fhir::Lit::Real(r) => rty::Constant::Real(rty::Real(r)),
-        fhir::Lit::Bool(b) => rty::Constant::from(b),
-        fhir::Lit::Str(s) => rty::Constant::from(s),
-        fhir::Lit::Char(c) => rty::Constant::from(c),
-    }
-}
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
     match op {
         fhir::UnOp::Not => rty::UnOp::Not,
