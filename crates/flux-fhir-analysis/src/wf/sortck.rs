@@ -203,6 +203,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
+            fhir::ExprKind::Err(_) => {
+                // an error has already been reported so we can just skip
+            }
         }
         Ok(())
     }

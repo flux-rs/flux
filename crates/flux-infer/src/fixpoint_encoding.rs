@@ -346,7 +346,7 @@ impl SortEncodingCtxt {
                         }],
                     }
                 }),
-        )
+        );
     }
 
     fn into_data_decls(self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {

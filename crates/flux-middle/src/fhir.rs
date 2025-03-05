@@ -36,7 +36,7 @@ use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-use rustc_span::{Span, Symbol, symbol::Ident};
+use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
@@ -544,6 +544,7 @@ pub enum TyKind<'fhir> {
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
+    Err(ErrorGuaranteed),
 }
 
 pub struct BareFnTy<'fhir> {
@@ -639,6 +640,7 @@ impl<'fhir> BaseTy<'fhir> {
 pub enum BaseTyKind<'fhir> {
     Path(QPath<'fhir>),
     Slice(&'fhir Ty<'fhir>),
+    Err(ErrorGuaranteed),
 }
 
 #[derive(Clone, Copy)]
@@ -904,6 +906,7 @@ pub enum Sort<'fhir> {
     Func(PolyFuncSort<'fhir>),
     /// A sort that needs to be inferred.
     Infer,
+    Err(ErrorGuaranteed),
 }
 
 /// See [`flux_syntax::surface::SortPath`]
@@ -976,6 +979,7 @@ pub enum ExprKind<'fhir> {
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
+    Err(ErrorGuaranteed),
 }
 
 impl Expr<'_> {
@@ -1328,6 +1332,7 @@ impl fmt::Debug for Ty<'_> {
             TyKind::TraitObject(poly_traits, _lft, _syntax) => {
                 write!(f, "dyn {poly_traits:?}")
             }
+            TyKind::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1378,6 +1383,7 @@ impl fmt::Debug for BaseTy<'_> {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1483,6 +1489,7 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
             }
+            ExprKind::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1513,6 +1520,7 @@ impl fmt::Debug for Sort<'_> {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
             Sort::Infer => write!(f, "_"),
+            Sort::Err(_) => write!(f, "err"),
         }
     }
 }

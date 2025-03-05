@@ -123,6 +123,9 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.check_func_params_uses(&expr.expr, false, false);
                 }
             }
+            fhir::ExprKind::Err(_) => {
+                // an error has already been reported so we can just skip
+            }
         }
     }
 
