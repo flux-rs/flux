@@ -1163,17 +1163,32 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn name_to_fixpoint(name: &str) -> fixpoint::Expr {
+        let sym = Symbol::intern(name);
+        let func = THEORY_FUNCS.get(&sym).unwrap();
+        fixpoint::Expr::Var(fixpoint::Var::Itf(func.fixpoint_name))
+    }
+
+    fn bv_rel_to_fixpoint(&self, rel: &fixpoint::BinRel) -> fixpoint::Expr {
+        let name = match rel {
+            liquid_fixpoint::BinRel::Gt => "bv_ugt",
+            liquid_fixpoint::BinRel::Ge => "bv_uge",
+            liquid_fixpoint::BinRel::Lt => "bv_ult",
+            liquid_fixpoint::BinRel::Le => "bv_ule",
+            _ => span_bug!(self.def_span, "not a bitvector relation!"),
+        };
+        Self::name_to_fixpoint(name)
+    }
+
     fn bv_op_to_fixpoint(&self, op: &BinOp) -> fixpoint::Expr {
         let name = match op {
             BinOp::Add(_) => "bv_add",
             BinOp::Sub(_) => "bv_sub",
             BinOp::Mul(_) => "bv_mul",
             BinOp::Div(_) => "bv_sdiv",
-            _ => span_bug!(self.def_span, "not a bv-op!"),
+            _ => span_bug!(self.def_span, "not a bitvector operation!"),
         };
-        let sym = Symbol::intern(name);
-        let func = THEORY_FUNCS.get(&sym).unwrap();
-        fixpoint::Expr::Var(fixpoint::Var::Itf(func.fixpoint_name))
+        Self::name_to_fixpoint(name)
     }
 
     fn bin_op_to_fixpoint(
@@ -1287,6 +1302,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),
                 )
             }
+
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
                 self.apply_bin_rel_rec(sorts, rel, e1, e2, scx, |field| {
@@ -1301,6 +1317,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?
+            }
+            rty::Sort::BitVec(_) => {
+                let e1 = self.expr_to_fixpoint(e1, scx)?;
+                let e2 = self.expr_to_fixpoint(e2, scx)?;
+                match rel {
+                    liquid_fixpoint::BinRel::Eq | liquid_fixpoint::BinRel::Ne => {
+                        fixpoint::Expr::Atom(rel, Box::new([e1, e2]))
+                    }
+                    _ => {
+                        let rel = self.bv_rel_to_fixpoint(&rel);
+                        fixpoint::Expr::App(Box::new(rel), vec![e1, e2])
+                    }
+                }
             }
             _ => {
                 let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));

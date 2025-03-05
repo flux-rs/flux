@@ -343,14 +343,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    // CUT fn elab_lit_sort(&mut self, expr: &fhir::Expr, sort: &rty::Sort) {
-    // CUT     if let fhir::ExprKind::Literal(fhir::Lit::Int(_)) = &expr.kind {
-    // CUT         self.wfckresults
-    // CUT             .bin_rel_sorts_mut()
-    // CUT             .insert(expr.fhir_id, sort.clone());
-    // CUT     }
-    // CUT }
-
     fn synth_binary_op(
         &mut self,
         expr: &fhir::Expr,
