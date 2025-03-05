@@ -164,10 +164,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let name = assoc_reft.name.name;
                 let params = self.desugar_refine_params(&assoc_reft.params);
                 let output = self.desugar_base_sort(&assoc_reft.output, None);
-                let body = match &assoc_reft.body {
-                    Some(expr) => Some(self.desugar_expr(expr)),
-                    None => None,
-                };
+                let body = assoc_reft.body.as_ref().map(|expr| self.desugar_expr(expr));
                 fhir::TraitAssocReft { name, params, output, body, span: assoc_reft.span }
             }))
     }
@@ -216,11 +213,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             |hir_param| self.as_lift_cx().lift_generic_param(hir_param)
         )?;
 
-        let predicates = if let Some(predicates) = &generics.predicates {
-            Some(self.desugar_generic_predicates(predicates))
-        } else {
-            None
-        };
+        let predicates = generics
+            .predicates
+            .as_ref()
+            .map(|preds| self.desugar_generic_predicates(preds));
         Ok(fhir::Generics { params, refinement_params: &[], predicates })
     }
 
@@ -271,10 +267,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn desugar_refined_by(
-        &mut self,
-        refined_by: &surface::RefineParams,
-    ) -> Result<fhir::RefinedBy<'genv>> {
+    fn desugar_refined_by(&mut self, refined_by: &surface::RefineParams) -> fhir::RefinedBy<'genv> {
         let generic_id_to_var_idx =
             collect_generics_in_params(self.genv, self.owner, self.resolver_output, refined_by);
 
@@ -285,7 +278,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             })
             .collect();
 
-        Ok(fhir::RefinedBy::new(fields, generic_id_to_var_idx))
+        fhir::RefinedBy::new(fields, generic_id_to_var_idx)
     }
 
     pub(crate) fn desugar_struct_def(
@@ -293,7 +286,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         struct_def: &surface::StructDef,
     ) -> Result<fhir::Item<'genv>> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
-            self.desugar_refined_by(refined_by)?
+            self.desugar_refined_by(refined_by)
         } else {
             self.as_lift_cx().lift_refined_by()
         };
@@ -366,7 +359,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let kind = if enum_def.reflected {
             fhir::RefinementKind::Reflected
         } else if let Some(refined_by) = &enum_def.refined_by {
-            fhir::RefinementKind::Refined(self.desugar_refined_by(refined_by)?)
+            fhir::RefinementKind::Refined(self.desugar_refined_by(refined_by))
         } else {
             fhir::RefinementKind::Refined(self.as_lift_cx().lift_refined_by())
         };
@@ -501,22 +494,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
-    pub(crate) fn desugar_const_spec(
-        &mut self,
-        const_info: &surface::ConstantInfo,
-    ) -> Option<fhir::Expr<'genv>> {
-        let expr = match &const_info.expr {
-            Some(expr) => Some(self.desugar_expr(expr)),
-            None => None,
-        };
-        expr
-    }
-
     pub(crate) fn desugar_const(
         &mut self,
         const_info: &surface::ConstantInfo,
     ) -> Result<fhir::Item<'genv>> {
-        let expr = self.desugar_const_spec(const_info);
+        let expr = const_info.expr.as_ref().map(|e| self.desugar_expr(e));
         let owner_id = self.owner;
         let generics = self.as_lift_cx().lift_generics()?;
         let kind = fhir::ItemKind::Const(expr);
