@@ -794,8 +794,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(self.results(), 0, params));
         let expr = self.conv_expr(&mut env, body)?;
-        let inputs = env.pop_layer().into_bound_vars(self.genv())?;
         let output = self.conv_sort(output)?;
+        let inputs = env.pop_layer().into_bound_vars(self.genv())?;
         Ok(rty::Lambda::bind_with_vars(expr, inputs, output))
     }
 }
@@ -808,6 +808,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Sort::BitVec(size) => rty::Sort::BitVec(rty::BvSize::Fixed(*size)),
             fhir::Sort::Loc => rty::Sort::Loc,
             fhir::Sort::Func(fsort) => rty::Sort::Func(self.conv_poly_func_sort(fsort)?),
+            fhir::Sort::SortOf(bty) => {
+                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(&mut Env::empty(), bty)? else {
+                    // FIXME: maybe we should have a dedicated error for this
+                    return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
+                };
+                ty_ctor.sort()
+            }
             fhir::Sort::Infer => rty::Sort::Infer(rty::SortVar(self.next_sort_vid())),
             fhir::Sort::Err(_) => rty::Sort::Err,
         };

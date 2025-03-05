@@ -878,6 +878,7 @@ pub enum Sort<'fhir> {
     BitVec(u32),
     /// A polymorphic sort function.
     Func(PolyFuncSort<'fhir>),
+    SortOf(BaseTy<'fhir>),
     /// A sort that needs to be inferred.
     Infer,
     Err(ErrorGuaranteed),
@@ -1503,6 +1504,7 @@ impl fmt::Debug for Sort<'_> {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
+            Sort::SortOf(bty) => write!(f, "<{bty:?}>::sort"),
             Sort::Infer => write!(f, "_"),
             Sort::Err(_) => write!(f, "err"),
         }

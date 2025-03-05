@@ -893,7 +893,6 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(desugar_unresolved_path, code = E0999)]
-    #[help]
     pub struct UnresolvedPath {
         #[primary_span]
         pub span: Span,
