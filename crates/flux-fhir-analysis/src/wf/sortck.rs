@@ -367,13 +367,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
 
-                // Elaborate sort of operator
-
-                // Elaborate sort of operator
+                // Elaborate sort of operator (force as `Int` for `tests/pos/surface/forall01.rs`)
                 let sort = self.resolve_or_unify(&sort, rty::Sort::Int);
-                // CUT let sort = self
-                // CUT     .fully_resolve(&sort)
-                // CUT     .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
 
                 self.wfckresults
                     .bin_rel_sorts_mut()
@@ -393,7 +388,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 // Elaborate sort of operator
                 let sort = self.resolve_or_unify(&sort, rty::Sort::Int);
 
-                // CUT .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
                 self.wfckresults
                     .bin_rel_sorts_mut()
                     .insert(expr.fhir_id, sort.clone());
@@ -551,7 +545,6 @@ impl InferCtxt<'_, '_> {
     /// [`rty::SortCtor::Adt`] sort with a single field of sort `s` can be coerced to a value of sort
     /// `s` and vice versa, i.e., we can automatically project the field out of the record or inject
     /// a value into a record.
-    /// Additionally, an `Int` can be coerced into a `BitVec` via the `int_to_bitvec` function.
     fn is_coercible(&mut self, sort1: &rty::Sort, sort2: &rty::Sort, fhir_id: FhirId) -> bool {
         if self.try_equate(sort1, sort2).is_some() {
             return true;
@@ -569,14 +562,6 @@ impl InferCtxt<'_, '_> {
             coercions.push(rty::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
-        // CUT if let rty::Sort::Int = sort1
-        // CUT     && let rty::Sort::BitVec(rty::BvSize::Fixed(size)) = sort2
-        // CUT     && (size == 32 || size == 64)
-        // CUT {
-        // CUT     coercions.push(rty::Coercion::IntToBitVec(size));
-        // CUT     sort1 = sort2.clone();
-        // CUT }
-
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         self.try_equate(&sort1, &sort2).is_some()
     }
