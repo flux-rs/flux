@@ -181,7 +181,7 @@ impl WfckResultsProvider for WfckResults {
     }
 
     fn literal_sort(&self, fhir_id: FhirId) -> Option<rty::Sort> {
-        self.literal_sorts().get(fhir_id).cloned()
+        self.node_sorts().get(fhir_id).cloned()
     }
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
@@ -1969,21 +1969,26 @@ fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
 
 /// Conversion of expressions
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
-    fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId) -> rty::Constant {
+    fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
             fhir::Lit::Int(n) => {
                 if let Some(rty::Sort::BitVec(rty::BvSize::Fixed(size))) =
                     self.results().literal_sort(fhir_id)
                 {
-                    rty::Constant::BitVec(n.into(), size)
+                    debug_assert!(size == 32 || size == 64);
+                    if 0 <= n && n < (1 << size) {
+                        Ok(rty::Constant::BitVec(n.into(), size))
+                    } else {
+                        return Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?;
+                    }
                 } else {
-                    rty::Constant::from(n)
+                    Ok(rty::Constant::from(n))
                 }
             }
-            fhir::Lit::Real(r) => rty::Constant::Real(rty::Real(r)),
-            fhir::Lit::Bool(b) => rty::Constant::from(b),
-            fhir::Lit::Str(s) => rty::Constant::from(s),
-            fhir::Lit::Char(c) => rty::Constant::from(c),
+            fhir::Lit::Real(r) => Ok(rty::Constant::Real(rty::Real(r))),
+            fhir::Lit::Bool(b) => Ok(rty::Constant::from(b)),
+            fhir::Lit::Str(s) => Ok(rty::Constant::from(s)),
+            fhir::Lit::Char(c) => Ok(rty::Constant::from(c)),
         }
     }
 
@@ -2026,7 +2031,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::ExprKind::Literal(lit) => {
-                rty::Expr::constant(self.conv_lit(*lit, fhir_id)).at(espan)
+                rty::Expr::constant(self.conv_lit(*lit, fhir_id, expr.span)?).at(espan)
             }
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 rty::Expr::binary_op(
@@ -2724,6 +2729,20 @@ mod errors {
     pub(super) struct GenericsOnForeignTy {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
+    pub struct InvalidBitVectorConstant {
+        #[primary_span]
+        span: Span,
+        size: usize,
+    }
+
+    impl InvalidBitVectorConstant {
+        pub(crate) fn new(span: Span, size: usize) -> Self {
+            Self { span, size }
+        }
     }
 
     #[derive(Diagnostic)]

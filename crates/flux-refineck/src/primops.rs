@@ -28,7 +28,7 @@ use std::{hash::Hash, sync::LazyLock};
 use flux_common::tracked_span_bug;
 use flux_infer::infer::ConstrReason;
 use flux_macros::primop_rules;
-use flux_middle::rty::{self, BaseTy, Expr};
+use flux_middle::rty::{self, BaseTy, Expr, Sort};
 use flux_rustc_bridge::mir;
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
@@ -267,7 +267,7 @@ fn mk_rem_rules() -> RuleMatcher<2> {
 
         fn(a: T, b: T) -> T{v: E::implies(
                                    E::and(E::ge(a, 0), E::ge(b, 0)),
-                                   E::eq(v, E::binary_op(Mod(crate::rty::Sort::Int), a, b))) }
+                                   E::eq(v, E::binary_op(Mod(Sort::Int), a, b))) }
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_signed()
     }

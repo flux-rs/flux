@@ -748,7 +748,7 @@ impl InferCtxt<'_, '_> {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-            self.wfckresults.literal_sorts_mut().insert(fhir_id, sort);
+            self.wfckresults.node_sorts_mut().insert(fhir_id, sort);
         }
         Ok(self.wfckresults)
     }
