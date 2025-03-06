@@ -374,15 +374,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-
-                // CUT Elaborate sort of operator (force as `Int` for `tests/pos/surface/forall01.rs`)
-                // CUT let sort = self.resolve_or_unify(&sort, rty::Sort::Int);
-                // CUT self.wfckresults
-                // CUT     .bin_rel_sorts_mut()
-                // CUT     .insert(expr.fhir_id, sort);
                 self.sort_of_bin_rel
                     .insert(expr.fhir_id, (sort.clone(), span));
-
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Add
@@ -393,16 +386,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-
-                // Elaborate sort of operator
-                // CUT let sort = self.resolve_or_unify(&sort, rty::Sort::Int);
-                // CUT self.wfckresults
-                // CUT     .bin_rel_sorts_mut()
-                // CUT     .insert(expr.fhir_id, sort.clone());
-
                 self.sort_of_bin_rel
                     .insert(expr.fhir_id, (sort.clone(), span));
-
                 // check that the sort is integral for mod (and div?)
                 self.check_integral(op, &sort, span)?;
 
@@ -798,16 +783,6 @@ impl InferCtxt<'_, '_> {
     pub(crate) fn fully_resolve(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, ()> {
         sort.try_fold_with(&mut FullResolver { infcx: self })
     }
-
-    // CUT pub(crate) fn resolve_or_unify(&mut self, sort: &rty::Sort, expected: rty::Sort) -> rty::Sort {
-    // CUT     let sort = self.resolve_vars_if_possible(sort);
-    // CUT     if let rty::Sort::Infer(_) = sort {
-    // CUT         self.equate(&sort, &expected);
-    // CUT         expected
-    // CUT     } else {
-    // CUT         sort
-    // CUT     }
-    // CUT }
 }
 
 pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
