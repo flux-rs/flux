@@ -368,9 +368,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e2, &sort)?;
 
                 // Elaborate sort of operator
-                let sort = self
-                    .fully_resolve(&sort)
-                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
+
+                // Elaborate sort of operator
+                let sort = self.resolve_or_unify(&sort, rty::Sort::Int);
+                // CUT let sort = self
+                // CUT     .fully_resolve(&sort)
+                // CUT     .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
+
                 self.wfckresults
                     .bin_rel_sorts_mut()
                     .insert(expr.fhir_id, sort);

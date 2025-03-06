@@ -17,8 +17,8 @@ pub const START: BV32 = BV32::new(0x4567);
 #[flux_rs::constant(true)] //~ ERROR mismatched sorts
 pub const BAD1: BV32 = BV32::new(0x4567);
 
-#[flux_rs::constant(2+5)]
-pub const BAD2: BV32 = BV32::new(0x4567);
+#[flux_rs::constant(4)]
+pub const BAD2: BV32 = BV32::new(0x4);
 
 #[flux_rs::sig(fn () -> BV32[BAD1])]
 pub fn test1() -> BV32 {
