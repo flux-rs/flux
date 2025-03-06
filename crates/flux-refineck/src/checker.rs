@@ -7,7 +7,7 @@ use flux_infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
-    refine_tree::{Marker, RefineCtxtTrace},
+    refine_tree::{BinderOriginator, BinderProvenance, Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -277,11 +277,11 @@ fn check_fn_subtyping(
     let actuals = super_sig
         .inputs()
         .iter()
-        .map(|ty| infcx.unpack(ty))
+        .map(|ty| infcx.unpack(ty, BinderProvenance::new(BinderOriginator::FnSub).with_span(span)))
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals, span)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
@@ -420,6 +420,7 @@ fn unfold_local_ptrs(
     env: &mut TypeEnv,
     fn_sig: &PolyFnSig,
     actuals: &[Ty],
+    span: Span,
 ) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
     let fn_sig = fn_sig.skip_binder_ref();
@@ -430,7 +431,7 @@ fn unfold_local_ptrs(
             TyKind::StrgRef(_, _, _),
         ) = (actual.kind(), input.kind())
         {
-            let loc = env.unfold_local_ptr(infcx, bound)?;
+            let loc = env.unfold_local_ptr(infcx, bound, span)?;
             let path1 = Path::new(loc, rty::List::empty());
             Ty::ptr(PtrKind::Mut(*re), path1)
         } else {
@@ -578,7 +579,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         span: Span,
     ) -> InferResult {
-        let ty = infcx.hoister(true).hoist(&ty);
+        let ty = infcx.hoister(true, None).hoist(&ty);
         env.assign(&mut infcx.at(span), place, ty)
     }
 
@@ -701,7 +702,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let ty = self
                             .check_operand(infcx, env, terminator_span, operand)
                             .with_span(terminator_span)?;
-                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx.unpack(&ty).kind()
+                        if let TyKind::Indexed(BaseTy::FnPtr(fn_sig), _) = infcx
+                            .unpack(
+                                &ty,
+                                BinderProvenance::new(BinderOriginator::Call)
+                                    .with_span(terminator_span),
+                            )
+                            .kind()
                         {
                             self.check_call(
                                 infcx,
@@ -719,7 +726,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
-                let ret = infcx.unpack(&ret);
+                let ret = infcx.unpack(
+                    &ret,
+                    BinderProvenance::new(BinderOriginator::CallReturn).with_span(terminator_span),
+                );
                 infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
@@ -789,7 +799,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
 
         let actuals =
-            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
+            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals, span).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
@@ -1625,7 +1635,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
             Operand::Constant(c) => self.check_constant(c)?,
         };
-        Ok(infcx.hoister(true).hoist(&ty))
+        Ok(infcx.hoister(true, None).hoist(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> QueryResult<Ty> {
@@ -1893,7 +1903,7 @@ fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFn
             if let rty::Ref!(re, deref_ty, Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rty::Ty::mk_ref(*re, rcx.unpack(deref_ty), Mutability::Mut)
+                rty::Ty::mk_ref(*re, rcx.unpack(deref_ty, BinderProvenance::new(BinderOriginator::MutRefHack)), Mutability::Mut)
             } else {
                 actual.clone()
             }

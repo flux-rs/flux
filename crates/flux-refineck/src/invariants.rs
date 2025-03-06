@@ -4,6 +4,7 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
+    refine_tree::{BinderOriginator, BinderProvenance},
 };
 use flux_middle::{
     FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
@@ -73,7 +74,10 @@ fn check_invariant(
             .replace_bound_refts_with(|sort, _, _| rty::Expr::fvar(rcx.define_var(sort)));
 
         for ty in variant_sig.fields() {
-            let ty = rcx.unpack(ty);
+            let ty = rcx.unpack(
+                ty,
+                BinderProvenance::new(BinderOriginator::CheckInvariant).with_span(span),
+            );
             rcx.assume_invariants(&ty);
         }
         let pred = invariant.apply(&variant_sig.idx);
