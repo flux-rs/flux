@@ -691,13 +691,28 @@ where
     }
 }
 
-fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
+fn int_to_bv(size: usize) -> fixpoint::Expr {
+    let func = Symbol::intern(&format!("bv_int_to_bv{}", size));
+    let sym = flux_middle::THEORY_FUNCS.get(&func).unwrap().fixpoint_name;
+    fixpoint::Expr::Var(fixpoint::Var::Itf(sym))
+}
+
+fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     match cst {
-        rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
-        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
-        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
-        rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
-        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
+        rty::Constant::Int(i) => fixpoint::Expr::Constant(fixpoint::Constant::Numeral(i)),
+        rty::Constant::Real(r) => fixpoint::Expr::Constant(fixpoint::Constant::Decimal(r)),
+        rty::Constant::Bool(b) => fixpoint::Expr::Constant(fixpoint::Constant::Boolean(b)),
+        rty::Constant::Char(c) => {
+            fixpoint::Expr::Constant(fixpoint::Constant::Numeral(BigInt::from(u32::from(c))))
+        }
+        rty::Constant::Str(s) => {
+            fixpoint::Expr::Constant(fixpoint::Constant::String(fixpoint::SymStr(s)))
+        }
+        rty::Constant::BitVec(i, size) => {
+            let e = fixpoint::Expr::Constant(fixpoint::Constant::Numeral(i));
+            let func = int_to_bv(size);
+            fixpoint::Expr::App(Box::new(func), vec![e])
+        }
     }
 }
 
@@ -1054,7 +1069,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
+            rty::ExprKind::Constant(c) => const_to_fixpoint(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,

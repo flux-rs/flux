@@ -973,6 +973,7 @@ pub enum Constant {
     Bool(bool),
     Str(Symbol),
     Char(char),
+    BitVec(BigInt, usize),
 }
 
 impl Constant {
@@ -1331,6 +1332,7 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Constant::Int(i) => w!(cx, f, "{i}"),
+                Constant::BitVec(i, sz) => w!(cx, f, "bv({i}, {sz})"),
                 Constant::Real(r) => w!(cx, f, "{}.0", ^r.0),
                 Constant::Bool(b) => w!(cx, f, "{b}"),
                 Constant::Str(sym) => w!(cx, f, "\"{sym}\""),

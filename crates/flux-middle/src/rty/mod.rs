@@ -2733,6 +2733,7 @@ pub use crate::_Ref as Ref;
 pub struct WfckResults {
     pub owner: FluxOwnerId,
     bin_rel_sorts: ItemLocalMap<Sort>,
+    literal_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
@@ -2743,7 +2744,6 @@ pub struct WfckResults {
 pub enum Coercion {
     Inject(DefId),
     Project(DefId),
-    IntToBitVec(usize),
 }
 
 pub type ItemLocalMap<T> = UnordMap<fhir::ItemLocalId, T>;
@@ -2764,6 +2764,7 @@ impl WfckResults {
         Self {
             owner: owner.into(),
             bin_rel_sorts: ItemLocalMap::default(),
+            literal_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
@@ -2777,6 +2778,14 @@ impl WfckResults {
 
     pub fn bin_rel_sorts(&self) -> LocalTableInContext<Sort> {
         LocalTableInContext { owner: self.owner, data: &self.bin_rel_sorts }
+    }
+
+    pub fn literal_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.literal_sorts }
+    }
+
+    pub fn literal_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.literal_sorts }
     }
 
     pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
