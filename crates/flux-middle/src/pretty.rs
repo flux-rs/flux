@@ -217,7 +217,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             fully_qualified_paths: false,
             simplify_exprs: true,
             tags: true,
-            bindings_chain: true,
+            bindings_chain: false,
             preds_chain: true,
             full_spans: false,
             hide_uninit: true,
