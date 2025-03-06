@@ -10,7 +10,7 @@ use flux_common::{
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
-    refine_tree::Scope,
+    refine_tree::{BinderOriginator, BinderProvenance, Scope},
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -74,7 +74,12 @@ impl<'a> TypeEnv<'a> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
-            let ty = infcx.unpack(ty);
+            let ty = infcx.unpack(
+                ty,
+                BinderProvenance::new(BinderOriginator::FnDef)
+                    // HACK(ck) This is wrong but better than nothing
+                    .with_span(body.span()),
+            );
             infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
@@ -279,7 +284,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.hoister(true).hoist(ty));
+        self.bindings
+            .fmap_mut(|ty| infcx.hoister(true, None).hoist(ty));
     }
 
     pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
@@ -322,9 +328,11 @@ impl<'a> TypeEnv<'a> {
         &mut self,
         infcx: &mut InferCtxt,
         bound: &Ty,
+        span: Span,
     ) -> InferResult<Loc> {
         let loc = Loc::from(infcx.define_var(&Sort::Loc));
-        let ty = infcx.unpack(bound);
+        let ty =
+            infcx.unpack(bound, BinderProvenance::new(BinderOriginator::UnfoldPtr).with_span(span));
         self.bindings
             .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
         Ok(loc)
@@ -341,7 +349,8 @@ impl<'a> TypeEnv<'a> {
         ty: &Ty,
     ) -> InferResult<Loc> {
         if let Some(loc) = path.to_loc() {
-            let ty = infcx.unpack(ty);
+            // TODO(ck): Add span info
+            let ty = infcx.unpack(ty, BinderProvenance::new(BinderOriginator::UnfoldStrgRef));
             self.bindings.insert(loc, LocKind::Universal, ty);
             Ok(loc)
         } else {
@@ -386,7 +395,10 @@ impl<'a> TypeEnv<'a> {
         for ensure in ensures {
             match ensure {
                 Ensures::Type(path, updated_ty) => {
-                    let updated_ty = infcx.unpack(updated_ty);
+                    let updated_ty = infcx.unpack(
+                        updated_ty,
+                        BinderProvenance::new(BinderOriginator::AssumeEnsures).with_span(span),
+                    );
                     infcx.assume_invariants(&updated_ty);
                     self.update_path(path, updated_ty, span);
                 }
