@@ -18,12 +18,13 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
 use serde::Serialize;
 
 use crate::{
     evars::EVarStore,
     fixpoint_encoding::{FixpointCtxt, fixpoint},
-    infer::{Tag, TypeTrace},
+    infer::{ConstrReason, Tag, TypeTrace},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -125,9 +126,15 @@ impl<'a> Cursor<'a> {
 
     /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
     /// node. It returns the freshly generated name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+    pub(crate) fn define_var(
+        &mut self,
+        sort: &Sort,
+        binder_provenance: Option<BinderProvenance>,
+    ) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
-        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        self.ptr = self
+            .ptr
+            .push_node(NodeKind::ForAll(fresh, sort.clone(), binder_provenance));
         fresh
     }
 
@@ -162,8 +169,10 @@ impl<'a> Cursor<'a> {
         &mut self,
         tcx: TyCtxt<'tcx>,
         assume_invariants: AssumeInvariants,
+        binder_provenance: Option<BinderProvenance>,
     ) -> Hoister<Unpacker<'_, 'a, 'tcx>> {
-        Hoister::with_delegate(Unpacker { tcx, cursor: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { tcx, cursor: self, assume_invariants, binder_provenance })
+            .transparent()
     }
 
     pub(crate) fn assume_invariants(&mut self, tcx: TyCtxt, ty: &Ty, overflow_checking: bool) {
@@ -314,7 +323,7 @@ impl NodePtr {
                         params = Some(p.clone());
                         None
                     }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    NodeKind::ForAll(_, sort, _) => Some(sort.clone()),
                     _ => None,
                 }
             })
@@ -337,7 +346,7 @@ impl WeakNodePtr {
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    ForAll(Name, Sort),
+    ForAll(Name, Sort, Option<BinderProvenance>),
     Assumption(Expr),
     Head(Expr, Tag),
     True,
@@ -360,12 +369,14 @@ pub struct Unpacker<'a, 'b, 'tcx> {
     tcx: TyCtxt<'tcx>,
     cursor: &'a mut Cursor<'b>,
     assume_invariants: AssumeInvariants,
+    binder_provenance: Option<BinderProvenance>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.cursor.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| {
+            Expr::fvar(self.cursor.define_var(sort, self.binder_provenance.clone()))
+        });
         if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
             self.cursor.assume_invariants(self.tcx, &ty, check_overflow);
         }
@@ -452,7 +463,7 @@ impl Node {
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children)?
             }
 
@@ -476,7 +487,7 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort) => {
+            NodeKind::ForAll(name, sort, _) => {
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
@@ -573,11 +584,18 @@ mod pretty {
 
     use super::*;
 
-    fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
-        fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
+    type Binding = (Name, Sort, Option<BinderProvenance>);
+
+    fn bindings_chain(
+        ptr: &NodePtr,
+    ) -> (Vec<Binding>, Vec<NodePtr>) {
+        fn go(
+            ptr: &NodePtr,
+            mut bindings: Vec<Binding>,
+        ) -> (Vec<Binding>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::ForAll(name, sort) = &node.kind {
-                bindings.push((*name, sort.clone()));
+            if let NodeKind::ForAll(name, sort, bp) = &node.kind {
+                bindings.push((*name, sort.clone(), bp.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
                 } else {
@@ -632,19 +650,23 @@ mod pretty {
                     )?;
                     fmt_children(&node.children, cx, f)
                 }
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, bp) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
-                        (vec![(*name, sort.clone())], node.children.clone())
+                        (vec![(*name, sort.clone(), bp.clone())], node.children.clone())
                     };
 
                     w!(cx, f,
                         "∀ {}.",
                         ^bindings
                             .into_iter()
-                            .format_with(", ", |(name, sort), f| {
-                                f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
+                            .format_with(", ", |(name, sort, bp), f| {
+                                if cx.tags && let Some(bp) = bp {
+                                    f(&format_args_cx!(cx, "{:?}: {:?} ~ {:?}", ^name, sort, bp))
+                                } else {
+                                    f(&format_args_cx!(cx, "{:?}: {:?}", ^name, sort))
+                                }
                             })
                     )?;
                     fmt_children(&children, cx, f)
@@ -692,6 +714,25 @@ mod pretty {
         }
     }
 
+    impl Pretty for BinderProvenance {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self.span {
+                Some(s) => {
+                    w!(cx, f, "{:?} at {:?}", &self.originator, &s)
+                }
+                None => {
+                    w!(cx, f, "{:?} (span unknown)", &self.originator)
+                }
+            }
+        }
+    }
+
+    impl Pretty for BinderOriginator {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            w!(cx, f, "{:?}", ^self)
+        }
+    }
+
     impl Pretty for Cursor<'_> {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let mut elements = vec![];
@@ -704,7 +745,7 @@ mod pretty {
                             elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
-                    NodeKind::ForAll(name, sort) => {
+                    NodeKind::ForAll(name, sort, _) => {
                         elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
                     NodeKind::Assumption(pred) => {
@@ -770,7 +811,7 @@ impl RefineCtxtTrace {
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, _) => {
                     let bind = RcxBind {
                         name: format_cx!(cx, "{:?}", ^name),
                         sort: format_cx!(cx, "{:?}", sort),
@@ -795,4 +836,44 @@ impl RefineCtxtTrace {
         });
         Self { bindings, exprs }
     }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct BinderProvenance {
+    /// Whence?
+    span: Option<Span>,
+    /// Why?
+    originator: BinderOriginator,
+}
+
+impl BinderProvenance {
+    pub fn new(originator: BinderOriginator) -> Self {
+        BinderProvenance { span: None, originator }
+    }
+
+    pub fn with_span(self, span: Span) -> Self {
+        BinderProvenance { span: Some(span), originator: self.originator }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum BinderOriginator {
+    /// Subtyping check
+    Sub(ConstrReason),
+    /// Function subtyping check
+    FnSub,
+    /// Function call
+    Call,
+    /// The return of a function call
+    CallReturn,
+    /// Arguments from the definition of a function
+    FnDef,
+    /// Unfold a local pointer
+    UnfoldPtr,
+    /// Unfold a strong ref
+    UnfoldStrgRef,
+    /// Assume an ensures
+    AssumeEnsures,
+    /// Check an invariant
+    CheckInvariant,
 }

@@ -29,7 +29,10 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
+    refine_tree::{
+        AssumeInvariants, BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope,
+        Unpacker,
+    },
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -410,7 +413,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+        self.cursor.define_var(sort, None)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -421,15 +424,19 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.assume_pred(pred);
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.hoister(false).hoist(ty)
+    pub fn unpack(&mut self, ty: &Ty, binder_provenance: BinderProvenance) -> Ty {
+        self.hoister(false, Some(binder_provenance)).hoist(ty)
     }
 
     pub fn marker(&self) -> Marker {
         self.cursor.marker()
     }
 
-    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx, 'tcx>> {
+    pub fn hoister(
+        &mut self,
+        assume_invariants: bool,
+        binder_provenance: Option<BinderProvenance>,
+    ) -> Hoister<Unpacker<'_, 'infcx, 'tcx>> {
         self.cursor.hoister(
             self.genv.tcx(),
             if assume_invariants {
@@ -437,6 +444,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             } else {
                 AssumeInvariants::No
             },
+            binder_provenance,
         )
     }
 
@@ -676,7 +684,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        let a = infcx.unpack(a);
+        let a = infcx.unpack(
+            a,
+            BinderProvenance::new(BinderOriginator::Sub(self.reason)).with_span(self.span),
+        );
 
         match (a.kind(), b.kind()) {
             (TyKind::Exists(..), _) => {
