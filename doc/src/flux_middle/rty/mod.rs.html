@@ -2822,7 +2822,9 @@
 <a href="#2821" id="2821">2821</a>
 <a href="#2822" id="2822">2822</a>
 <a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -3663,6 +3665,7 @@
 </span><span class="kw">pub enum </span>NumVarValue {
     Real,
     Int,
+    BitVec(BvSize),
 }
 
 <span class="kw">impl </span>NumVarValue {
@@ -3670,6 +3673,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             NumVarValue::Real =&gt; Sort::Real,
             NumVarValue::Int =&gt; Sort::Int,
+            NumVarValue::BitVec(size) =&gt; Sort::BitVec(size),
         }
     }
 }

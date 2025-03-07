@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["synth_lit"],"struct":["FullResolver","ImplicitParamInferer","InferCtxt","OpportunisticResolver","ShallowResolver"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"struct":["FullResolver","ImplicitParamInferer","InferCtxt","OpportunisticResolver","ShallowResolver"],"type":["Result"]};

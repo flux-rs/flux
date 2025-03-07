@@ -2755,7 +2755,45 @@
 <a href="#2754" id="2754">2754</a>
 <a href="#2755" id="2755">2755</a>
 <a href="#2756" id="2756">2756</a>
-<a href="#2757" id="2757">2757</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2757" id="2757">2757</a>
+<a href="#2758" id="2758">2758</a>
+<a href="#2759" id="2759">2759</a>
+<a href="#2760" id="2760">2760</a>
+<a href="#2761" id="2761">2761</a>
+<a href="#2762" id="2762">2762</a>
+<a href="#2763" id="2763">2763</a>
+<a href="#2764" id="2764">2764</a>
+<a href="#2765" id="2765">2765</a>
+<a href="#2766" id="2766">2766</a>
+<a href="#2767" id="2767">2767</a>
+<a href="#2768" id="2768">2768</a>
+<a href="#2769" id="2769">2769</a>
+<a href="#2770" id="2770">2770</a>
+<a href="#2771" id="2771">2771</a>
+<a href="#2772" id="2772">2772</a>
+<a href="#2773" id="2773">2773</a>
+<a href="#2774" id="2774">2774</a>
+<a href="#2775" id="2775">2775</a>
+<a href="#2776" id="2776">2776</a>
+<a href="#2777" id="2777">2777</a>
+<a href="#2778" id="2778">2778</a>
+<a href="#2779" id="2779">2779</a>
+<a href="#2780" id="2780">2780</a>
+<a href="#2781" id="2781">2781</a>
+<a href="#2782" id="2782">2782</a>
+<a href="#2783" id="2783">2783</a>
+<a href="#2784" id="2784">2784</a>
+<a href="#2785" id="2785">2785</a>
+<a href="#2786" id="2786">2786</a>
+<a href="#2787" id="2787">2787</a>
+<a href="#2788" id="2788">2788</a>
+<a href="#2789" id="2789">2789</a>
+<a href="#2790" id="2790">2790</a>
+<a href="#2791" id="2791">2791</a>
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2871,6 +2909,8 @@
 </span><span class="kw">pub trait </span>WfckResultsProvider: Sized {
     <span class="kw">fn </span>bin_rel_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
 
+    <span class="kw">fn </span>literal_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
+
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion];
 
     <span class="kw">fn </span>field_proj(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::FieldProj;
@@ -2933,6 +2973,13 @@
             .get(fhir_id)
             .cloned()
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"binary relation without elaborated sort `{fhir_id:?}`"</span>))
+    }
+
+    <span class="kw">fn </span>literal_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
+        <span class="self">self</span>.node_sorts()
+            .get(fhir_id)
+            .cloned()
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"literal without elaborated sort `{fhir_id:?}`"</span>))
     }
 
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion] {
@@ -4723,6 +4770,28 @@
 
 <span class="doccomment">/// Conversion of expressions
 </span><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>: <span class="lifetime">'genv</span>, P: ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; ConvCtxt&lt;P&gt; {
+    <span class="kw">fn </span>conv_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, lit: fhir::Lit, fhir_id: FhirId, span: Span) -&gt; QueryResult&lt;rty::Constant&gt; {
+        <span class="kw">match </span>lit {
+            fhir::Lit::Int(n) =&gt; {
+                <span class="kw">if let </span>rty::Sort::BitVec(rty::BvSize::Fixed(size)) =
+                    <span class="self">self</span>.results().literal_sort(fhir_id)
+                {
+                    <span class="kw">if </span><span class="number">0 </span>&lt;= n &amp;&amp; (n == <span class="number">0 </span>|| n.ilog2() &lt; size.try_into().unwrap()) {
+                        <span class="prelude-val">Ok</span>(rty::Constant::BitVec(n.into(), size))
+                    } <span class="kw">else </span>{
+                        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidBitVectorConstant::new(span, size)))<span class="question-mark">?
+                    </span>}
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(rty::Constant::from(n))
+                }
+            }
+            fhir::Lit::Real(r) =&gt; <span class="prelude-val">Ok</span>(rty::Constant::Real(rty::Real(r))),
+            fhir::Lit::Bool(b) =&gt; <span class="prelude-val">Ok</span>(rty::Constant::from(b)),
+            fhir::Lit::Str(s) =&gt; <span class="prelude-val">Ok</span>(rty::Constant::from(s)),
+            fhir::Lit::Char(c) =&gt; <span class="prelude-val">Ok</span>(rty::Constant::from(c)),
+        }
+    }
+
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
         <span class="kw">let </span>espan = ESpan::new(expr.span);
@@ -4761,7 +4830,9 @@
                     }
                 }
             }
-            fhir::ExprKind::Literal(lit) =&gt; rty::Expr::constant(conv_lit(<span class="kw-2">*</span>lit)).at(espan),
+            fhir::ExprKind::Literal(lit) =&gt; {
+                rty::Expr::constant(<span class="self">self</span>.conv_lit(<span class="kw-2">*</span>lit, fhir_id, expr.span)<span class="question-mark">?</span>).at(espan)
+            }
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; {
                 rty::Expr::binary_op(
                     <span class="self">self</span>.conv_bin_op(<span class="kw-2">*</span>op, expr.fhir_id),
@@ -4875,11 +4946,11 @@
             fhir::BinOp::Ge =&gt; rty::BinOp::Ge(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Lt =&gt; rty::BinOp::Lt(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Le =&gt; rty::BinOp::Le(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Add =&gt; rty::BinOp::Add,
-            fhir::BinOp::Sub =&gt; rty::BinOp::Sub,
-            fhir::BinOp::Mod =&gt; rty::BinOp::Mod,
-            fhir::BinOp::Mul =&gt; rty::BinOp::Mul,
-            fhir::BinOp::Div =&gt; rty::BinOp::Div,
+            fhir::BinOp::Add =&gt; rty::BinOp::Add(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Sub =&gt; rty::BinOp::Sub(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Mul =&gt; rty::BinOp::Mul(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Mod =&gt; rty::BinOp::Mod(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Div =&gt; rty::BinOp::Div(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
         }
     }
 
@@ -5157,15 +5228,6 @@
     <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
 
-<span class="kw">fn </span>conv_lit(lit: fhir::Lit) -&gt; rty::Constant {
-    <span class="kw">match </span>lit {
-        fhir::Lit::Int(n) =&gt; rty::Constant::from(n),
-        fhir::Lit::Real(r) =&gt; rty::Constant::Real(rty::Real(r)),
-        fhir::Lit::Bool(b) =&gt; rty::Constant::from(b),
-        fhir::Lit::Str(s) =&gt; rty::Constant::from(s),
-        fhir::Lit::Char(c) =&gt; rty::Constant::from(c),
-    }
-}
 <span class="kw">fn </span>conv_un_op(op: fhir::UnOp) -&gt; rty::UnOp {
     <span class="kw">match </span>op {
         fhir::UnOp::Not =&gt; rty::UnOp::Not,
@@ -5468,6 +5530,20 @@
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsOnForeignTy {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
+    </span><span class="kw">pub struct </span>InvalidBitVectorConstant {
+        <span class="attr">#[primary_span]
+        </span>span: Span,
+        size: usize,
+    }
+
+    <span class="kw">impl </span>InvalidBitVectorConstant {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, size: usize) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span, size }
+        }
     }
 
     <span class="attr">#[derive(Diagnostic)]

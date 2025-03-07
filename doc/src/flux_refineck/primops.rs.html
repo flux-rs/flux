@@ -433,7 +433,7 @@
 ///         // the invariants of `==`.
 ///         fn(a: T, b: T) -&gt; bool[E::eq(a, b)]
 ///         if T.is_integral() || T.is_bool() || T.is_char() || T.is_str()
-///         
+///
 ///         // Otherwise, if the `BaseTy` is opaque, then we can't reason
 ///         // about equality. Flux only knows that the return type is a boolean,
 ///         // but the return value is unrefined.
@@ -446,7 +446,7 @@
 <span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_infer::infer::ConstrReason;
 <span class="kw">use </span>flux_macros::primop_rules;
-<span class="kw">use </span>flux_middle::rty::{<span class="self">self</span>, BaseTy, Expr};
+<span class="kw">use </span>flux_middle::rty::{<span class="self">self</span>, BaseTy, Expr, Sort};
 <span class="kw">use </span>flux_rustc_bridge::mir;
 <span class="kw">use </span>rty::{BinOp::Mod, Expr <span class="kw">as </span>E};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -679,13 +679,13 @@
 <span class="doccomment">/// `a % b`
 </span><span class="kw">fn </span>mk_rem_rules() -&gt; RuleMatcher&lt;<span class="number">2</span>&gt; {
     <span class="macro">primop_rules!</span> {
-        <span class="kw">fn</span>(a: T, b: T) -&gt; T[E::binary_op(Mod, a, b)]
+        <span class="kw">fn</span>(a: T, b: T) -&gt; T[E::binary_op(Mod(Sort::Int), a, b)]
         requires E::ne(b, <span class="number">0</span>) =&gt; ConstrReason::Rem
         <span class="kw">if </span>T.is_unsigned()
 
         <span class="kw">fn</span>(a: T, b: T) -&gt; T{v: E::implies(
                                    E::and(E::ge(a, <span class="number">0</span>), E::ge(b, <span class="number">0</span>)),
-                                   E::eq(v, E::binary_op(Mod, a, b))) }
+                                   E::eq(v, E::binary_op(Mod(Sort::Int), a, b))) }
         requires E::ne(b, <span class="number">0</span>) =&gt; ConstrReason::Rem
         <span class="kw">if </span>T.is_signed()
     }

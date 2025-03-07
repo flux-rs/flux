@@ -893,7 +893,49 @@
 <a href="#892" id="892">892</a>
 <a href="#893" id="893">893</a>
 <a href="#894" id="894">894</a>
-<a href="#895" id="895">895</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -925,6 +967,8 @@
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
     bv_size_unification_table: InPlaceUnificationTable&lt;rty::BvSizeVid&gt;,
     sort_of_bty: FxHashMap&lt;FhirId, rty::Sort&gt;,
+    sort_of_literal: FxHashMap&lt;FhirId, (rty::Sort, Span)&gt;,
+    sort_of_bin_rel: FxHashMap&lt;FhirId, (rty::Sort, Span)&gt;,
     path_args: UnordMap&lt;FhirId, rty::GenericArgs&gt;,
     sort_of_alias_reft: FxHashMap&lt;FhirId, rty::FuncSort&gt;,
 }
@@ -942,6 +986,8 @@
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
+            sort_of_literal: Default::default(),
+            sort_of_bin_rel: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
@@ -1114,10 +1160,25 @@
         }
     }
 
+    <span class="kw">fn </span>synth_lit(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lit: fhir::Lit, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; rty::Sort {
+        <span class="kw">match </span>lit {
+            fhir::Lit::Int(<span class="kw">_</span>) =&gt; {
+                <span class="kw">let </span>sort = <span class="self">self</span>.next_num_var();
+                <span class="self">self</span>.sort_of_literal
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                sort
+            }
+            fhir::Lit::Bool(<span class="kw">_</span>) =&gt; rty::Sort::Bool,
+            fhir::Lit::Real(<span class="kw">_</span>) =&gt; rty::Sort::Real,
+            fhir::Lit::Str(<span class="kw">_</span>) =&gt; rty::Sort::Str,
+            fhir::Lit::Char(<span class="kw">_</span>) =&gt; rty::Sort::Char,
+        }
+    }
+
     <span class="kw">fn </span>synth_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="self">self</span>.synth_var(var),
-            fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(synth_lit(<span class="kw-2">*</span>lit)),
+            fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.synth_lit(<span class="kw-2">*</span>lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.synth_unary_op(<span class="kw-2">*</span>op, e),
             fhir::ExprKind::App(f, es) =&gt; <span class="self">self</span>.synth_app(f, es, expr.span),
@@ -1215,6 +1276,18 @@
         }
     }
 
+    <span class="kw">fn </span>check_integral(<span class="kw-2">&amp;mut </span><span class="self">self</span>, op: fhir::BinOp, sort: <span class="kw-2">&amp;</span>rty::Sort, span: Span) -&gt; <span class="prelude-ty">Result</span> {
+        <span class="kw">if </span><span class="macro">matches!</span>(op, fhir::BinOp::Mod) {
+            <span class="kw">let </span>sort = <span class="self">self
+                </span>.fully_resolve(sort)
+                .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(span)))<span class="question-mark">?</span>;
+            <span class="kw">if </span>!<span class="macro">matches!</span>(sort, rty::Sort::Int | rty::Sort::BitVec(<span class="kw">_</span>)) {
+                <span class="macro">span_bug!</span>(span, <span class="string">"unexpected sort {sort:?} for operator {op:?}"</span>);
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>synth_binary_op(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>fhir::Expr,
@@ -1234,30 +1307,28 @@
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
-            fhir::BinOp::Mod =&gt; {
-                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>rty::Sort::Int)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>rty::Sort::Int)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(rty::Sort::Int)
-            }
+
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>.next_sort_var();
                 <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-
-                <span class="comment">// Elaborate sort of operator
-                </span><span class="kw">let </span>sort = <span class="self">self
-                    </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
-                    .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(expr.span)))<span class="question-mark">?</span>;
-                <span class="self">self</span>.wfckresults
-                    .bin_rel_sorts_mut()
-                    .insert(expr.fhir_id, sort);
-
+                <span class="self">self</span>.sort_of_bin_rel
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
                 <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
-            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div =&gt; {
+            fhir::BinOp::Add
+            | fhir::BinOp::Sub
+            | fhir::BinOp::Mul
+            | fhir::BinOp::Div
+            | fhir::BinOp::Mod =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>.next_num_var();
                 <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="self">self</span>.sort_of_bin_rel
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                <span class="comment">// check that the sort is integral for mod
+                </span><span class="self">self</span>.check_integral(op, <span class="kw-2">&amp;</span>sort, expr.span)<span class="question-mark">?</span>;
+
                 <span class="prelude-val">Ok</span>(sort)
             }
         }
@@ -1499,6 +1570,13 @@
                     .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(rty::NumVarValue::Real))
                     .ok()<span class="question-mark">?</span>;
             }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::BitVec(sz))
+            | (rty::Sort::BitVec(sz), rty::Sort::Infer(rty::NumVar(vid))) =&gt; {
+                <span class="self">self</span>.num_unification_table
+                    .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(rty::NumVarValue::BitVec(<span class="kw-2">*</span>sz)))
+                    .ok()<span class="question-mark">?</span>;
+            }
+
             (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) =&gt; {
                 <span class="kw">if </span>ctor1 != ctor2 || args1.len() != args2.len() {
                     <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -1599,8 +1677,24 @@
         </span>}
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults {
-        <span class="self">self</span>.wfckresults
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
+        <span class="comment">// Make sure the int literals are fully resolved
+        </span><span class="kw">for </span>(fhir_id, (sort, span)) <span class="kw">in </span><span class="self">self</span>.sort_of_literal.clone() {
+            <span class="kw">let </span>sort = <span class="self">self
+                </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
+                .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(span)))<span class="question-mark">?</span>;
+            <span class="self">self</span>.wfckresults.node_sorts_mut().insert(fhir_id, sort);
+        }
+
+        <span class="comment">// Make sure the binary operators are fully resolved
+        </span><span class="kw">for </span>(fhir_id, (sort, span)) <span class="kw">in </span><span class="self">self</span>.sort_of_bin_rel.clone() {
+            <span class="kw">let </span>sort = <span class="self">self
+                </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
+                .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(span)))<span class="question-mark">?</span>;
+            <span class="self">self</span>.wfckresults.bin_rel_sorts_mut().insert(fhir_id, sort);
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.wfckresults)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; fhir::InferMode {
@@ -1711,16 +1805,6 @@
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'b</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.genv.sess().emit_err(err)
-    }
-}
-
-<span class="kw">fn </span>synth_lit(lit: fhir::Lit) -&gt; rty::Sort {
-    <span class="kw">match </span>lit {
-        fhir::Lit::Int(<span class="kw">_</span>) =&gt; rty::Sort::Int,
-        fhir::Lit::Bool(<span class="kw">_</span>) =&gt; rty::Sort::Bool,
-        fhir::Lit::Real(<span class="kw">_</span>) =&gt; rty::Sort::Real,
-        fhir::Lit::Str(<span class="kw">_</span>) =&gt; rty::Sort::Str,
-        fhir::Lit::Char(<span class="kw">_</span>) =&gt; rty::Sort::Char,
     }
 }
 
