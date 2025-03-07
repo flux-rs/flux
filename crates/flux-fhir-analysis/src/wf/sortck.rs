@@ -8,7 +8,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self, AdtSortDef, WfckResults,
+        self, AdtSortDef, FuncSort, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
     },
 };
@@ -244,7 +244,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
-            fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
+            fhir::ExprKind::App(f, es) => {
+                let fsort = self.synth_func(f)?;
+                self.synth_app(fsort, es, expr.span)
+            }
+
             fhir::ExprKind::Alias(_alias_reft, func_args) => {
                 // To check the application we only need the sort of `_alias_reft` which we collected
                 // during early conv, but should we do any extra checks on `_alias_reft`?
@@ -370,7 +374,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e2, &sort)?;
                 Ok(rty::Sort::Bool)
             }
-
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
@@ -394,7 +397,32 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
                 Ok(sort)
             }
+            fhir::BinOp::BitAnd
+            | fhir::BinOp::BitOr
+            | fhir::BinOp::BitShl
+            | fhir::BinOp::BitShr => self.synth_bitvec_op(expr, op, e1, e2),
         }
+    }
+
+    fn synth_bitvec_op(
+        &mut self,
+        expr: &fhir::Expr,
+        op: fhir::BinOp,
+        e1: &fhir::Expr,
+        e2: &fhir::Expr,
+    ) -> Result<rty::Sort> {
+        let name = match op {
+            fhir::BinOp::BitAnd => "bv_and",
+            fhir::BinOp::BitOr => "bv_or",
+            fhir::BinOp::BitShl => "bv_shl",
+            fhir::BinOp::BitShr => "bv_lshr",
+            _ => span_bug!(expr.span, "unexpected operator in synth_bitvec_op"),
+        };
+        let name = crate::Symbol::intern(name);
+        let poly_fsort = flux_middle::THEORY_FUNCS.get(&name).unwrap().sort.clone();
+        let fsort = self.instantiate_func_sort(poly_fsort);
+        let args = vec![e1.clone(), e2.clone()];
+        self.synth_app(fsort, &args[..], expr.span)
     }
 
     fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr) -> Result<rty::Sort> {
@@ -410,13 +438,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_app(
-        &mut self,
-        func: &fhir::PathExpr,
-        args: &[fhir::Expr],
-        span: Span,
-    ) -> Result<rty::Sort> {
-        let fsort = self.synth_func(func)?;
+    fn synth_app(&mut self, fsort: FuncSort, args: &[fhir::Expr], span: Span) -> Result<rty::Sort> {
         if args.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),

@@ -19,6 +19,7 @@ pub enum Token {
     Slash,
     Not,
     Star,
+    Shl,
     Colon,
     Comma,
     Semi,
@@ -182,6 +183,7 @@ impl<'t> Cursor<'t> {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
+            TokenKind::BinOp(BinOpToken::Shl) => Token::Shl,
             TokenKind::BinOp(BinOpToken::Shr) => {
                 self.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1));
                 self.push_token(span.lo() + BytePos(1), Token::Gt, span.hi());

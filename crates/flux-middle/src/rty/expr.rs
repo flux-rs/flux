@@ -607,6 +607,10 @@ pub enum BinOp {
     Mul(Sort),
     Div(Sort),
     Mod(Sort),
+    BitAnd,
+    BitOr,
+    BitShl,
+    BitShr,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -1146,6 +1150,7 @@ pub(crate) mod pretty {
         Or,
         And,
         Cmp,
+        Bitvec,
         AddSub,
         MulDiv,
     }
@@ -1165,6 +1170,7 @@ pub(crate) mod pretty {
                 | BinOp::Le(_) => Precedence::Cmp,
                 BinOp::Add(_) | BinOp::Sub(_) => Precedence::AddSub,
                 BinOp::Mul(_) | BinOp::Div(_) | BinOp::Mod(_) => Precedence::MulDiv,
+                BinOp::BitAnd | BinOp::BitOr | BinOp::BitShl | BinOp::BitShr => Precedence::Bitvec,
             }
         }
     }
@@ -1431,6 +1437,10 @@ pub(crate) mod pretty {
                 BinOp::Mul(_) => w!(cx, f, "*"),
                 BinOp::Div(_) => w!(cx, f, "/"),
                 BinOp::Mod(_) => w!(cx, f, "mod"),
+                BinOp::BitAnd => w!(cx, f, "&"),
+                BinOp::BitOr => w!(cx, f, "|"),
+                BinOp::BitShl => w!(cx, f, "<<"),
+                BinOp::BitShr => w!(cx, f, ">>"),
             }
         }
     }
