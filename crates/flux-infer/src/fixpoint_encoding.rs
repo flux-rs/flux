@@ -691,12 +691,6 @@ where
     }
 }
 
-// CUT fn int_to_bv(size: usize) -> fixpoint::Expr {
-// CUT     let func = Symbol::intern(&format!("bv_int_to_bv{}", size));
-// CUT     let sym = flux_middle::THEORY_FUNCS.get(&func).unwrap().fixpoint_name;
-// CUT     fixpoint::Expr::Var(fixpoint::Var::Itf(sym))
-// CUT }
-
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
     match cst {
         rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
@@ -704,12 +698,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
         rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
-        rty::Constant::BitVec(i, size) => {
-            fixpoint::Constant::BitVec(i, size)
-            // CUT let e = fixpoint::Expr::Constant(fixpoint::Constant::Numeral(i));
-            // CUT let func = int_to_bv(size);
-            // CUT fixpoint::Expr::App(Box::new(func), vec![e])
-        }
+        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size),
     }
 }
 

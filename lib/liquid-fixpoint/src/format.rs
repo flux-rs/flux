@@ -320,7 +320,7 @@ impl<T: Types> fmt::Display for Expr<T> {
 
 fn hexify(n: u128, sz: usize) -> String {
     let s = format!("{:x}", n);
-    let zeros = "0".repeat(sz - s.len());
+    let zeros = "0".repeat(sz / 4 - s.len());
     format!("#x{}{}", zeros, s)
 }
 
