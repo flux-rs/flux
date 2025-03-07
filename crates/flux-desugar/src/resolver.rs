@@ -109,7 +109,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.func_decls.extend_unord(
             flux_middle::THEORY_FUNCS
                 .items()
-                .map(|(name, itf)| (*name, fhir::SpecFuncKind::Thy(itf.fixpoint_name))),
+                .map(|(_, itf)| (itf.name, fhir::SpecFuncKind::Thy(itf.itf))),
         );
     }
 

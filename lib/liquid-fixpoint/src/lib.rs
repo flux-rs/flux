@@ -1,6 +1,14 @@
 //! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
+#![cfg_attr(feature = "nightly", feature(rustc_private))]
+
+#[cfg(feature = "nightly")]
+extern crate rustc_macros;
+#[cfg(feature = "nightly")]
+extern crate rustc_serialize;
+#[cfg(feature = "nightly")]
+extern crate rustc_span;
 
 mod constraint;
 mod format;
@@ -19,6 +27,8 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
+#[cfg(feature = "nightly")]
+use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
 
 pub trait Types {
@@ -270,5 +280,154 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
             .parse()
             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(&tag), &"valid tag"))?;
         Ok(Error { id, tag })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "nightly", derive(Encodable, Decodable))]
+pub enum ThyFunc {
+    // STRINGS
+    StrLen,
+
+    // BIT VECTORS
+    BvZeroExtend(u8),
+    BvSignExtend(u8),
+    IntToBv32,
+    Bv32ToInt,
+    IntToBv64,
+    Bv64ToInt,
+    BvUle,
+    BvSle,
+    BvUge,
+    BvSge,
+    BvUdiv,
+    BvSdiv,
+    BvUmod,
+    BvSmod,
+    BvSrem,
+    BvUrem,
+    BvLshr,
+    BvAshr,
+    BvAnd,
+    BvOr,
+    BvXor,
+    BvNot,
+    BvAdd,
+    BvNeg,
+    BvSub,
+    BvMul,
+    BvShl,
+    BvUgt,
+    BvSgt,
+    BvUlt,
+    BvSlt,
+
+    // SETS
+    /// Make an empty set
+    SetEmpty,
+    /// Make a singleton set
+    SetSng,
+    /// Set union
+    SetCup,
+    /// Set membership
+    SetMem,
+
+    // MAPS
+    /// Create a map where all keys point to a value
+    MapDefault,
+    /// Select a key in a map
+    MapSelect,
+    /// Store a key value pair in a map
+    MapStore,
+}
+
+impl ThyFunc {
+    pub const ALL: [ThyFunc; 37] = [
+        ThyFunc::StrLen,
+        ThyFunc::IntToBv32,
+        ThyFunc::Bv32ToInt,
+        ThyFunc::IntToBv64,
+        ThyFunc::Bv64ToInt,
+        ThyFunc::BvAdd,
+        ThyFunc::BvNeg,
+        ThyFunc::BvSub,
+        ThyFunc::BvShl,
+        ThyFunc::BvLshr,
+        ThyFunc::BvAshr,
+        ThyFunc::BvMul,
+        ThyFunc::BvUdiv,
+        ThyFunc::BvSdiv,
+        ThyFunc::BvUrem,
+        ThyFunc::BvSrem,
+        ThyFunc::BvUmod,
+        ThyFunc::BvSmod,
+        ThyFunc::BvAnd,
+        ThyFunc::BvOr,
+        ThyFunc::BvXor,
+        ThyFunc::BvNot,
+        ThyFunc::BvUle,
+        ThyFunc::BvSle,
+        ThyFunc::BvUge,
+        ThyFunc::BvSge,
+        ThyFunc::BvUgt,
+        ThyFunc::BvSgt,
+        ThyFunc::BvUlt,
+        ThyFunc::BvSlt,
+        ThyFunc::SetEmpty,
+        ThyFunc::SetSng,
+        ThyFunc::SetCup,
+        ThyFunc::SetMem,
+        ThyFunc::MapDefault,
+        ThyFunc::MapSelect,
+        ThyFunc::MapStore,
+    ];
+}
+
+impl fmt::Display for ThyFunc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ThyFunc::StrLen => write!(f, "strLen"),
+            ThyFunc::BvZeroExtend(size) => {
+                // `app` is a hack in liquid-fixpoint used to implement indexed identifiers
+                write!(f, "app (_ zero_extend {size})")
+            }
+            ThyFunc::BvSignExtend(size) => write!(f, "app (_ sign_extend {size})"),
+            ThyFunc::IntToBv32 => write!(f, "int_to_bv32"),
+            ThyFunc::Bv32ToInt => write!(f, "bv32_to_int"),
+            ThyFunc::IntToBv64 => write!(f, "int_to_bv64"),
+            ThyFunc::Bv64ToInt => write!(f, "bv64_to_int"),
+            ThyFunc::BvUle => write!(f, "bvule"),
+            ThyFunc::BvSle => write!(f, "bvsle"),
+            ThyFunc::BvUge => write!(f, "bvuge"),
+            ThyFunc::BvSge => write!(f, "bvsge"),
+            ThyFunc::BvUdiv => write!(f, "bvudiv"),
+            ThyFunc::BvSdiv => write!(f, "bvsdiv"),
+            ThyFunc::BvUmod => write!(f, "bvumod"),
+            ThyFunc::BvSmod => write!(f, "bvsmod"),
+            ThyFunc::BvUrem => write!(f, "bvurem"),
+            ThyFunc::BvSrem => write!(f, "bvsrem"),
+            ThyFunc::BvLshr => write!(f, "bvlshr"),
+            ThyFunc::BvAshr => write!(f, "bvashr"),
+            ThyFunc::BvAnd => write!(f, "bvand"),
+            ThyFunc::BvOr => write!(f, "bvor"),
+            ThyFunc::BvXor => write!(f, "bvxor"),
+            ThyFunc::BvNot => write!(f, "bvnot"),
+            ThyFunc::BvAdd => write!(f, "bvadd"),
+            ThyFunc::BvNeg => write!(f, "bvneg"),
+            ThyFunc::BvSub => write!(f, "bvsub"),
+            ThyFunc::BvMul => write!(f, "bvmul"),
+            ThyFunc::BvShl => write!(f, "bvshl"),
+            ThyFunc::BvUgt => write!(f, "bvugt"),
+            ThyFunc::BvSgt => write!(f, "bvsgt"),
+            ThyFunc::BvUlt => write!(f, "bvult"),
+            ThyFunc::BvSlt => write!(f, "bvslt"),
+            ThyFunc::SetEmpty => write!(f, "Set_empty"),
+            ThyFunc::SetSng => write!(f, "Set_sng"),
+            ThyFunc::SetCup => write!(f, "Set_cup"),
+            ThyFunc::SetMem => write!(f, "Set_mem"),
+            ThyFunc::MapDefault => write!(f, "Map_default"),
+            ThyFunc::MapSelect => write!(f, "Map_select"),
+            ThyFunc::MapStore => write!(f, "Map_store"),
+        }
     }
 }

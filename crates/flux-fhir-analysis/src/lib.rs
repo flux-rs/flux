@@ -81,7 +81,7 @@ fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDec
         Ok(rty::SpecFuncDecl {
             name: itf.name,
             sort: itf.sort.clone(),
-            kind: fhir::SpecFuncKind::Thy(itf.fixpoint_name),
+            kind: fhir::SpecFuncKind::Thy(itf.itf),
         })
     }
 }

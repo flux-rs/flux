@@ -14,7 +14,7 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId, THEORY_FUNCS,
+    MaybeExternId,
     big_int::BigInt,
     def_id_to_string,
     fhir::{self, SpecFuncKind},
@@ -87,7 +87,7 @@ pub mod fixpoint {
         UIFRel(BinRel),
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
-        Itf(Symbol),
+        Itf(liquid_fixpoint::ThyFunc),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
     }
@@ -1099,8 +1099,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
             }
-            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => {
-                fixpoint::Expr::Var(fixpoint::Var::Itf(*sym))
+            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(itf)) => {
+                fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
             }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 fixpoint::Expr::Var(self.register_uif(*sym, scx).into())
@@ -1164,36 +1164,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn name_to_fixpoint(name: &str) -> fixpoint::Expr {
-        let sym = Symbol::intern(name);
-        let func = THEORY_FUNCS.get(&sym).unwrap();
-        fixpoint::Expr::Var(fixpoint::Var::Itf(func.fixpoint_name))
-    }
-
     fn bv_rel_to_fixpoint(&self, rel: &fixpoint::BinRel) -> fixpoint::Expr {
-        let name = match rel {
-            liquid_fixpoint::BinRel::Gt => "bv_ugt",
-            liquid_fixpoint::BinRel::Ge => "bv_uge",
-            liquid_fixpoint::BinRel::Lt => "bv_ult",
-            liquid_fixpoint::BinRel::Le => "bv_ule",
+        let itf = match rel {
+            liquid_fixpoint::BinRel::Gt => liquid_fixpoint::ThyFunc::BvUgt,
+            liquid_fixpoint::BinRel::Ge => liquid_fixpoint::ThyFunc::BvUge,
+            liquid_fixpoint::BinRel::Lt => liquid_fixpoint::ThyFunc::BvUlt,
+            liquid_fixpoint::BinRel::Le => liquid_fixpoint::ThyFunc::BvUle,
             _ => span_bug!(self.def_span, "not a bitvector relation!"),
         };
-        Self::name_to_fixpoint(name)
+        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
     }
 
     fn bv_op_to_fixpoint(&self, op: &BinOp) -> fixpoint::Expr {
-        let name = match op {
-            BinOp::Add(_) => "bv_add",
-            BinOp::Sub(_) => "bv_sub",
-            BinOp::Mul(_) => "bv_mul",
-            BinOp::Div(_) => "bv_sdiv",
-            BinOp::BitAnd => "bv_and",
-            BinOp::BitOr => "bv_or",
-            BinOp::BitShl => "bv_shl",
-            BinOp::BitShr => "bv_lshr",
+        let itf = match op {
+            BinOp::Add(_) => liquid_fixpoint::ThyFunc::BvAdd,
+            BinOp::Sub(_) => liquid_fixpoint::ThyFunc::BvSub,
+            BinOp::Mul(_) => liquid_fixpoint::ThyFunc::BvMul,
+            BinOp::Div(_) => liquid_fixpoint::ThyFunc::BvUdiv,
+            BinOp::BitAnd => liquid_fixpoint::ThyFunc::BvAnd,
+            BinOp::BitOr => liquid_fixpoint::ThyFunc::BvOr,
+            BinOp::BitShl => liquid_fixpoint::ThyFunc::BvShl,
+            BinOp::BitShr => liquid_fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span, "not a bitvector operation!"),
         };
-        Self::name_to_fixpoint(name)
+        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
     }
 
     fn bin_op_to_fixpoint(
