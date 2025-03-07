@@ -504,8 +504,8 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::Sort::Err
     }
 
-    fn literal_sort(&self, _: FhirId) -> Option<rty::Sort> {
-        None
+    fn literal_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
     }
 
     fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {

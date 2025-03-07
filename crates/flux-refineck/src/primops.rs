@@ -261,7 +261,7 @@ fn mk_div_rules() -> RuleMatcher<2> {
 /// `a % b`
 fn mk_rem_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T[E::binary_op(Mod(crate::rty::Sort::Int), a, b)]
+        fn(a: T, b: T) -> T[E::binary_op(Mod(Sort::Int), a, b)]
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_unsigned()
 

@@ -114,7 +114,7 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
 pub trait WfckResultsProvider: Sized {
     fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
-    fn literal_sort(&self, fhir_id: FhirId) -> Option<rty::Sort>;
+    fn literal_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion];
 
@@ -180,8 +180,11 @@ impl WfckResultsProvider for WfckResults {
             .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
     }
 
-    fn literal_sort(&self, fhir_id: FhirId) -> Option<rty::Sort> {
-        self.node_sorts().get(fhir_id).cloned()
+    fn literal_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.node_sorts()
+            .get(fhir_id)
+            .cloned()
+            .unwrap_or_else(|| bug!("literal without elaborated sort `{fhir_id:?}`"))
     }
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
@@ -1972,10 +1975,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
             fhir::Lit::Int(n) => {
-                if let Some(rty::Sort::BitVec(rty::BvSize::Fixed(size))) =
+                if let rty::Sort::BitVec(rty::BvSize::Fixed(size)) =
                     self.results().literal_sort(fhir_id)
                 {
-                    if 0 <= n && n < (1 << size) {
+                    if 0 <= n && (n == 0 || n.ilog2() < size.try_into().unwrap()) {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {
                         Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?

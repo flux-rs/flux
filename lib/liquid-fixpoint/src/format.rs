@@ -332,7 +332,7 @@ impl<T: Types> fmt::Display for Constant<T> {
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
             Constant::BitVec(i, sz) => {
-                let str: u128 = i.display().to_string().parse().unwrap();
+                let str: u128 = i.display().to_string().parse().unwrap(); // TODO(NICO): "yikes. I'll fix this later."
                 write!(f, "(lit \"{}\" (BitVec Size{}))", hexify(str, *sz), sz)
             }
         }
