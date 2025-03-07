@@ -238,9 +238,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_var(var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit, expr.fhir_id, expr.span)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                self.synth_binary_op(expr, *op, e1, e2, expr.span)
-            }
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
             fhir::ExprKind::Alias(_alias_reft, func_args) => {
@@ -355,7 +353,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
-        span: Span,
     ) -> Result<rty::Sort> {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
@@ -375,7 +372,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
                 self.sort_of_bin_rel
-                    .insert(expr.fhir_id, (sort.clone(), span));
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Add
@@ -387,9 +384,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
                 self.sort_of_bin_rel
-                    .insert(expr.fhir_id, (sort.clone(), span));
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
                 // check that the sort is integral for mod (and div?)
-                self.check_integral(op, &sort, span)?;
+                self.check_integral(op, &sort, expr.span)?;
 
                 Ok(sort)
             }

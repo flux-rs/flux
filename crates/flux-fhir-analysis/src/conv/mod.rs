@@ -1975,7 +1975,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if let Some(rty::Sort::BitVec(rty::BvSize::Fixed(size))) =
                     self.results().literal_sort(fhir_id)
                 {
-                    debug_assert!(size == 32 || size == 64);
                     if 0 <= n && n < (1 << size) {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {
