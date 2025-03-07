@@ -691,10 +691,9 @@ BinOp5: surface::BinOp = {
 }
 
 BinOp6: surface::BinOp = {
-    // TODO(nilehmann) return right shift operator when we support it
-    <lo:@L> ">(?=>)" ">" <hi:@R> =>? {
-        Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-    }
+    "<<" => surface::BinOp::BitShl,
+    <lo:@L> ">(?=>)" ">" <hi:@R> => surface::BinOp::BitShr,
+
 }
 
 BinOp7: surface::BinOp = {
@@ -796,6 +795,7 @@ extern {
         "/"  => Token::Slash,
         "!"  => Token::Not,
         "*"  => Token::Star,
+        "<<" => Token::Shl,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(Delimiter::Parenthesis),
         ")"  => Token::CloseDelim(Delimiter::Parenthesis),

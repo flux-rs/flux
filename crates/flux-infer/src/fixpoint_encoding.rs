@@ -1187,6 +1187,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             BinOp::Sub(_) => "bv_sub",
             BinOp::Mul(_) => "bv_mul",
             BinOp::Div(_) => "bv_sdiv",
+            BinOp::BitAnd => "bv_and",
+            BinOp::BitOr => "bv_or",
+            BinOp::BitShl => "bv_shl",
+            BinOp::BitShr => "bv_lshr",
             _ => span_bug!(self.def_span, "not a bitvector operation!"),
         };
         Self::name_to_fixpoint(name)
@@ -1248,12 +1252,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, scx)?,
                 ])));
             }
-
             rty::BinOp::Add(rty::Sort::BitVec(_))
             | rty::BinOp::Sub(rty::Sort::BitVec(_))
             | rty::BinOp::Mul(rty::Sort::BitVec(_))
             | rty::BinOp::Div(rty::Sort::BitVec(_))
-            | rty::BinOp::Mod(rty::Sort::BitVec(_)) => {
+            | rty::BinOp::Mod(rty::Sort::BitVec(_))
+            | BinOp::BitAnd
+            | BinOp::BitOr
+            | BinOp::BitShl
+            | BinOp::BitShr => {
                 let bv_func = self.bv_op_to_fixpoint(op);
                 return Ok(fixpoint::Expr::App(Box::new(bv_func), vec![
                     self.expr_to_fixpoint(e1, scx)?,

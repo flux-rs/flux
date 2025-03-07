@@ -530,6 +530,10 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
+    BitShl,
+    BitShr,
 }
 
 impl fmt::Debug for BinOp {
@@ -550,6 +554,10 @@ impl fmt::Debug for BinOp {
             BinOp::Mod => write!(f, "mod"),
             BinOp::Mul => write!(f, "*"),
             BinOp::Div => write!(f, "/"),
+            BinOp::BitAnd => write!(f, "&"),
+            BinOp::BitOr => write!(f, "|"),
+            BinOp::BitShl => write!(f, "<<"),
+            BinOp::BitShr => write!(f, ">>"),
         }
     }
 }

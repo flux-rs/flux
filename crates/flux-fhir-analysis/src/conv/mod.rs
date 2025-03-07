@@ -2158,6 +2158,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
+            fhir::BinOp::BitOr => rty::BinOp::BitOr,
+            fhir::BinOp::BitShl => rty::BinOp::BitShl,
+            fhir::BinOp::BitShr => rty::BinOp::BitShr,
         }
     }
 
