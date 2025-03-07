@@ -1976,7 +1976,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     self.results().literal_sort(fhir_id)
                 {
                     debug_assert!(size == 32 || size == 64);
-                    if 0 <= n && n < (1 << size) {
+                    if 0 <= n && (n == 0 || n.ilog2() < size) {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {
                         Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?
