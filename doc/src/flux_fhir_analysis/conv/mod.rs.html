@@ -2793,7 +2793,13 @@
 <a href="#2792" id="2792">2792</a>
 <a href="#2793" id="2793">2793</a>
 <a href="#2794" id="2794">2794</a>
-<a href="#2795" id="2795">2795</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4773,13 +4779,15 @@
     <span class="kw">fn </span>conv_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, lit: fhir::Lit, fhir_id: FhirId, span: Span) -&gt; QueryResult&lt;rty::Constant&gt; {
         <span class="kw">match </span>lit {
             fhir::Lit::Int(n) =&gt; {
-                <span class="kw">if let </span>rty::Sort::BitVec(rty::BvSize::Fixed(size)) =
-                    <span class="self">self</span>.results().literal_sort(fhir_id)
-                {
-                    <span class="kw">if </span><span class="number">0 </span>&lt;= n &amp;&amp; (n == <span class="number">0 </span>|| n.ilog2() &lt; size.try_into().unwrap()) {
+                <span class="kw">let </span>sort = <span class="self">self</span>.results().literal_sort(fhir_id);
+                <span class="kw">if let </span>rty::Sort::BitVec(bvsize) = sort {
+                    <span class="kw">if let </span>rty::BvSize::Fixed(size) = bvsize
+                        &amp;&amp; <span class="number">0 </span>&lt;= n
+                        &amp;&amp; (n == <span class="number">0 </span>|| n.ilog2() &lt; size.try_into().unwrap())
+                    {
                         <span class="prelude-val">Ok</span>(rty::Constant::BitVec(n.into(), size))
                     } <span class="kw">else </span>{
-                        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidBitVectorConstant::new(span, size)))<span class="question-mark">?
+                        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidBitVectorConstant::new(span, sort)))<span class="question-mark">?
                     </span>}
                 } <span class="kw">else </span>{
                     <span class="prelude-val">Ok</span>(rty::Constant::from(n))
@@ -4951,6 +4959,10 @@
             fhir::BinOp::Mul =&gt; rty::BinOp::Mul(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Mod =&gt; rty::BinOp::Mod(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
             fhir::BinOp::Div =&gt; rty::BinOp::Div(<span class="self">self</span>.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::BitAnd =&gt; rty::BinOp::BitAnd,
+            fhir::BinOp::BitOr =&gt; rty::BinOp::BitOr,
+            fhir::BinOp::BitShl =&gt; rty::BinOp::BitShl,
+            fhir::BinOp::BitShr =&gt; rty::BinOp::BitShr,
         }
     }
 
@@ -5268,7 +5280,7 @@
 <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
-    <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv};
+    <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, rty::Sort};
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_span::{Span, Symbol, symbol::Ident};
 
@@ -5537,12 +5549,12 @@
     </span><span class="kw">pub struct </span>InvalidBitVectorConstant {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        size: usize,
+        sort: Sort,
     }
 
     <span class="kw">impl </span>InvalidBitVectorConstant {
-        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, size: usize) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, size }
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, sort: Sort) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span, sort }
         }
     }
 

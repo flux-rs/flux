@@ -935,7 +935,29 @@
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
 <a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -945,7 +967,7 @@
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        <span class="self">self</span>, AdtSortDef, WfckResults,
+        <span class="self">self</span>, AdtSortDef, FuncSort, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
     },
 };
@@ -1181,7 +1203,11 @@
             fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.synth_lit(<span class="kw-2">*</span>lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.synth_unary_op(<span class="kw-2">*</span>op, e),
-            fhir::ExprKind::App(f, es) =&gt; <span class="self">self</span>.synth_app(f, es, expr.span),
+            fhir::ExprKind::App(f, es) =&gt; {
+                <span class="kw">let </span>fsort = <span class="self">self</span>.synth_func(f)<span class="question-mark">?</span>;
+                <span class="self">self</span>.synth_app(fsort, es, expr.span)
+            }
+
             fhir::ExprKind::Alias(_alias_reft, func_args) =&gt; {
                 <span class="comment">// To check the application we only need the sort of `_alias_reft` which we collected
                 // during early conv, but should we do any extra checks on `_alias_reft`?
@@ -1307,7 +1333,6 @@
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
-
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>.next_sort_var();
                 <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
@@ -1331,7 +1356,32 @@
 
                 <span class="prelude-val">Ok</span>(sort)
             }
+            fhir::BinOp::BitAnd
+            | fhir::BinOp::BitOr
+            | fhir::BinOp::BitShl
+            | fhir::BinOp::BitShr =&gt; <span class="self">self</span>.synth_bitvec_op(expr, op, e1, e2),
         }
+    }
+
+    <span class="kw">fn </span>synth_bitvec_op(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        expr: <span class="kw-2">&amp;</span>fhir::Expr,
+        op: fhir::BinOp,
+        e1: <span class="kw-2">&amp;</span>fhir::Expr,
+        e2: <span class="kw-2">&amp;</span>fhir::Expr,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
+        <span class="kw">let </span>name = <span class="kw">match </span>op {
+            fhir::BinOp::BitAnd =&gt; <span class="string">"bv_and"</span>,
+            fhir::BinOp::BitOr =&gt; <span class="string">"bv_or"</span>,
+            fhir::BinOp::BitShl =&gt; <span class="string">"bv_shl"</span>,
+            fhir::BinOp::BitShr =&gt; <span class="string">"bv_lshr"</span>,
+            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected operator in synth_bitvec_op"</span>),
+        };
+        <span class="kw">let </span>name = <span class="kw">crate</span>::Symbol::intern(name);
+        <span class="kw">let </span>poly_fsort = flux_middle::THEORY_FUNCS.get(<span class="kw-2">&amp;</span>name).unwrap().sort.clone();
+        <span class="kw">let </span>fsort = <span class="self">self</span>.instantiate_func_sort(poly_fsort);
+        <span class="kw">let </span>args = <span class="macro">vec!</span>[e1.clone(), e2.clone()];
+        <span class="self">self</span>.synth_app(fsort, <span class="kw-2">&amp;</span>args[..], expr.span)
     }
 
     <span class="kw">fn </span>synth_unary_op(<span class="kw-2">&amp;mut </span><span class="self">self</span>, op: fhir::UnOp, e: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
@@ -1347,13 +1397,7 @@
         }
     }
 
-    <span class="kw">fn </span>synth_app(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        func: <span class="kw-2">&amp;</span>fhir::PathExpr,
-        args: <span class="kw-2">&amp;</span>[fhir::Expr],
-        span: Span,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
-        <span class="kw">let </span>fsort = <span class="self">self</span>.synth_func(func)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>synth_app(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: FuncSort, args: <span class="kw-2">&amp;</span>[fhir::Expr], span: Span) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">if </span>args.len() != fsort.inputs().len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                 <span class="prelude-val">Some</span>(span),

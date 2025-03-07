@@ -1552,7 +1552,14 @@
 <a href="#1551" id="1551">1551</a>
 <a href="#1552" id="1552">1552</a>
 <a href="#1553" id="1553">1553</a>
-<a href="#1554" id="1554">1554</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -2741,6 +2748,10 @@
             BinOp::Sub(<span class="kw">_</span>) =&gt; <span class="string">"bv_sub"</span>,
             BinOp::Mul(<span class="kw">_</span>) =&gt; <span class="string">"bv_mul"</span>,
             BinOp::Div(<span class="kw">_</span>) =&gt; <span class="string">"bv_sdiv"</span>,
+            BinOp::BitAnd =&gt; <span class="string">"bv_and"</span>,
+            BinOp::BitOr =&gt; <span class="string">"bv_or"</span>,
+            BinOp::BitShl =&gt; <span class="string">"bv_shl"</span>,
+            BinOp::BitShr =&gt; <span class="string">"bv_lshr"</span>,
             <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"not a bitvector operation!"</span>),
         };
         <span class="self">Self</span>::name_to_fixpoint(name)
@@ -2802,12 +2813,15 @@
                     <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
                 ])));
             }
-
             rty::BinOp::Add(rty::Sort::BitVec(<span class="kw">_</span>))
             | rty::BinOp::Sub(rty::Sort::BitVec(<span class="kw">_</span>))
             | rty::BinOp::Mul(rty::Sort::BitVec(<span class="kw">_</span>))
             | rty::BinOp::Div(rty::Sort::BitVec(<span class="kw">_</span>))
-            | rty::BinOp::Mod(rty::Sort::BitVec(<span class="kw">_</span>)) =&gt; {
+            | rty::BinOp::Mod(rty::Sort::BitVec(<span class="kw">_</span>))
+            | BinOp::BitAnd
+            | BinOp::BitOr
+            | BinOp::BitShl
+            | BinOp::BitShr =&gt; {
                 <span class="kw">let </span>bv_func = <span class="self">self</span>.bv_op_to_fixpoint(op);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::App(Box::new(bv_func), <span class="macro">vec!</span>[
                     <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,

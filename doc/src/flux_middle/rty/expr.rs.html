@@ -1624,7 +1624,17 @@
 <a href="#1623" id="1623">1623</a>
 <a href="#1624" id="1624">1624</a>
 <a href="#1625" id="1625">1625</a>
-<a href="#1626" id="1626">1626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1626" id="1626">1626</a>
+<a href="#1627" id="1627">1627</a>
+<a href="#1628" id="1628">1628</a>
+<a href="#1629" id="1629">1629</a>
+<a href="#1630" id="1630">1630</a>
+<a href="#1631" id="1631">1631</a>
+<a href="#1632" id="1632">1632</a>
+<a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::bug;
@@ -2233,6 +2243,10 @@
     Mul(Sort),
     Div(Sort),
     Mod(Sort),
+    BitAnd,
+    BitOr,
+    BitShl,
+    BitShr,
 }
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -2772,6 +2786,7 @@
         Or,
         And,
         Cmp,
+        Bitvec,
         AddSub,
         MulDiv,
     }
@@ -2791,6 +2806,7 @@
                 | BinOp::Le(<span class="kw">_</span>) =&gt; Precedence::Cmp,
                 BinOp::Add(<span class="kw">_</span>) | BinOp::Sub(<span class="kw">_</span>) =&gt; Precedence::AddSub,
                 BinOp::Mul(<span class="kw">_</span>) | BinOp::Div(<span class="kw">_</span>) | BinOp::Mod(<span class="kw">_</span>) =&gt; Precedence::MulDiv,
+                BinOp::BitAnd | BinOp::BitOr | BinOp::BitShl | BinOp::BitShr =&gt; Precedence::Bitvec,
             }
         }
     }
@@ -3057,6 +3073,10 @@
                 BinOp::Mul(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"*"</span>),
                 BinOp::Div(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"/"</span>),
                 BinOp::Mod(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"mod"</span>),
+                BinOp::BitAnd =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&amp;"</span>),
+                BinOp::BitOr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"|"</span>),
+                BinOp::BitShl =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&lt;&lt;"</span>),
+                BinOp::BitShr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&gt;&gt;"</span>),
             }
         }
     }

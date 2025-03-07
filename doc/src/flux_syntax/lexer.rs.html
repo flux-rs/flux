@@ -267,7 +267,9 @@
 <a href="#266" id="266">266</a>
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, iter::Peekable};
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, iter::Peekable};
 
 <span class="kw">pub use </span>rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 <span class="kw">use </span>rustc_ast::{
@@ -288,6 +290,7 @@
     Slash,
     Not,
     Star,
+    Shl,
     Colon,
     Comma,
     Semi,
@@ -451,6 +454,7 @@
             TokenKind::BinOp(BinOpToken::And) =&gt; Token::And,
             TokenKind::BinOp(BinOpToken::Percent) =&gt; Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) =&gt; Token::Star,
+            TokenKind::BinOp(BinOpToken::Shl) =&gt; Token::Shl,
             TokenKind::BinOp(BinOpToken::Shr) =&gt; {
                 <span class="self">self</span>.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(<span class="number">1</span>));
                 <span class="self">self</span>.push_token(span.lo() + BytePos(<span class="number">1</span>), Token::Gt, span.hi());

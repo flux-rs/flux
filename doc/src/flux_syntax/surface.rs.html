@@ -639,7 +639,15 @@
 <a href="#638" id="638">638</a>
 <a href="#639" id="639">639</a>
 <a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
 
@@ -1171,6 +1179,10 @@
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
+    BitShl,
+    BitShr,
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
@@ -1191,6 +1203,10 @@
             BinOp::Mod =&gt; <span class="macro">write!</span>(f, <span class="string">"mod"</span>),
             BinOp::Mul =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
             BinOp::Div =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
+            BinOp::BitAnd =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;"</span>),
+            BinOp::BitOr =&gt; <span class="macro">write!</span>(f, <span class="string">"|"</span>),
+            BinOp::BitShl =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;&lt;"</span>),
+            BinOp::BitShr =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;&gt;"</span>),
         }
     }
 }
