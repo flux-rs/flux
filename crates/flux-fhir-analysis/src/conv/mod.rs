@@ -1978,13 +1978,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
             fhir::Lit::Int(n) => {
-                if let rty::Sort::BitVec(rty::BvSize::Fixed(size)) =
-                    self.results().literal_sort(fhir_id)
-                {
-                    if 0 <= n && (n == 0 || n.ilog2() < size.try_into().unwrap()) {
+                let sort = self.results().literal_sort(fhir_id);
+                if let rty::Sort::BitVec(bvsize) = sort {
+                    if let rty::BvSize::Fixed(size) = bvsize
+                        && 0 <= n
+                        && (n == 0 || n.ilog2() < size.try_into().unwrap())
+                    {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {
-                        Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?
+                        Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
                     }
                 } else {
                     Ok(rty::Constant::from(n))
@@ -2473,7 +2475,7 @@ fn ty_param_name(genv: GlobalEnv, def_id: DefId) -> Symbol {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{fhir, global_env::GlobalEnv};
+    use flux_middle::{fhir, global_env::GlobalEnv, rty::Sort};
     use rustc_hir::def_id::DefId;
     use rustc_span::{Span, Symbol, symbol::Ident};
 
@@ -2742,12 +2744,12 @@ mod errors {
     pub struct InvalidBitVectorConstant {
         #[primary_span]
         span: Span,
-        size: usize,
+        sort: Sort,
     }
 
     impl InvalidBitVectorConstant {
-        pub(crate) fn new(span: Span, size: usize) -> Self {
-            Self { span, size }
+        pub(crate) fn new(span: Span, sort: Sort) -> Self {
+            Self { span, sort }
         }
     }
 
