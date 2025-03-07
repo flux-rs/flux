@@ -691,9 +691,10 @@ BinOp5: surface::BinOp = {
 }
 
 BinOp6: surface::BinOp = {
+    "|"  => surface::BinOp::BitOr,
+    "&"  => surface::BinOp::BitAnd,
     "<<" => surface::BinOp::BitShl,
     <lo:@L> ">(?=>)" ">" <hi:@R> => surface::BinOp::BitShr,
-
 }
 
 BinOp7: surface::BinOp = {
