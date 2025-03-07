@@ -88,6 +88,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             Some(func)
         })
         .chain([
+            // we can't express this as function types so we add special case
             TheoryFunc {
                 name: Symbol::intern("bv_zero_extend_32_to_64"),
                 itf: liquid_fixpoint::ThyFunc::BvZeroExtend(32),
@@ -312,7 +313,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
             )
         }
     };
-    return Some(sort);
+    Some(sort)
 }
 
 #[derive(Default)]

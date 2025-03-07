@@ -421,8 +421,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         let name = crate::Symbol::intern(name);
         let poly_fsort = flux_middle::THEORY_FUNCS.get(&name).unwrap().sort.clone();
         let fsort = self.instantiate_func_sort(poly_fsort);
-        let args = vec![e1.clone(), e2.clone()];
-        self.synth_app(fsort, &args[..], expr.span)
+        self.synth_app(fsort, &[*e1, *e2], expr.span)
     }
 
     fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr) -> Result<rty::Sort> {
