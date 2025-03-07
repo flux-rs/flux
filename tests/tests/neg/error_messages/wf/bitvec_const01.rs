@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 #[flux::opaque]
 #[flux::refined_by(val: bitvec<32>)]
 pub struct BV32(u32);
@@ -16,27 +17,27 @@ pub const START: BV32 = BV32::new(0x4567);
 #[flux_rs::constant(true)] //~ ERROR mismatched sorts
 pub const BAD1: BV32 = BV32::new(0x4567);
 
-#[flux_rs::constant(2+5)] //~ ERROR mismatched sorts
-pub const BAD2: BV32 = BV32::new(0x4567);
+#[flux_rs::constant(4)]
+pub const BAD2: BV32 = BV32::new(0x4);
 
 #[flux_rs::sig(fn () -> BV32[BAD1])]
-fn test1() -> BV32 {
+pub fn test1() -> BV32 {
     BV32::new(0x4567)
 }
 
 #[flux_rs::sig(fn () -> BV32[BAD2])]
-fn test2() -> BV32 {
+pub fn test2() -> BV32 {
     BV32::new(0x4567)
 }
 
 pub const BAD3: BV32 = BV32::new(0x4567);
 
 #[flux_rs::sig(fn () -> BV32{v: v == BAD3})] //~ ERROR constant annotation required
-fn test3() -> BV32 {
+pub fn test3() -> BV32 {
     BV32::new(0x4567)
 }
 
 #[flux_rs::sig(fn () -> BV32{v: v == BAD3})] //~ ERROR constant annotation required
-fn test4() -> BV32 {
+pub fn test4() -> BV32 {
     BAD3
 }

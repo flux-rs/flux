@@ -839,6 +839,7 @@ newtype_index! {
 pub enum NumVarValue {
     Real,
     Int,
+    BitVec(BvSize),
 }
 
 impl NumVarValue {
@@ -846,6 +847,7 @@ impl NumVarValue {
         match self {
             NumVarValue::Real => Sort::Real,
             NumVarValue::Int => Sort::Int,
+            NumVarValue::BitVec(size) => Sort::BitVec(size),
         }
     }
 }

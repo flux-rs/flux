@@ -30,6 +30,8 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
+    sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
+    sort_of_bin_rel: FxHashMap<FhirId, (rty::Sort, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
@@ -47,6 +49,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
+            sort_of_literal: Default::default(),
+            sort_of_bin_rel: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
@@ -219,10 +223,25 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr) -> rty::Sort {
+        match lit {
+            fhir::Lit::Int(_) => {
+                let sort = self.next_num_var();
+                self.sort_of_literal
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                sort
+            }
+            fhir::Lit::Bool(_) => rty::Sort::Bool,
+            fhir::Lit::Real(_) => rty::Sort::Real,
+            fhir::Lit::Str(_) => rty::Sort::Str,
+            fhir::Lit::Char(_) => rty::Sort::Char,
+        }
+    }
+
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_var(var),
-            fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
+            fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
@@ -320,6 +339,18 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn check_integral(&mut self, op: fhir::BinOp, sort: &rty::Sort, span: Span) -> Result {
+        if matches!(op, fhir::BinOp::Mod) {
+            let sort = self
+                .fully_resolve(sort)
+                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
+            if !matches!(sort, rty::Sort::Int | rty::Sort::BitVec(_)) {
+                span_bug!(span, "unexpected sort {sort:?} for operator {op:?}");
+            }
+        }
+        Ok(())
+    }
+
     fn synth_binary_op(
         &mut self,
         expr: &fhir::Expr,
@@ -339,30 +370,28 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e2, &sort)?;
                 Ok(rty::Sort::Bool)
             }
-            fhir::BinOp::Mod => {
-                self.check_expr(e1, &rty::Sort::Int)?;
-                self.check_expr(e2, &rty::Sort::Int)?;
-                Ok(rty::Sort::Int)
-            }
+
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-
-                // Elaborate sort of operator
-                let sort = self
-                    .fully_resolve(&sort)
-                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
-                self.wfckresults
-                    .bin_rel_sorts_mut()
-                    .insert(expr.fhir_id, sort);
-
+                self.sort_of_bin_rel
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
                 Ok(rty::Sort::Bool)
             }
-            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
+            fhir::BinOp::Add
+            | fhir::BinOp::Sub
+            | fhir::BinOp::Mul
+            | fhir::BinOp::Div
+            | fhir::BinOp::Mod => {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
+                self.sort_of_bin_rel
+                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                // check that the sort is integral for mod
+                self.check_integral(op, &sort, expr.span)?;
+
                 Ok(sort)
             }
         }
@@ -604,6 +633,13 @@ impl InferCtxt<'_, '_> {
                     .unify_var_value(*vid, Some(rty::NumVarValue::Real))
                     .ok()?;
             }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::BitVec(sz))
+            | (rty::Sort::BitVec(sz), rty::Sort::Infer(rty::NumVar(vid))) => {
+                self.num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::BitVec(*sz)))
+                    .ok()?;
+            }
+
             (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) => {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
@@ -704,8 +740,24 @@ impl InferCtxt<'_, '_> {
         }
     }
 
-    pub(crate) fn into_results(self) -> WfckResults {
-        self.wfckresults
+    pub(crate) fn into_results(mut self) -> Result<WfckResults> {
+        // Make sure the int literals are fully resolved
+        for (fhir_id, (sort, span)) in self.sort_of_literal.clone() {
+            let sort = self
+                .fully_resolve(&sort)
+                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
+            self.wfckresults.node_sorts_mut().insert(fhir_id, sort);
+        }
+
+        // Make sure the binary operators are fully resolved
+        for (fhir_id, (sort, span)) in self.sort_of_bin_rel.clone() {
+            let sort = self
+                .fully_resolve(&sort)
+                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
+            self.wfckresults.bin_rel_sorts_mut().insert(fhir_id, sort);
+        }
+
+        Ok(self.wfckresults)
     }
 
     pub(crate) fn infer_mode(&self, id: fhir::ParamId) -> fhir::InferMode {
@@ -816,16 +868,6 @@ impl InferCtxt<'_, '_> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.genv.sess().emit_err(err)
-    }
-}
-
-fn synth_lit(lit: fhir::Lit) -> rty::Sort {
-    match lit {
-        fhir::Lit::Int(_) => rty::Sort::Int,
-        fhir::Lit::Bool(_) => rty::Sort::Bool,
-        fhir::Lit::Real(_) => rty::Sort::Real,
-        fhir::Lit::Str(_) => rty::Sort::Str,
-        fhir::Lit::Char(_) => rty::Sort::Char,
     }
 }
 

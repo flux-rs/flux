@@ -39,7 +39,7 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
     for param in qual.args {
         infcx.resolve_param_sort(param)?;
     }
-    Ok(infcx.into_results())
+    infcx.into_results()
 }
 
 pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
@@ -54,7 +54,7 @@ pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<Wf
             infcx.resolve_param_sort(param)?;
         }
     }
-    Ok(infcx.into_results())
+    infcx.into_results()
 }
 
 pub(crate) fn check_constant_expr(
@@ -67,7 +67,7 @@ pub(crate) fn check_constant_expr(
     let mut err = None;
     infcx.check_expr(expr, sort).collect_err(&mut err);
     err.into_result()?;
-    Ok(infcx.into_results())
+    infcx.into_results()
 }
 
 pub(crate) fn check_invariants(
@@ -90,7 +90,7 @@ pub(crate) fn check_invariants(
         infcx.resolve_param_sort(param)?;
     }
     err.into_result()?;
-    Ok(infcx.into_results())
+    infcx.into_results()
 }
 
 pub(crate) fn check_node<'genv>(
@@ -112,7 +112,7 @@ pub(crate) fn check_node<'genv>(
 
     param_usage::check(&infcx, node)?;
 
-    Ok(infcx.into_results())
+    infcx.into_results()
 }
 
 /// Check that all param sorts are fully resolved and save them in [`WfckResults`]
@@ -501,6 +501,10 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
 /// that the inference variable we generate for `σ` is the same we use for sort checking.
 impl WfckResultsProvider for InferCtxt<'_, '_> {
     fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
+    }
+
+    fn literal_sort(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }
 

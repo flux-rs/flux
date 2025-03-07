@@ -14,13 +14,13 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
+    MaybeExternId, THEORY_FUNCS,
     big_int::BigInt,
     def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{self, BinOp, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -698,6 +698,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
         rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
+        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size),
     }
 }
 
@@ -1163,6 +1164,34 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn name_to_fixpoint(name: &str) -> fixpoint::Expr {
+        let sym = Symbol::intern(name);
+        let func = THEORY_FUNCS.get(&sym).unwrap();
+        fixpoint::Expr::Var(fixpoint::Var::Itf(func.fixpoint_name))
+    }
+
+    fn bv_rel_to_fixpoint(&self, rel: &fixpoint::BinRel) -> fixpoint::Expr {
+        let name = match rel {
+            liquid_fixpoint::BinRel::Gt => "bv_ugt",
+            liquid_fixpoint::BinRel::Ge => "bv_uge",
+            liquid_fixpoint::BinRel::Lt => "bv_ult",
+            liquid_fixpoint::BinRel::Le => "bv_ule",
+            _ => span_bug!(self.def_span, "not a bitvector relation!"),
+        };
+        Self::name_to_fixpoint(name)
+    }
+
+    fn bv_op_to_fixpoint(&self, op: &BinOp) -> fixpoint::Expr {
+        let name = match op {
+            BinOp::Add(_) => "bv_add",
+            BinOp::Sub(_) => "bv_sub",
+            BinOp::Mul(_) => "bv_mul",
+            BinOp::Div(_) => "bv_sdiv",
+            _ => span_bug!(self.def_span, "not a bitvector operation!"),
+        };
+        Self::name_to_fixpoint(name)
+    }
+
     fn bin_op_to_fixpoint(
         &mut self,
         op: &rty::BinOp,
@@ -1219,11 +1248,23 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, scx)?,
                 ])));
             }
-            rty::BinOp::Add => fixpoint::BinOp::Add,
-            rty::BinOp::Sub => fixpoint::BinOp::Sub,
-            rty::BinOp::Mul => fixpoint::BinOp::Mul,
-            rty::BinOp::Div => fixpoint::BinOp::Div,
-            rty::BinOp::Mod => fixpoint::BinOp::Mod,
+
+            rty::BinOp::Add(rty::Sort::BitVec(_))
+            | rty::BinOp::Sub(rty::Sort::BitVec(_))
+            | rty::BinOp::Mul(rty::Sort::BitVec(_))
+            | rty::BinOp::Div(rty::Sort::BitVec(_))
+            | rty::BinOp::Mod(rty::Sort::BitVec(_)) => {
+                let bv_func = self.bv_op_to_fixpoint(op);
+                return Ok(fixpoint::Expr::App(Box::new(bv_func), vec![
+                    self.expr_to_fixpoint(e1, scx)?,
+                    self.expr_to_fixpoint(e2, scx)?,
+                ]));
+            }
+            rty::BinOp::Add(_) => fixpoint::BinOp::Add,
+            rty::BinOp::Sub(_) => fixpoint::BinOp::Sub,
+            rty::BinOp::Mul(_) => fixpoint::BinOp::Mul,
+            rty::BinOp::Div(_) => fixpoint::BinOp::Div,
+            rty::BinOp::Mod(_) => fixpoint::BinOp::Mod,
         };
         Ok(fixpoint::Expr::BinaryOp(
             op,
@@ -1262,6 +1303,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),
                 )
             }
+
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
                 self.apply_bin_rel_rec(sorts, rel, e1, e2, scx, |field| {
@@ -1276,6 +1318,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?
+            }
+            rty::Sort::BitVec(_) => {
+                let e1 = self.expr_to_fixpoint(e1, scx)?;
+                let e2 = self.expr_to_fixpoint(e2, scx)?;
+                match rel {
+                    liquid_fixpoint::BinRel::Eq | liquid_fixpoint::BinRel::Ne => {
+                        fixpoint::Expr::Atom(rel, Box::new([e1, e2]))
+                    }
+                    _ => {
+                        let rel = self.bv_rel_to_fixpoint(&rel);
+                        fixpoint::Expr::App(Box::new(rel), vec![e1, e2])
+                    }
+                }
             }
             _ => {
                 let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));

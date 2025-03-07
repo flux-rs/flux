@@ -15,7 +15,7 @@
 ///         // the invariants of `==`.
 ///         fn(a: T, b: T) -> bool[E::eq(a, b)]
 ///         if T.is_integral() || T.is_bool() || T.is_char() || T.is_str()
-///         
+///
 ///         // Otherwise, if the `BaseTy` is opaque, then we can't reason
 ///         // about equality. Flux only knows that the return type is a boolean,
 ///         // but the return value is unrefined.
@@ -28,7 +28,7 @@ use std::{hash::Hash, sync::LazyLock};
 use flux_common::tracked_span_bug;
 use flux_infer::infer::ConstrReason;
 use flux_macros::primop_rules;
-use flux_middle::rty::{self, BaseTy, Expr};
+use flux_middle::rty::{self, BaseTy, Expr, Sort};
 use flux_rustc_bridge::mir;
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
@@ -261,13 +261,13 @@ fn mk_div_rules() -> RuleMatcher<2> {
 /// `a % b`
 fn mk_rem_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T[E::binary_op(Mod, a, b)]
+        fn(a: T, b: T) -> T[E::binary_op(Mod(Sort::Int), a, b)]
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_unsigned()
 
         fn(a: T, b: T) -> T{v: E::implies(
                                    E::and(E::ge(a, 0), E::ge(b, 0)),
-                                   E::eq(v, E::binary_op(Mod, a, b))) }
+                                   E::eq(v, E::binary_op(Mod(Sort::Int), a, b))) }
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_signed()
     }
