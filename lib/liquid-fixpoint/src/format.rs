@@ -318,6 +318,12 @@ impl<T: Types> fmt::Display for Expr<T> {
     }
 }
 
+fn hexify(n: u128, sz: usize) -> String {
+    let s = format!("{:x}", n);
+    let zeros = "0".repeat(sz - s.len());
+    format!("#x{}{}", zeros, s)
+}
+
 impl<T: Types> fmt::Display for Constant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -325,6 +331,10 @@ impl<T: Types> fmt::Display for Constant<T> {
             Constant::Decimal(r) => write!(f, "{}", r.display()),
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
+            Constant::BitVec(i, sz) => {
+                let str: u128 = i.display().to_string().parse().unwrap();
+                write!(f, "(lit \"{}\" (BitVec Size{}))", hexify(str, *sz), sz)
+            }
         }
     }
 }

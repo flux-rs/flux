@@ -1979,7 +1979,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     if 0 <= n && n < (1 << size) {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {
-                        return Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?;
+                        Err(self.emit(errors::InvalidBitVectorConstant::new(span, size)))?
                     }
                 } else {
                     Ok(rty::Constant::from(n))

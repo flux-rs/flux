@@ -276,6 +276,7 @@ pub enum Constant<T: Types> {
     Decimal(T::Decimal),
     Boolean(bool),
     String(T::String),
+    BitVec(T::Numeral, usize),
 }
 
 #[derive_where(Hash)]
