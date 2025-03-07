@@ -265,7 +265,7 @@ fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
 
 fhir_analysis_invalid_bitvector_constant =
-    integer is not a {$sort} bit vector
+    integer is not a `{$sort}` bit vector
 
 fhir_analysis_refine_arg_mismatch =
     {$kind} takes {$expected} generic refinement {$expected ->
