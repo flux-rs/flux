@@ -203,16 +203,8 @@ specification."</p>
 functions, impls, and structs. Impls are only supported for structs and if you
 have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
 Structs only support opaque refinements.</p>
-<h3 id="import-the-procedural-macros"><a class="header" href="#import-the-procedural-macros">Import the procedural macros</a></h3>
-<p>In order to use an extern spec you need to add a dependency on
-<a href="https://github.com/flux-rs/flux/tree/main/flux-rs"><code>flux_rs</code></a>.
-Right now this needs to be done as a local dependency since it is not published.
-Below is an example of how you can include it, although the version may be
-different.</p>
-<pre><code class="language-toml">[dependencies]
-flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
-</code></pre>
-<p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
+<p>Extern specs are given using <code>extern_spec</code> attribute macro, which is provided
+by the procedural macros package <code>flux_rs</code>.</p>
 <pre><code>use flux_rs::extern_spec;
 </code></pre>
 <h3 id="extern-functions"><a class="header" href="#extern-functions">Extern functions</a></h3>
