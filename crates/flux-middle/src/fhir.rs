@@ -33,7 +33,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::newtype_index;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
@@ -1170,10 +1170,10 @@ pub struct SpecFunc<'fhir> {
     pub body: Option<Expr<'fhir>>,
 }
 
-#[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
-    /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
-    Thy(Symbol),
+    /// Theory symbols *interpreted* by the SMT solver
+    Thy(liquid_fixpoint::ThyFunc),
     /// User-defined uninterpreted functions with no definition
     Uif,
     /// User-defined functions with a body definition
