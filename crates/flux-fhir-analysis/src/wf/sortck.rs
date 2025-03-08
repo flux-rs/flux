@@ -400,28 +400,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::BinOp::BitAnd
             | fhir::BinOp::BitOr
             | fhir::BinOp::BitShl
-            | fhir::BinOp::BitShr => self.synth_bitvec_op(expr, op, e1, e2),
+            | fhir::BinOp::BitShr => {
+                let sort = rty::Sort::BitVec(self.next_bv_size_var());
+                self.check_expr(e1, &sort)?;
+                self.check_expr(e2, &sort)?;
+                Ok(sort)
+            }
         }
-    }
-
-    fn synth_bitvec_op(
-        &mut self,
-        expr: &fhir::Expr,
-        op: fhir::BinOp,
-        e1: &fhir::Expr,
-        e2: &fhir::Expr,
-    ) -> Result<rty::Sort> {
-        let name = match op {
-            fhir::BinOp::BitAnd => "bv_and",
-            fhir::BinOp::BitOr => "bv_or",
-            fhir::BinOp::BitShl => "bv_shl",
-            fhir::BinOp::BitShr => "bv_lshr",
-            _ => span_bug!(expr.span, "unexpected operator in synth_bitvec_op"),
-        };
-        let name = crate::Symbol::intern(name);
-        let poly_fsort = flux_middle::THEORY_FUNCS.get(&name).unwrap().sort.clone();
-        let fsort = self.instantiate_func_sort(poly_fsort);
-        self.synth_app(fsort, &[*e1, *e2], expr.span)
     }
 
     fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr) -> Result<rty::Sort> {
