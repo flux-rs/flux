@@ -1014,7 +1014,7 @@ impl Sort {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BvSize {
     /// A fixed size
-    Fixed(usize),
+    Fixed(u32),
     /// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
     Param(ParamSort),
     /// A size that needs to be inferred. Used during sort checking to instantiate bit-vector

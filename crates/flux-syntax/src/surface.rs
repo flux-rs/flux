@@ -177,7 +177,7 @@ pub enum Sort {
 #[derive(Debug)]
 pub enum BaseSort {
     /// a bitvector sort, e.g., bitvec<32>
-    BitVec(usize),
+    BitVec(u32),
     Path(SortPath),
 }
 

@@ -958,15 +958,11 @@ impl From<Local> for Loc {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct Real(pub i128);
+pub struct Real(pub u128);
 
 impl liquid_fixpoint::FixpointFmt for Real {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0 < 0 {
-            write!(f, "(- {}.0)", self.0.unsigned_abs())
-        } else {
-            write!(f, "{}.0", self.0)
-        }
+        write!(f, "{}.0", self.0)
     }
 }
 
@@ -977,7 +973,7 @@ pub enum Constant {
     Bool(bool),
     Str(Symbol),
     Char(char),
-    BitVec(BigInt, usize),
+    BitVec(BigInt, u32),
 }
 
 impl Constant {

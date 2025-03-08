@@ -1981,8 +1981,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = self.results().literal_sort(fhir_id);
                 if let rty::Sort::BitVec(bvsize) = sort {
                     if let rty::BvSize::Fixed(size) = bvsize
-                        && 0 <= n
-                        && (n == 0 || n.ilog2() < size.try_into().unwrap())
+                        && (n == 0 || n.ilog2() < size.into())
                     {
                         Ok(rty::Constant::BitVec(n.into(), size))
                     } else {

@@ -318,9 +318,9 @@ impl<T: Types> fmt::Display for Expr<T> {
     }
 }
 
-fn hexify(n: u128, sz: usize) -> String {
+fn hexify(n: u128, sz: u32) -> String {
     let s = format!("{:x}", n);
-    let zeros = "0".repeat(sz / 4 - s.len());
+    let zeros = "0".repeat(sz as usize / 4 - s.len());
     format!("#x{}{}", zeros, s)
 }
 

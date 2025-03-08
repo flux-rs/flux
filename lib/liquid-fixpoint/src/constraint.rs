@@ -161,7 +161,7 @@ pub enum Sort<T: Types> {
     Real,
     Str,
     BitVec(Box<Sort<T>>),
-    BvSize(usize),
+    BvSize(u32),
     Var(usize),
     Func(Box<[Self; 2]>),
     Abs(usize, Box<Self>),
@@ -276,7 +276,7 @@ pub enum Constant<T: Types> {
     Decimal(T::Decimal),
     Boolean(bool),
     String(T::String),
-    BitVec(T::Numeral, usize),
+    BitVec(T::Numeral, u32),
 }
 
 #[derive_where(Hash)]
