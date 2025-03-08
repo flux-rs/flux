@@ -38,8 +38,17 @@ fn run() -> Result<i32> {
     let cargo_target = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
     let cargo_target = PathBuf::from_iter([cargo_target, "flux".to_string()]);
 
-    let exit_code = Command::new(cargo_path)
-        .arg("check")
+    let mut cmd = Command::new(cargo_path);
+
+    // Unless we are calling `cargo flux clean` append a check
+    match &args[..] {
+        [subcommand, ..] if subcommand != "clean" => {
+            cmd.arg("check");
+        }
+        _ => {}
+    }
+
+    let exit_code = cmd
         .args(args)
         .env(LIB_PATH, extended_lib_path)
         .env("FLUX_BUILD_SYSROOT", "1")

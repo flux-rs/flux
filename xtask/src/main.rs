@@ -78,7 +78,9 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Install(args) => install(&sh, &args, &extra),
         XtaskCmd::Doc(args) => doc(sh, args),
         XtaskCmd::BuildSysroot(_) => {
-            install_sysroot(&sh, false, &local_sysroot_dir()?)?;
+            let config =
+                SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: true };
+            install_sysroot(&sh, &config)?;
             Ok(())
         }
         XtaskCmd::Uninstall(_) => uninstall(&sh),
@@ -87,19 +89,20 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
-    let sysroot = local_sysroot_dir()?;
+    let config =
+        SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: false };
     let Test { filter } = args;
-    let flux = build_binary("flux", false)?;
-    install_sysroot(&sh, false, &sysroot)?;
+    let flux = build_binary("flux", config.release)?;
+    install_sysroot(&sh, &config)?;
 
-    let mut cmd = cmd!(sh, "cargo test -p tests -- --flux {flux} --sysroot {sysroot}");
-
-    if let Some(filter) = &filter {
-        cmd = cmd.args(["--filter", filter]);
-    }
-    cmd.run()?;
-
-    Ok(())
+    Command::new("cargo")
+        .args(["test", "-p", "tests", "--"])
+        .args(["--flux", flux.as_str()])
+        .args(["--sysroot".as_ref(), config.dst.as_os_str()])
+        .map_opt(filter.as_ref(), |filter, cmd| {
+            cmd.args(["--filter", filter]);
+        })
+        .run()
 }
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
@@ -123,23 +126,30 @@ fn run_inner(
     input: PathBuf,
     flags: impl IntoIterator<Item = String>,
 ) -> Result<(), anyhow::Error> {
-    let sysroot = local_sysroot_dir()?;
+    let config =
+        SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: false };
 
-    install_sysroot(sh, false, &sysroot)?;
-    let flux = build_binary("flux", false)?;
+    install_sysroot(sh, &config)?;
+    let flux = build_binary("flux", config.release)?;
 
-    let _env = push_env(sh, FLUX_SYSROOT, &sysroot);
+    let _env = push_env(sh, FLUX_SYSROOT, &config.dst);
     let mut rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
-    cmd!(sh, "{flux} {rustc_flags...} {input}").run()?;
-    Ok(())
+    Command::new(flux).args(&rustc_flags).arg(&input).run()
 }
 
 fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
-    install_sysroot(sh, args.is_release(), &default_sysroot_dir())?;
-    cmd!(sh, "cargo install --path crates/flux-bin --force {extra...}").run()?;
-    Ok(())
+    let config = SysrootConfig {
+        release: args.is_release(),
+        dst: default_sysroot_dir(),
+        force_build_libs: false,
+    };
+    install_sysroot(sh, &config)?;
+    Command::new("cargo")
+        .args(["install", "--path", "crates/flux-bin", "--force"])
+        .args(extra)
+        .run()
 }
 
 fn uninstall(sh: &Shell) -> anyhow::Result<()> {
@@ -179,20 +189,33 @@ fn build_binary(bin: &str, release: bool) -> anyhow::Result<Utf8PathBuf> {
         .ok_or_else(|| anyhow!("cannot find binary: `{bin}`"))
 }
 
-fn install_sysroot(sh: &Shell, release: bool, sysroot: &Path) -> anyhow::Result<()> {
-    sh.remove_path(sysroot)?;
-    sh.create_dir(sysroot)?;
+struct SysrootConfig {
+    /// Whether to build in release mode
+    release: bool,
+    /// Destination path for sysroot artifacts
+    dst: PathBuf,
+    force_build_libs: bool,
+}
 
-    copy_file(sh, build_binary("flux-driver", release)?, sysroot)?;
+fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
+    sh.remove_path(&config.dst)?;
+    sh.create_dir(&config.dst)?;
 
-    let artifacts = Command::new(build_binary("cargo-flux", release)?)
+    copy_file(sh, build_binary("flux-driver", config.release)?, &config.dst)?;
+
+    let cargo_flux = build_binary("cargo-flux", config.release)?;
+
+    if config.force_build_libs {
+        Command::new(&cargo_flux).args(["flux", "clean"]).run()?;
+    }
+
+    let artifacts = Command::new(cargo_flux)
         .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
-        .env(FLUX_SYSROOT, sysroot)
+        .env(FLUX_SYSROOT, &config.dst)
         .env(FLUX_SYSROOT_TEST, "1")
         .run_with_cargo_metadata()?;
 
-    copy_artifacts(sh, &artifacts, sysroot)?;
-    Ok(())
+    copy_artifacts(sh, &artifacts, &config.dst)
 }
 
 fn copy_artifacts(sh: &Shell, artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
@@ -296,6 +319,8 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyh
 
 trait CommandExt {
     fn arg_if<S: AsRef<OsStr>>(&mut self, b: bool, arg: S) -> &mut Self;
+    fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
+    fn run(&mut self) -> anyhow::Result<()>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
@@ -305,6 +330,19 @@ impl CommandExt for Command {
             self.arg(arg);
         }
         self
+    }
+
+    fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
+        if let Some(v) = opt {
+            f(v, self);
+        }
+        self
+    }
+
+    fn run(&mut self) -> anyhow::Result<()> {
+        display_command(self);
+        let mut child = self.spawn()?;
+        check_status(child.wait()?)
     }
 
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>> {
