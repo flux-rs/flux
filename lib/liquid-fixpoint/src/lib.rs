@@ -160,6 +160,7 @@ pub struct Task<T: Types> {
 pub enum SmtSolver {
     Z3,
     CVC5,
+    Bitwuzla
 }
 
 impl fmt::Display for SmtSolver {
@@ -167,6 +168,7 @@ impl fmt::Display for SmtSolver {
         match self {
             SmtSolver::Z3 => write!(f, "z3"),
             SmtSolver::CVC5 => write!(f, "cvc5"),
+            SmtSolver::Bitwuzla => write!(f, "bitwuzla"),
         }
     }
 }
