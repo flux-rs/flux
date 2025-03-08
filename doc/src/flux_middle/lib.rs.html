@@ -602,82 +602,7 @@
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
-<a href="#650" id="650">650</a>
-<a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
-<a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
-<a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a>
-<a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a>
-<a href="#669" id="669">669</a>
-<a href="#670" id="670">670</a>
-<a href="#671" id="671">671</a>
-<a href="#672" id="672">672</a>
-<a href="#673" id="673">673</a>
-<a href="#674" id="674">674</a>
-<a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a>
-<a href="#677" id="677">677</a>
-<a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
+<a href="#604" id="604">604</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 </span><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -730,6 +655,7 @@
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>global_env::GlobalEnv;
+<span class="kw">use </span>liquid_fixpoint::ThyFunc;
 <span class="kw">use </span>queries::QueryResult;
 <span class="kw">use </span>rty::VariantIdx;
 <span class="kw">use </span>rustc_data_structures::{
@@ -750,10 +676,89 @@
 <span class="kw">pub struct </span>TheoryFunc {
     <span class="kw">pub </span>name: Symbol,
     <span class="kw">pub </span>sort: rty::PolyFuncSort,
-    <span class="kw">pub </span>fixpoint_name: Symbol,
+    <span class="kw">pub </span>itf: liquid_fixpoint::ThyFunc,
 }
 
 <span class="kw">pub static </span>THEORY_FUNCS: LazyLock&lt;UnordMap&lt;Symbol, TheoryFunc&gt;&gt; = LazyLock::new(|| {
+    <span class="kw">use </span>rty::{BvSize, Sort::<span class="kw-2">*</span>};
+    liquid_fixpoint::ThyFunc::ALL
+        .into_iter()
+        .filter_map(|func| {
+            <span class="kw">let </span>func = TheoryFunc {
+                name: Symbol::intern(name_of_thy_func(func)<span class="question-mark">?</span>),
+                itf: func,
+                sort: sort_of_thy_func(func)<span class="question-mark">?</span>,
+            };
+            <span class="prelude-val">Some</span>(func)
+        })
+        .chain([
+            <span class="comment">// we can't express this as function types so we add special case
+            </span>TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_zero_extend_32_to_64"</span>),
+                itf: liquid_fixpoint::ThyFunc::BvZeroExtend(<span class="number">32</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], BitVec(BvSize::Fixed(<span class="number">64</span>))),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_sign_extend_32_to_64"</span>),
+                itf: liquid_fixpoint::ThyFunc::BvSignExtend(<span class="number">32</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], BitVec(BvSize::Fixed(<span class="number">64</span>))),
+                ),
+            },
+        ])
+        .map(|func| (func.name, func))
+        .collect()
+});
+
+<span class="kw">fn </span>name_of_thy_func(func: liquid_fixpoint::ThyFunc) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
+    <span class="kw">let </span>name = <span class="kw">match </span>func {
+        ThyFunc::BvZeroExtend(<span class="kw">_</span>) | ThyFunc::BvSignExtend(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        ThyFunc::StrLen =&gt; <span class="string">"str_len"</span>,
+        ThyFunc::IntToBv32 =&gt; <span class="string">"bv_int_to_bv32"</span>,
+        ThyFunc::Bv32ToInt =&gt; <span class="string">"bv_bv32_to_int"</span>,
+        ThyFunc::IntToBv64 =&gt; <span class="string">"bv_int_to_bv64"</span>,
+        ThyFunc::Bv64ToInt =&gt; <span class="string">"bv_bv64_to_int"</span>,
+        ThyFunc::BvUge =&gt; <span class="string">"bv_uge"</span>,
+        ThyFunc::BvSge =&gt; <span class="string">"bv_sge"</span>,
+        ThyFunc::BvUdiv =&gt; <span class="string">"bv_udiv"</span>,
+        ThyFunc::BvSdiv =&gt; <span class="string">"bv_sdiv"</span>,
+        ThyFunc::BvUmod =&gt; <span class="string">"bv_umod"</span>,
+        ThyFunc::BvSmod =&gt; <span class="string">"bv_smod"</span>,
+        ThyFunc::BvSrem =&gt; <span class="string">"bv_srem"</span>,
+        ThyFunc::BvUrem =&gt; <span class="string">"bv_urem"</span>,
+        ThyFunc::BvLshr =&gt; <span class="string">"bv_lshr"</span>,
+        ThyFunc::BvAshr =&gt; <span class="string">"bv_ashr"</span>,
+        ThyFunc::BvAnd =&gt; <span class="string">"bv_and"</span>,
+        ThyFunc::BvOr =&gt; <span class="string">"bv_or"</span>,
+        ThyFunc::BvXor =&gt; <span class="string">"bv_xor"</span>,
+        ThyFunc::BvNot =&gt; <span class="string">"bv_not"</span>,
+        ThyFunc::BvAdd =&gt; <span class="string">"bv_add"</span>,
+        ThyFunc::BvNeg =&gt; <span class="string">"bv_neg"</span>,
+        ThyFunc::BvSub =&gt; <span class="string">"bv_sub"</span>,
+        ThyFunc::BvMul =&gt; <span class="string">"bv_mul"</span>,
+        ThyFunc::BvShl =&gt; <span class="string">"bv_shl"</span>,
+        ThyFunc::BvUle =&gt; <span class="string">"bv_ule"</span>,
+        ThyFunc::BvSle =&gt; <span class="string">"bv_sle"</span>,
+        ThyFunc::BvUgt =&gt; <span class="string">"bv_ugt"</span>,
+        ThyFunc::BvSgt =&gt; <span class="string">"bv_sgt"</span>,
+        ThyFunc::BvUlt =&gt; <span class="string">"bv_ult"</span>,
+        ThyFunc::BvSlt =&gt; <span class="string">"bv_slt"</span>,
+        ThyFunc::SetEmpty =&gt; <span class="string">"set_empty"</span>,
+        ThyFunc::SetSng =&gt; <span class="string">"set_singleton"</span>,
+        ThyFunc::SetCup =&gt; <span class="string">"set_union"</span>,
+        ThyFunc::SetMem =&gt; <span class="string">"set_is_in"</span>,
+        ThyFunc::MapDefault =&gt; <span class="string">"map_default"</span>,
+        ThyFunc::MapSelect =&gt; <span class="string">"map_select"</span>,
+        ThyFunc::MapStore =&gt; <span class="string">"map_store"</span>,
+    };
+    <span class="prelude-val">Some</span>(name)
+}
+
+<span class="kw">fn </span>sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -&gt; <span class="prelude-ty">Option</span>&lt;rty::PolyFuncSort&gt; {
     <span class="kw">use </span>rty::{
         BvSize, ParamSort,
         Sort::{<span class="self">self</span>, <span class="kw-2">*</span>},
@@ -763,248 +768,100 @@
     <span class="kw">let </span>param0 = ParamSort::from_u32(<span class="number">0</span>);
     <span class="kw">let </span>param1 = ParamSort::from_u32(<span class="number">1</span>);
     <span class="kw">let </span>bv_param0 = BvSize::Param(ParamSort::from_u32(<span class="number">0</span>));
-    [
-        <span class="comment">// String operations
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"str_len"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"strLen"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::empty(),
-                rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Str], Int),
-            ),
-        },
-        <span class="comment">// BitVector &lt;-&gt; int
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_zero_extend_32_to_64"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"app (_ zero_extend 32)"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::empty(),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], BitVec(BvSize::Fixed(<span class="number">64</span>))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_sign_extend_32_to_64"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"app (_ sign_extend 32)"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::empty(),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], BitVec(BvSize::Fixed(<span class="number">64</span>))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_int_to_bv32"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"int_to_bv32"</span>),
-            sort: rty::PolyFuncSort::new(
+
+    <span class="kw">let </span>sort = <span class="kw">match </span>func {
+        ThyFunc::BvZeroExtend(<span class="kw">_</span>) | ThyFunc::BvSignExtend(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        ThyFunc::StrLen =&gt; {
+            <span class="comment">// str -&gt; int
+            </span>rty::PolyFuncSort::new(List::empty(), rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Str], Int))
+        }
+        ThyFunc::IntToBv32 =&gt; {
+            <span class="comment">// int -&gt; BitVec&lt;32&gt;
+            </span>rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], BitVec(BvSize::Fixed(<span class="number">32</span>))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_bv32_to_int"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bv32_to_int"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::Bv32ToInt =&gt; {
+            <span class="comment">// BitVec&lt;32&gt; -&gt; int
+            </span>rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], Int),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_int_to_bv64"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"int_to_bv64"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::IntToBv64 =&gt; {
+            <span class="comment">// int -&gt; BitVec&lt;64&gt;
+            </span>rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], BitVec(BvSize::Fixed(<span class="number">64</span>))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_bv64_to_int"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bv64_to_int"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::Bv64ToInt =&gt; {
+            <span class="comment">// BitVec&lt;64&gt; -&gt; int
+            </span>rty::PolyFuncSort::new(
                 List::empty(),
                 rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">64</span>))], Int),
-            ),
-        },
-        <span class="comment">// BitVector arith
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_add"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvadd"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::BvUdiv
+        | ThyFunc::BvSdiv
+        | ThyFunc::BvUmod
+        | ThyFunc::BvSmod
+        | ThyFunc::BvSrem
+        | ThyFunc::BvUrem
+        | ThyFunc::BvLshr
+        | ThyFunc::BvAshr
+        | ThyFunc::BvAnd
+        | ThyFunc::BvOr
+        | ThyFunc::BvXor
+        | ThyFunc::BvAdd
+        | ThyFunc::BvSub
+        | ThyFunc::BvMul
+        | ThyFunc::BvShl =&gt; {
+            <span class="comment">// ∀s. (BitVec&lt;s&gt;, BitVec&lt;s&gt;) -&gt; BitVec&lt;s&gt;
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_neg"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvneg"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::BvNot | ThyFunc::BvNeg =&gt; {
+            <span class="comment">// ∀s. BitVec&lt;s&gt; -&gt; BitVec&lt;s&gt;
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_sub"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvsub"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_shl"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvshl"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_lshr"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvlshr"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_ashr"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvashr"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_mul"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvmul"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_udiv"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvudiv"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_urem"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvurem"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_sdiv"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvsdiv"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_srem"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvsrem"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_smod"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvsmod"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        <span class="comment">// BitVector bitwise
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_and"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvand"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_or"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvor"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_xor"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvxor"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_not"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvnot"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0)], BitVec(bv_param0)),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_ule"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvule"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::BvUgt
+        | ThyFunc::BvSgt
+        | ThyFunc::BvUlt
+        | ThyFunc::BvSlt
+        | ThyFunc::BvSle
+        | ThyFunc::BvUge
+        | ThyFunc::BvSge
+        | ThyFunc::BvUle =&gt; {
+            <span class="comment">// ∀s. (BitVec&lt;s&gt;, BitVec&lt;s&gt;) -&gt; bool
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], Bool),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_uge"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvuge"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], Bool),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_ugt"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvugt"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], Bool),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"bv_ult"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"bvult"</span>),
-            sort: rty::PolyFuncSort::new(
-                List::singleton(SortParamKind::BvSize),
-                rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)], Bool),
-            ),
-        },
-        <span class="comment">// Set operations
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"set_empty"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Set_empty"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::SetEmpty =&gt; {
+            <span class="comment">// ∀s. int -&gt; Set&lt;S&gt; why does this take an int?
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(<span class="macro">vec!</span>[Int], Sort::app(Set, List::singleton(Var(param0)))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"set_singleton"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Set_sng"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::SetSng =&gt; {
+            <span class="comment">// ∀s. s -&gt; Set&lt;S&gt;
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(<span class="macro">vec!</span>[Var(param0)], Sort::app(Set, List::singleton(Var(param0)))),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"set_union"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Set_cup"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::SetCup =&gt; {
+            <span class="comment">// ∀s. (Set&lt;S&gt;, Set&lt;S&gt;) -&gt; Set&lt;S&gt;
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(
                     <span class="macro">vec!</span>[
@@ -1013,46 +870,41 @@
                     ],
                     Sort::app(Set, List::singleton(Var(param0))),
                 ),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"set_is_in"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Set_mem"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::SetMem =&gt; {
+            <span class="comment">// ∀s. (s, Set&lt;S&gt;) -&gt; bool
+            </span>rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(
                     <span class="macro">vec!</span>[Var(param0), Sort::app(Set, List::singleton(Var(param0)))],
                     Bool,
                 ),
-            ),
-        },
-        <span class="comment">// Map operations
-        </span>TheoryFunc {
-            name: Symbol::intern(<span class="string">"map_default"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Map_default"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::MapDefault =&gt; {
+            <span class="comment">// ∀k,v. v -&gt; Map&lt;k,v&gt;
+            </span>rty::PolyFuncSort::new(
                 List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                 rty::FuncSort::new(
                     <span class="macro">vec!</span>[Var(param1)],
                     Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                 ),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"map_select"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Map_select"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::MapSelect =&gt; {
+            <span class="comment">// ∀k,v. (Map&lt;k,v&gt;, k) -&gt; v
+            </span>rty::PolyFuncSort::new(
                 List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                 rty::FuncSort::new(
                     <span class="macro">vec!</span>[Sort::app(Map, List::from_arr([Var(param0), Var(param1)])), Var(param0)],
                     Var(param1),
                 ),
-            ),
-        },
-        TheoryFunc {
-            name: Symbol::intern(<span class="string">"map_store"</span>),
-            fixpoint_name: Symbol::intern(<span class="string">"Map_store"</span>),
-            sort: rty::PolyFuncSort::new(
+            )
+        }
+        ThyFunc::MapStore =&gt; {
+            <span class="comment">// ∀k,v. (Map&lt;k,v&gt;, k, v) -&gt; Map&lt;k, v&gt;
+            </span>rty::PolyFuncSort::new(
                 List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                 rty::FuncSort::new(
                     <span class="macro">vec!</span>[
@@ -1062,13 +914,11 @@
                     ],
                     Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                 ),
-            ),
-        },
-    ]
-    .into_iter()
-    .map(|itf| (itf.name, itf))
-    .collect()
-});
+            )
+        }
+    };
+    <span class="prelude-val">Some</span>(sort)
+}
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>Specs {

@@ -979,7 +979,7 @@
         <span class="self">self</span>.func_decls.extend_unord(
             flux_middle::THEORY_FUNCS
                 .items()
-                .map(|(name, itf)| (<span class="kw-2">*</span>name, fhir::SpecFuncKind::Thy(itf.fixpoint_name))),
+                .map(|(<span class="kw">_</span>, itf)| (itf.name, fhir::SpecFuncKind::Thy(itf.itf))),
         );
     }
 

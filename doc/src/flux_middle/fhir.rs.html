@@ -1617,7 +1617,7 @@
     def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_index::newtype_index;
-<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">pub use </span>rustc_middle::mir::Mutability;
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
@@ -2754,10 +2754,10 @@
     <span class="kw">pub </span>body: <span class="prelude-ty">Option</span>&lt;Expr&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
-<span class="attr">#[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>SpecFuncKind {
-    <span class="doccomment">/// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
-    </span>Thy(Symbol),
+    <span class="doccomment">/// Theory symbols *interpreted* by the SMT solver
+    </span>Thy(liquid_fixpoint::ThyFunc),
     <span class="doccomment">/// User-defined uninterpreted functions with no definition
     </span>Uif,
     <span class="doccomment">/// User-defined functions with a body definition
