@@ -160,7 +160,7 @@ pub struct Task<T: Types> {
 pub enum SmtSolver {
     Z3,
     CVC5,
-    Bitwuzla
+    Bitwuzla,
 }
 
 impl fmt::Display for SmtSolver {

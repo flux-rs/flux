@@ -192,7 +192,7 @@ pub enum SmtSolver {
     #[default]
     Z3,
     CVC5,
-    Bitwuzla
+    Bitwuzla,
 }
 
 impl FromStr for SmtSolver {
