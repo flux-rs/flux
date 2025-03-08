@@ -59,20 +59,8 @@ functions, impls, and structs. Impls are only supported for structs and if you
 have multiple impls for a struct (such as `&[T]` and `[T]`), those may conflict.
 Structs only support opaque refinements.
 
-### Import the procedural macros
-
-In order to use an extern spec you need to add a dependency on
-[`flux_rs`](https://github.com/flux-rs/flux/tree/main/flux-rs).
-Right now this needs to be done as a local dependency since it is not published.
-Below is an example of how you can include it, although the version may be
-different.
-
-```toml
-[dependencies]
-flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
-```
-
-Then in your code you will need to include the `extern_spec` attribute macro.
+Extern specs are given using `extern_spec` attribute macro, which is provided
+by the procedural macros package `flux_rs`.
 
 ```
 use flux_rs::extern_spec;

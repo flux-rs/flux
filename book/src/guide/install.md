@@ -32,3 +32,14 @@ cargo xtask install
 This will install two binaries `flux` and `cargo-flux` in your cargo home. These two binaries should be used
 respectively to run Flux on either a single file or on a project using cargo. The installation process will
 also copy some files to `$HOME/.flux`.
+
+In order to use Flux refinement attributes in a Cargo project, you will need to add the
+following to your Cargo.toml
+
+```toml
+[dependencies]
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+```
+
+This will add the procedural macros Flux uses to your project; it is not a susbstitute
+for installing Flux, which must still be done.
