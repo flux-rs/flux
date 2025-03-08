@@ -14,9 +14,7 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
-    big_int::BigInt,
-    def_id_to_string,
+    MaybeExternId, def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -37,10 +35,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{
-        big_int::BigInt,
-        rty::{EarlyReftParam, Real},
-    };
+    use flux_middle::rty::{EarlyReftParam, Real};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -165,7 +160,6 @@ pub mod fixpoint {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
-        type Numeral = BigInt;
         type Decimal = Real;
         type String = SymStr;
         type Tag = super::TagIdx;
@@ -668,7 +662,7 @@ where
                 sort: fixpoint::Sort::Int,
                 pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
-                    fixpoint::Expr::int(BigInt::ZERO),
+                    fixpoint::Expr::int(0),
                 )),
             });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
@@ -691,14 +685,20 @@ where
     }
 }
 
-fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
+fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     match cst {
-        rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
-        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
-        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
-        rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
-        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
-        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size),
+        rty::Constant::Int(i) => {
+            if i.is_negative() {
+                fixpoint::Expr::Neg(Box::new(fixpoint::Constant::Numeral(i.abs()).into()))
+            } else {
+                fixpoint::Expr::Constant(fixpoint::Constant::Numeral(i.abs())).into()
+            }
+        }
+        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r).into(),
+        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b).into(),
+        rty::Constant::Char(c) => fixpoint::Constant::Numeral(u128::from(c)).into(),
+        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)).into(),
+        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size).into(),
     }
 }
 
@@ -1055,7 +1055,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
+            rty::ExprKind::Constant(c) => const_to_fixpoint(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,

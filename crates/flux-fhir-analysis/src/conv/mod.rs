@@ -1983,7 +1983,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     if let rty::BvSize::Fixed(size) = bvsize
                         && (n == 0 || n.ilog2() < size.into())
                     {
-                        Ok(rty::Constant::BitVec(n.into(), size))
+                        Ok(rty::Constant::BitVec(n, size))
                     } else {
                         Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
                     }

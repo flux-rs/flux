@@ -973,7 +973,7 @@ pub enum Constant {
     Bool(bool),
     Str(Symbol),
     Char(char),
-    BitVec(BigInt, u32),
+    BitVec(u128, u32),
 }
 
 impl Constant {
