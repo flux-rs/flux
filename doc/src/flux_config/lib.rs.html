@@ -272,13 +272,7 @@
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
+<a href="#274" id="274">274</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 <span class="kw">use </span>config::{Environment, File};
 <span class="kw">use </span>serde::Deserialize;
@@ -289,10 +283,6 @@
 
 <span class="kw">pub fn </span>check_def() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
     <span class="kw-2">&amp;</span>CONFIG.check_def
-}
-
-<span class="kw">pub fn </span>dump_timings() -&gt; bool {
-    CONFIG.dump_timings
 }
 
 <span class="kw">pub fn </span>dump_checker_trace() -&gt; bool {
@@ -356,7 +346,6 @@
     log_dir: PathBuf,
     dump_constraint: bool,
     dump_checker_trace: bool,
-    dump_timings: bool,
     dump_fhir: bool,
     dump_rty: bool,
     dump_mir: bool,
@@ -502,7 +491,6 @@
             </span>.set_default(<span class="string">"log_dir"</span>, <span class="string">"./log/"</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_constraint"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_checker_trace"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
-            </span>.set_default(<span class="string">"dump_timings"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_mir"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_fhir"</span>, <span class="bool-val">false</span>)<span class="question-mark">?
             </span>.set_default(<span class="string">"dump_rty"</span>, <span class="bool-val">false</span>)<span class="question-mark">?

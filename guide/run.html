@@ -259,7 +259,6 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 <li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
 <li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
-<li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
@@ -277,17 +276,14 @@ of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. 
 variables take priority over the config file.</p>
 <p>The config file should be in the project root.</p>
 <p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = "./test"
-dump_timings = true
+<pre><code class="language-toml">log_dir = "./log_dir"
 dump_mir = true
 cache = true
 </code></pre>
 <p>and you run in the project root</p>
-<pre><code class="language-bash">FLUX_DUMP_MIR=0 cargo-flux check
+<pre><code class="language-bash">FLUX_DUMP_MIR=1 cargo flux check
 </code></pre>
-<p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
-containing profiling information. It will <em>not</em> dump the MIR because that setting
-was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+<p>then <code>flux</code> will create the directory <code>./log_dir/</code> and dump mir bodies inside.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
 <p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a

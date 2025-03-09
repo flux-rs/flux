@@ -296,7 +296,6 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 <li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
 <li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
-<li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
@@ -314,17 +313,14 @@ of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. 
 variables take priority over the config file.</p>
 <p>The config file should be in the project root.</p>
 <p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = "./test"
-dump_timings = true
+<pre><code class="language-toml">log_dir = "./log_dir"
 dump_mir = true
 cache = true
 </code></pre>
 <p>and you run in the project root</p>
-<pre><code class="language-bash">FLUX_DUMP_MIR=0 cargo-flux check
+<pre><code class="language-bash">FLUX_DUMP_MIR=1 cargo flux check
 </code></pre>
-<p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
-containing profiling information. It will <em>not</em> dump the MIR because that setting
-was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+<p>then <code>flux</code> will create the directory <code>./log_dir/</code> and dump mir bodies inside.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
 <p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
 This annotation relies on the unstable custom inner attributes feature. To be able to use with a
@@ -671,58 +667,6 @@ To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 -Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   &lt;------- this
 </code></pre>
 <p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
-<h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
-<p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
-<p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
-<h3 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h3>
-<p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
-<p>Note that <code>check_crate</code> contains everything running under <code>check_top</code>, which is why the sum of the spans is greater than 19 seconds.</p>
-<pre><code class="language-text">check_top
-  Checker::infer
-    num events:   205
-    min non-zero: 0.52ms
-    1st quartile: 0.52ms
-    2nd quartile: 1.05ms
-    3rd quartile: 2.62ms
-    max:          24.12ms
-    total time:   229.64ms
-  Checker::check
-    num events:   205
-    min non-zero: 0.52ms
-    1st quartile: 0.52ms
-    2nd quartile: 1.05ms
-    3rd quartile: 5.24ms
-    max:          159.91ms
-    total time:   2028.47ms
-  FixpointCtx::check
-    num events:   205
-    min non-zero: 22.02ms
-    1st quartile: 26.21ms
-    2nd quartile: 28.31ms
-    3rd quartile: 40.37ms
-    max:          1867.51ms
-    total time:   9106.36ms
-total time: 11364.47ms
-
-check_crate
-  Callbacks::check_wf
-    num events:   1
-    min non-zero: 18.35ms
-    1st quartile: 18.87ms
-    2nd quartile: 18.87ms
-    3rd quartile: 18.87ms
-    max:          18.87ms
-    total time:   18.87ms
-  Callbacks::check_crate
-    num events:   1
-    min non-zero: 16986.93ms
-    1st quartile: 16995.32ms
-    2nd quartile: 16995.32ms
-    3rd quartile: 16995.32ms
-    max:          16995.32ms
-    total time:   16995.32ms
-total time: 17014.19ms
-</code></pre>
 <h2 id="macro-expansion"><a class="header" href="#macro-expansion">Macro expansion</a></h2>
 <p>For example if you have code like in <code>path/to/file.rs</code></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
