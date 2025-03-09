@@ -112,7 +112,7 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
 /// An interface to the information elaborated during sort checking. We mock these results in
 /// the first conversion phase during sort checking.
 pub trait WfckResultsProvider: Sized {
-    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort;
+    fn bin_op_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
     fn literal_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
@@ -173,8 +173,8 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for AfterSortck<'_, 'genv, 'tcx> {
 }
 
 impl WfckResultsProvider for WfckResults {
-    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
-        self.bin_rel_sorts()
+    fn bin_op_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.bin_op_sorts()
             .get(fhir_id)
             .cloned()
             .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
@@ -1981,10 +1981,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = self.results().literal_sort(fhir_id);
                 if let rty::Sort::BitVec(bvsize) = sort {
                     if let rty::BvSize::Fixed(size) = bvsize
-                        && 0 <= n
-                        && (n == 0 || n.ilog2() < size.try_into().unwrap())
+                        && (n == 0 || n.ilog2() < size)
                     {
-                        Ok(rty::Constant::BitVec(n.into(), size))
+                        Ok(rty::Constant::BitVec(n, size))
                     } else {
                         Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
                     }
@@ -2149,15 +2148,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BinOp::And => rty::BinOp::And,
             fhir::BinOp::Eq => rty::BinOp::Eq,
             fhir::BinOp::Ne => rty::BinOp::Ne,
-            fhir::BinOp::Gt => rty::BinOp::Gt(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Ge => rty::BinOp::Ge(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Lt => rty::BinOp::Lt(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Le => rty::BinOp::Le(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Add => rty::BinOp::Add(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Sub => rty::BinOp::Sub(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_rel_sort(fhir_id)),
-            fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_rel_sort(fhir_id)),
+            fhir::BinOp::Gt => rty::BinOp::Gt(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Ge => rty::BinOp::Ge(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Lt => rty::BinOp::Lt(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Le => rty::BinOp::Le(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Add => rty::BinOp::Add(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Sub => rty::BinOp::Sub(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_op_sort(fhir_id)),
             fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
             fhir::BinOp::BitOr => rty::BinOp::BitOr,
             fhir::BinOp::BitShl => rty::BinOp::BitShl,

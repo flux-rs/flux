@@ -39,14 +39,14 @@ impl PartialOrd for BV32 {
 
 #[trusted]
 impl BV32 {
-    #[sig(fn(BV32[@x], BV32[@y]) -> BV32[bv_add(x, y)])]
-    pub fn wrapping_add(self, other: BV32) -> BV32 {
-        BV32(self.0.wrapping_add(other.0))
-    }
-
     #[sig(fn (u32[@val]) -> BV32[bv_int_to_bv32(val)])]
     pub const fn new(value: u32) -> BV32 {
         BV32(value)
+    }
+
+    #[sig(fn(BV32[@x], BV32[@y]) -> BV32[bv_add(x, y)])]
+    pub fn wrapping_add(self, other: BV32) -> BV32 {
+        BV32(self.0.wrapping_add(other.0))
     }
 }
 

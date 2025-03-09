@@ -161,7 +161,7 @@ pub enum Sort<T: Types> {
     Real,
     Str,
     BitVec(Box<Sort<T>>),
-    BvSize(usize),
+    BvSize(u32),
     Var(usize),
     Func(Box<[Self; 2]>),
     Abs(usize, Box<Self>),
@@ -260,8 +260,14 @@ pub enum Expr<T: Types> {
     Atom(BinRel, Box<[Self; 2]>),
 }
 
+impl<T: Types> From<Constant<T>> for Expr<T> {
+    fn from(v: Constant<T>) -> Self {
+        Self::Constant(v)
+    }
+}
+
 impl<T: Types> Expr<T> {
-    pub const fn int(val: T::Numeral) -> Expr<T> {
+    pub const fn int(val: u128) -> Expr<T> {
         Expr::Constant(Constant::Numeral(val))
     }
 
@@ -272,11 +278,11 @@ impl<T: Types> Expr<T> {
 
 #[derive_where(Hash)]
 pub enum Constant<T: Types> {
-    Numeral(T::Numeral),
+    Numeral(u128),
     Decimal(T::Decimal),
     Boolean(bool),
     String(T::String),
-    BitVec(T::Numeral, usize),
+    BitVec(u128, u32),
 }
 
 #[derive_where(Hash)]

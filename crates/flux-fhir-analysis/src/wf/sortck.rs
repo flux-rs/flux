@@ -31,7 +31,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
-    sort_of_bin_rel: FxHashMap<FhirId, (rty::Sort, Span)>,
+    sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
@@ -50,7 +50,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
             sort_of_literal: Default::default(),
-            sort_of_bin_rel: Default::default(),
+            sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
@@ -378,7 +378,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-                self.sort_of_bin_rel
+                self.sort_of_bin_op
                     .insert(expr.fhir_id, (sort.clone(), expr.span));
                 Ok(rty::Sort::Bool)
             }
@@ -390,7 +390,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-                self.sort_of_bin_rel
+                self.sort_of_bin_op
                     .insert(expr.fhir_id, (sort.clone(), expr.span));
                 // check that the sort is integral for mod
                 self.check_integral(op, &sort, expr.span)?;
@@ -756,11 +756,11 @@ impl InferCtxt<'_, '_> {
         }
 
         // Make sure the binary operators are fully resolved
-        for (fhir_id, (sort, span)) in self.sort_of_bin_rel.clone() {
+        for (fhir_id, (sort, span)) in self.sort_of_bin_op.clone() {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-            self.wfckresults.bin_rel_sorts_mut().insert(fhir_id, sort);
+            self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
         Ok(self.wfckresults)

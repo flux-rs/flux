@@ -1014,7 +1014,7 @@ impl Sort {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BvSize {
     /// A fixed size
-    Fixed(usize),
+    Fixed(u32),
     /// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
     Param(ParamSort),
     /// A size that needs to be inferred. Used during sort checking to instantiate bit-vector
@@ -2732,7 +2732,7 @@ pub use crate::_Ref as Ref;
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
-    bin_rel_sorts: ItemLocalMap<Sort>,
+    bin_op_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
@@ -2762,7 +2762,7 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
-            bin_rel_sorts: ItemLocalMap::default(),
+            bin_op_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
@@ -2770,12 +2770,12 @@ impl WfckResults {
         }
     }
 
-    pub fn bin_rel_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.bin_rel_sorts }
+    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
     }
 
-    pub fn bin_rel_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.bin_rel_sorts }
+    pub fn bin_op_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.bin_op_sorts }
     }
 
     pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {

@@ -14,13 +14,11 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
-    big_int::BigInt,
-    def_id_to_string,
+    MaybeExternId, def_id_to_string,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BinOp, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -37,10 +35,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{
-        big_int::BigInt,
-        rty::{EarlyReftParam, Real},
-    };
+    use flux_middle::rty::{EarlyReftParam, Real};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -165,7 +160,6 @@ pub mod fixpoint {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
-        type Numeral = BigInt;
         type Decimal = Real;
         type String = SymStr;
         type Tag = super::TagIdx;
@@ -668,7 +662,7 @@ where
                 sort: fixpoint::Sort::Int,
                 pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
                     fixpoint::Expr::Var(var),
-                    fixpoint::Expr::int(BigInt::ZERO),
+                    fixpoint::Expr::int(0),
                 )),
             });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
@@ -691,14 +685,20 @@ where
     }
 }
 
-fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Constant {
+fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     match cst {
-        rty::Constant::Int(i) => fixpoint::Constant::Numeral(i),
-        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r),
-        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b),
-        rty::Constant::Char(c) => fixpoint::Constant::Numeral(BigInt::from(u32::from(c))),
-        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)),
-        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size),
+        rty::Constant::Int(i) => {
+            if i.is_negative() {
+                fixpoint::Expr::Neg(Box::new(fixpoint::Constant::Numeral(i.abs()).into()))
+            } else {
+                fixpoint::Constant::Numeral(i.abs()).into()
+            }
+        }
+        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r).into(),
+        rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b).into(),
+        rty::Constant::Char(c) => fixpoint::Constant::Numeral(u128::from(c)).into(),
+        rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)).into(),
+        rty::Constant::BitVec(i, size) => fixpoint::Constant::BitVec(i, size).into(),
     }
 }
 
@@ -1055,7 +1055,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
-            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(const_to_fixpoint(*c)),
+            rty::ExprKind::Constant(c) => const_to_fixpoint(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, scx)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
@@ -1166,25 +1166,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn bv_rel_to_fixpoint(&self, rel: &fixpoint::BinRel) -> fixpoint::Expr {
         let itf = match rel {
-            liquid_fixpoint::BinRel::Gt => liquid_fixpoint::ThyFunc::BvUgt,
-            liquid_fixpoint::BinRel::Ge => liquid_fixpoint::ThyFunc::BvUge,
-            liquid_fixpoint::BinRel::Lt => liquid_fixpoint::ThyFunc::BvUlt,
-            liquid_fixpoint::BinRel::Le => liquid_fixpoint::ThyFunc::BvUle,
+            fixpoint::BinRel::Gt => fixpoint::ThyFunc::BvUgt,
+            fixpoint::BinRel::Ge => fixpoint::ThyFunc::BvUge,
+            fixpoint::BinRel::Lt => fixpoint::ThyFunc::BvUlt,
+            fixpoint::BinRel::Le => fixpoint::ThyFunc::BvUle,
             _ => span_bug!(self.def_span, "not a bitvector relation!"),
         };
         fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
     }
 
-    fn bv_op_to_fixpoint(&self, op: &BinOp) -> fixpoint::Expr {
+    fn bv_op_to_fixpoint(&self, op: &rty::BinOp) -> fixpoint::Expr {
         let itf = match op {
-            BinOp::Add(_) => liquid_fixpoint::ThyFunc::BvAdd,
-            BinOp::Sub(_) => liquid_fixpoint::ThyFunc::BvSub,
-            BinOp::Mul(_) => liquid_fixpoint::ThyFunc::BvMul,
-            BinOp::Div(_) => liquid_fixpoint::ThyFunc::BvUdiv,
-            BinOp::BitAnd => liquid_fixpoint::ThyFunc::BvAnd,
-            BinOp::BitOr => liquid_fixpoint::ThyFunc::BvOr,
-            BinOp::BitShl => liquid_fixpoint::ThyFunc::BvShl,
-            BinOp::BitShr => liquid_fixpoint::ThyFunc::BvLshr,
+            rty::BinOp::Add(_) => fixpoint::ThyFunc::BvAdd,
+            rty::BinOp::Sub(_) => fixpoint::ThyFunc::BvSub,
+            rty::BinOp::Mul(_) => fixpoint::ThyFunc::BvMul,
+            rty::BinOp::Div(_) => fixpoint::ThyFunc::BvUdiv,
+            rty::BinOp::BitAnd => fixpoint::ThyFunc::BvAnd,
+            rty::BinOp::BitOr => fixpoint::ThyFunc::BvOr,
+            rty::BinOp::BitShl => fixpoint::ThyFunc::BvShl,
+            rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span, "not a bitvector operation!"),
         };
         fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
@@ -1251,10 +1251,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::BinOp::Mul(rty::Sort::BitVec(_))
             | rty::BinOp::Div(rty::Sort::BitVec(_))
             | rty::BinOp::Mod(rty::Sort::BitVec(_))
-            | BinOp::BitAnd
-            | BinOp::BitOr
-            | BinOp::BitShl
-            | BinOp::BitShr => {
+            | rty::BinOp::BitAnd
+            | rty::BinOp::BitOr
+            | rty::BinOp::BitShl
+            | rty::BinOp::BitShr => {
                 let bv_func = self.bv_op_to_fixpoint(op);
                 return Ok(fixpoint::Expr::App(Box::new(bv_func), vec![
                     self.expr_to_fixpoint(e1, scx)?,
@@ -1304,7 +1304,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new([self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?]),
                 )
             }
-
+            rty::Sort::BitVec(_) => {
+                let e1 = self.expr_to_fixpoint(e1, scx)?;
+                let e2 = self.expr_to_fixpoint(e2, scx)?;
+                let rel = self.bv_rel_to_fixpoint(&rel);
+                fixpoint::Expr::App(Box::new(rel), vec![e1, e2])
+            }
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
                 self.apply_bin_rel_rec(sorts, rel, e1, e2, scx, |field| {
@@ -1319,19 +1324,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?
-            }
-            rty::Sort::BitVec(_) => {
-                let e1 = self.expr_to_fixpoint(e1, scx)?;
-                let e2 = self.expr_to_fixpoint(e2, scx)?;
-                match rel {
-                    liquid_fixpoint::BinRel::Eq | liquid_fixpoint::BinRel::Ne => {
-                        fixpoint::Expr::Atom(rel, Box::new([e1, e2]))
-                    }
-                    _ => {
-                        let rel = self.bv_rel_to_fixpoint(&rel);
-                        fixpoint::Expr::App(Box::new(rel), vec![e1, e2])
-                    }
-                }
             }
             _ => {
                 let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));

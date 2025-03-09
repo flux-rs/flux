@@ -35,7 +35,6 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone;
     type KVar: Identifier + Hash;
     type Var: Identifier + Hash;
-    type Numeral: FixpointFmt + Hash;
     type Decimal: FixpointFmt + Hash;
     type String: FixpointFmt + Hash;
     type Tag: fmt::Display + FromStr + Hash;
@@ -78,8 +77,7 @@ impl Types for DefaultTypes {
     type KVar = &'static str;
     type Var = &'static str;
     type Tag = String;
-    type Numeral = i128;
-    type Decimal = i128;
+    type Decimal = u32;
     type String = String;
 }
 
@@ -89,9 +87,9 @@ impl Identifier for &str {
     }
 }
 
-impl FixpointFmt for i128 {
+impl FixpointFmt for u32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if *self < 0 { write!(f, "(- {})", self.unsigned_abs()) } else { write!(f, "{self}") }
+        write!(f, "{self}")
     }
 }
 
@@ -106,7 +104,6 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
-        type Numeral = $int:ty;
         type Decimal = $real:ty;
         type String = $str:ty;
 
@@ -128,7 +125,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel};
+            pub use $crate::{BinOp, BinRel, ThyFunc};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -136,7 +133,6 @@ macro_rules! declare_types {
             type KVar = $kvar;
             type Var = $var;
 
-            type Numeral = $int;
             type Decimal = $real;
             type String = $str;
 

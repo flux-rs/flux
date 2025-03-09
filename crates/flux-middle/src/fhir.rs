@@ -901,7 +901,7 @@ pub enum Sort<'fhir> {
     /// The sort of a location parameter introduced with the `x: &strg T` syntax.
     Loc,
     /// A bit vector with the given width.
-    BitVec(usize),
+    BitVec(u32),
     /// A polymorphic sort function.
     Func(PolyFuncSort<'fhir>),
     /// A sort that needs to be inferred.
@@ -997,8 +997,8 @@ impl Expr<'_> {
 
 #[derive(Clone, Copy)]
 pub enum Lit {
-    Int(i128),
-    Real(i128),
+    Int(u128),
+    Real(u128),
     Bool(bool),
     Str(Symbol),
     Char(char),

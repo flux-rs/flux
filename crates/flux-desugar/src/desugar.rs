@@ -1505,16 +1505,16 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             .alloc_slice_fill_iter(exprs.iter().map(|e| self.desugar_expr(e)))
     }
 
-    fn try_parse_int_lit(&self, span: Span, s: &str) -> Result<i128> {
+    fn try_parse_int_lit(&self, span: Span, s: &str) -> Result<u128> {
         let s = s.replace("_", "");
         let parsed_int = if s.len() <= 2 {
-            s.parse::<i128>()
+            s.parse::<u128>()
         } else {
             match &s[0..2] {
-                "0x" => i128::from_str_radix(&s[2..], 16), // hex
-                "0o" => i128::from_str_radix(&s[2..], 8),  // octal
-                "0b" => i128::from_str_radix(&s[2..], 2),  // binary
-                _ => s.parse::<i128>(),                    // must be decimal
+                "0x" => u128::from_str_radix(&s[2..], 16), // hex
+                "0o" => u128::from_str_radix(&s[2..], 8),  // octal
+                "0b" => u128::from_str_radix(&s[2..], 2),  // binary
+                _ => s.parse::<u128>(),                    // must be decimal
             }
         };
 
