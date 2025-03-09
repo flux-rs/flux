@@ -84,7 +84,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_type_alias(ty_alias),
+                            |cx| Ok(cx.desugar_type_alias(ty_alias)),
                         )?)),
                     );
                 }
@@ -155,7 +155,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_const(constant_),
+                            |cx| Ok(cx.desugar_const(constant_)),
                         )?)),
                     );
                 }
@@ -176,8 +176,9 @@ pub fn desugar<'genv>(
                     nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Type(..) => {
-                    let item =
-                        cx.with_rust_item_ctxt(owner_id, None, |cx| cx.desugar_trait_assoc_ty())?;
+                    let item = cx.with_rust_item_ctxt(owner_id, None, |cx| {
+                        Ok(cx.desugar_trait_assoc_ty())
+                    })?;
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) => {
@@ -186,7 +187,7 @@ pub fn desugar<'genv>(
                         fhir::Node::TraitItem(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_trait_const(),
+                            |cx| Ok(cx.desugar_trait_const()),
                         )?)),
                     );
                 }
@@ -206,8 +207,8 @@ pub fn desugar<'genv>(
                     nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Type(..) => {
-                    let item =
-                        cx.with_rust_item_ctxt(owner_id, None, |cx| cx.desugar_impl_assoc_ty())?;
+                    let item = cx
+                        .with_rust_item_ctxt(owner_id, None, |cx| Ok(cx.desugar_impl_assoc_ty()))?;
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) => {
@@ -216,7 +217,7 @@ pub fn desugar<'genv>(
                         fhir::Node::ImplItem(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_impl_const(),
+                            |cx| Ok(cx.desugar_impl_const()),
                         )?)),
                     );
                 }
