@@ -9,11 +9,11 @@ version = "0.1.0"
 tests.workspace = true
 home.workspace = true
 
-anyhow = "1.0.79"
+anyhow = "1.0.97"
 opener = "0.6.1"
 xflags = "0.3.2"
-xshell = "0.2.5"
-cargo_metadata = "0.19.1"
+xshell = "0.2.7"
+cargo_metadata = "0.19.2"
 
 [lints]
 workspace = true

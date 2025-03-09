@@ -28,15 +28,15 @@ liquid-fixpoint = { path = "./lib/liquid-fixpoint", version = "0.1.0", features 
 ] }
 
 bon = "2.3.0"
-bumpalo = "3.14.0"
+bumpalo = "3.17.0"
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 derive-where = "1.2.7"
-ena = "0.14.2"
-hashbrown = "0.14.3"
-home = "0.5.9"
-itertools = "0.13.0"
+ena = "0.14.3"
+hashbrown = "0.14.5"
+home = "0.5.11"
+itertools = "0.14.0"
 pad-adapter = "0.1.1"
-rustc-hash = "2.0.0"
+rustc-hash = "2.1.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"

@@ -5,7 +5,7 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-ena = "0.14.2"
+ena = "0.14.3"
 flux-common.workspace = true
 flux-config.workspace = true
 flux-errors.workspace = true

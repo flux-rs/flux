@@ -16,7 +16,7 @@ proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
 synstructure = "0.13.1"
-unic-langid = { version = "0.9.4", features = ["macros"] }
+unic-langid = { version = "0.9.5", features = ["macros"] }
 
 [lints]
 workspace = true
