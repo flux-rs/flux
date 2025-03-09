@@ -328,14 +328,31 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
-</span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
+</span><span class="attr">#![feature(
+    rustc_private,
+    min_specialization,
+    box_patterns,
+    let_chains,
+    never_type,
+    unwrap_infallible
+)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
 
 <span class="kw">extern crate </span>rustc_hir;
+<span class="kw">extern crate </span>rustc_hir_pretty;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
 
@@ -406,7 +423,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_type_alias(ty_alias),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_type_alias(ty_alias)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -429,7 +446,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_struct_def(union_def),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_struct_def(union_def)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -440,7 +457,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_struct_def(struct_def),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_struct_def(struct_def)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -451,7 +468,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_trait(trait_),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_trait(trait_)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -462,7 +479,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_impl(impl_),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_impl(impl_)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -477,7 +494,7 @@
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_const(constant_),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_const(constant_)),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -498,8 +515,9 @@
                     nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Type(..) =&gt; {
-                    <span class="kw">let </span>item =
-                        cx.with_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, |cx| cx.desugar_trait_assoc_ty())<span class="question-mark">?</span>;
+                    <span class="kw">let </span>item = cx.with_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, |cx| {
+                        <span class="prelude-val">Ok</span>(cx.desugar_trait_assoc_ty())
+                    })<span class="question-mark">?</span>;
                     nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
                 }
                 rustc_hir::TraitItemKind::Const(..) =&gt; {
@@ -508,7 +526,7 @@
                         fhir::Node::TraitItem(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_trait_const(),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_trait_const()),
                         )<span class="question-mark">?</span>)),
                     );
                 }
@@ -528,8 +546,8 @@
                     nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Type(..) =&gt; {
-                    <span class="kw">let </span>item =
-                        cx.with_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, |cx| cx.desugar_impl_assoc_ty())<span class="question-mark">?</span>;
+                    <span class="kw">let </span>item = cx
+                        .with_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>, |cx| <span class="prelude-val">Ok</span>(cx.desugar_impl_assoc_ty()))<span class="question-mark">?</span>;
                     nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
                 }
                 rustc_hir::ImplItemKind::Const(..) =&gt; {
@@ -538,7 +556,7 @@
                         fhir::Node::ImplItem(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             <span class="prelude-val">None</span>,
-                            |cx| cx.desugar_impl_const(),
+                            |cx| <span class="prelude-val">Ok</span>(cx.desugar_impl_const()),
                         )<span class="question-mark">?</span>)),
                     );
                 }

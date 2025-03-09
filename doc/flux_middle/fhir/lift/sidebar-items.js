@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["errors"],"struct":["LiftCtxt"],"type":["Result"]};

@@ -1602,7 +1602,9 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+
+<span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{
     bug, dbg,
@@ -1615,7 +1617,7 @@
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
     MaybeExternId, ResolverOutput,
-    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, Res, lift::LiftCtxt},
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
 };
@@ -1652,7 +1654,7 @@
             global: qualifier.global,
             expr: cx.desugar_expr(<span class="kw-2">&amp;</span>qualifier.expr),
         };
-        <span class="prelude-val">Ok</span>(qualifier)
+        qualifier
     })
 }
 
@@ -1667,8 +1669,7 @@
         <span class="kw">let </span>params = spec_func.sort_vars.len();
         <span class="kw">let </span>sort = cx.desugar_sort(<span class="kw-2">&amp;</span>spec_func.output, <span class="prelude-val">None</span>);
         <span class="kw">let </span>args = cx.desugar_refine_params(<span class="kw-2">&amp;</span>spec_func.params);
-        <span class="kw">let </span>func = fhir::SpecFunc { name, params, args, sort, body };
-        <span class="prelude-val">Ok</span>(func)
+        fhir::SpecFunc { name, params, args, sort, body }
     })
 }
 
@@ -1739,16 +1740,12 @@
         <span class="prelude-val">Ok</span>(r)
     }
 
-    <span class="kw">fn </span>as_lift_cx&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="kw-2">mut </span><span class="self">self</span>) -&gt; LiftCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        LiftCtxt::new(<span class="self">self</span>.genv, <span class="self">self</span>.owner, <span class="kw-2">&amp;</span><span class="self">self</span>.local_id_gen, <span class="self">self</span>.opaque_tys.as_deref_mut())
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_: <span class="kw-2">&amp;</span>surface::Trait) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_: <span class="kw-2">&amp;</span>surface::Trait) -&gt; fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="kw-2">&amp;</span>trait_.generics {
-            <span class="self">self</span>.desugar_generics(generics)<span class="question-mark">?
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?
-        </span>};
+            <span class="self">self</span>.desugar_generics(generics)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.lift_generics()
+        };
         <span class="kw">let </span>assoc_refinements = <span class="self">self</span>.desugar_trait_assoc_refts(<span class="kw-2">&amp;</span>trait_.assoc_refinements);
         <span class="kw">let </span>trait_ = fhir::Trait { assoc_refinements };
 
@@ -1756,7 +1753,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, <span class="kw-2">&amp;</span>trait_).unwrap();
         }
 
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: <span class="self">self</span>.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: <span class="self">self</span>.owner }
     }
 
     <span class="kw">fn </span>desugar_trait_assoc_refts(
@@ -1773,12 +1770,12 @@
             }))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_: <span class="kw-2">&amp;</span>surface::Impl) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_: <span class="kw-2">&amp;</span>surface::Impl) -&gt; fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="kw-2">&amp;</span>impl_.generics {
-            <span class="self">self</span>.desugar_generics(generics)<span class="question-mark">?
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?
-        </span>};
+            <span class="self">self</span>.desugar_generics(generics)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.lift_generics()
+        };
         <span class="kw">let </span>assoc_refinements = <span class="self">self</span>.desugar_impl_assoc_refts(<span class="kw-2">&amp;</span>impl_.assoc_refinements);
         <span class="kw">let </span>impl_ = fhir::Impl { assoc_refinements };
 
@@ -1786,7 +1783,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, <span class="kw-2">&amp;</span>impl_).unwrap();
         }
 
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::Impl(impl_), owner_id: <span class="self">self</span>.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Impl(impl_), owner_id: <span class="self">self</span>.owner }
     }
 
     <span class="kw">fn </span>desugar_impl_assoc_refts(
@@ -1806,32 +1803,32 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_generics(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>surface::Generics,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>params = <span class="macro">try_alloc_slice!</span>(
-            <span class="self">self</span>.genv,
+    ) -&gt; fhir::Generics&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>params = <span class="self">self</span>.genv.alloc_slice_fill_iter(
             <span class="self">self</span>.genv
                 .hir()
                 .get_generics(<span class="self">self</span>.owner.local_id().def_id)
                 .unwrap()
-                .params,
-            |hir_param| <span class="self">self</span>.as_lift_cx().lift_generic_param(hir_param)
-        )<span class="question-mark">?</span>;
+                .params
+                .iter()
+                .map(|hir_param| <span class="self">self</span>.lift_generic_param(hir_param)),
+        );
 
         <span class="kw">let </span>predicates = generics
             .predicates
             .as_ref()
             .map(|preds| <span class="self">self</span>.desugar_generic_predicates(preds));
-        <span class="prelude-val">Ok</span>(fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates })
+        fhir::Generics { params, refinement_params: <span class="kw-2">&amp;</span>[], predicates }
     }
 
     <span class="kw">fn </span>desugar_opt_generics(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         generics: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Generics&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; fhir::Generics&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = generics {
             <span class="self">self</span>.desugar_generics(generics)
         } <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_generics()
+            <span class="self">self</span>.lift_generics()
         }
     }
 
@@ -1888,14 +1885,14 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_struct_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>refined_by = <span class="kw">if let </span><span class="prelude-val">Some</span>(refined_by) = <span class="kw-2">&amp;</span>struct_def.refined_by {
             <span class="self">self</span>.desugar_refined_by(refined_by)
         } <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_refined_by()
+            fhir::RefinedBy::trivial()
         };
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.desugar_opt_generics(struct_def.generics.as_ref())<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.desugar_opt_generics(struct_def.generics.as_ref());
 
         <span class="kw">let </span>invariants = <span class="self">self</span>.genv().alloc_slice_fill_iter(
             struct_def
@@ -1915,17 +1912,17 @@
             <span class="kw">match </span>kind {
                 hir::ItemKind::Struct(variant_data, <span class="kw">_</span>) | hir::ItemKind::Union(variant_data, <span class="kw">_</span>) =&gt; {
                     <span class="macro">debug_assert_eq!</span>(struct_def.fields.len(), variant_data.fields().len());
-                    <span class="kw">let </span>fields = <span class="macro">try_alloc_slice!</span>(
-                        <span class="self">self</span>.genv,
-                        iter::zip(<span class="kw-2">&amp;</span>struct_def.fields, variant_data.fields()),
-                        |(ty, hir_field)| {
-                            <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = ty {
-                                <span class="prelude-val">Ok</span>(fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty), lifted: <span class="bool-val">false </span>})
-                            } <span class="kw">else </span>{
-                                <span class="self">self</span>.as_lift_cx().lift_field_def(hir_field)
-                            }
-                        },
-                    )<span class="question-mark">?</span>;
+                    <span class="kw">let </span>fields = <span class="self">self</span>.genv.alloc_slice_fill_iter(
+                        iter::zip(<span class="kw-2">&amp;</span>struct_def.fields, variant_data.fields()).map(
+                            |(ty, hir_field)| {
+                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = ty {
+                                    fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty), lifted: <span class="bool-val">false </span>}
+                                } <span class="kw">else </span>{
+                                    <span class="self">self</span>.lift_field_def(hir_field)
+                                }
+                            },
+                        ),
+                    );
                     fhir::StructKind::Transparent { fields }
                 }
                 <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct or union"</span>),
@@ -1942,7 +1939,7 @@
                 .unwrap();
         }
 
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::Struct(struct_def), owner_id: <span class="self">self</span>.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Struct(struct_def), owner_id: <span class="self">self</span>.owner }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_enum_def(
@@ -1965,10 +1962,10 @@
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(refined_by) = <span class="kw-2">&amp;</span>enum_def.refined_by {
             fhir::RefinementKind::Refined(<span class="self">self</span>.desugar_refined_by(refined_by))
         } <span class="kw">else </span>{
-            fhir::RefinementKind::Refined(<span class="self">self</span>.as_lift_cx().lift_refined_by())
+            fhir::RefinementKind::Refined(fhir::RefinedBy::trivial())
         };
 
-        <span class="kw">let </span>generics = <span class="self">self</span>.desugar_opt_generics(enum_def.generics.as_ref())<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.desugar_opt_generics(enum_def.generics.as_ref());
 
         <span class="kw">let </span>invariants = <span class="self">self</span>.genv().alloc_slice_fill_iter(
             enum_def
@@ -1998,14 +1995,17 @@
             <span class="kw">if </span>reflected {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidReflectedVariant::new(hir_variant.span)));
             }
-            <span class="kw">let </span>fields = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>variant_def.fields, |ty| {
-                <span class="prelude-val">Ok</span>(fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty), lifted: <span class="bool-val">false </span>})
-            })<span class="question-mark">?</span>;
+            <span class="kw">let </span>fields = <span class="self">self</span>.genv.alloc_slice_fill_iter(
+                variant_def
+                    .fields
+                    .iter()
+                    .map(|ty| fhir::FieldDef { ty: <span class="self">self</span>.desugar_ty(ty), lifted: <span class="bool-val">false </span>}),
+            );
 
             <span class="kw">let </span>ret = <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant_def.ret {
                 <span class="self">self</span>.desugar_variant_ret(ret)<span class="question-mark">?
             </span>} <span class="kw">else </span>{
-                <span class="self">self</span>.as_lift_cx().lift_variant_ret()
+                <span class="self">self</span>.lift_variant_ret()
             };
 
             <span class="kw">let </span>params = <span class="self">self
@@ -2020,19 +2020,19 @@
                 lifted: <span class="bool-val">false</span>,
             })
         } <span class="kw">else </span>{
-            <span class="self">self</span>.as_lift_cx().lift_enum_variant(hir_variant)
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.lift_enum_variant(hir_variant))
         }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_type_alias(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ty_alias: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::TyAlias&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(ty_alias) = ty_alias <span class="kw">else </span>{
-            <span class="kw">return </span><span class="self">self</span>.as_lift_cx().lift_type_alias();
+            <span class="kw">return </span><span class="self">self</span>.lift_type_alias();
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>ty_alias.generics)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>ty_alias.generics);
 
         <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>ty_alias.ty);
 
@@ -2049,24 +2049,24 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, <span class="kw-2">&amp;</span>ty_alias).unwrap();
         }
 
-        <span class="prelude-val">Ok</span>(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: <span class="self">self</span>.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: <span class="self">self</span>.owner }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait_assoc_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TraitItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::TraitItem { generics, kind: fhir::TraitItemKind::Type, owner_id: <span class="self">self</span>.owner })
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait_assoc_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::TraitItem&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics();
+        fhir::TraitItem { generics, kind: fhir::TraitItemKind::Type, owner_id: <span class="self">self</span>.owner }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl_assoc_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ImplItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Type, owner_id: <span class="self">self</span>.owner })
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl_assoc_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::ImplItem&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics();
+        fhir::ImplItem { generics, kind: fhir::ImplItemKind::Type, owner_id: <span class="self">self</span>.owner }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_foreign_item(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         foreign_item: hir::ForeignItem,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ForeignItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>foreign_item = <span class="self">self</span>.as_lift_cx().lift_foreign_item(foreign_item)<span class="question-mark">?</span>;
+        <span class="kw">let </span>foreign_item = <span class="self">self</span>.lift_foreign_item(foreign_item)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(foreign_item)
     }
 
@@ -2101,37 +2101,37 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_const(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         const_info: <span class="kw-2">&amp;</span>surface::ConstantInfo,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    ) -&gt; fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>expr = const_info.expr.as_ref().map(|e| <span class="self">self</span>.desugar_expr(e));
         <span class="kw">let </span>owner_id = <span class="self">self</span>.owner;
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics();
         <span class="kw">let </span>kind = fhir::ItemKind::Const(expr);
-        <span class="prelude-val">Ok</span>(fhir::Item { owner_id, generics, kind })
+        fhir::Item { owner_id, generics, kind }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ImplItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_impl_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::ImplItem&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>owner_id = <span class="self">self</span>.owner;
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::ImplItem { owner_id, generics, kind: fhir::ImplItemKind::Const })
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics();
+        fhir::ImplItem { owner_id, generics, kind: fhir::ImplItemKind::Const }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TraitItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_trait_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::TraitItem&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>owner_id = <span class="self">self</span>.owner;
-        <span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::TraitItem { owner_id, generics, kind: fhir::TraitItemKind::Const })
+        <span class="kw">let </span>generics = <span class="self">self</span>.lift_generics();
+        fhir::TraitItem { owner_id, generics, kind: fhir::TraitItemKind::Const }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_fn_spec(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;, fhir::FnSig&lt;<span class="lifetime">'genv</span>&gt;)&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>header = <span class="self">self</span>.as_lift_cx().lift_fn_header();
+        <span class="kw">let </span><span class="kw-2">mut </span>header = <span class="self">self</span>.lift_fn_header();
         <span class="kw">let </span>(generics, decl) = <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span>fn_spec.fn_sig {
             <span class="self">self</span>.fn_sig_scope = <span class="prelude-val">Some</span>(fn_sig.node_id);
 
             <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
 
-            <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>fn_sig.generics)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>fn_sig.generics);
 
             <span class="kw">for </span>surface_requires <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.requires {
                 <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>surface_requires.params);
@@ -2161,7 +2161,7 @@
             }
             (generics, decl)
         } <span class="kw">else </span>{
-            (<span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>, <span class="self">self</span>.as_lift_cx().lift_fn_decl()<span class="question-mark">?</span>)
+            (<span class="self">self</span>.lift_generics(), <span class="self">self</span>.lift_fn_decl())
         };
         <span class="kw">if </span>config::dump_fhir() {
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, decl).unwrap();
@@ -2456,7 +2456,7 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
         owner: Symbol,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt;,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; T,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>cx = <span class="self">Self </span>{
             genv,
@@ -2465,7 +2465,7 @@
             owner,
             errors: Errors::new(genv.sess()),
         };
-        <span class="kw">let </span>r = f(<span class="kw-2">&amp;mut </span>cx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>r = f(<span class="kw-2">&amp;mut </span>cx);
         cx.into_result()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(r)
     }

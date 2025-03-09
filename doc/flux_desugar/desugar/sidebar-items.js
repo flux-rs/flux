@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["collect_generics_in_params","desugar_qualifier","desugar_spec_func"],"struct":["FluxItemCtxt","RustItemCtxt"],"trait":["DesugarCtxt"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["collect_generics_in_params","desugar_qualifier","desugar_spec_func"],"mod":["lift"],"struct":["FluxItemCtxt","RustItemCtxt"],"trait":["DesugarCtxt"],"type":["Result"]};
