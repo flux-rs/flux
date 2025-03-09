@@ -1,36 +1,21 @@
 //! "Lift" HIR types into  FHIR types.
 
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{bug, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     MaybeExternId,
     fhir::{self, FhirId, FluxOwnerId},
-    global_env::GlobalEnv,
     try_alloc_slice,
 };
 use rustc_errors::Diagnostic;
-use rustc_hir::{self as hir, FnHeader, OwnerId, def_id::LocalDefId};
+use rustc_hir::{self as hir, FnHeader, def_id::LocalDefId};
 use rustc_span::Span;
+
+use super::RustItemCtxt;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub struct LiftCtxt<'a, 'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
-    local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-    owner: MaybeExternId<OwnerId>,
-}
-
-impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
-    pub fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        owner: MaybeExternId<OwnerId>,
-        local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-        opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
-    ) -> Self {
-        Self { genv, opaque_tys, local_id_gen, owner }
-    }
-
+impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>> {
         let generics = self.genv.hir().get_generics(self.local_id()).unwrap();
         self.lift_generics_inner(generics)
@@ -416,18 +401,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
-    }
-
-    fn insert_opaque_ty(
-        &mut self,
-        opaque_ty: fhir::OpaqueTy<'genv>,
-    ) -> &'genv fhir::OpaqueTy<'genv> {
-        let opaque_ty = self.genv.alloc(opaque_ty);
-        self.opaque_tys
-            .as_mut()
-            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item `{:?}`", self.owner))
-            .push(opaque_ty);
-        opaque_ty
     }
 
     #[track_caller]
