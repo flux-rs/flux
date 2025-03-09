@@ -18,7 +18,7 @@ mod logger;
 fn main() -> io::Result<()> {
     let original_args = env::args().collect::<Vec<_>>();
 
-    let resolve_logs = logger::install()?;
+    logger::install()?;
 
     let context = Context::new(&original_args);
 
@@ -61,7 +61,6 @@ fn main() -> io::Result<()> {
         run_compiler(&args, &mut callbacks);
         Ok(())
     });
-    resolve_logs()?;
     exit(exit_code)
 }
 

@@ -147,7 +147,6 @@ You can set various `env` variables to customize the behavior of `flux`.
 - `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
 - `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
 - `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
-- `FLUX_DUMP_TIMINGS=1` saves the profile information
 - `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
 - `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
 - `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
@@ -170,8 +169,7 @@ The config file should be in the project root.
 For example, suppose your project root contains the following `flux.toml`.
 
 ```toml
-log_dir = "./test"
-dump_timings = true
+log_dir = "./log_dir"
 dump_mir = true
 cache = true
 ```
@@ -179,12 +177,10 @@ cache = true
 and you run in the project root
 
 ```bash
-FLUX_DUMP_MIR=0 cargo-flux check
+FLUX_DUMP_MIR=1 cargo flux check
 ```
 
-then `flux` will create the directory `./test/` and write `./test/timings`, a file
-containing profiling information. It will _not_ dump the MIR because that setting
-was overridden by setting the environment variable `FLUX_DUMP_MIR=0`.
+then `flux` will create the directory `./log_dir/` and dump mir bodies inside.
 
 ### Crate Config
 
