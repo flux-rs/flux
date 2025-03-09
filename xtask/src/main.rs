@@ -132,11 +132,14 @@ fn run_inner(
     install_sysroot(sh, &config)?;
     let flux = build_binary("flux", config.release)?;
 
-    let _env = push_env(sh, FLUX_SYSROOT, &config.dst);
     let mut rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
-    Command::new(flux).args(&rustc_flags).arg(&input).run()
+    Command::new(flux)
+        .args(&rustc_flags)
+        .arg(&input)
+        .env(FLUX_SYSROOT, &config.dst)
+        .run()
 }
 
 fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
