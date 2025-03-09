@@ -91,7 +91,7 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
     /// during the first phase to collect the sort of base types.
     fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
 
-    /// Called after converting an path with the generic arguments. Using during the first phase
+    /// Called after converting a path with the generic arguments. Using during the first phase
     /// to instantiate sort of generic refinements.
     fn insert_path_args(&mut self, fhir_id: FhirId, args: rty::GenericArgs);
 

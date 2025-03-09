@@ -18,7 +18,6 @@ extern crate rustc_errors;
 
 extern crate rustc_abi;
 extern crate rustc_hir;
-extern crate rustc_hir_pretty;
 extern crate rustc_index;
 extern crate rustc_macros;
 extern crate rustc_middle;

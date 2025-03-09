@@ -75,3 +75,10 @@ desugar_invalid_unrefined_param =
 desugar_illegal_binder =
     illegal binder
     .label = `{$kind}` binder not allowed in this position
+
+# Lifting Errors
+
+desugar_unsupported_hir =
+    refinement of unsupported {$def_kind}
+    .label = this {$def_kind} contains unsupported features
+    .note = {$note}
