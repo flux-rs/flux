@@ -29,7 +29,6 @@ itertools.workspace = true
 toml.workspace = true
 
 tracing-subscriber = { version = "0.3", features = ["json"] }
-tracing-timing = "0.6.0"
 
 [dependencies.tracing]
 features = ["max_level_debug", "release_max_level_info"]
