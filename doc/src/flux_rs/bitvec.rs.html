@@ -201,14 +201,14 @@
 
 <span class="attr">#[trusted]
 </span><span class="kw">impl </span>BV32 {
-    <span class="attr">#[sig(<span class="kw">fn</span>(BV32[@x]</span>, BV32[@y]) -&gt; BV32[bv_add(x, y)])]
-    <span class="kw">pub fn </span>wrapping_add(<span class="self">self</span>, other: BV32) -&gt; BV32 {
-        BV32(<span class="self">self</span>.<span class="number">0</span>.wrapping_add(other.<span class="number">0</span>))
-    }
-
     <span class="attr">#[sig(<span class="kw">fn </span>(u32[@val]</span>) -&gt; BV32[bv_int_to_bv32(val)])]
     <span class="kw">pub const fn </span>new(value: u32) -&gt; BV32 {
         BV32(value)
+    }
+
+    <span class="attr">#[sig(<span class="kw">fn</span>(BV32[@x]</span>, BV32[@y]) -&gt; BV32[bv_add(x, y)])]
+    <span class="kw">pub fn </span>wrapping_add(<span class="self">self</span>, other: BV32) -&gt; BV32 {
+        BV32(<span class="self">self</span>.<span class="number">0</span>.wrapping_add(other.<span class="number">0</span>))
     }
 }
 

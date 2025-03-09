@@ -3840,7 +3840,7 @@
 </span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>BvSize {
     <span class="doccomment">/// A fixed size
-    </span>Fixed(usize),
+    </span>Fixed(u32),
     <span class="doccomment">/// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
     </span>Param(ParamSort),
     <span class="doccomment">/// A size that needs to be inferred. Used during sort checking to instantiate bit-vector
@@ -5558,7 +5558,7 @@
 
 <span class="kw">pub struct </span>WfckResults {
     <span class="kw">pub </span>owner: FluxOwnerId,
-    bin_rel_sorts: ItemLocalMap&lt;Sort&gt;,
+    bin_op_sorts: ItemLocalMap&lt;Sort&gt;,
     coercions: ItemLocalMap&lt;Vec&lt;Coercion&gt;&gt;,
     field_projs: ItemLocalMap&lt;FieldProj&gt;,
     node_sorts: ItemLocalMap&lt;Sort&gt;,
@@ -5588,7 +5588,7 @@
     <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             owner: owner.into(),
-            bin_rel_sorts: ItemLocalMap::default(),
+            bin_op_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
@@ -5596,12 +5596,12 @@
         }
     }
 
-    <span class="kw">pub fn </span>bin_rel_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
-        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.bin_rel_sorts }
+    <span class="kw">pub fn </span>bin_op_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
+        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.bin_op_sorts }
     }
 
-    <span class="kw">pub fn </span>bin_rel_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
-        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.bin_rel_sorts }
+    <span class="kw">pub fn </span>bin_op_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
+        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.bin_op_sorts }
     }
 
     <span class="kw">pub fn </span>coercions_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Vec&lt;Coercion&gt;&gt; {

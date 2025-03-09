@@ -2485,7 +2485,7 @@
     <span class="doccomment">/// The sort of a location parameter introduced with the `x: &amp;strg T` syntax.
     </span>Loc,
     <span class="doccomment">/// A bit vector with the given width.
-    </span>BitVec(usize),
+    </span>BitVec(u32),
     <span class="doccomment">/// A polymorphic sort function.
     </span>Func(PolyFuncSort&lt;<span class="lifetime">'fhir</span>&gt;),
     <span class="doccomment">/// A sort that needs to be inferred.
@@ -2581,8 +2581,8 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub enum </span>Lit {
-    Int(i128),
-    Real(i128),
+    Int(u128),
+    Real(u128),
     Bool(bool),
     Str(Symbol),
     Char(char),

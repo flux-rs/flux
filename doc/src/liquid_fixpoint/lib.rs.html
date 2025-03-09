@@ -427,11 +427,7 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
+<a href="#429" id="429">429</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 </span><span class="attr">#![cfg_attr(feature = <span class="string">"nightly"</span>, feature(rustc_private))]
@@ -468,7 +464,6 @@
     <span class="kw">type </span>Sort: Identifier + Hash + Clone;
     <span class="kw">type </span>KVar: Identifier + Hash;
     <span class="kw">type </span>Var: Identifier + Hash;
-    <span class="kw">type </span>Numeral: FixpointFmt + Hash;
     <span class="kw">type </span>Decimal: FixpointFmt + Hash;
     <span class="kw">type </span>String: FixpointFmt + Hash;
     <span class="kw">type </span>Tag: fmt::Display + FromStr + Hash;
@@ -511,8 +506,7 @@
     <span class="kw">type </span>KVar = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
     <span class="kw">type </span>Var = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
     <span class="kw">type </span>Tag = String;
-    <span class="kw">type </span>Numeral = i128;
-    <span class="kw">type </span>Decimal = i128;
+    <span class="kw">type </span>Decimal = u32;
     <span class="kw">type </span>String = String;
 }
 
@@ -522,9 +516,9 @@
     }
 }
 
-<span class="kw">impl </span>FixpointFmt <span class="kw">for </span>i128 {
+<span class="kw">impl </span>FixpointFmt <span class="kw">for </span>u32 {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self </span>&lt; <span class="number">0 </span>{ <span class="macro">write!</span>(f, <span class="string">"(- {})"</span>, <span class="self">self</span>.unsigned_abs()) } <span class="kw">else </span>{ <span class="macro">write!</span>(f, <span class="string">"{self}"</span>) }
+        <span class="macro">write!</span>(f, <span class="string">"{self}"</span>)
     }
 }
 
@@ -539,7 +533,6 @@
     (   <span class="kw">type </span>Sort = <span class="macro-nonterminal">$sort</span>:ty;
         <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>:ty;
         <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>:ty;
-        <span class="kw">type </span>Numeral = <span class="macro-nonterminal">$int</span>:ty;
         <span class="kw">type </span>Decimal = <span class="macro-nonterminal">$real</span>:ty;
         <span class="kw">type </span>String = <span class="macro-nonterminal">$str</span>:ty;
 
@@ -561,7 +554,7 @@
             <span class="kw">pub type </span>DataField = <span class="macro-nonterminal">$crate::DataField</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Bind = <span class="macro-nonterminal">$crate::Bind</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Constant = <span class="macro-nonterminal">$crate::Constant</span>&lt;FixpointTypes&gt;;
-            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">BinOp</span>, BinRel};
+            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">BinOp</span>, BinRel, ThyFunc};
         }
 
         <span class="kw">impl </span><span class="macro-nonterminal">$crate::Types </span><span class="kw">for </span>fixpoint_generated::FixpointTypes {
@@ -569,7 +562,6 @@
             <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>;
             <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>;
 
-            <span class="kw">type </span>Numeral = <span class="macro-nonterminal">$int</span>;
             <span class="kw">type </span>Decimal = <span class="macro-nonterminal">$real</span>;
             <span class="kw">type </span>String = <span class="macro-nonterminal">$str</span>;
 

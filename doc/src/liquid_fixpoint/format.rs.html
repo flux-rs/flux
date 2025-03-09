@@ -380,10 +380,7 @@
 <a href="#379" id="379">379</a>
 <a href="#380" id="380">380</a>
 <a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+<a href="#382" id="382">382</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>itertools::Itertools;
 
@@ -703,22 +700,19 @@
     }
 }
 
-<span class="kw">fn </span>hexify(n: u128, sz: usize) -&gt; String {
-    <span class="kw">let </span>s = <span class="macro">format!</span>(<span class="string">"{:x}"</span>, n);
-    <span class="kw">let </span>zeros = <span class="string">"0"</span>.repeat(sz / <span class="number">4 </span>- s.len());
-    <span class="macro">format!</span>(<span class="string">"#x{}{}"</span>, zeros, s)
-}
-
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Constant&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Constant::Numeral(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, i.display()),
+            Constant::Numeral(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{i}"</span>),
             Constant::Decimal(r) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, r.display()),
             Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
             Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
             Constant::BitVec(i, sz) =&gt; {
-                <span class="kw">let </span>str: u128 = i.display().to_string().parse().unwrap(); <span class="comment">// TODO(NICO): "yikes. I'll fix this later."
-                </span><span class="macro">write!</span>(f, <span class="string">"(lit \"{}\" (BitVec Size{}))"</span>, hexify(str, <span class="kw-2">*</span>sz), sz)
+                <span class="kw">if </span>sz % <span class="number">4 </span>== <span class="number">0 </span>{
+                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#x{i:00$x}\" (BitVec Size{sz}))"</span>, (sz / <span class="number">4</span>) <span class="kw">as </span>usize)
+                } <span class="kw">else </span>{
+                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#b{i:00$x}\" (BitVec Size{sz}))"</span>, <span class="kw-2">*</span>sz <span class="kw">as </span>usize)
+                }
             }
         }
     }

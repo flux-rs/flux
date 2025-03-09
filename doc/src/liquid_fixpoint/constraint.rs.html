@@ -294,7 +294,13 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
 
 <span class="kw">use </span>derive_where::derive_where;
 
@@ -457,7 +463,7 @@
     Real,
     Str,
     BitVec(Box&lt;Sort&lt;T&gt;&gt;),
-    BvSize(usize),
+    BvSize(u32),
     Var(usize),
     Func(Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
     Abs(usize, Box&lt;<span class="self">Self</span>&gt;),
@@ -556,8 +562,14 @@
     Atom(BinRel, Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
 }
 
+<span class="kw">impl</span>&lt;T: Types&gt; From&lt;Constant&lt;T&gt;&gt; <span class="kw">for </span>Expr&lt;T&gt; {
+    <span class="kw">fn </span>from(v: Constant&lt;T&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Constant(v)
+    }
+}
+
 <span class="kw">impl</span>&lt;T: Types&gt; Expr&lt;T&gt; {
-    <span class="kw">pub const fn </span>int(val: T::Numeral) -&gt; Expr&lt;T&gt; {
+    <span class="kw">pub const fn </span>int(val: u128) -&gt; Expr&lt;T&gt; {
         Expr::Constant(Constant::Numeral(val))
     }
 
@@ -568,11 +580,11 @@
 
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub enum </span>Constant&lt;T: Types&gt; {
-    Numeral(T::Numeral),
+    Numeral(u128),
     Decimal(T::Decimal),
     Boolean(bool),
     String(T::String),
-    BitVec(T::Numeral, usize),
+    BitVec(u128, u32),
 }
 
 <span class="attr">#[derive_where(Hash)]

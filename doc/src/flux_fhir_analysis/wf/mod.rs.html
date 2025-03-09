@@ -1030,7 +1030,7 @@
 /// `RSet&lt;σ&gt;` where `RSet` is the sort-level representation of the `RSet` type. Thus, it is important
 /// that the inference variable we generate for `σ` is the same we use for sort checking.
 </span><span class="kw">impl </span>WfckResultsProvider <span class="kw">for </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>bin_rel_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::Sort {
+    <span class="kw">fn </span>bin_op_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::Sort {
         rty::Sort::Err
     }
 

@@ -974,7 +974,7 @@
     bv_size_unification_table: InPlaceUnificationTable&lt;rty::BvSizeVid&gt;,
     sort_of_bty: FxHashMap&lt;FhirId, rty::Sort&gt;,
     sort_of_literal: FxHashMap&lt;FhirId, (rty::Sort, Span)&gt;,
-    sort_of_bin_rel: FxHashMap&lt;FhirId, (rty::Sort, Span)&gt;,
+    sort_of_bin_op: FxHashMap&lt;FhirId, (rty::Sort, Span)&gt;,
     path_args: UnordMap&lt;FhirId, rty::GenericArgs&gt;,
     sort_of_alias_reft: FxHashMap&lt;FhirId, rty::FuncSort&gt;,
 }
@@ -993,7 +993,7 @@
             bv_size_unification_table: InPlaceUnificationTable::new(),
             sort_of_bty: Default::default(),
             sort_of_literal: Default::default(),
-            sort_of_bin_rel: Default::default(),
+            sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
         }
@@ -1321,7 +1321,7 @@
                 <span class="kw">let </span>sort = <span class="self">self</span>.next_sort_var();
                 <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-                <span class="self">self</span>.sort_of_bin_rel
+                <span class="self">self</span>.sort_of_bin_op
                     .insert(expr.fhir_id, (sort.clone(), expr.span));
                 <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
@@ -1333,7 +1333,7 @@
                 <span class="kw">let </span>sort = <span class="self">self</span>.next_num_var();
                 <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-                <span class="self">self</span>.sort_of_bin_rel
+                <span class="self">self</span>.sort_of_bin_op
                     .insert(expr.fhir_id, (sort.clone(), expr.span));
                 <span class="comment">// check that the sort is integral for mod
                 </span><span class="self">self</span>.check_integral(op, <span class="kw-2">&amp;</span>sort, expr.span)<span class="question-mark">?</span>;
@@ -1699,11 +1699,11 @@
         }
 
         <span class="comment">// Make sure the binary operators are fully resolved
-        </span><span class="kw">for </span>(fhir_id, (sort, span)) <span class="kw">in </span><span class="self">self</span>.sort_of_bin_rel.clone() {
+        </span><span class="kw">for </span>(fhir_id, (sort, span)) <span class="kw">in </span><span class="self">self</span>.sort_of_bin_op.clone() {
             <span class="kw">let </span>sort = <span class="self">self
                 </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
                 .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(span)))<span class="question-mark">?</span>;
-            <span class="self">self</span>.wfckresults.bin_rel_sorts_mut().insert(fhir_id, sort);
+            <span class="self">self</span>.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.wfckresults)
