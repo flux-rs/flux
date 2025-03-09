@@ -533,7 +533,7 @@ impl Expr {
     /// Applies a field projection to an expression and optimistically try to beta reduce it
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
-            ExprKind::Tuple(flds) | ExprKind::Ctor(_, flds) => {
+            ExprKind::Tuple(flds) | ExprKind::Ctor(Ctor::Struct(_), flds) => {
                 flds[proj.field_idx() as usize].clone()
             }
             _ => Expr::field_proj(self.clone(), proj),

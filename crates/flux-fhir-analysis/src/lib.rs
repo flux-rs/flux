@@ -46,7 +46,7 @@ use rustc_span::Symbol;
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
-    providers.spec_func_defns = spec_func_defns;
+    providers.normalized_defns = normalized_defns;
     providers.spec_func_decl = spec_func_decl;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
@@ -85,7 +85,7 @@ fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDec
     }
 }
 
-fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
+fn normalized_defns(genv: GlobalEnv) -> QueryResult<rty::NormalizedDefns> {
     let mut defns = vec![];
 
     // Collect and emit all errors
@@ -103,7 +103,7 @@ fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
     }
     errors.into_result()?;
 
-    let defns = rty::SpecFuncDefns::new(&defns)
+    let defns = rty::NormalizedDefns::new(&defns)
         .map_err(|cycle| {
             let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)
@@ -119,7 +119,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .map(|qualifier| {
             let wfckresults = wf::check_qualifier(genv, qualifier)?;
             Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?
-                .normalize(genv.spec_func_defns()?))
+                .normalize(genv.normalized_defns()?))
         })
         .try_collect()
 }
@@ -560,7 +560,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     // Query qualifiers and spec funcs to report wf errors
     let _ = genv.qualifiers().emit(&errors);
-    let _ = genv.spec_func_defns().emit(&errors);
+    let _ = genv.normalized_defns().emit(&errors);
 
     errors.into_result()
 }

@@ -11,7 +11,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
+        BaseTy, EVid, Expr, Name, NormalizedDefns, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
@@ -54,7 +54,7 @@ impl RefineTree {
         RefineTree { root }
     }
 
-    pub(crate) fn simplify(&mut self, defns: &SpecFuncDefns) {
+    pub(crate) fn simplify(&mut self, defns: &NormalizedDefns) {
         self.root.borrow_mut().simplify(defns);
     }
 
@@ -390,7 +390,7 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, defns: &SpecFuncDefns) {
+    fn simplify(&mut self, defns: &NormalizedDefns) {
         for child in &self.children {
             child.borrow_mut().simplify(defns);
         }

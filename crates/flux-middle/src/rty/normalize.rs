@@ -16,21 +16,21 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct SpecFuncDefns {
+pub struct NormalizedDefns {
     defns: UnordMap<Symbol, SpecFunc>,
 }
 
 pub(super) struct Normalizer<'a> {
-    defs: &'a SpecFuncDefns,
+    defs: &'a NormalizedDefns,
 }
 
-impl SpecFuncDefns {
+impl NormalizedDefns {
     pub fn new(defns: &[SpecFunc]) -> Result<Self, Vec<Symbol>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
 
         // 2. Expand each defn in the sorted order
-        let mut normalized = SpecFuncDefns { defns: UnordMap::default() };
+        let mut normalized = NormalizedDefns { defns: UnordMap::default() };
         for i in ds {
             let defn = &defns[i];
             let body = defn.body.normalize(&normalized);
@@ -101,7 +101,7 @@ fn defn_deps(body: &Binder<Expr>) -> FxHashSet<Symbol> {
 }
 
 impl<'a> Normalizer<'a> {
-    pub(super) fn new(defs: &'a SpecFuncDefns) -> Self {
+    pub(super) fn new(defs: &'a NormalizedDefns) -> Self {
         Self { defs }
     }
 

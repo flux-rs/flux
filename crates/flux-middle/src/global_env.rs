@@ -23,7 +23,7 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
         self, AssocReftId,
-        normalize::SpecFuncDefns,
+        normalize::NormalizedDefns,
         refining::{Refine as _, Refiner},
     },
 };
@@ -134,8 +134,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn spec_func_defns(&self) -> QueryResult<&SpecFuncDefns> {
-        self.inner.queries.spec_func_defns(*self)
+    pub fn normalized_defns(&self) -> QueryResult<&NormalizedDefns> {
+        self.inner.queries.normalized_defns(*self)
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
