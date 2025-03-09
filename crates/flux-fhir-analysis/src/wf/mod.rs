@@ -500,7 +500,7 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
 /// `RSet<σ>` where `RSet` is the sort-level representation of the `RSet` type. Thus, it is important
 /// that the inference variable we generate for `σ` is the same we use for sort checking.
 impl WfckResultsProvider for InferCtxt<'_, '_> {
-    fn bin_rel_sort(&self, _: FhirId) -> rty::Sort {
+    fn bin_op_sort(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }
 

@@ -125,7 +125,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel};
+            pub use $crate::{BinOp, BinRel, ThyFunc};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
