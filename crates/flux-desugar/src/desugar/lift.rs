@@ -160,29 +160,33 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
     }
 
-    pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef<'genv>> {
+    pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> fhir::FieldDef<'genv> {
         let ty = self.lift_ty(field_def.ty);
-        Ok(fhir::FieldDef { ty, lifted: true })
+        fhir::FieldDef { ty, lifted: true }
     }
 
-    pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> Result<fhir::VariantDef<'genv>> {
+    pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
         let item = self.genv.hir().expect_item(self.local_id());
         let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
 
-        let fields = try_alloc_slice!(self.genv, variant.data.fields(), |field| {
-            self.lift_field_def(field)
-        })?;
+        let fields = self.genv.alloc_slice_fill_iter(
+            variant
+                .data
+                .fields()
+                .iter()
+                .map(|field| self.lift_field_def(field)),
+        );
 
         let ret = self.lift_variant_ret_inner(generics);
 
-        Ok(fhir::VariantDef {
+        fhir::VariantDef {
             def_id: variant.def_id,
             params: &[],
             fields,
             ret,
             span: variant.span,
             lifted: true,
-        })
+        }
     }
 
     pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {

@@ -107,7 +107,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_struct_def(union_def),
+                            |cx| Ok(cx.desugar_struct_def(union_def)),
                         )?)),
                     );
                 }
@@ -118,7 +118,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_struct_def(struct_def),
+                            |cx| Ok(cx.desugar_struct_def(struct_def)),
                         )?)),
                     );
                 }
@@ -129,7 +129,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_trait(trait_),
+                            |cx| Ok(cx.desugar_trait(trait_)),
                         )?)),
                     );
                 }
@@ -140,7 +140,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| cx.desugar_impl(impl_),
+                            |cx| Ok(cx.desugar_impl(impl_)),
                         )?)),
                     );
                 }

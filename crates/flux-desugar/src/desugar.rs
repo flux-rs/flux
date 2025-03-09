@@ -50,7 +50,7 @@ pub(crate) fn desugar_qualifier<'genv>(
             global: qualifier.global,
             expr: cx.desugar_expr(&qualifier.expr),
         };
-        Ok(qualifier)
+        qualifier
     })
 }
 
@@ -65,8 +65,7 @@ pub(crate) fn desugar_spec_func<'genv>(
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
         let args = cx.desugar_refine_params(&spec_func.params);
-        let func = fhir::SpecFunc { name, params, args, sort, body };
-        Ok(func)
+        fhir::SpecFunc { name, params, args, sort, body }
     })
 }
 
@@ -137,7 +136,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(r)
     }
 
-    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
+    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> fhir::Item<'genv> {
         let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics)
         } else {
@@ -150,7 +149,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &trait_).unwrap();
         }
 
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: self.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: self.owner }
     }
 
     fn desugar_trait_assoc_refts(
@@ -167,7 +166,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }))
     }
 
-    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Item<'genv>> {
+    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> fhir::Item<'genv> {
         let generics = if let Some(generics) = &impl_.generics {
             self.desugar_generics(generics)
         } else {
@@ -180,7 +179,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &impl_).unwrap();
         }
 
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::Impl(impl_), owner_id: self.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Impl(impl_), owner_id: self.owner }
     }
 
     fn desugar_impl_assoc_refts(
@@ -282,7 +281,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_struct_def(
         &mut self,
         struct_def: &surface::StructDef,
-    ) -> Result<fhir::Item<'genv>> {
+    ) -> fhir::Item<'genv> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
             self.desugar_refined_by(refined_by)
         } else {
@@ -309,17 +308,17 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             match kind {
                 hir::ItemKind::Struct(variant_data, _) | hir::ItemKind::Union(variant_data, _) => {
                     debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
-                    let fields = try_alloc_slice!(
-                        self.genv,
-                        iter::zip(&struct_def.fields, variant_data.fields()),
-                        |(ty, hir_field)| {
-                            if let Some(ty) = ty {
-                                Ok(fhir::FieldDef { ty: self.desugar_ty(ty), lifted: false })
-                            } else {
-                                self.lift_field_def(hir_field)
-                            }
-                        },
-                    )?;
+                    let fields = self.genv.alloc_slice_fill_iter(
+                        iter::zip(&struct_def.fields, variant_data.fields()).map(
+                            |(ty, hir_field)| {
+                                if let Some(ty) = ty {
+                                    fhir::FieldDef { ty: self.desugar_ty(ty), lifted: false }
+                                } else {
+                                    self.lift_field_def(hir_field)
+                                }
+                            },
+                        ),
+                    );
                     fhir::StructKind::Transparent { fields }
                 }
                 _ => bug!("expected struct or union"),
@@ -336,7 +335,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 .unwrap();
         }
 
-        Ok(fhir::Item { generics, kind: fhir::ItemKind::Struct(struct_def), owner_id: self.owner })
+        fhir::Item { generics, kind: fhir::ItemKind::Struct(struct_def), owner_id: self.owner }
     }
 
     pub(crate) fn desugar_enum_def(
@@ -392,9 +391,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             if reflected {
                 return Err(self.emit(errors::InvalidReflectedVariant::new(hir_variant.span)));
             }
-            let fields = try_alloc_slice!(self.genv, &variant_def.fields, |ty| {
-                Ok(fhir::FieldDef { ty: self.desugar_ty(ty), lifted: false })
-            })?;
+            let fields = self.genv.alloc_slice_fill_iter(
+                variant_def
+                    .fields
+                    .iter()
+                    .map(|ty| fhir::FieldDef { ty: self.desugar_ty(ty), lifted: false }),
+            );
 
             let ret = if let Some(ret) = &variant_def.ret {
                 self.desugar_variant_ret(ret)?
@@ -414,7 +416,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 lifted: false,
             })
         } else {
-            self.lift_enum_variant(hir_variant)
+            Ok(self.lift_enum_variant(hir_variant))
         }
     }
 
@@ -850,7 +852,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         resolver_output: &'genv ResolverOutput,
         owner: Symbol,
-        f: impl FnOnce(&mut Self) -> Result<T>,
+        f: impl FnOnce(&mut Self) -> T,
     ) -> Result<T> {
         let mut cx = Self {
             genv,
@@ -859,7 +861,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             owner,
             errors: Errors::new(genv.sess()),
         };
-        let r = f(&mut cx)?;
+        let r = f(&mut cx);
         cx.into_result()?;
         Ok(r)
     }
