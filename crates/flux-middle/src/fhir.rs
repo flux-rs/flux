@@ -13,7 +13,6 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-pub mod lift;
 pub mod visit;
 
 use std::{borrow::Cow, fmt};

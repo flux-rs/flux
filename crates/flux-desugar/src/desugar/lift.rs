@@ -2,17 +2,15 @@
 
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
-use rustc_errors::Diagnostic;
-use rustc_hir::{self as hir, FnHeader, OwnerId, def_id::LocalDefId};
-use rustc_span::Span;
-
-use super::{FhirId, FluxOwnerId};
-use crate::{
+use flux_middle::{
     MaybeExternId,
-    fhir::{self},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     try_alloc_slice,
 };
+use rustc_errors::Diagnostic;
+use rustc_hir::{self as hir, FnHeader, OwnerId, def_id::LocalDefId};
+use rustc_span::Span;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -179,22 +177,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner })
     }
 
-    pub fn lift_field_def_id(&mut self, def_id: LocalDefId) -> Result<fhir::FieldDef<'genv>> {
-        let hir::Node::Field(field_def) = self.genv.tcx().hir_node_by_def_id(def_id) else {
-            bug!("expected a field")
-        };
-        self.lift_field_def(field_def)
-    }
-
     pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef<'genv>> {
         let ty = self.lift_ty(field_def.ty)?;
         Ok(fhir::FieldDef { ty, lifted: true })
-    }
-
-    pub fn lift_enum_variant_id(&mut self, def_id: LocalDefId) -> Result<fhir::VariantDef<'genv>> {
-        let node = self.genv.tcx().hir_node_by_def_id(def_id);
-        let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
-        self.lift_enum_variant(variant)
     }
 
     pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> Result<fhir::VariantDef<'genv>> {
@@ -505,7 +490,7 @@ pub mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(middle_unsupported_hir, code = E0999)]
+    #[diag(desugar_unsupported_hir, code = E0999)]
     #[note]
     pub(super) struct UnsupportedHir<'a> {
         #[primary_span]

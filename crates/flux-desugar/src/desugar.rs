@@ -1,3 +1,5 @@
+mod lift;
+
 use std::iter;
 
 use flux_common::{
@@ -11,7 +13,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
     MaybeExternId, ResolverOutput,
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, Res, lift::LiftCtxt},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
 };
@@ -21,6 +23,7 @@ use flux_syntax::{
 };
 use hir::{ItemKind, def::DefKind};
 use itertools::{Either, Itertools};
+use lift::LiftCtxt;
 use rustc_data_structures::fx::FxIndexSet;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
