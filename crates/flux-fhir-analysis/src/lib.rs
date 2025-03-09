@@ -37,7 +37,6 @@ use flux_middle::{
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -87,7 +86,7 @@ fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDec
 }
 
 fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
-    let mut defns = FxHashMap::default();
+    let mut defns = vec![];
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
@@ -99,12 +98,12 @@ fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
             continue;
         };
         if let Some(defn) = defn {
-            defns.insert(defn.name, defn);
+            defns.push(defn);
         }
     }
     errors.into_result()?;
 
-    let defns = rty::SpecFuncDefns::new(defns)
+    let defns = rty::SpecFuncDefns::new(&defns)
         .map_err(|cycle| {
             let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)

@@ -1221,7 +1221,7 @@ pub struct Qualifier {
 
 pub struct SpecFunc {
     pub name: Symbol,
-    pub expr: Binder<Expr>,
+    pub body: Binder<Expr>,
 }
 
 #[derive(Debug, Clone)]

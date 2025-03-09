@@ -437,8 +437,8 @@ pub(crate) fn conv_defn(
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(wfckresults, 0, func.args));
         let expr = cx.conv_expr(&mut env, body)?;
-        let expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
-        Ok(Some(rty::SpecFunc { name: func.name, expr }))
+        let body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
+        Ok(Some(rty::SpecFunc { name: func.name, body }))
     } else {
         Ok(None)
     }
