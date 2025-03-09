@@ -288,7 +288,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
             self.desugar_refined_by(refined_by)
         } else {
-            self.as_lift_cx().lift_refined_by()
+            fhir::RefinedBy::trivial()
         };
 
         let generics = self.desugar_opt_generics(struct_def.generics.as_ref())?;
@@ -361,7 +361,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         } else if let Some(refined_by) = &enum_def.refined_by {
             fhir::RefinementKind::Refined(self.desugar_refined_by(refined_by))
         } else {
-            fhir::RefinementKind::Refined(self.as_lift_cx().lift_refined_by())
+            fhir::RefinementKind::Refined(fhir::RefinedBy::trivial())
         };
 
         let generics = self.desugar_opt_generics(enum_def.generics.as_ref())?;
