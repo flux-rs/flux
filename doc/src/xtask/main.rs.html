@@ -372,7 +372,10 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -506,11 +509,14 @@
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.release)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>_env = push_env(sh, FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst);
     <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
 
-    Command::new(flux).args(<span class="kw-2">&amp;</span>rustc_flags).arg(<span class="kw-2">&amp;</span>input).run()
+    Command::new(flux)
+        .args(<span class="kw-2">&amp;</span>rustc_flags)
+        .arg(<span class="kw-2">&amp;</span>input)
+        .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
+        .run()
 }
 
 <span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
