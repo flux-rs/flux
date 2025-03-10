@@ -647,7 +647,17 @@
 <a href="#646" id="646">646</a>
 <a href="#647" id="647">647</a>
 <a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
 
@@ -681,6 +691,16 @@
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
+}
+
+<span class="kw">impl </span>Item {
+    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident {
+        <span class="kw">match </span><span class="self">self </span>{
+            Item::Qualifier(qualifier) =&gt; qualifier.name,
+            Item::FuncDef(spec_func) =&gt; spec_func.name,
+            Item::SortDecl(sort_decl) =&gt; sort_decl.name,
+        }
+    }
 }
 
 <span class="attr">#[derive(Debug)]

@@ -163,118 +163,138 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
-<span class="kw">use </span>rustc_span::Symbol;
+<span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 <span class="kw">use </span>toposort_scc::IndexGraph;
 
 <span class="kw">use super</span>::{ESpan, fold::TypeSuperFoldable};
 <span class="kw">use crate</span>::{
+    def_id::{FluxDefId, FluxLocalDefId},
     fhir::SpecFuncKind,
+    global_env::GlobalEnv,
     rty::{
-        Binder, Expr, ExprKind, SpecFunc,
+        Binder, Expr, ExprKind,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 
 <span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>SpecFuncDefns {
-    defns: FxHashMap&lt;Symbol, SpecFunc&gt;,
+</span><span class="kw">pub struct </span>NormalizedDefns {
+    defns: UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;,
 }
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'a</span>&gt; {
-    defs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SpecFuncDefns,
+<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;&gt;,
 }
 
-<span class="kw">impl </span>SpecFuncDefns {
-    <span class="kw">pub fn </span>new(defns: FxHashMap&lt;Symbol, SpecFunc&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Symbol&gt;&gt; {
-        <span class="kw">let </span>raw = SpecFuncDefns { defns };
-        raw.normalize()
-    }
-
-    <span class="kw">fn </span>defn_deps(<span class="kw-2">&amp;</span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) -&gt; FxHashSet&lt;Symbol&gt; {
-        <span class="kw">struct </span>DepsVisitor(FxHashSet&lt;Symbol&gt;);
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>DepsVisitor {
-            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;!&gt; {
-                <span class="kw">if let </span>ExprKind::App(func, <span class="kw">_</span>) = expr.kind()
-                    &amp;&amp; <span class="kw">let </span>ExprKind::GlobalFunc(sym, SpecFuncKind::Def) = func.kind()
-                {
-                    <span class="self">self</span>.<span class="number">0</span>.insert(<span class="kw-2">*</span>sym);
-                }
-                expr.super_visit_with(<span class="self">self</span>)
-            }
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>visitor = DepsVisitor(FxHashSet::default());
-        expr.visit_with(<span class="kw-2">&amp;mut </span>visitor);
-        visitor.<span class="number">0
-    </span>}
-
-    <span class="doccomment">/// Returns
-    /// * either Ok(d1...dn) which are topologically sorted such that
-    ///   forall i &lt; j, di does not depend on i.e. "call" dj
-    /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-    </span><span class="kw">fn </span>sorted_defns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Symbol&gt;, Vec&lt;Symbol&gt;&gt; {
-        <span class="comment">// 1. Make the Symbol-Index
-        </span><span class="kw">let </span><span class="kw-2">mut </span>i2s: Vec&lt;Symbol&gt; = Vec::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>s2i: FxHashMap&lt;Symbol, usize&gt; = FxHashMap::default();
-        <span class="kw">for </span>(i, s) <span class="kw">in </span><span class="self">self</span>.defns.keys().enumerate() {
-            i2s.push(<span class="kw-2">*</span>s);
-            s2i.insert(<span class="kw-2">*</span>s, i);
-        }
-
-        <span class="comment">// 2. Make the dependency graph
-        </span><span class="kw">let </span><span class="kw-2">mut </span>adj_list: Vec&lt;Vec&lt;usize&gt;&gt; = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>name <span class="kw">in </span><span class="kw-2">&amp;</span>i2s {
-            <span class="kw">let </span>defn = <span class="self">self</span>.defns.get(name).unwrap();
-            <span class="kw">let </span>deps = <span class="self">self</span>.defn_deps(<span class="kw-2">&amp;</span>defn.expr);
-            <span class="kw">let </span>ddeps = deps
-                .iter()
-                .filter_map(|s| s2i.get(s).copied())
-                .collect_vec();
-            adj_list.push(ddeps);
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>g = IndexGraph::from_adjacency_list(<span class="kw-2">&amp;</span>adj_list);
-        g.transpose();
-
-        <span class="comment">// 3. Topologically sort the graph
-        </span><span class="kw">match </span>g.toposort_or_scc() {
-            <span class="prelude-val">Ok</span>(is) =&gt; <span class="prelude-val">Ok</span>(is.iter().map(|i| i2s[<span class="kw-2">*</span>i]).collect()),
-            <span class="prelude-val">Err</span>(<span class="kw-2">mut </span>scc) =&gt; {
-                <span class="kw">let </span>cycle = scc.pop().unwrap();
-                <span class="kw">let </span><span class="kw-2">mut </span>names: Vec&lt;Symbol&gt; = cycle.iter().map(|i| i2s[<span class="kw-2">*</span>i]).collect();
-                names.sort();
-                <span class="prelude-val">Err</span>(names)
-            }
-        }
-    }
-
-    <span class="comment">// private function normalize (expand_defns) which does the SCC-expansion
-    </span><span class="kw">fn </span>normalize(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Symbol&gt;&gt; {
+<span class="kw">impl </span>NormalizedDefns {
+    <span class="kw">pub fn </span>new(
+        genv: GlobalEnv,
+        defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;)],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;FluxLocalDefId&gt;&gt; {
         <span class="comment">// 1. Topologically sort the Defns
-        </span><span class="kw">let </span>ds = <span class="self">self</span>.sorted_defns()<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>ds = toposort(defns)<span class="question-mark">?</span>;
 
         <span class="comment">// 2. Expand each defn in the sorted order
-        </span><span class="kw">let </span><span class="kw-2">mut </span>exp_defns = SpecFuncDefns { defns: FxHashMap::default() };
-        <span class="kw">for </span>d <span class="kw">in </span>ds {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = <span class="self">self</span>.defns.remove(<span class="kw-2">&amp;</span>d) {
-                <span class="kw">let </span>expr = defn.expr.normalize(<span class="kw-2">&amp;</span>exp_defns);
-                <span class="kw">let </span>exp_defn = SpecFunc { expr, ..defn };
-                exp_defns.defns.insert(d, exp_defn);
-            }
+        </span><span class="kw">let </span><span class="kw-2">mut </span>normalized = UnordMap::default();
+        <span class="kw">for </span>i <span class="kw">in </span>ds {
+            <span class="kw">let </span>defn = <span class="kw-2">&amp;</span>defns[i];
+            <span class="kw">let </span>body = defn
+                .<span class="number">1
+                </span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>normalized)));
+            normalized.insert(defn.<span class="number">0</span>, body);
         }
-        <span class="prelude-val">Ok</span>(exp_defns)
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ defns: normalized })
     }
 
-    <span class="kw">fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;</span>Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SpecFunc&gt; {
-        <span class="self">self</span>.defns.get(f)
+    <span class="kw">pub fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxLocalDefId) -&gt; <span class="kw-2">&amp;</span>Binder&lt;Expr&gt; {
+        <span class="self">self</span>.defns.get(<span class="kw-2">&amp;</span>did).unwrap()
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Normalizer&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(defs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SpecFuncDefns) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ defs }
+<span class="doccomment">/// Returns
+/// * either Ok(d1...dn) which are topologically sorted such that
+///   forall i &lt; j, di does not depend on i.e. "call" dj
+/// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
+</span><span class="kw">fn </span>toposort(defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;)]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;usize&gt;, Vec&lt;FluxLocalDefId&gt;&gt; {
+    <span class="comment">// 1. Make a Symbol to Index map
+    </span><span class="kw">let </span>s2i: UnordMap&lt;FluxLocalDefId, usize&gt; = defns
+        .iter()
+        .enumerate()
+        .map(|(i, defn)| (defn.<span class="number">0</span>, i))
+        .collect();
+
+    <span class="comment">// 2. Make the dependency graph
+    </span><span class="kw">let </span><span class="kw-2">mut </span>adj_list = Vec::with_capacity(defns.len());
+    <span class="kw">for </span>defn <span class="kw">in </span>defns {
+        <span class="kw">let </span>deps = local_deps(<span class="kw-2">&amp;</span>defn.<span class="number">1</span>);
+        <span class="kw">let </span>ddeps = deps
+            .iter()
+            .filter_map(|s| s2i.get(s).copied())
+            .collect_vec();
+        adj_list.push(ddeps);
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>g = IndexGraph::from_adjacency_list(<span class="kw-2">&amp;</span>adj_list);
+    g.transpose();
+
+    <span class="comment">// 3. Topologically sort the graph
+    </span><span class="kw">match </span>g.toposort_or_scc() {
+        <span class="prelude-val">Ok</span>(is) =&gt; <span class="prelude-val">Ok</span>(is),
+        <span class="prelude-val">Err</span>(<span class="kw-2">mut </span>scc) =&gt; {
+            <span class="kw">let </span>cycle = scc.pop().unwrap();
+            <span class="prelude-val">Err</span>(cycle.iter().map(|i| defns[<span class="kw-2">*</span>i].<span class="number">0</span>).collect())
+        }
+    }
+}
+
+<span class="kw">fn </span>local_deps(body: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) -&gt; FxIndexSet&lt;FluxLocalDefId&gt; {
+    <span class="kw">struct </span>DepsVisitor(FxIndexSet&lt;FluxLocalDefId&gt;);
+    <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>DepsVisitor {
+        <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
+        </span><span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;!&gt; {
+            <span class="kw">if let </span>ExprKind::App(func, <span class="kw">_</span>) = expr.kind()
+                &amp;&amp; <span class="kw">let </span>ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(did) = did.as_local()
+            {
+                <span class="self">self</span>.<span class="number">0</span>.insert(did);
+            }
+            expr.super_visit_with(<span class="self">self</span>)
+        }
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>visitor = DepsVisitor(Default::default());
+    body.visit_with(<span class="kw-2">&amp;mut </span>visitor);
+    visitor.<span class="number">0
+</span>}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ genv, defs }
+    }
+
+    <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
+    </span><span class="kw">fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; <span class="kw-2">&amp;</span>Binder&lt;Expr&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(defs) = <span class="self">self</span>.defs
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = did.as_local()
+        {
+            defs.get(<span class="kw-2">&amp;</span>local_id).unwrap()
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.genv.normalized_defn(did)
+        }
     }
 
     <span class="kw">fn </span>at_base(expr: Expr, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
@@ -286,10 +306,8 @@
 
     <span class="kw">fn </span>app(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>Expr, args: <span class="kw-2">&amp;</span>[Expr], espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
         <span class="kw">match </span>func.kind() {
-            ExprKind::GlobalFunc(sym, SpecFuncKind::Def)
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = <span class="self">self</span>.defs.func_defn(sym) =&gt;
-            {
-                <span class="kw">let </span>res = defn.expr.replace_bound_refts(args);
+            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) =&gt; {
+                <span class="kw">let </span>res = <span class="self">self</span>.func_defn(<span class="kw-2">*</span>did).replace_bound_refts(args);
                 <span class="self">Self</span>::at_base(res, espan)
             }
             ExprKind::Abs(lam) =&gt; {
@@ -301,7 +319,7 @@
     }
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
         <span class="kw">let </span>expr = expr.super_fold_with(<span class="self">self</span>);
         <span class="kw">let </span>span = expr.span();

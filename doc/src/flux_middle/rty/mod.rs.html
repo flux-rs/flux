@@ -2777,54 +2777,7 @@
 <a href="#2776" id="2776">2776</a>
 <a href="#2777" id="2777">2777</a>
 <a href="#2778" id="2778">2778</a>
-<a href="#2779" id="2779">2779</a>
-<a href="#2780" id="2780">2780</a>
-<a href="#2781" id="2781">2781</a>
-<a href="#2782" id="2782">2782</a>
-<a href="#2783" id="2783">2783</a>
-<a href="#2784" id="2784">2784</a>
-<a href="#2785" id="2785">2785</a>
-<a href="#2786" id="2786">2786</a>
-<a href="#2787" id="2787">2787</a>
-<a href="#2788" id="2788">2788</a>
-<a href="#2789" id="2789">2789</a>
-<a href="#2790" id="2790">2790</a>
-<a href="#2791" id="2791">2791</a>
-<a href="#2792" id="2792">2792</a>
-<a href="#2793" id="2793">2793</a>
-<a href="#2794" id="2794">2794</a>
-<a href="#2795" id="2795">2795</a>
-<a href="#2796" id="2796">2796</a>
-<a href="#2797" id="2797">2797</a>
-<a href="#2798" id="2798">2798</a>
-<a href="#2799" id="2799">2799</a>
-<a href="#2800" id="2800">2800</a>
-<a href="#2801" id="2801">2801</a>
-<a href="#2802" id="2802">2802</a>
-<a href="#2803" id="2803">2803</a>
-<a href="#2804" id="2804">2804</a>
-<a href="#2805" id="2805">2805</a>
-<a href="#2806" id="2806">2806</a>
-<a href="#2807" id="2807">2807</a>
-<a href="#2808" id="2808">2808</a>
-<a href="#2809" id="2809">2809</a>
-<a href="#2810" id="2810">2810</a>
-<a href="#2811" id="2811">2811</a>
-<a href="#2812" id="2812">2812</a>
-<a href="#2813" id="2813">2813</a>
-<a href="#2814" id="2814">2814</a>
-<a href="#2815" id="2815">2815</a>
-<a href="#2816" id="2816">2816</a>
-<a href="#2817" id="2817">2817</a>
-<a href="#2818" id="2818">2818</a>
-<a href="#2819" id="2819">2819</a>
-<a href="#2820" id="2820">2820</a>
-<a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a>
-<a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a>
-<a href="#2825" id="2825">2825</a>
-<a href="#2826" id="2826">2826</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2779" id="2779">2779</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -2864,13 +2817,10 @@
     ty::{<span class="self">self</span>, VariantDef},
 };
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">pub use </span>normalize::SpecFuncDefns;
+<span class="kw">pub use </span>normalize::NormalizedDefns;
 <span class="kw">use </span>refining::{Refine <span class="kw">as _</span>, Refiner};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-<span class="kw">use </span>rustc_hir::{
-    LangItem, Safety,
-    def_id::{DefId, DefIndex},
-};
+<span class="kw">use </span>rustc_hir::{LangItem, Safety, def_id::DefId};
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec, newtype_index};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
@@ -2887,7 +2837,8 @@
 <span class="kw">use </span><span class="self">self</span>::fold::TypeFoldable;
 <span class="kw">pub use </span><span class="kw">crate</span>::fhir::InferMode;
 <span class="kw">use crate</span>::{
-    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, SpecFuncKind},
+    def_id::{FluxDefId, FluxLocalDefId},
+    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::subst::SortSubst,
@@ -3557,42 +3508,9 @@
     <span class="kw">pub </span>output: Ty,
 }
 
-<span class="doccomment">/// An id for an associated refinement with a type-level invariant ensuring that it exists.
-///
-/// We represent the id as a container id and an arbitrary name. This doesn't guarantee the
-/// existence of the associated refinement, so we must be careful when creating instances of
-/// this struct.
-///
-/// We mark the struct as `non_exhaustive` to make it harder to create one by mistake without
-/// calling [`AssocReftId::new`]. We also have a clippy lint disallowing [`AssocReftId::new`]
-/// which can be disabled selectively when we can ensure the associated refinement exists.
-///
-/// The struct is generic on the container `Id` because we use it with various kinds of ids,
-/// e.g., [`DefId`], [`MaybeExternId`], ...
-</span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, TypeVisitable, TypeFoldable)]
-#[non_exhaustive]
-</span><span class="kw">pub struct </span>AssocReftId&lt;Id = DefId&gt; {
-    <span class="doccomment">/// Id of the container, i.e., the impl block or trait.
-    </span><span class="kw">pub </span>container_id: Id,
-    <span class="doccomment">/// Name of the associated refinement
-    </span><span class="kw">pub </span>name: Symbol,
-}
-
-<span class="kw">impl</span>&lt;Id&gt; AssocReftId&lt;Id&gt; {
-    <span class="kw">pub fn </span>new(container_id: Id, name: Symbol) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ container_id, name }
-    }
-}
-
-<span class="kw">impl </span>AssocReftId {
-    <span class="kw">pub fn </span>index(<span class="self">self</span>) -&gt; AssocReftId&lt;DefIndex&gt; {
-        AssocReftId { container_id: <span class="self">self</span>.container_id.index, name: <span class="self">self</span>.name }
-    }
-}
-
 <span class="attr">#[derive(Clone, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>AssocRefinements {
-    <span class="kw">pub </span>items: List&lt;AssocReftId&gt;,
+    <span class="kw">pub </span>items: List&lt;FluxDefId&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AssocRefinements {
@@ -3602,8 +3520,8 @@
 }
 
 <span class="kw">impl </span>AssocRefinements {
-    <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;AssocReftId&gt; {
-        <span class="self">self</span>.items.iter().find(|it| it.name == name).copied()
+    <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;FluxDefId&gt; {
+        <span class="self">self</span>.items.iter().find(|it| it.name() == name).copied()
     }
 }
 
@@ -4040,21 +3958,9 @@
 
 <span class="attr">#[derive(Debug, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>Qualifier {
-    <span class="kw">pub </span>name: Symbol,
+    <span class="kw">pub </span>def_id: FluxLocalDefId,
     <span class="kw">pub </span>body: Binder&lt;Expr&gt;,
     <span class="kw">pub </span>global: bool,
-}
-
-<span class="kw">pub struct </span>SpecFunc {
-    <span class="kw">pub </span>name: Symbol,
-    <span class="kw">pub </span>expr: Binder&lt;Expr&gt;,
-}
-
-<span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>SpecFuncDecl {
-    <span class="kw">pub </span>name: Symbol,
-    <span class="kw">pub </span>sort: PolyFuncSort,
-    <span class="kw">pub </span>kind: SpecFuncKind,
 }
 
 <span class="kw">pub type </span>TyCtor = Binder&lt;Ty&gt;;
@@ -5520,7 +5426,7 @@
     PolyVariant,
     Invariant,
     RefineParam,
-    AssocReftId,
+    FluxDefId,
     SortParamKind,
 );
 

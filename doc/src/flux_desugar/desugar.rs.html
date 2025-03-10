@@ -1602,7 +1602,12 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -1616,7 +1621,8 @@
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
-    MaybeExternId, ResolverOutput,
+    ResolverOutput,
+    def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
@@ -1632,7 +1638,7 @@
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, OwnerId};
 <span class="kw">use </span>rustc_span::{
-    DUMMY_SP, Span, Symbol,
+    DUMMY_SP, Span,
     def_id::{DefId, LocalDefId},
     sym,
     symbol::kw,
@@ -1645,11 +1651,12 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_qualifier&lt;<span class="lifetime">'genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
+    def_id: FluxLocalDefId,
     qualifier: <span class="kw-2">&amp;</span>surface::Qualifier,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-    FluxItemCtxt::with(genv, resolver_output, qualifier.name.name, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
         <span class="kw">let </span>qualifier = fhir::Qualifier {
-            name: qualifier.name.name,
+            def_id,
             args: cx.desugar_refine_params(<span class="kw-2">&amp;</span>qualifier.params),
             global: qualifier.global,
             expr: cx.desugar_expr(<span class="kw-2">&amp;</span>qualifier.expr),
@@ -1661,15 +1668,15 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_spec_func&lt;<span class="lifetime">'genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
+    def_id: FluxLocalDefId,
     spec_func: <span class="kw-2">&amp;</span>surface::SpecFunc,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-    FluxItemCtxt::with(genv, resolver_output, spec_func.name.name, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
         <span class="kw">let </span>body = spec_func.body.as_ref().map(|body| cx.desugar_expr(body));
-        <span class="kw">let </span>name = spec_func.name.name;
         <span class="kw">let </span>params = spec_func.sort_vars.len();
         <span class="kw">let </span>sort = cx.desugar_sort(<span class="kw-2">&amp;</span>spec_func.output, <span class="prelude-val">None</span>);
         <span class="kw">let </span>args = cx.desugar_refine_params(<span class="kw-2">&amp;</span>spec_func.params);
-        fhir::SpecFunc { name, params, args, sort, body }
+        fhir::SpecFunc { def_id, params, args, sort, body }
     })
 }
 
@@ -2167,7 +2174,10 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.owner.local_id(), <span class="string">"fhir"</span>, decl).unwrap();
         }
 
-        <span class="kw">let </span>qual_names = fn_spec.qual_names.as_ref().map_or(<span class="kw-2">&amp;</span>[][..], |it| <span class="kw-2">&amp;</span>it.names);
+        <span class="kw">let </span>qual_names = <span class="self">self
+            </span>.owner
+            .as_local()
+            .map_or(<span class="kw-2">&amp;</span>[][..], |owner_id| <span class="kw-2">&amp;</span><span class="self">self</span>.resolver_output.qualifier_res_map[<span class="kw-2">&amp;</span>owner_id]);
         <span class="prelude-val">Ok</span>((generics, fhir::FnSig {
             header,
             qualifiers: <span class="self">self</span>.genv.alloc_slice(qual_names),
@@ -2447,7 +2457,7 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
     local_id_gen: IndexGen&lt;fhir::ItemLocalId&gt;,
-    owner: Symbol,
+    owner: FluxLocalDefId,
     errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
@@ -2455,7 +2465,7 @@
     <span class="kw">fn </span>with&lt;T&gt;(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
-        owner: Symbol,
+        owner: FluxLocalDefId,
         f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; T,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>cx = <span class="self">Self </span>{

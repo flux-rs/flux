@@ -3798,7 +3798,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{MaybeExternId, def_id_to_string, global_env::GlobalEnv};
+    <span class="kw">use </span>flux_middle::{def_id::MaybeExternId, def_id_to_string, global_env::GlobalEnv};
     <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_span::Span;

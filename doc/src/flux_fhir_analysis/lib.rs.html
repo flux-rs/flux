@@ -580,16 +580,7 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -614,13 +605,13 @@
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
-    MaybeExternId,
-    fhir::{<span class="self">self</span>},
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        <span class="self">self</span>, AssocReftId, WfckResults,
+        <span class="self">self</span>, WfckResults,
         fold::TypeFoldable,
         refining::{<span class="self">self</span>, Refiner},
     },
@@ -628,18 +619,16 @@
 <span class="kw">use </span>flux_rustc_bridge::lowering::Lower;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-<span class="kw">use </span>rustc_span::Symbol;
 
 <span class="macro">fluent_messages!</span> { <span class="string">"../locales/en-US.ftl" </span>}
 
 <span class="kw">pub fn </span>provide(providers: <span class="kw-2">&amp;mut </span>Providers) {
-    providers.spec_func_defns = spec_func_defns;
-    providers.spec_func_decl = spec_func_decl;
+    providers.normalized_defns = normalized_defns;
+    providers.func_sort = func_sort;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -664,21 +653,22 @@
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-<span class="kw">fn </span>spec_func_decl(genv: GlobalEnv, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(func) = genv.map().spec_func(name) {
-        conv::conv_func_decl(genv, func)
-    } <span class="kw">else </span>{
-        <span class="kw">let </span>itf = flux_middle::THEORY_FUNCS.get(<span class="kw-2">&amp;</span>name).unwrap();
-        <span class="prelude-val">Ok</span>(rty::SpecFuncDecl {
-            name: itf.name,
-            sort: itf.sort.clone(),
-            kind: fhir::SpecFuncKind::Thy(itf.itf),
-        })
+<span class="kw">fn </span>func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+    <span class="kw">let </span>func = genv.map().spec_func(def_id).unwrap();
+    conv::conv_func_decl(genv, func)
+}
+
+<span class="kw">fn </span>normalized_defns(genv: GlobalEnv) -&gt; rty::NormalizedDefns {
+    <span class="kw">match </span>try_normalized_defns(genv) {
+        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            genv.sess().abort(err);
+        }
     }
 }
 
-<span class="kw">fn </span>spec_func_defns(genv: GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>defns = FxHashMap::default();
+<span class="kw">fn </span>try_normalized_defns(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;rty::NormalizedDefns, ErrorGuaranteed&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>defns = <span class="macro">vec!</span>[];
 
     <span class="comment">// Collect and emit all errors
     </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
@@ -690,12 +680,12 @@
             <span class="kw">continue</span>;
         };
         <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
-            defns.insert(defn.name, defn);
+            defns.push((func.def_id, defn));
         }
     }
     errors.into_result()<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>defns = rty::SpecFuncDefns::new(defns)
+    <span class="kw">let </span>defns = rty::NormalizedDefns::new(genv, <span class="kw-2">&amp;</span>defns)
         .map_err(|cycle| {
             <span class="kw">let </span>span = genv.map().spec_func(cycle[<span class="number">0</span>]).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)
@@ -710,8 +700,7 @@
         .qualifiers()
         .map(|qualifier| {
             <span class="kw">let </span>wfckresults = wf::check_qualifier(genv, qualifier)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
-                </span>.normalize(genv.spec_func_defns()<span class="question-mark">?</span>))
+            <span class="prelude-val">Ok</span>(conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>.normalize(genv))
         })
         .try_collect()
 }
@@ -816,14 +805,14 @@
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id.resolved_id(), <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
@@ -833,14 +822,14 @@
 
 <span class="kw">fn </span>default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_assoc_id: AssocReftId&lt;MaybeExternId&gt;,
+    trait_assoc_id: FluxId&lt;MaybeExternId&gt;,
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
-    <span class="kw">let </span>trait_id = trait_assoc_id.container_id;
+    <span class="kw">let </span>trait_id = trait_assoc_id.parent();
     <span class="kw">let </span>assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())<span class="question-mark">?
         </span>.expect_trait()
-        .find_assoc_reft(trait_assoc_id.name)
+        .find_assoc_reft(trait_assoc_id.name())
         .unwrap();
     <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
     <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
@@ -851,15 +840,15 @@
 
 <span class="kw">fn </span>assoc_refinement_body(
     genv: GlobalEnv,
-    impl_assoc_id: AssocReftId&lt;MaybeExternId&gt;,
+    impl_assoc_id: FluxId&lt;MaybeExternId&gt;,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
-    <span class="kw">let </span>impl_id = impl_assoc_id.container_id;
+    <span class="kw">let </span>impl_id = impl_assoc_id.parent();
 
     <span class="kw">let </span>assoc_reft = genv
         .map()
         .expect_item(impl_id.local_id())<span class="question-mark">?
         </span>.expect_impl()
-        .find_assoc_reft(impl_assoc_id.name)
+        .find_assoc_reft(impl_assoc_id.name())
         .unwrap();
 
     <span class="kw">let </span>wfckresults = genv.check_wf(impl_id.local_id())<span class="question-mark">?</span>;
@@ -870,13 +859,13 @@
 
 <span class="kw">fn </span>sort_of_assoc_reft(
     genv: GlobalEnv,
-    assoc_id: AssocReftId&lt;MaybeExternId&gt;,
+    assoc_id: FluxId&lt;MaybeExternId&gt;,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
-    <span class="kw">let </span>container_id = assoc_id.container_id;
+    <span class="kw">let </span>container_id = assoc_id.parent();
 
     <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
-            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name).unwrap();
+            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
             <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
@@ -888,7 +877,7 @@
             <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
-            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name).unwrap();
+            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
             <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
@@ -1117,10 +1106,7 @@
 }
 
 <span class="kw">pub fn </span>check_crate_wf(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
-
-    <span class="kw">let </span>qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
-
+    <span class="kw">let </span>errors = Errors::new(genv.sess());
     <span class="kw">for </span>def_id <span class="kw">in </span>genv.tcx().hir_crate_items(()).definitions() {
         <span class="kw">if </span>genv.ignored(def_id) || genv.is_dummy(def_id) {
             <span class="kw">continue</span>;
@@ -1143,16 +1129,11 @@
             }
             <span class="kw">_ </span>=&gt; {}
         }
-        <span class="kw">if </span><span class="macro">matches!</span>(def_kind, DefKind::Fn | DefKind::AssocFn) {
-            <span class="kw">if let </span><span class="prelude-val">Ok</span>(fn_quals) = genv.map().fn_quals_for(def_id).emit(<span class="kw-2">&amp;</span>errors) {
-                wf::check_fn_quals(genv.sess(), <span class="kw-2">&amp;</span>qualifiers, fn_quals).collect_err(<span class="kw-2">&amp;mut </span>errors);
-            }
-        }
     }
 
     <span class="comment">// Query qualifiers and spec funcs to report wf errors
     </span><span class="kw">let _ </span>= genv.qualifiers().emit(<span class="kw-2">&amp;</span>errors);
-    <span class="kw">let _ </span>= genv.spec_func_defns().emit(<span class="kw-2">&amp;</span>errors);
+    <span class="kw">let _ </span>= genv.normalized_defns();
 
     errors.into_result()
 }
@@ -1160,7 +1141,8 @@
 <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
-    <span class="kw">use </span>rustc_span::{Span, Symbol};
+    <span class="kw">use </span>flux_middle::def_id::FluxLocalDefId;
+    <span class="kw">use </span>rustc_span::Span;
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(fhir_analysis_definition_cycle, code = E0999)]
@@ -1172,9 +1154,9 @@
     }
 
     <span class="kw">impl </span>DefinitionCycle {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, cycle: Vec&lt;Symbol&gt;) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>root = <span class="macro">format!</span>(<span class="string">"`{}`"</span>, cycle[<span class="number">0</span>]);
-            <span class="kw">let </span>names: Vec&lt;String&gt; = cycle.iter().map(|s| <span class="macro">format!</span>(<span class="string">"`{s}`"</span>)).collect();
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, cycle: Vec&lt;FluxLocalDefId&gt;) -&gt; <span class="self">Self </span>{
+            <span class="kw">let </span>root = <span class="macro">format!</span>(<span class="string">"`{}`"</span>, cycle[<span class="number">0</span>].name());
+            <span class="kw">let </span>names: Vec&lt;String&gt; = cycle.iter().map(|s| <span class="macro">format!</span>(<span class="string">"`{}`"</span>, s.name())).collect();
             <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{} -&gt; {}"</span>, names.join(<span class="string">" -&gt; "</span>), root);
             <span class="self">Self </span>{ span, msg }
         }

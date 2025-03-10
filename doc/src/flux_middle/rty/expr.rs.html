@@ -1630,7 +1630,17 @@
 <a href="#1629" id="1629">1629</a>
 <a href="#1630" id="1630">1630</a>
 <a href="#1631" id="1631">1631</a>
-<a href="#1632" id="1632">1632</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1632" id="1632">1632</a>
+<a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::bug;
@@ -1654,11 +1664,12 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
-    AssocReftId, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
-    GenericArgs, GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
+    GenericArgsExt <span class="kw">as _</span>, IntTy, Sort, UintTy,
 };
 <span class="kw">use crate</span>::{
     big_int::BigInt,
+    def_id::FluxDefId,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     pretty::<span class="kw-2">*</span>,
@@ -1716,13 +1727,13 @@
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 </span><span class="kw">pub struct </span>AliasReft {
     <span class="doccomment">/// Id of the associated refinement in the trait
-    </span><span class="kw">pub </span>assoc_id: AssocReftId,
+    </span><span class="kw">pub </span>assoc_id: FluxDefId,
     <span class="kw">pub </span>args: GenericArgs,
 }
 
 <span class="kw">impl </span>AliasReft {
     <span class="kw">pub fn </span>to_rustc_trait_ref&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">let </span>trait_def_id = <span class="self">self</span>.assoc_id.container_id;
+        <span class="kw">let </span>trait_def_id = <span class="self">self</span>.assoc_id.parent();
         <span class="kw">let </span>args = <span class="self">self
             </span>.args
             .to_rustc(tcx)
@@ -1939,8 +1950,8 @@
         ExprKind::App(func.into(), args).intern()
     }
 
-    <span class="kw">pub fn </span>global_func(func: Symbol, kind: SpecFuncKind) -&gt; Expr {
-        ExprKind::GlobalFunc(func, kind).intern()
+    <span class="kw">pub fn </span>global_func(kind: SpecFuncKind) -&gt; Expr {
+        ExprKind::GlobalFunc(kind).intern()
     }
 
     <span class="kw">pub fn </span>eq(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
@@ -2165,7 +2176,7 @@
     <span class="doccomment">/// Applies a field projection to an expression and optimistically try to beta reduce it
     </span><span class="kw">pub fn </span>proj_and_reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
         <span class="kw">match </span><span class="self">self</span>.kind() {
-            ExprKind::Tuple(flds) | ExprKind::Ctor(<span class="kw">_</span>, flds) =&gt; {
+            ExprKind::Tuple(flds) | ExprKind::Ctor(Ctor::Struct(<span class="kw">_</span>), flds) =&gt; {
                 flds[proj.field_idx() <span class="kw">as </span>usize].clone()
             }
             <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj),
@@ -2285,7 +2296,7 @@
     Constant(Constant),
     ConstDefId(DefId, ConstantInfo),
     BinaryOp(BinOp, Expr, Expr),
-    GlobalFunc(Symbol, SpecFuncKind),
+    GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     <span class="doccomment">/// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
@@ -2769,7 +2780,7 @@
     <span class="kw">use </span>flux_rustc_bridge::def_id_to_string;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::rty::pretty::nested_with_bound_vars;
+    <span class="kw">use crate</span>::{name_of_thy_func, rty::pretty::nested_with_bound_vars};
 
     <span class="attr">#[derive(PartialEq, Eq, PartialOrd, Ord)]
     </span><span class="kw">enum </span>Precedence {
@@ -2938,7 +2949,16 @@
                 ExprKind::Abs(lam) =&gt; {
                     <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, lam)
                 }
-                ExprKind::GlobalFunc(func, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^func),
+                ExprKind::GlobalFunc(SpecFuncKind::Def(did) | SpecFuncKind::Uif(did)) =&gt; {
+                    <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^did.name())
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = name_of_thy_func(<span class="kw-2">*</span>itf) {
+                        <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^name)
+                    } <span class="kw">else </span>{
+                        <span class="macro">w!</span>(cx, f, <span class="string">"&lt;error&gt;"</span>)
+                    }
+                }
                 ExprKind::ForAll(expr) =&gt; {
                     <span class="kw">let </span>vars = expr.vars();
                     cx.with_bound_vars(vars, || {
@@ -2977,12 +2997,12 @@
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>AliasReft {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">w!</span>(cx, f, <span class="string">"&lt;({:?}) as {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.assoc_id.container_id)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(cx, f, <span class="string">"&lt;({:?}) as {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.assoc_id.parent())<span class="question-mark">?</span>;
             <span class="kw">let </span>args = <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">1</span>..];
             <span class="kw">if </span>!args.is_empty() {
                 <span class="macro">w!</span>(cx, f, <span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, args))<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(cx, f, <span class="string">"&gt;::{}"</span>, ^<span class="self">self</span>.assoc_id.name)
+            <span class="macro">w!</span>(cx, f, <span class="string">"&gt;::{}"</span>, ^<span class="self">self</span>.assoc_id.name())
         }
     }
 

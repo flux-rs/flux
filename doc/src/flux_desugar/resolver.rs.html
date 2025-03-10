@@ -868,14 +868,73 @@
 <a href="#867" id="867">867</a>
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
     bug,
     result::{ErrorCollector, ResultExt},
 };
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
-<span class="kw">use </span>flux_middle::{MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv};
+<span class="kw">use </span>flux_middle::{
+    ResolverOutput, Specs,
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    fhir,
+    global_env::GlobalEnv,
+};
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, Ident, visit::Visitor <span class="kw">as _</span>};
 <span class="kw">use </span>hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -925,6 +984,7 @@
     /// [`DefId`]
     </span>crates: UnordMap&lt;Symbol, DefId&gt;,
     prelude: PerNS&lt;Rib&gt;,
+    qualifiers: UnordMap&lt;Symbol, FluxLocalDefId&gt;,
     func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
     sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
     enum_variants: FxHashMap&lt;DefId, EnumVariants&gt;,
@@ -948,6 +1008,7 @@
                 macro_ns: Rib::new(RibKind::Normal),
             },
             err: <span class="prelude-val">None</span>,
+            qualifiers: Default::default(),
             func_decls: Default::default(),
             sort_decls: Default::default(),
             enum_variants: Default::default(),
@@ -955,23 +1016,31 @@
         }
     }
 
-    <span class="kw">fn </span>define_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">for </span>item <span class="kw">in </span><span class="self">self</span>.specs.flux_items_by_parent.values().flatten() {
-            <span class="kw">match </span>item {
-                surface::Item::Qualifier(<span class="kw">_</span>) =&gt; {}
-                surface::Item::FuncDef(defn) =&gt; {
-                    <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() {
-                        fhir::SpecFuncKind::Def
-                    } <span class="kw">else </span>{
-                        fhir::SpecFuncKind::Uif
-                    };
-                    <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
-                }
-                surface::Item::SortDecl(sort_decl) =&gt; {
-                    <span class="self">self</span>.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
-                        name: sort_decl.name.name,
-                        span: sort_decl.name.span,
-                    });
+    <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"`flux_items_by_parent` is the source of truth"</span>)]
+    </span><span class="kw">fn </span>define_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">for </span>(parent, items) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.flux_items_by_parent {
+            <span class="kw">for </span>item <span class="kw">in </span>items {
+                <span class="kw">match </span>item {
+                    surface::Item::Qualifier(qual) =&gt; {
+                        <span class="kw">let </span>def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
+                        <span class="self">self</span>.qualifiers.insert(qual.name.name, def_id);
+                    }
+                    surface::Item::FuncDef(defn) =&gt; {
+                        <span class="kw">let </span>parent = parent.def_id.to_def_id();
+                        <span class="kw">let </span>def_id = FluxDefId::new(parent, defn.name.name);
+                        <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() {
+                            fhir::SpecFuncKind::Def(def_id)
+                        } <span class="kw">else </span>{
+                            fhir::SpecFuncKind::Uif(def_id)
+                        };
+                        <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
+                    }
+                    surface::Item::SortDecl(sort_decl) =&gt; {
+                        <span class="self">self</span>.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
+                            name: sort_decl.name.name,
+                            span: sort_decl.name.span,
+                        });
+                    }
                 }
             }
         }
@@ -1171,12 +1240,38 @@
     }
 
     <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: MaybeExternId&lt;OwnerId&gt;) -&gt; <span class="prelude-ty">Result</span> {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id.local_id()].fn_sig {
+        <span class="kw">let </span>fn_spec = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id.local_id()];
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(owner_id) = owner_id.as_local() {
+            <span class="self">self</span>.resolve_qualifiers(owner_id, fn_spec.qual_names.as_ref())<span class="question-mark">?</span>;
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span>fn_spec.fn_sig {
             ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })<span class="question-mark">?</span>;
             RefinementResolver::resolve_fn_sig(<span class="self">self</span>, fn_sig)<span class="question-mark">?</span>;
         }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>resolve_qualifiers(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        owner_id: OwnerId,
+        quals: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::QualNames&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span> {
+        <span class="kw">let </span>qual_names = quals.map_or(<span class="kw-2">&amp;</span>[][..], |q| <span class="kw-2">&amp;</span>q.names[..]);
+        <span class="kw">let </span><span class="kw-2">mut </span>qualifiers = Vec::with_capacity(qual_names.len());
+        <span class="kw">for </span>qual <span class="kw">in </span>qual_names {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.qualifiers.get(<span class="kw-2">&amp;</span>qual.name) {
+                qualifiers.push(<span class="kw-2">*</span>def_id);
+            } <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
+                    </span>.genv
+                    .sess()
+                    .emit_err(errors::UnknownQualifier::new(qual.span)));
+            }
+        }
+        <span class="self">self</span>.output.qualifier_res_map.insert(owner_id, qualifiers);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1735,6 +1830,19 @@
                 span: path.span,
                 path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
             }
+        }
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(desugar_unknown_qualifier, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
+        <span class="attr">#[primary_span]
+        </span>span: Span,
+    }
+
+    <span class="kw">impl </span>UnknownQualifier {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; UnknownQualifier {
+            <span class="self">Self </span>{ span }
         }
     }
 }

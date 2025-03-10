@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["UnresolvedPath","UnsupportedSignature"]};
+window.SIDEBAR_ITEMS = {"struct":["UnknownQualifier","UnresolvedPath","UnsupportedSignature"]};

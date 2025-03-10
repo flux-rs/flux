@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MaybeExternId","ResolvedDefId"],"struct":["FluxId"],"type":["FluxDefId","FluxLocalDefId"]};

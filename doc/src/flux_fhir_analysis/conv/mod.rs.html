@@ -2796,9 +2796,7 @@
 <a href="#2795" id="2795">2795</a>
 <a href="#2796" id="2796">2796</a>
 <a href="#2797" id="2797">2797</a>
-<a href="#2798" id="2798">2798</a>
-<a href="#2799" id="2799">2799</a>
-<a href="#2800" id="2800">2800</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2798" id="2798">2798</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2813,7 +2811,7 @@
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -3231,14 +3229,14 @@
     genv: GlobalEnv,
     func: <span class="kw-2">&amp;</span>fhir::SpecFunc,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults,
-) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::SpecFunc&gt;&gt; {
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Binder&lt;rty::Expr&gt;&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
         <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(wfckresults, <span class="number">0</span>, func.args));
         <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
-        <span class="kw">let </span>expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::SpecFunc { name: func.name, expr }))
+        <span class="kw">let </span>body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(body))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
@@ -3254,7 +3252,7 @@
     env.push_layer(Layer::list(wfckresults, <span class="number">0</span>, qualifier.args));
     <span class="kw">let </span>body = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
     <span class="kw">let </span>body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
-    <span class="prelude-val">Ok</span>(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
+    <span class="prelude-val">Ok</span>(rty::Qualifier { def_id: qualifier.def_id, body, global: qualifier.global })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_default_type_parameter(
@@ -4983,7 +4981,7 @@
     <span class="kw">fn </span>conv_func(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, func: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; rty::Expr {
         <span class="kw">let </span>expr = <span class="kw">match </span>func.res {
             ExprRes::Param(..) =&gt; env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind, sym) =&gt; rty::Expr::global_func(sym, kind),
+            ExprRes::GlobalFunc(kind) =&gt; rty::Expr::global_func(kind),
             <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
         };
         <span class="self">self</span>.add_coercions(expr, func.fhir_id)
@@ -5220,8 +5218,8 @@
     }
 }
 
-<span class="kw">pub fn </span>conv_func_decl(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
-    <span class="kw">let </span>wfckresults = WfckResults::new(FluxOwnerId::Flux(func.name));
+<span class="kw">pub fn </span>conv_func_decl(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+    <span class="kw">let </span>wfckresults = WfckResults::new(FluxOwnerId::Flux(func.def_id));
     <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
     <span class="kw">let </span>inputs_and_output = func
         .args
@@ -5233,9 +5231,7 @@
     <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
         .take(func.params)
         .collect();
-    <span class="kw">let </span>sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
-    <span class="kw">let </span>kind = <span class="kw">if </span>func.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
-    <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
+    <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output }))
 }
 
 <span class="kw">fn </span>conv_un_op(op: fhir::UnOp) -&gt; rty::UnOp {

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BaseSpanner","Normalizer","SpecFuncDefns"]};
+window.SIDEBAR_ITEMS = {"fn":["local_deps","toposort"],"struct":["BaseSpanner","NormalizedDefns","Normalizer"]};

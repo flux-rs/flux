@@ -623,14 +623,15 @@
 <a href="#622" id="622">622</a>
 <a href="#623" id="623">623</a>
 <a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_rustc_bridge::{<span class="self">self</span>, lowering::Lower, mir, ty};
-<span class="kw">use </span>rustc_hash::FxHashSet;
+<span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -642,13 +643,13 @@
 <span class="kw">pub use </span>rustc_span::{Symbol, symbol::Ident};
 
 <span class="kw">use crate</span>::{
-    MaybeExternId, ResolvedDefId,
     cstore::CrateStoreDyn,
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{<span class="self">self</span>, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
-        <span class="self">self</span>, AssocReftId,
-        normalize::SpecFuncDefns,
+        <span class="self">self</span>,
+        normalize::NormalizedDefns,
         refining::{Refine <span class="kw">as _</span>, Refiner},
     },
 };
@@ -759,8 +760,14 @@
         }
     }
 
-    <span class="kw">pub fn </span>spec_func_defns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>SpecFuncDefns&gt; {
-        <span class="self">self</span>.inner.queries.spec_func_defns(<span class="kw-2">*</span><span class="self">self</span>)
+    <span class="kw">pub fn </span>normalized_defn(<span class="self">self</span>, did: FluxDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::Binder&lt;rty::Expr&gt; {
+        <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
+        </span><span class="kw">let </span>local_id = did.expect_local();
+        <span class="self">self</span>.normalized_defns().func_defn(local_id)
+    }
+
+    <span class="kw">pub fn </span>normalized_defns(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>NormalizedDefns {
+        <span class="self">self</span>.inner.queries.normalized_defns(<span class="self">self</span>)
     }
 
     <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[rty::Qualifier]&gt; {
@@ -772,20 +779,15 @@
         <span class="self">self</span>,
         did: LocalDefId,
     ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::Qualifier&gt;&gt; {
-        <span class="kw">let </span>names: FxHashSet&lt;Symbol&gt; = <span class="self">self
-            </span>.map()
-            .fn_quals_for(did)<span class="question-mark">?
-            </span>.iter()
-            .map(|qual| qual.name)
-            .collect();
+        <span class="kw">let </span>names: UnordSet&lt;<span class="kw">_</span>&gt; = <span class="self">self</span>.map().fn_quals_for(did)<span class="question-mark">?</span>.iter().copied().collect();
         <span class="prelude-val">Ok</span>(<span class="self">self
             </span>.qualifiers()<span class="question-mark">?
             </span>.iter()
-            .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
+            .filter(<span class="kw">move </span>|qual| qual.global || names.contains(<span class="kw-2">&amp;</span>qual.def_id)))
     }
 
-    <span class="kw">pub fn </span>func_decl(<span class="self">self</span>, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
-        <span class="self">self</span>.inner.queries.func_decl(<span class="self">self</span>, name)
+    <span class="kw">pub fn </span>func_sort(<span class="self">self</span>, def_id: FluxDefId) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+        <span class="self">self</span>.inner.queries.func_sort(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
@@ -908,12 +910,12 @@
     /// not checking `compare_impl_item` for those definitions.
     </span><span class="kw">pub fn </span>assoc_refinement_body_for_impl(
         <span class="self">self</span>,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
         impl_id: DefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
         <span class="comment">// Check if the implementation has the associated refinement
         </span><span class="kw">let </span>impl_assoc_refts = <span class="self">self</span>.assoc_refinements_of(impl_id)<span class="question-mark">?</span>;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name()) {
             <span class="kw">return </span><span class="self">self</span>.assoc_refinement_body(impl_assoc_id);
         }
 
@@ -928,14 +930,14 @@
 
         <span class="prelude-val">Err</span>(QueryErr::MissingAssocReft {
             impl_id,
-            trait_id: trait_assoc_id.container_id,
-            name: trait_assoc_id.name,
+            trait_id: trait_assoc_id.parent(),
+            name: trait_assoc_id.name(),
         })
     }
 
     <span class="kw">pub fn </span>default_assoc_refinement_body(
         <span class="self">self</span>,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
         <span class="self">self</span>.inner
             .queries
@@ -944,7 +946,7 @@
 
     <span class="kw">pub fn </span>assoc_refinement_body(
         <span class="self">self</span>,
-        impl_assoc_id: AssocReftId,
+        impl_assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
         <span class="self">self</span>.inner
             .queries
@@ -953,7 +955,7 @@
 
     <span class="kw">pub fn </span>sort_of_assoc_reft(
         <span class="self">self</span>,
-        assoc_id: AssocReftId,
+        assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
         <span class="self">self</span>.inner.queries.sort_of_assoc_reft(<span class="self">self</span>, assoc_id)
     }
@@ -1169,8 +1171,8 @@
         }
     }
 
-    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
+    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id).as_ref().copied()
     }
 
     <span class="kw">pub fn </span>refinement_kind(
@@ -1191,10 +1193,10 @@
         })
     }
 
-    <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir
             .items
-            .get(<span class="kw-2">&amp;</span>name)
+            .get(<span class="kw-2">&amp;</span>def_id)
             .and_then(|item| <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
     }
 
@@ -1204,7 +1206,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[Ident]&gt; {
+    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[FluxLocalDefId]&gt; {
         <span class="comment">// This is called on adts when checking invariants
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.expect_owner_node(def_id)<span class="question-mark">?</span>.fn_sig() {
             <span class="prelude-val">Ok</span>(fn_sig.qualifiers)

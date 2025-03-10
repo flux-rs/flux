@@ -912,7 +912,24 @@
 <a href="#911" id="911">911</a>
 <a href="#912" id="912">912</a>
 <a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -936,10 +953,11 @@
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 
 <span class="kw">use crate</span>::{
-    MaybeExternId, ResolvedDefId, fhir,
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    fhir,
     global_env::GlobalEnv,
     rty::{
-        <span class="self">self</span>, AssocReftId,
+        <span class="self">self</span>,
         refining::{<span class="self">self</span>, Refine, Refiner},
     },
 };
@@ -1044,8 +1062,8 @@
     ) -&gt; QueryResult&lt;UnordMap&lt;LocalDefId, fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     <span class="kw">pub </span>fhir_crate: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::FluxItems&lt;<span class="lifetime">'genv</span>&gt;,
     <span class="kw">pub </span>qualifiers: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;,
-    <span class="kw">pub </span>spec_func_defns: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt;,
-    <span class="kw">pub </span>spec_func_decl: <span class="kw">fn</span>(GlobalEnv, Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt;,
+    <span class="kw">pub </span>normalized_defns: <span class="kw">fn</span>(GlobalEnv) -&gt; rty::NormalizedDefns,
+    <span class="kw">pub </span>func_sort: <span class="kw">fn</span>(GlobalEnv, FluxLocalDefId) -&gt; QueryResult&lt;rty::PolyFuncSort&gt;,
     <span class="kw">pub </span>adt_sort_def_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtSortDef&gt;,
     <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;,
     <span class="kw">pub </span>adt_def: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt;,
@@ -1063,15 +1081,12 @@
         <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;,
     <span class="kw">pub </span>assoc_refinements_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AssocRefinements&gt;,
     <span class="kw">pub </span>sort_of_assoc_reft:
-        <span class="kw">fn</span>(GlobalEnv, AssocReftId&lt;MaybeExternId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;,
+        <span class="kw">fn</span>(GlobalEnv, FluxId&lt;MaybeExternId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;,
     <span class="kw">pub </span>assoc_refinement_body:
-        <span class="kw">fn</span>(GlobalEnv, AssocReftId&lt;MaybeExternId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;,
+        <span class="kw">fn</span>(GlobalEnv, FluxId&lt;MaybeExternId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;,
     <span class="attr">#[allow(clippy::type_complexity)]
-    </span><span class="kw">pub </span>default_assoc_refinement_body: <span class="kw">fn</span>(
-        GlobalEnv,
-        AssocReftId&lt;MaybeExternId&gt;,
-    )
-        -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
+    </span><span class="kw">pub </span>default_assoc_refinement_body:
+        <span class="kw">fn</span>(GlobalEnv, FluxId&lt;MaybeExternId&gt;) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
     <span class="kw">pub </span>item_bounds: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;,
 }
 
@@ -1088,8 +1103,8 @@
             resolve_crate: |<span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             desugar: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             fhir_crate: |<span class="kw">_</span>| <span class="macro">empty_query!</span>(),
-            spec_func_defns: |<span class="kw">_</span>| <span class="macro">empty_query!</span>(),
-            spec_func_decl: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
+            normalized_defns: |<span class="kw">_</span>| <span class="macro">empty_query!</span>(),
+            func_sort: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             qualifiers: |<span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             adt_sort_def_of: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
             check_wf: |<span class="kw">_</span>, <span class="kw">_</span>| <span class="macro">empty_query!</span>(),
@@ -1121,8 +1136,8 @@
     lower_predicates_of: Cache&lt;DefId, QueryResult&lt;ty::GenericPredicates&gt;&gt;,
     lower_type_of: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt;&gt;,
     lower_fn_sig: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt;&gt;,
-    defns: OnceCell&lt;QueryResult&lt;rty::SpecFuncDefns&gt;&gt;,
-    func_decls: Cache&lt;Symbol, QueryResult&lt;rty::SpecFuncDecl&gt;&gt;,
+    normalized_defns: OnceCell&lt;rty::NormalizedDefns&gt;,
+    func_sort: Cache&lt;FluxDefId, QueryResult&lt;rty::PolyFuncSort&gt;&gt;,
     qualifiers: OnceCell&lt;QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;&gt;,
     adt_sort_def_of: Cache&lt;DefId, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
     check_wf: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;&gt;,
@@ -1132,10 +1147,10 @@
     refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt;&gt;,
     predicates_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
     assoc_refinements_of: Cache&lt;DefId, QueryResult&lt;rty::AssocRefinements&gt;&gt;,
-    assoc_refinement_body: Cache&lt;AssocReftId, QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
+    assoc_refinement_body: Cache&lt;FluxDefId, QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
     default_assoc_refinement_body:
-        Cache&lt;AssocReftId, QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;&gt;,
-    sort_of_assoc_reft: Cache&lt;AssocReftId, QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;,
+        Cache&lt;FluxDefId, QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;&gt;,
+    sort_of_assoc_reft: Cache&lt;FluxDefId, QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;,
     item_bounds: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;&gt;,
     type_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
     variants_of: Cache&lt;DefId, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
@@ -1156,8 +1171,8 @@
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            defns: Default::default(),
-            func_decls: Default::default(),
+            normalized_defns: Default::default(),
+            func_sort: Default::default(),
             qualifiers: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
@@ -1299,19 +1314,38 @@
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>spec_func_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>rty::SpecFuncDefns&gt; {
-        <span class="self">self</span>.defns
-            .get_or_init(|| (<span class="self">self</span>.providers.spec_func_defns)(genv))
-            .as_ref()
-            .map_err(Clone::clone)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalized_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; <span class="kw-2">&amp;</span>rty::NormalizedDefns {
+        <span class="self">self</span>.normalized_defns
+            .get_or_init(|| (<span class="self">self</span>.providers.normalized_defns)(genv))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>func_decl(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>func_sort(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        name: Symbol,
-    ) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
-        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.func_decls, name, || (<span class="self">self</span>.providers.spec_func_decl)(genv, name))
+        def_id: FluxDefId,
+    ) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.func_sort, def_id, || {
+            dispatch_query_flux_id(
+                genv,
+                def_id,
+                |def_id| {
+                    <span class="comment">// refinement functions cannot be extern specs so we simply grab the local id
+                    </span>(<span class="self">self</span>.providers.func_sort)(genv, def_id.local_id())
+                },
+                |def_id| {
+                    <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                        def_id.parent(),
+                        <span class="string">"extern refinement functions are not yet implemented"
+                    </span>)))
+                },
+                |def_id| {
+                    <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+                        def_id.parent(),
+                        <span class="string">"cannot generate default function sort, the refinement must be defined somewhere"
+                    </span>))
+                },
+            )
+        })
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>qualifiers(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>[rty::Qualifier]&gt; {
@@ -1498,17 +1532,17 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assoc_refinement_body(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        impl_assoc_id: AssocReftId,
+        impl_assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinement_body, impl_assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 impl_assoc_id,
                 |impl_assoc_id| (<span class="self">self</span>.providers.assoc_refinement_body)(genv, impl_assoc_id),
                 |impl_assoc_id| genv.cstore().assoc_refinements_def(impl_assoc_id),
                 |impl_assoc_id| {
                     <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-                        impl_assoc_id.container_id,
+                        impl_assoc_id.parent(),
                         <span class="string">"cannot generate default associate refinement for extern impl"
                     </span>))
                 },
@@ -1519,10 +1553,10 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>default_assoc_refinement_body(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.default_assoc_refinement_body, trait_assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 trait_assoc_id,
                 |trait_assoc_id| {
@@ -1531,7 +1565,7 @@
                 |trait_assoc_id| genv.cstore().default_assoc_refinements_def(trait_assoc_id),
                 |trait_assoc_id| {
                     <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-                        trait_assoc_id.container_id,
+                        trait_assoc_id.parent(),
                         <span class="string">"cannot generate default assoc refinement for extern trait"
                     </span>))
                 },
@@ -1542,17 +1576,17 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>sort_of_assoc_reft(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
-        assoc_id: AssocReftId,
+        assoc_id: FluxDefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.sort_of_assoc_reft, assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 assoc_id,
                 |assoc_id| (<span class="self">self</span>.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
                     <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-                        assoc_id.container_id,
+                        assoc_id.parent(),
                         <span class="string">"cannot generate default sort for assoc refinement in extern crate"
                     </span>))
                 },
@@ -1671,23 +1705,23 @@
     }
 }
 
-<span class="kw">fn </span>dispatch_query_assoc_id&lt;R&gt;(
+<span class="kw">fn </span>dispatch_query_flux_id&lt;R&gt;(
     genv: GlobalEnv,
-    assoc_id: AssocReftId&lt;DefId&gt;,
-    local: <span class="kw">impl </span>FnOnce(AssocReftId&lt;MaybeExternId&gt;) -&gt; R,
-    external: <span class="kw">impl </span>FnOnce(AssocReftId&lt;DefId&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;R&gt;,
-    default: <span class="kw">impl </span>FnOnce(AssocReftId&lt;DefId&gt;) -&gt; R,
+    def_id: FluxId&lt;DefId&gt;,
+    local: <span class="kw">impl </span>FnOnce(FluxId&lt;MaybeExternId&gt;) -&gt; R,
+    external: <span class="kw">impl </span>FnOnce(FluxId&lt;DefId&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;R&gt;,
+    default: <span class="kw">impl </span>FnOnce(FluxId&lt;DefId&gt;) -&gt; R,
 ) -&gt; R {
     <span class="attr">#[allow(
         clippy::disallowed_methods,
-        reason = <span class="string">"we are mapping the container id to a different representation which still guarantees the existence of the associated refinement"
+        reason = <span class="string">"we are mapping the parent id to a different representation which still guarantees the existence of the item"
     </span>)]
     </span>dispatch_query(
         genv,
-        assoc_id.container_id,
-        |container_id| local(AssocReftId::new(container_id, assoc_id.name)),
-        |container_id| external(AssocReftId::new(container_id, assoc_id.name)),
-        |container_id| default(AssocReftId::new(container_id, assoc_id.name)),
+        def_id.parent(),
+        |container_id| local(FluxId::new(container_id, def_id.name())),
+        |container_id| external(FluxId::new(container_id, def_id.name())),
+        |container_id| default(FluxId::new(container_id, def_id.name())),
     )
 }
 

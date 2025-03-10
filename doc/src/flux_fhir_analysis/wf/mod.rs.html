@@ -512,23 +512,7 @@
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
+<a href="#514" id="514">514</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 
@@ -537,15 +521,14 @@
 <span class="kw">mod </span>sortck;
 
 <span class="kw">use </span>flux_common::result::{ErrorCollector, ResultExt <span class="kw">as _</span>};
-<span class="kw">use </span>flux_errors::{Errors, FluxSession};
+<span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{<span class="self">self</span>, WfckResults},
 };
-<span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
@@ -553,7 +536,6 @@
     def::DefKind,
     def_id::{CrateNum, DefId, DefIndex},
 };
-<span class="kw">use </span>rustc_span::{Symbol, symbol::Ident};
 
 <span class="kw">use </span><span class="self">self</span>::sortck::{ImplicitParamInferer, InferCtxt};
 <span class="kw">use </span><span class="kw">crate</span>::conv::{ConvPhase, WfckResultsProvider};
@@ -561,7 +543,7 @@
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_qualifier(genv: GlobalEnv, qual: <span class="kw-2">&amp;</span>fhir::Qualifier) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
-    <span class="kw">let </span>owner = FluxOwnerId::Flux(qual.name);
+    <span class="kw">let </span>owner = FluxOwnerId::Flux(qual.def_id);
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
     wf.insert_params(qual.args)<span class="question-mark">?</span>;
@@ -573,7 +555,7 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_spec(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
-    <span class="kw">let </span>owner = FluxOwnerId::Flux(func.name);
+    <span class="kw">let </span>owner = FluxOwnerId::Flux(func.def_id);
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
@@ -648,20 +630,6 @@
 <span class="doccomment">/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
 </span><span class="kw">fn </span>resolve_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result</span> {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_quals(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    qualifiers: <span class="kw-2">&amp;</span>UnordSet&lt;Symbol&gt;,
-    fn_quals: <span class="kw-2">&amp;</span>[Ident],
-) -&gt; <span class="prelude-ty">Result</span> {
-    <span class="kw">for </span>qual <span class="kw">in </span>fn_quals {
-        <span class="kw">if </span>!qualifiers.contains(<span class="kw-2">&amp;</span>qual.name) {
-            <span class="kw">let </span>span = qual.span;
-            <span class="kw">return </span><span class="prelude-val">Err</span>(sess.emit_err(errors::UnknownQualifier::new(span)));
-        }
-    }
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">struct </span>Wf&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {

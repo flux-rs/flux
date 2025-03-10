@@ -1621,7 +1621,7 @@
 
     <span class="kw">fn </span>try_resolve_global_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&lt;NodeId&gt;&gt; {
         <span class="kw">let </span>kind = <span class="self">self</span>.resolver.func_decls.get(<span class="kw-2">&amp;</span>ident.name)<span class="question-mark">?</span>;
-        <span class="prelude-val">Some</span>(ExprRes::GlobalFunc(<span class="kw-2">*</span>kind, ident.name))
+        <span class="prelude-val">Some</span>(ExprRes::GlobalFunc(<span class="kw-2">*</span>kind))
     }
 
     <span class="kw">fn </span>resolve_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) {

@@ -941,13 +941,20 @@
 <a href="#940" id="940">940</a>
 <a href="#941" id="941">941</a>
 <a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, visit::Visitor <span class="kw">as _</span>},
+    THEORY_FUNCS,
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor <span class="kw">as _</span>},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -1277,7 +1284,7 @@
             }
             ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
-            ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+            ExprRes::GlobalFunc(<span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)
             }
             ExprRes::Ctor(<span class="kw">_</span>) =&gt; {
@@ -1411,7 +1418,12 @@
                 };
                 fsort
             }
-            ExprRes::GlobalFunc(.., sym) =&gt; <span class="self">self</span>.genv.func_decl(sym).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>.sort.clone(),
+            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) =&gt; {
+                <span class="self">self</span>.genv.func_sort(name).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?
+            </span>}
+            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
+                THEORY_FUNCS.get(<span class="kw-2">&amp;</span>itf).unwrap().sort.clone()
+            }
             <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.instantiate_func_sort(poly_fsort))

@@ -1025,7 +1025,11 @@
 <a href="#1024" id="1024">1024</a>
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a></pre></div><pre class="rust"><code><span class="doccomment">//! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1039,10 +1043,12 @@
 <span class="kw">use super</span>::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind,
-    normalize::{Normalizer, SpecFuncDefns},
+    TyKind, normalize::Normalizer,
 };
-<span class="kw">use </span><span class="kw">crate</span>::rty::{Var, VariantSig, expr::HoleKind};
+<span class="kw">use crate</span>::{
+    global_env::GlobalEnv,
+    rty::{Var, VariantSig, expr::HoleKind},
+};
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
     <span class="kw">type </span>BreakTy = !;
@@ -1260,8 +1266,8 @@
     }
 
     <span class="doccomment">/// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;</span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>SpecFuncDefns) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(defns))
+    </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">None</span>))
     }
 
     <span class="doccomment">/// Replaces all [holes] with the result of calling a closure. The closure takes a list with
@@ -1968,7 +1974,7 @@
             ExprKind::Hole(kind) =&gt; Expr::hole(kind.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::KVar(kvar) =&gt; Expr::kvar(kvar.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::Abs(lam) =&gt; Expr::abs(lam.try_fold_with(folder)<span class="question-mark">?</span>),
-            ExprKind::GlobalFunc(func, kind) =&gt; Expr::global_func(<span class="kw-2">*</span>func, <span class="kw-2">*</span>kind),
+            ExprKind::GlobalFunc(kind) =&gt; Expr::global_func(<span class="kw-2">*</span>kind),
             ExprKind::Alias(alias, args) =&gt; {
                 <span class="kw">let </span>alias = alias.try_fold_with(folder)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = args.try_fold_with(folder)<span class="question-mark">?</span>;
@@ -2045,6 +2051,8 @@
     <span class="kw">crate</span>::rty::BoundReftKind,
     <span class="kw">crate</span>::rty::BvSize,
     <span class="kw">crate</span>::rty::KVid,
+    <span class="kw">crate</span>::def_id::FluxDefId,
+    <span class="kw">crate</span>::def_id::FluxLocalDefId,
     rustc_span::Symbol,
     rustc_hir::def_id::DefId,
     rustc_hir::Safety,

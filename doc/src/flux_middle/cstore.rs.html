@@ -31,15 +31,9 @@
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::def_id::DefId;
+<a href="#33" id="33">33</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::def_id::DefId;
 
-<span class="kw">use crate</span>::{queries::QueryResult, rty};
+<span class="kw">use crate</span>::{def_id::FluxDefId, queries::QueryResult, rty};
 
 <span class="kw">pub type </span>OptResult&lt;T&gt; = <span class="prelude-ty">Option</span>&lt;QueryResult&lt;T&gt;&gt;;
 
@@ -56,18 +50,12 @@
     <span class="kw">fn </span>predicates_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;;
     <span class="kw">fn </span>assoc_refinements_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AssocRefinements&gt;;
     <span class="kw">fn </span>constant_info(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::ConstantInfo&gt;;
-    <span class="kw">fn </span>assoc_refinements_def(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        key: rty::AssocReftId,
-    ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;;
+    <span class="kw">fn </span>assoc_refinements_def(<span class="kw-2">&amp;</span><span class="self">self</span>, key: FluxDefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;;
     <span class="kw">fn </span>default_assoc_refinements_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        key: rty::AssocReftId,
+        key: FluxDefId,
     ) -&gt; OptResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;;
-    <span class="kw">fn </span>sort_of_assoc_reft(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        key: rty::AssocReftId,
-    ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;;
+    <span class="kw">fn </span>sort_of_assoc_reft(<span class="kw-2">&amp;</span><span class="self">self</span>, key: FluxDefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;;
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,

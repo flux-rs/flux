@@ -1549,39 +1549,7 @@
 <a href="#1548" id="1548">1548</a>
 <a href="#1549" id="1549">1549</a>
 <a href="#1550" id="1550">1550</a>
-<a href="#1551" id="1551">1551</a>
-<a href="#1552" id="1552">1552</a>
-<a href="#1553" id="1553">1553</a>
-<a href="#1554" id="1554">1554</a>
-<a href="#1555" id="1555">1555</a>
-<a href="#1556" id="1556">1556</a>
-<a href="#1557" id="1557">1557</a>
-<a href="#1558" id="1558">1558</a>
-<a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1551" id="1551">1551</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1622,7 +1590,7 @@
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 <span class="kw">use </span>rustc_target::spec::abi;
 
-<span class="kw">use </span><span class="kw">crate</span>::MaybeExternId;
+<span class="kw">use </span><span class="kw">crate</span>::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
 <span class="doccomment">/// A boolean-like enum used to mark whether a piece of code is ignored.
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -1691,7 +1659,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Qualifier&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>name: Symbol,
+    <span class="kw">pub </span>def_id: FluxLocalDefId,
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>expr: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>global: bool,
@@ -1863,15 +1831,6 @@
     Fn(FnSig&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Generics&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
-<span class="kw">impl </span>FluxItem&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Symbol {
-        <span class="kw">match </span><span class="self">self </span>{
-            FluxItem::Qualifier(qual) =&gt; qual.name,
-            FluxItem::Func(func) =&gt; func.name,
-        }
-    }
-}
-
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>SortDecl {
     <span class="kw">pub </span>name: Symbol,
@@ -1967,7 +1926,7 @@
 /// We should eventually get rid of this or change its name.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>FluxItems&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>items: FxHashMap&lt;Symbol, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
+    <span class="kw">pub </span>items: FxHashMap&lt;FluxLocalDefId, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
 <span class="kw">impl </span>FluxItems&lt;<span class="lifetime">'_</span>&gt; {
@@ -2075,7 +2034,7 @@
 </span><span class="kw">pub struct </span>FnSig&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>header: FnHeader,
     <span class="comment">//// List of local qualifiers for this function
-    </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ident],
+    </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FluxLocalDefId],
     <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -2153,18 +2112,10 @@
     </span>Resolved(ResolvedArg),
 }
 
-<span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-</span><span class="kw">pub enum </span>FluxLocalDefId {
-    <span class="doccomment">/// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
-    </span>Flux(Symbol),
-    <span class="doccomment">/// An item with a corresponding Rust definition, e.g., struct, enum, or function.
-    </span>Rust(LocalDefId),
-}
-
 <span class="doccomment">/// Owner version of [`FluxLocalDefId`]
 </span><span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>FluxOwnerId {
-    Flux(Symbol),
+    Flux(FluxLocalDefId),
     Rust(OwnerId),
 }
 
@@ -2597,7 +2548,7 @@
     Variant(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
-    GlobalFunc(SpecFuncKind, Symbol),
+    GlobalFunc(SpecFuncKind),
 }
 
 <span class="kw">impl</span>&lt;Id&gt; ExprRes&lt;Id&gt; {
@@ -2606,7 +2557,7 @@
             ExprRes::Param(kind, param_id) =&gt; ExprRes::Param(kind, f(param_id)),
             ExprRes::Const(def_id) =&gt; ExprRes::Const(def_id),
             ExprRes::NumConst(val) =&gt; ExprRes::NumConst(val),
-            ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
+            ExprRes::GlobalFunc(kind) =&gt; ExprRes::GlobalFunc(kind),
             ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
             ExprRes::Ctor(def_id) =&gt; ExprRes::Ctor(def_id),
             ExprRes::Variant(def_id) =&gt; ExprRes::Variant(def_id),
@@ -2639,21 +2590,6 @@
         } <span class="kw">else </span>{
             <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution {:?}"</span>, path.res);
         }
-    }
-}
-
-<span class="kw">impl </span>From&lt;FluxOwnerId&gt; <span class="kw">for </span>FluxLocalDefId {
-    <span class="kw">fn </span>from(flux_id: FluxOwnerId) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span>flux_id {
-            FluxOwnerId::Flux(sym) =&gt; FluxLocalDefId::Flux(sym),
-            FluxOwnerId::Rust(owner_id) =&gt; FluxLocalDefId::Rust(owner_id.def_id),
-        }
-    }
-}
-
-<span class="kw">impl </span>From&lt;LocalDefId&gt; <span class="kw">for </span>FluxLocalDefId {
-    <span class="kw">fn </span>from(def_id: LocalDefId) -&gt; <span class="self">Self </span>{
-        FluxLocalDefId::Rust(def_id)
     }
 }
 
@@ -2745,7 +2681,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SpecFunc&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>name: Symbol,
+    <span class="kw">pub </span>def_id: FluxLocalDefId,
     <span class="kw">pub </span>params: usize,
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>sort: Sort&lt;<span class="lifetime">'fhir</span>&gt;,
@@ -2757,9 +2693,9 @@
     <span class="doccomment">/// Theory symbols *interpreted* by the SMT solver
     </span>Thy(liquid_fixpoint::ThyFunc),
     <span class="doccomment">/// User-defined uninterpreted functions with no definition
-    </span>Uif,
+    </span>Uif(FluxDefId),
     <span class="doccomment">/// User-defined functions with a body definition
-    </span>Def,
+    </span>Def(FluxDefId),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Generics&lt;<span class="lifetime">'fhir</span>&gt; {
