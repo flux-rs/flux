@@ -134,8 +134,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_defns(&self) -> QueryResult<&NormalizedDefns> {
-        self.inner.queries.normalized_defns(*self)
+    pub fn normalized_defns(self) -> &'genv NormalizedDefns {
+        self.inner.queries.normalized_defns(self)
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {

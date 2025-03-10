@@ -130,7 +130,7 @@ pub struct Providers {
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub normalized_defns: fn(GlobalEnv) -> QueryResult<rty::NormalizedDefns>,
+    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
     pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
@@ -207,7 +207,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    defns: OnceCell<QueryResult<rty::NormalizedDefns>>,
+    normalized_defns: OnceCell<rty::NormalizedDefns>,
     func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
@@ -242,7 +242,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            defns: Default::default(),
+            normalized_defns: Default::default(),
             func_decls: Default::default(),
             qualifiers: Default::default(),
             adt_sort_def_of: Default::default(),
@@ -385,11 +385,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(&self, genv: GlobalEnv) -> QueryResult<&rty::NormalizedDefns> {
-        self.defns
+    pub(crate) fn normalized_defns(&self, genv: GlobalEnv) -> &rty::NormalizedDefns {
+        self.normalized_defns
             .get_or_init(|| (self.providers.normalized_defns)(genv))
-            .as_ref()
-            .map_err(Clone::clone)
     }
 
     pub(crate) fn func_decl(

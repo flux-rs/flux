@@ -280,15 +280,6 @@ pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
 }
 
-impl FluxItem<'_> {
-    pub fn name(&self) -> Symbol {
-        match self {
-            FluxItem::Qualifier(qual) => qual.name,
-            FluxItem::Func(func) => func.name,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct SortDecl {
     pub name: Symbol,

@@ -85,7 +85,16 @@ fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDec
     }
 }
 
-fn normalized_defns(genv: GlobalEnv) -> QueryResult<rty::NormalizedDefns> {
+fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
+    match try_normalized_defns(genv) {
+        Ok(normalized) => normalized,
+        Err(err) => {
+            genv.sess().abort(err);
+        }
+    }
+}
+
+fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGuaranteed> {
     let mut defns = vec![];
 
     // Collect and emit all errors
@@ -119,7 +128,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .map(|qualifier| {
             let wfckresults = wf::check_qualifier(genv, qualifier)?;
             Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?
-                .normalize(genv.normalized_defns()?))
+                .normalize(genv.normalized_defns()))
         })
         .try_collect()
 }
@@ -560,7 +569,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     // Query qualifiers and spec funcs to report wf errors
     let _ = genv.qualifiers().emit(&errors);
-    let _ = genv.normalized_defns().emit(&errors);
+    let _ = genv.normalized_defns();
 
     errors.into_result()
 }
