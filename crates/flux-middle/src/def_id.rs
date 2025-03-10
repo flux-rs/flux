@@ -3,18 +3,24 @@ use rustc_hir::def_id::{DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
-/// An id for an Flux item with a type-level invariant ensuring that it exists.
+/// An id for a Flux-specific item that doesn't have a corresponding Rust item and thus, we cannot
+/// be identified with a [`DefId`]. This includes, for example, associated refinements, qualifiers
+/// and refinement functions.
 ///
-/// We represent the id as a Rust parent id and an the name of the item. Since the name can be an
-/// arbitrary [`Symbol`], this doesn't guarantee the existence of the item, so we must be careful
-/// when creating instances of this struct.
+/// # Type-level invariant
+/// This struct maintains a type-level invariant ensuring that the referenced item exists. The id is
+/// composed of two parts:
+/// * `parent`: A reference to a parent Rust item
+/// * `name`: A name uniquely identifiying the item within the parent
+/// Since the name can be an arbitrary [`Symbol`], this doesn't guarantee the existence of the item,
+/// so we must be careful when creating instances of this struct.
 ///
-/// We make the struct fields private so we have to create one using [`FluxId::new`]. We also
-/// have a clippy lint disallowing [`FluxDefId::new`] which can be disabled selectively when we can
-/// ensure the associated refinement exists.
-///
-/// The struct is generic on the parent `Id` because we use it with various kinds of ids,
-/// e.g., [`DefId`], [`MaybeExternId`], ...
+/// # Implementaiton Details
+/// * Fields are private to ensure construction only through [`FluxId::new`]
+/// * A clippy lint prevents direct usage of [`FluxId::new`], which can be selectively disabled
+///   when item existence is guaranteed
+/// * The type is parametric over the parent `Id` type to support various id types (e.g., [`DefId`],
+///   [`MaybeExternId`])
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub struct FluxId<Id> {
     parent: Id,
