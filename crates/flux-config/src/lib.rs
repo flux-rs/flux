@@ -187,6 +187,7 @@ pub enum SmtSolver {
     #[default]
     Z3,
     CVC5,
+    Bitwuzla,
 }
 
 impl FromStr for SmtSolver {
@@ -197,6 +198,7 @@ impl FromStr for SmtSolver {
         match s.as_str() {
             "z3" => Ok(SmtSolver::Z3),
             "cvc5" => Ok(SmtSolver::CVC5),
+            "bitwuzla" => Ok(SmtSolver::Bitwuzla),
             _ => Err("backend must be one of `z3` or `cvc5`"),
         }
     }

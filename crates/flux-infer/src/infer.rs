@@ -198,6 +198,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+            flux_config::SmtSolver::Bitwuzla => liquid_fixpoint::SmtSolver::Bitwuzla,
         };
 
         fcx.check(cache, cstr, self.opts.scrape_quals, backend)
