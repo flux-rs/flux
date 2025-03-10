@@ -23,8 +23,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    MaybeExternId,
-    fhir::{self},
+    MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -73,16 +72,8 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
 }
 
 fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
-    if let Some(func) = genv.map().spec_func(name) {
-        conv::conv_func_decl(genv, func)
-    } else {
-        let itf = flux_middle::THEORY_FUNCS.get(&name).unwrap();
-        Ok(rty::SpecFuncDecl {
-            name: itf.name,
-            sort: itf.sort.clone(),
-            kind: fhir::SpecFuncKind::Thy(itf.itf),
-        })
-    }
+    let func = genv.map().spec_func(name).unwrap();
+    conv::conv_func_decl(genv, func)
 }
 
 fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {

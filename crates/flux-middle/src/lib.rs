@@ -74,42 +74,49 @@ pub struct TheoryFunc {
     pub itf: liquid_fixpoint::ThyFunc,
 }
 
-pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(|| {
-    use rty::{BvSize, Sort::*};
-    liquid_fixpoint::ThyFunc::ALL
-        .into_iter()
-        .filter_map(|func| {
-            let func = TheoryFunc {
-                name: Symbol::intern(name_of_thy_func(func)?),
-                itf: func,
-                sort: sort_of_thy_func(func)?,
-            };
-            Some(func)
-        })
-        .chain([
-            // we can't express this as function types so we add special case
-            TheoryFunc {
-                name: Symbol::intern("bv_zero_extend_32_to_64"),
-                itf: liquid_fixpoint::ThyFunc::BvZeroExtend(32),
-                sort: rty::PolyFuncSort::new(
-                    List::empty(),
-                    rty::FuncSort::new(vec![BitVec(BvSize::Fixed(32))], BitVec(BvSize::Fixed(64))),
-                ),
-            },
-            TheoryFunc {
-                name: Symbol::intern("bv_sign_extend_32_to_64"),
-                itf: liquid_fixpoint::ThyFunc::BvSignExtend(32),
-                sort: rty::PolyFuncSort::new(
-                    List::empty(),
-                    rty::FuncSort::new(vec![BitVec(BvSize::Fixed(32))], BitVec(BvSize::Fixed(64))),
-                ),
-            },
-        ])
-        .map(|func| (func.name, func))
-        .collect()
-});
+pub static THEORY_FUNCS: LazyLock<UnordMap<liquid_fixpoint::ThyFunc, TheoryFunc>> =
+    LazyLock::new(|| {
+        use rty::{BvSize, Sort::*};
+        liquid_fixpoint::ThyFunc::ALL
+            .into_iter()
+            .filter_map(|func| {
+                let func = TheoryFunc {
+                    name: Symbol::intern(name_of_thy_func(func)?),
+                    itf: func,
+                    sort: sort_of_thy_func(func)?,
+                };
+                Some(func)
+            })
+            .chain([
+                // we can't express these as function types so we add special case
+                TheoryFunc {
+                    name: Symbol::intern("bv_zero_extend_32_to_64"),
+                    itf: liquid_fixpoint::ThyFunc::BvZeroExtend(32),
+                    sort: rty::PolyFuncSort::new(
+                        List::empty(),
+                        rty::FuncSort::new(
+                            vec![BitVec(BvSize::Fixed(32))],
+                            BitVec(BvSize::Fixed(64)),
+                        ),
+                    ),
+                },
+                TheoryFunc {
+                    name: Symbol::intern("bv_sign_extend_32_to_64"),
+                    itf: liquid_fixpoint::ThyFunc::BvSignExtend(32),
+                    sort: rty::PolyFuncSort::new(
+                        List::empty(),
+                        rty::FuncSort::new(
+                            vec![BitVec(BvSize::Fixed(32))],
+                            BitVec(BvSize::Fixed(64)),
+                        ),
+                    ),
+                },
+            ])
+            .map(|func| (func.itf, func))
+            .collect()
+    });
 
-fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> {
+pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> {
     let name = match func {
         ThyFunc::BvZeroExtend(_) | ThyFunc::BvSignExtend(_) => return None,
         ThyFunc::StrLen => "str_len",

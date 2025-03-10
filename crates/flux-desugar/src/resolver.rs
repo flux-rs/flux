@@ -91,9 +91,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 surface::Item::Qualifier(_) => {}
                 surface::Item::FuncDef(defn) => {
                     let kind = if defn.body.is_some() {
-                        fhir::SpecFuncKind::Def
+                        fhir::SpecFuncKind::Def(defn.name.name)
                     } else {
-                        fhir::SpecFuncKind::Uif
+                        fhir::SpecFuncKind::Uif(defn.name.name)
                     };
                     self.func_decls.insert(defn.name.name, kind);
                 }

@@ -15,7 +15,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
     MaybeExternId, def_id_to_string,
-    fhir::{self, SpecFuncKind},
+    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
@@ -1099,13 +1099,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
             }
-            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(itf)) => {
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
             }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(sym)) => {
                 fixpoint::Expr::Var(self.register_uif(*sym, scx).into())
             }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Def(sym)) => {
                 span_bug!(
                     self.def_span,
                     "unexpected global function `{sym}`. Function must be normalized away at this point"
@@ -1392,10 +1392,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = self
                     .genv
                     .func_decl(name)
-                    .map(|decl| {
-                        debug_assert_eq!(decl.kind, fhir::SpecFuncKind::Uif);
-                        scx.func_sort_to_fixpoint(&decl.sort)
-                    })
+                    .map(|decl| scx.func_sort_to_fixpoint(&decl.sort))
                     .unwrap_or_else(|err| {
                         self.errors.emit(err.at(self.def_span));
                         fixpoint::Sort::Int

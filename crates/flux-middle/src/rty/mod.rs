@@ -61,7 +61,7 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::subst::SortSubst,
@@ -1228,7 +1228,6 @@ pub struct SpecFunc {
 pub struct SpecFuncDecl {
     pub name: Symbol,
     pub sort: PolyFuncSort,
-    pub kind: SpecFuncKind,
 }
 
 pub type TyCtor = Binder<Ty>;

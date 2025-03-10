@@ -90,7 +90,7 @@ fn defn_deps(body: &Binder<Expr>) -> FxHashSet<Symbol> {
     impl TypeVisitor for DepsVisitor {
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
             if let ExprKind::App(func, _) = expr.kind()
-                && let ExprKind::GlobalFunc(sym, SpecFuncKind::Def) = func.kind()
+                && let ExprKind::GlobalFunc(SpecFuncKind::Def(sym)) = func.kind()
             {
                 self.0.insert(*sym);
             }
@@ -127,7 +127,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
+            ExprKind::GlobalFunc(SpecFuncKind::Def(sym)) => {
                 let res = self.func_defn(*sym).body.replace_bound_refts(args);
                 Self::at_base(res, espan)
             }

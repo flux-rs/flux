@@ -2183,7 +2183,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind, sym) => rty::Expr::global_func(sym, kind),
+            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(kind),
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         self.add_coercions(expr, func.fhir_id)
@@ -2434,8 +2434,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
         .take(func.params)
         .collect();
     let sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
-    let kind = if func.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
-    Ok(rty::SpecFuncDecl { name: func.name, sort, kind })
+    Ok(rty::SpecFuncDecl { name: func.name, sort })
 }
 
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {

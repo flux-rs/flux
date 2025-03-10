@@ -1005,7 +1005,7 @@ pub enum ExprRes<Id = ParamId> {
     Variant(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
-    GlobalFunc(SpecFuncKind, Symbol),
+    GlobalFunc(SpecFuncKind),
 }
 
 impl<Id> ExprRes<Id> {
@@ -1014,7 +1014,7 @@ impl<Id> ExprRes<Id> {
             ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
             ExprRes::Const(def_id) => ExprRes::Const(def_id),
             ExprRes::NumConst(val) => ExprRes::NumConst(val),
-            ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
+            ExprRes::GlobalFunc(kind) => ExprRes::GlobalFunc(kind),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
             ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
             ExprRes::Variant(def_id) => ExprRes::Variant(def_id),
@@ -1165,9 +1165,9 @@ pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
     /// User-defined uninterpreted functions with no definition
-    Uif,
+    Uif(Symbol),
     /// User-defined functions with a body definition
-    Def,
+    Def(Symbol),
 }
 
 impl<'fhir> Generics<'fhir> {

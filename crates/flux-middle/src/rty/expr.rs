@@ -307,8 +307,8 @@ impl Expr {
         ExprKind::App(func.into(), args).intern()
     }
 
-    pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
-        ExprKind::GlobalFunc(func, kind).intern()
+    pub fn global_func(kind: SpecFuncKind) -> Expr {
+        ExprKind::GlobalFunc(kind).intern()
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -653,7 +653,7 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId, ConstantInfo),
     BinaryOp(BinOp, Expr, Expr),
-    GlobalFunc(Symbol, SpecFuncKind),
+    GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
@@ -1137,7 +1137,7 @@ pub(crate) mod pretty {
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
-    use crate::rty::pretty::nested_with_bound_vars;
+    use crate::{name_of_thy_func, rty::pretty::nested_with_bound_vars};
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1306,7 +1306,16 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(func, _) => w!(cx, f, "{}", ^func),
+                ExprKind::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
+                    w!(cx, f, "{}", ^name)
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
+                    if let Some(name) = name_of_thy_func(*itf) {
+                        w!(cx, f, "{}", ^name)
+                    } else {
+                        w!(cx, f, "<error>")
+                    }
+                }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
                     cx.with_bound_vars(vars, || {
