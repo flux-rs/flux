@@ -17,7 +17,7 @@ use rustc_middle::{
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
-    MaybeExternId, ResolvedDefId,
+    FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId,
     cstore::CrateStoreDyn,
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
@@ -134,8 +134,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_defn(self, name: Symbol) -> &'genv rty::SpecFunc {
-        self.normalized_defns().func_defn(name)
+    pub fn normalized_defn(self, did: FluxDefId) -> &'genv rty::SpecFunc {
+        let local_id = did.expect_local();
+        self.normalized_defns().func_defn(local_id)
     }
 
     pub fn normalized_defns(self) -> &'genv NormalizedDefns {
@@ -151,6 +152,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
+        let a = 0;
         let names: FxHashSet<Symbol> = self
             .map()
             .fn_quals_for(did)?
@@ -160,11 +162,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(self
             .qualifiers()?
             .iter()
-            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
+            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.def_id.name())))
     }
 
-    pub fn func_decl(self, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
-        self.inner.queries.func_decl(self, name)
+    pub fn func_decl(self, def_id: FluxDefId) -> QueryResult<rty::SpecFuncDecl> {
+        self.inner.queries.func_decl(self, def_id)
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
@@ -548,8 +550,8 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.fhir.items.get(&name).as_ref().copied()
+    pub fn get_flux_item(self, def_id: FluxLocalDefId) -> Option<&'genv fhir::FluxItem<'genv>> {
+        self.fhir.items.get(&def_id).as_ref().copied()
     }
 
     pub fn refinement_kind(
@@ -570,10 +572,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn spec_func(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
+    pub fn spec_func(&self, def_id: FluxLocalDefId) -> Option<&'genv fhir::SpecFunc<'genv>> {
         self.fhir
             .items
-            .get(&name)
+            .get(&def_id)
             .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(defn) } else { None })
     }
 

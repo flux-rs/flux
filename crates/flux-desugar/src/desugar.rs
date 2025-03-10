@@ -12,7 +12,7 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId, ResolverOutput,
+    FluxLocalDefId, MaybeExternId, ResolverOutput,
     fhir::{self, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
@@ -28,7 +28,7 @@ use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId};
 use rustc_span::{
-    DUMMY_SP, Span, Symbol,
+    DUMMY_SP, Span,
     def_id::{DefId, LocalDefId},
     sym,
     symbol::kw,
@@ -41,11 +41,12 @@ use crate::{errors, resolver::refinement_resolver::SORTS};
 pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
+    def_id: FluxLocalDefId,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
-    FluxItemCtxt::with(genv, resolver_output, qualifier.name.name, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
         let qualifier = fhir::Qualifier {
-            name: qualifier.name.name,
+            def_id,
             args: cx.desugar_refine_params(&qualifier.params),
             global: qualifier.global,
             expr: cx.desugar_expr(&qualifier.expr),
@@ -57,15 +58,15 @@ pub(crate) fn desugar_qualifier<'genv>(
 pub(crate) fn desugar_spec_func<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
+    def_id: FluxLocalDefId,
     spec_func: &surface::SpecFunc,
 ) -> Result<fhir::SpecFunc<'genv>> {
-    FluxItemCtxt::with(genv, resolver_output, spec_func.name.name, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
         let body = spec_func.body.as_ref().map(|body| cx.desugar_expr(body));
-        let name = spec_func.name.name;
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
         let args = cx.desugar_refine_params(&spec_func.params);
-        fhir::SpecFunc { name, params, args, sort, body }
+        fhir::SpecFunc { def_id, params, args, sort, body }
     })
 }
 
@@ -843,7 +844,7 @@ struct FluxItemCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     resolver_output: &'genv ResolverOutput,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    owner: Symbol,
+    owner: FluxLocalDefId,
     errors: Errors<'genv>,
 }
 
@@ -851,7 +852,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
     fn with<T>(
         genv: GlobalEnv<'genv, 'tcx>,
         resolver_output: &'genv ResolverOutput,
-        owner: Symbol,
+        owner: FluxLocalDefId,
         f: impl FnOnce(&mut Self) -> T,
     ) -> Result<T> {
         let mut cx = Self {

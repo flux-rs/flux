@@ -61,6 +61,7 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
+    FluxDefId, FluxLocalDefId,
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -1214,19 +1215,19 @@ pub enum Ensures {
 
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub global: bool,
 }
 
 pub struct SpecFunc {
-    pub name: Symbol,
+    pub def_id: FluxDefId,
     pub body: Binder<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SpecFuncDecl {
-    pub name: Symbol,
+    pub def_id: FluxDefId,
     pub sort: PolyFuncSort,
 }
 

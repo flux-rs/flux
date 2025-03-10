@@ -5,7 +5,7 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv};
+use flux_middle::{FluxDefId, MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv};
 use flux_syntax::surface::{self, Ident, visit::Visitor as _};
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -86,22 +86,26 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn define_flux_global_items(&mut self) {
-        for item in self.specs.flux_items_by_parent.values().flatten() {
-            match item {
-                surface::Item::Qualifier(_) => {}
-                surface::Item::FuncDef(defn) => {
-                    let kind = if defn.body.is_some() {
-                        fhir::SpecFuncKind::Def(defn.name.name)
-                    } else {
-                        fhir::SpecFuncKind::Uif(defn.name.name)
-                    };
-                    self.func_decls.insert(defn.name.name, kind);
-                }
-                surface::Item::SortDecl(sort_decl) => {
-                    self.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
-                        name: sort_decl.name.name,
-                        span: sort_decl.name.span,
-                    });
+        for (parent, items) in self.specs.flux_items_by_parent.iter() {
+            let parent = parent.def_id.to_def_id();
+            for item in items {
+                match item {
+                    surface::Item::Qualifier(_) => {}
+                    surface::Item::FuncDef(defn) => {
+                        let id = FluxDefId::new(parent, defn.name.name);
+                        let kind = if defn.body.is_some() {
+                            fhir::SpecFuncKind::Def(id)
+                        } else {
+                            fhir::SpecFuncKind::Uif(id)
+                        };
+                        self.func_decls.insert(defn.name.name, kind);
+                    }
+                    surface::Item::SortDecl(sort_decl) => {
+                        self.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
+                            name: sort_decl.name.name,
+                            span: sort_decl.name.span,
+                        });
+                    }
                 }
             }
         }

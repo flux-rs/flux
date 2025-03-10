@@ -1020,6 +1020,8 @@ TrivialTypeTraversalImpls! {
     crate::rty::BoundReftKind,
     crate::rty::BvSize,
     crate::rty::KVid,
+    crate::FluxDefId,
+    crate::FluxLocalDefId,
     rustc_span::Symbol,
     rustc_hir::def_id::DefId,
     rustc_hir::Safety,

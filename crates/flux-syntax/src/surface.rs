@@ -34,6 +34,16 @@ pub enum Item {
     SortDecl(SortDecl),
 }
 
+impl Item {
+    pub fn name(&self) -> Ident {
+        match self {
+            Item::Qualifier(qualifier) => qualifier.name,
+            Item::FuncDef(spec_func) => spec_func.name,
+            Item::SortDecl(sort_decl) => sort_decl.name,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,

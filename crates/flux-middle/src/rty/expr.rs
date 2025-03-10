@@ -1306,8 +1306,8 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
-                    w!(cx, f, "{}", ^name)
+                ExprKind::GlobalFunc(SpecFuncKind::Def(did) | SpecFuncKind::Uif(did)) => {
+                    w!(cx, f, "{}", ^did.name())
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                     if let Some(name) = name_of_thy_func(*itf) {

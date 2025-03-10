@@ -19,6 +19,7 @@ macro_rules! _with_cx {
     };
 }
 pub use crate::_with_cx as with_cx;
+use crate::{FluxDefId, FluxLocalDefId};
 
 #[macro_export]
 macro_rules! _format_args_cx {
@@ -501,6 +502,22 @@ impl Pretty for DefId {
         } else {
             w!(cx, f, "{}", ^path.data.last().unwrap())
         }
+    }
+}
+
+impl Pretty for FluxDefId {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if cx.fully_qualified_paths {
+            w!(cx, f, "{:?}::{}", self.parent(), ^self.name())
+        } else {
+            w!(cx, f, "{}", ^self.name())
+        }
+    }
+}
+
+impl Pretty for FluxLocalDefId {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        w!(cx, f, "{:?}", self.to_def_id())
     }
 }
 

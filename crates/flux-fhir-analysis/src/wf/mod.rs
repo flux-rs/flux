@@ -31,7 +31,7 @@ use crate::conv::{ConvPhase, WfckResultsProvider};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(qual.name);
+    let owner = FluxOwnerId::Flux(qual.def_id);
     let mut infcx = InferCtxt::new(genv, owner);
     let mut wf = Wf::new(&mut infcx);
     wf.insert_params(qual.args)?;
@@ -43,7 +43,7 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
 }
 
 pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(func.name);
+    let owner = FluxOwnerId::Flux(func.def_id);
     let mut infcx = InferCtxt::new(genv, owner);
     let mut wf = Wf::new(&mut infcx);
     if let Some(body) = &func.body {

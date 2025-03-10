@@ -33,7 +33,7 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput, Specs, fhir,
+    FluxLocalDefId, ResolverOutput, Specs, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
 };
@@ -308,32 +308,40 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
 
 impl CrateDesugar<'_, '_> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
-        for item in specs.flux_items_by_parent.values().flatten() {
-            match item {
-                surface::Item::Qualifier(qual) => {
-                    self.desugar_qualifier(qual).collect_err(&mut self.err);
+        for (parent, items) in specs.flux_items_by_parent.iter() {
+            for item in items {
+                let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+                match item {
+                    surface::Item::Qualifier(qual) => {
+                        self.desugar_qualifier(def_id, qual)
+                            .collect_err(&mut self.err);
+                    }
+                    surface::Item::FuncDef(defn) => {
+                        self.desugar_func_defn(def_id, defn)
+                            .collect_err(&mut self.err);
+                    }
+                    surface::Item::SortDecl(_) => {}
                 }
-                surface::Item::FuncDef(defn) => {
-                    self.desugar_func_defn(defn).collect_err(&mut self.err);
-                }
-                surface::Item::SortDecl(_) => {}
             }
         }
     }
 
-    fn desugar_func_defn(&mut self, func: &surface::SpecFunc) -> Result {
-        let func = desugar::desugar_spec_func(self.genv, self.resolver_output, func)?;
-        self.fhir
-            .items
-            .insert(func.name, fhir::FluxItem::Func(func));
+    fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {
+        let func = desugar::desugar_spec_func(self.genv, self.resolver_output, def_id, func)?;
+        self.fhir.items.insert(def_id, fhir::FluxItem::Func(func));
         Ok(())
     }
 
-    fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
-        let qualifier = desugar::desugar_qualifier(self.genv, self.resolver_output, qualifier)?;
+    fn desugar_qualifier(
+        &mut self,
+        def_id: FluxLocalDefId,
+        qualifier: &surface::Qualifier,
+    ) -> Result {
+        let qualifier =
+            desugar::desugar_qualifier(self.genv, self.resolver_output, def_id, qualifier)?;
         self.fhir
             .items
-            .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
+            .insert(def_id, fhir::FluxItem::Qualifier(qualifier));
         Ok(())
     }
 }

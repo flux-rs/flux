@@ -3,11 +3,11 @@ use std::ops::ControlFlow;
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashSet;
-use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
+    FluxDefId, FluxLocalDefId,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
@@ -18,16 +18,16 @@ use crate::{
 
 #[derive(Default)]
 pub struct NormalizedDefns {
-    defns: UnordMap<Symbol, SpecFunc>,
+    defns: UnordMap<FluxLocalDefId, SpecFunc>,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    defs: Option<&'a UnordMap<Symbol, SpecFunc>>,
+    defs: Option<&'a UnordMap<FluxLocalDefId, SpecFunc>>,
 }
 
 impl NormalizedDefns {
-    pub fn new(genv: GlobalEnv, defns: &[SpecFunc]) -> Result<Self, Vec<Symbol>> {
+    pub fn new(genv: GlobalEnv, defns: &[SpecFunc]) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
 
@@ -38,13 +38,13 @@ impl NormalizedDefns {
             let body = defn
                 .body
                 .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
-            normalized.insert(defn.name, SpecFunc { body, ..*defn });
+            normalized.insert(defn.def_id.expect_local(), SpecFunc { body, ..*defn });
         }
         Ok(Self { defns: normalized })
     }
 
-    pub fn func_defn(&self, f: Symbol) -> &SpecFunc {
-        self.defns.get(&f).unwrap()
+    pub fn func_defn(&self, did: FluxLocalDefId) -> &SpecFunc {
+        self.defns.get(&did).unwrap()
     }
 }
 
@@ -52,18 +52,18 @@ impl NormalizedDefns {
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<Symbol>> {
+fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
-    let s2i: UnordMap<Symbol, usize> = defns
+    let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
         .enumerate()
-        .map(|(i, defn)| (defn.name, i))
+        .map(|(i, defn)| (defn.def_id.expect_local(), i))
         .collect();
 
     // 2. Make the dependency graph
     let mut adj_list: Vec<Vec<usize>> = Vec::with_capacity(defns.len());
     for defn in defns {
-        let deps = defn_deps(&defn.body);
+        let deps = local_deps(&defn.body);
         let ddeps = deps
             .iter()
             .filter_map(|s| s2i.get(s).copied())
@@ -77,22 +77,27 @@ fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<Symbol>> {
     match g.toposort_or_scc() {
         Ok(is) => Ok(is),
         Err(mut scc) => {
+            // fix order
+            let a = 0;
             let cycle = scc.pop().unwrap();
-            let mut names: Vec<Symbol> = cycle.iter().map(|i| defns[*i].name).collect();
-            names.sort();
-            Err(names)
+            Err(cycle
+                .iter()
+                .map(|i| defns[*i].def_id.expect_local())
+                .sorted_by_key(|def_id| def_id.name())
+                .collect())
         }
     }
 }
 
-fn defn_deps(body: &Binder<Expr>) -> FxHashSet<Symbol> {
-    struct DepsVisitor(FxHashSet<Symbol>);
+fn local_deps(body: &Binder<Expr>) -> FxHashSet<FluxLocalDefId> {
+    struct DepsVisitor(FxHashSet<FluxLocalDefId>);
     impl TypeVisitor for DepsVisitor {
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
             if let ExprKind::App(func, _) = expr.kind()
-                && let ExprKind::GlobalFunc(SpecFuncKind::Def(sym)) = func.kind()
+                && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
+                && let Some(did) = did.as_local()
             {
-                self.0.insert(*sym);
+                self.0.insert(did);
             }
             expr.super_visit_with(self)
         }
@@ -105,16 +110,18 @@ fn defn_deps(body: &Binder<Expr>) -> FxHashSet<Symbol> {
 impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     pub(super) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        defs: Option<&'a UnordMap<Symbol, SpecFunc>>,
+        defs: Option<&'a UnordMap<FluxLocalDefId, SpecFunc>>,
     ) -> Self {
         Self { genv, defs }
     }
 
-    fn func_defn(&self, name: Symbol) -> &SpecFunc {
-        if let Some(defs) = self.defs {
-            defs.get(&name).unwrap()
+    fn func_defn(&self, did: FluxDefId) -> &SpecFunc {
+        if let Some(defs) = self.defs
+            && let Some(local_id) = did.as_local()
+        {
+            defs.get(&local_id).unwrap()
         } else {
-            self.genv.normalized_defn(name)
+            self.genv.normalized_defn(did)
         }
     }
 
@@ -127,8 +134,8 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(SpecFuncKind::Def(sym)) => {
-                let res = self.func_defn(*sym).body.replace_bound_refts(args);
+            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
+                let res = self.func_defn(*did).body.replace_bound_refts(args);
                 Self::at_base(res, espan)
             }
             ExprKind::Abs(lam) => {

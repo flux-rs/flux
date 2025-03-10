@@ -58,7 +58,7 @@ use rustc_data_structures::{
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::OwnerId;
-use rustc_macros::extension;
+use rustc_macros::{Decodable, Encodable, extension};
 use rustc_span::{
     Symbol,
     def_id::{DefId, LocalDefId},
@@ -530,6 +530,44 @@ impl ResolvedDefId {
             }
             ResolvedDefId::Extern(_) => None,
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
+pub struct FluxDefId<Id = DefId> {
+    parent: Id,
+    name: Symbol,
+}
+
+pub type FluxLocalDefId = FluxDefId<LocalDefId>;
+
+impl<Id> FluxDefId<Id> {
+    pub fn new(parent: Id, name: Symbol) -> Self {
+        Self { parent, name }
+    }
+
+    pub fn parent(self) -> Id {
+        self.parent
+    }
+
+    pub fn name(self) -> Symbol {
+        self.name
+    }
+}
+
+impl FluxDefId {
+    pub fn as_local(self) -> Option<FluxLocalDefId> {
+        Some(FluxDefId { parent: self.parent.as_local()?, name: self.name })
+    }
+
+    pub fn expect_local(self) -> FluxLocalDefId {
+        FluxDefId { parent: self.parent.expect_local(), name: self.name }
+    }
+}
+
+impl FluxLocalDefId {
+    pub fn to_def_id(self) -> FluxDefId {
+        FluxDefId { parent: self.parent.to_def_id(), name: self.name }
     }
 }
 

@@ -23,7 +23,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    MaybeExternId, fhir,
+    FluxLocalDefId, MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -40,13 +40,12 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
-    providers.spec_func_decl = spec_func_decl;
+    providers.func_decl = func_decl;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -71,8 +70,8 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
-    let func = genv.map().spec_func(name).unwrap();
+fn func_decl(genv: GlobalEnv, def_id: FluxLocalDefId) -> QueryResult<rty::SpecFuncDecl> {
+    let func = genv.map().spec_func(def_id).unwrap();
     conv::conv_func_decl(genv, func)
 }
 
@@ -526,7 +525,8 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let mut errors = Errors::new(genv.sess());
 
-    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
+    let a = 0;
+    let qualifiers = genv.map().qualifiers().map(|q| q.def_id.name()).collect();
 
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
         if genv.ignored(def_id) || genv.is_dummy(def_id) {
@@ -567,7 +567,8 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
+    use flux_middle::FluxLocalDefId;
+    use rustc_span::Span;
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_definition_cycle, code = E0999)]
@@ -579,9 +580,9 @@ mod errors {
     }
 
     impl DefinitionCycle {
-        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
-            let root = format!("`{}`", cycle[0]);
-            let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
+        pub(super) fn new(span: Span, cycle: Vec<FluxLocalDefId>) -> Self {
+            let root = format!("`{}`", cycle[0].name());
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s.name())).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
         }
