@@ -3,7 +3,7 @@
 use flux_common::{bug, iter::IterExt, result::ErrorEmitter as _};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{self, FhirId, FluxOwnerId},
     try_alloc_slice,
 };

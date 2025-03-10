@@ -12,7 +12,8 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    FluxLocalDefId, MaybeExternId, ResolverOutput,
+    ResolverOutput,
+    def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{self, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,

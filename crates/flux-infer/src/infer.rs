@@ -4,7 +4,7 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,

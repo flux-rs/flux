@@ -22,7 +22,8 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId, fhir,
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    fhir,
     global_env::GlobalEnv,
     rty::{
         self,
@@ -205,7 +206,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     normalized_defns: OnceCell<rty::NormalizedDefns>,
-    func_sort: Cache<FluxLocalDefId, QueryResult<rty::PolyFuncSort>>,
+    func_sort: Cache<FluxDefId, QueryResult<rty::PolyFuncSort>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -392,8 +393,28 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         genv: GlobalEnv,
         def_id: FluxDefId,
     ) -> QueryResult<rty::PolyFuncSort> {
-        let def_id = def_id.expect_local();
-        run_with_cache(&self.func_sort, def_id, || (self.providers.func_sort)(genv, def_id))
+        run_with_cache(&self.func_sort, def_id, || {
+            dispatch_query_flux_id(
+                genv,
+                def_id,
+                |def_id| {
+                    // refinement functions cannot be extern specs so we simply grab the local id
+                    (self.providers.func_sort)(genv, def_id.local_id())
+                },
+                |def_id| {
+                    Some(Err(query_bug!(
+                        def_id.parent(),
+                        "extern refinement functions are not yet implemented"
+                    )))
+                },
+                |def_id| {
+                    Err(query_bug!(
+                        def_id.parent(),
+                        "cannot generate default function sort, the refinement must be defined somewhere"
+                    ))
+                },
+            )
+        })
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
@@ -767,9 +788,9 @@ fn dispatch_query_flux_id<R>(
     dispatch_query(
         genv,
         def_id.parent(),
-        |container_id| local(FluxId::new(container_id, def_id.name)),
-        |container_id| external(FluxId::new(container_id, def_id.name)),
-        |container_id| default(FluxId::new(container_id, def_id.name)),
+        |container_id| local(FluxId::new(container_id, def_id.name())),
+        |container_id| external(FluxId::new(container_id, def_id.name())),
+        |container_id| default(FluxId::new(container_id, def_id.name())),
     )
 }
 

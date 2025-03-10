@@ -6,7 +6,7 @@ use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
-    FluxDefId, FluxLocalDefId,
+    def_id::{FluxDefId, FluxLocalDefId},
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
@@ -88,6 +88,7 @@ fn toposort(defns: &[(FluxLocalDefId, Binder<Expr>)]) -> Result<Vec<usize>, Vec<
 fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
     struct DepsVisitor(FxIndexSet<FluxLocalDefId>);
     impl TypeVisitor for DepsVisitor {
+        #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
             if let ExprKind::App(func, _) = expr.kind()
                 && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
@@ -111,6 +112,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         Self { genv, defs }
     }
 
+    #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
     fn func_defn(&self, did: FluxDefId) -> &Binder<Expr> {
         if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()

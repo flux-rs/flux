@@ -1,6 +1,6 @@
 use rustc_span::def_id::DefId;
 
-use crate::{FluxDefId, queries::QueryResult, rty};
+use crate::{def_id::FluxDefId, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 

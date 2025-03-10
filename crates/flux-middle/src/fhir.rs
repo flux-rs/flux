@@ -39,7 +39,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::{FluxDefId, FluxLocalDefId, MaybeExternId};
+use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

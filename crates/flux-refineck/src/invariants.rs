@@ -5,7 +5,7 @@ use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-use flux_middle::{MaybeExternId, fhir, global_env::GlobalEnv, rty};
+use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{DUMMY_SP, Span};

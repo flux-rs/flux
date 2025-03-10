@@ -9,7 +9,7 @@ mod sortck;
 use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{self, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,

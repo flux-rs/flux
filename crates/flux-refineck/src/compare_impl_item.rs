@@ -4,7 +4,10 @@ use flux_infer::{
     projections::NormalizeExt as _,
 };
 use flux_middle::{
-    FluxDefId, MaybeExternId, def_id_to_string, global_env::GlobalEnv, queries::QueryResult,
+    def_id::{FluxDefId, MaybeExternId},
+    def_id_to_string,
+    global_env::GlobalEnv,
+    queries::QueryResult,
     rty::TraitRef,
 };
 use rustc_hash::FxHashSet;

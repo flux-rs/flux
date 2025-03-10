@@ -33,7 +33,9 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    FluxLocalDefId, ResolverOutput, Specs, fhir,
+    ResolverOutput, Specs,
+    def_id::FluxLocalDefId,
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
 };

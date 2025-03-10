@@ -19,7 +19,7 @@ macro_rules! _with_cx {
     };
 }
 pub use crate::_with_cx as with_cx;
-use crate::{FluxDefId, FluxLocalDefId};
+use crate::def_id::{FluxDefId, FluxLocalDefId};
 
 #[macro_export]
 macro_rules! _format_args_cx {

@@ -40,7 +40,7 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, ESpan},

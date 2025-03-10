@@ -17,8 +17,8 @@ use rustc_middle::{
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
-    FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId,
     cstore::CrateStoreDyn,
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
@@ -135,6 +135,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn normalized_defn(self, did: FluxDefId) -> &'genv rty::Binder<rty::Expr> {
+        #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
         let local_id = did.expect_local();
         self.normalized_defns().func_defn(local_id)
     }
@@ -288,7 +289,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         // Check if the implementation has the associated refinement
         let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
-        if let Some(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name) {
+        if let Some(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name()) {
             return self.assoc_refinement_body(impl_assoc_id);
         }
 

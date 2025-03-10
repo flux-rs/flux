@@ -14,7 +14,8 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    FluxDefId, MaybeExternId, def_id_to_string,
+    def_id::{FluxDefId, MaybeExternId},
+    def_id_to_string,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,

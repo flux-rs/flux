@@ -24,8 +24,8 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FluxDefId, FluxId,
     cstore::{CrateStore, OptResult},
+    def_id::{FluxDefId, FluxId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty,

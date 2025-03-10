@@ -6,7 +6,10 @@ use flux_common::{
 };
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    FluxDefId, FluxLocalDefId, MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv,
+    ResolverOutput, Specs,
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    fhir,
+    global_env::GlobalEnv,
 };
 use flux_syntax::surface::{self, Ident, visit::Visitor as _};
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};

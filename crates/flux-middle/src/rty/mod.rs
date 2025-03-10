@@ -58,7 +58,7 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
-    FluxDefId, FluxLocalDefId,
+    def_id::{FluxDefId, FluxLocalDefId},
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -742,7 +742,7 @@ impl Default for AssocRefinements {
 
 impl AssocRefinements {
     pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
-        self.items.iter().find(|it| it.name == name).copied()
+        self.items.iter().find(|it| it.name() == name).copied()
     }
 }
 

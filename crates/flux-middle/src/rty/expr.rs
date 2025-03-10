@@ -26,8 +26,8 @@ use super::{
     GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
-    FluxDefId,
     big_int::BigInt,
+    def_id::FluxDefId,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     pretty::*,
@@ -1360,7 +1360,7 @@ pub(crate) mod pretty {
             if !args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", args))?;
             }
-            w!(cx, f, ">::{}", ^self.assoc_id.name)
+            w!(cx, f, ">::{}", ^self.assoc_id.name())
         }
     }
 

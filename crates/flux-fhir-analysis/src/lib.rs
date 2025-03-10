@@ -23,7 +23,8 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, fhir,
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -558,7 +559,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::FluxLocalDefId;
+    use flux_middle::def_id::FluxLocalDefId;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
