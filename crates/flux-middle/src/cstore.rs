@@ -1,6 +1,6 @@
 use rustc_span::def_id::DefId;
 
-use crate::{queries::QueryResult, rty};
+use crate::{FluxDefId, queries::QueryResult, rty};
 
 pub type OptResult<T> = Option<QueryResult<T>>;
 
@@ -17,18 +17,12 @@ pub trait CrateStore {
     fn predicates_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::GenericPredicates>>;
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements>;
     fn constant_info(&self, def_id: DefId) -> OptResult<rty::ConstantInfo>;
-    fn assoc_refinements_def(
-        &self,
-        key: rty::AssocReftId,
-    ) -> OptResult<rty::EarlyBinder<rty::Lambda>>;
+    fn assoc_refinements_def(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::Lambda>>;
     fn default_assoc_refinements_def(
         &self,
-        key: rty::AssocReftId,
+        key: FluxDefId,
     ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>>;
-    fn sort_of_assoc_reft(
-        &self,
-        key: rty::AssocReftId,
-    ) -> OptResult<rty::EarlyBinder<rty::FuncSort>>;
+    fn sort_of_assoc_reft(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::FuncSort>>;
     fn variants(
         &self,
         def_id: DefId,

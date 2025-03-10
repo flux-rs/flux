@@ -23,12 +23,12 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FluxLocalDefId, MaybeExternId, fhir,
+    FluxDefId, FluxLocalDefId, MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, AssocReftId, WfckResults,
+        self, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -222,14 +222,14 @@ fn assoc_refinements_of(
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) => {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         _ => Err(query_bug!(local_id.resolved_id(), "expected trait or impl"))?,
@@ -239,14 +239,14 @@ fn assoc_refinements_of(
 
 fn default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_assoc_id: AssocReftId<MaybeExternId>,
+    trait_assoc_id: FluxDefId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-    let trait_id = trait_assoc_id.container_id;
+    let trait_id = trait_assoc_id.parent();
     let assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())?
         .expect_trait()
-        .find_assoc_reft(trait_assoc_id.name)
+        .find_assoc_reft(trait_assoc_id.name())
         .unwrap();
     let Some(body) = assoc_reft.body else { return Ok(None) };
     let wfckresults = genv.check_wf(trait_id.local_id())?;
@@ -257,15 +257,15 @@ fn default_assoc_refinement_body(
 
 fn assoc_refinement_body(
     genv: GlobalEnv,
-    impl_assoc_id: AssocReftId<MaybeExternId>,
+    impl_assoc_id: FluxDefId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let impl_id = impl_assoc_id.container_id;
+    let impl_id = impl_assoc_id.parent();
 
     let assoc_reft = genv
         .map()
         .expect_item(impl_id.local_id())?
         .expect_impl()
-        .find_assoc_reft(impl_assoc_id.name)
+        .find_assoc_reft(impl_assoc_id.name())
         .unwrap();
 
     let wfckresults = genv.check_wf(impl_id.local_id())?;
@@ -276,13 +276,13 @@ fn assoc_refinement_body(
 
 fn sort_of_assoc_reft(
     genv: GlobalEnv,
-    assoc_id: AssocReftId<MaybeExternId>,
+    assoc_id: FluxDefId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
-    let container_id = assoc_id.container_id;
+    let container_id = assoc_id.parent();
 
     match &genv.map().expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
-            let assoc_reft = trait_.find_assoc_reft(assoc_id.name).unwrap();
+            let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
             let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
@@ -294,7 +294,7 @@ fn sort_of_assoc_reft(
             Ok(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         fhir::ItemKind::Impl(impl_) => {
-            let assoc_reft = impl_.find_assoc_reft(assoc_id.name).unwrap();
+            let assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
             let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft

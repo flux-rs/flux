@@ -307,8 +307,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
 }
 
 impl CrateDesugar<'_, '_> {
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
     fn desugar_flux_items(&mut self, specs: &Specs) {
-        for (parent, items) in specs.flux_items_by_parent.iter() {
+        for (parent, items) in &specs.flux_items_by_parent {
             for item in items {
                 let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
                 match item {

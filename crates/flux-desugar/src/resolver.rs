@@ -89,8 +89,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
+    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
     fn define_flux_global_items(&mut self) {
-        for (parent, items) in self.specs.flux_items_by_parent.iter() {
+        for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
                 match item {
                     surface::Item::Qualifier(qual) => {

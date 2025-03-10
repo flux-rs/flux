@@ -22,7 +22,7 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
-        self, AssocReftId,
+        self,
         normalize::NormalizedDefns,
         refining::{Refine as _, Refiner},
     },
@@ -283,7 +283,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// not checking `compare_impl_item` for those definitions.
     pub fn assoc_refinement_body_for_impl(
         self,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
         impl_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         // Check if the implementation has the associated refinement
@@ -303,14 +303,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         Err(QueryErr::MissingAssocReft {
             impl_id,
-            trait_id: trait_assoc_id.container_id,
-            name: trait_assoc_id.name,
+            trait_id: trait_assoc_id.parent(),
+            name: trait_assoc_id.name(),
         })
     }
 
     pub fn default_assoc_refinement_body(
         self,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         self.inner
             .queries
@@ -319,7 +319,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn assoc_refinement_body(
         self,
-        impl_assoc_id: AssocReftId,
+        impl_assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         self.inner
             .queries
@@ -328,7 +328,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn sort_of_assoc_reft(
         self,
-        assoc_id: AssocReftId,
+        assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
         self.inner.queries.sort_of_assoc_reft(self, assoc_id)
     }

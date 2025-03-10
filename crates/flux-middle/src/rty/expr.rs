@@ -22,10 +22,11 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    AssocReftId, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
-    GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
+    GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
+    FluxDefId,
     big_int::BigInt,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
@@ -84,13 +85,13 @@ impl Lambda {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct AliasReft {
     /// Id of the associated refinement in the trait
-    pub assoc_id: AssocReftId,
+    pub assoc_id: FluxDefId,
     pub args: GenericArgs,
 }
 
 impl AliasReft {
     pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
-        let trait_def_id = self.assoc_id.container_id;
+        let trait_def_id = self.assoc_id.parent();
         let args = self
             .args
             .to_rustc(tcx)
@@ -1354,7 +1355,7 @@ pub(crate) mod pretty {
 
     impl Pretty for AliasReft {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            w!(cx, f, "<({:?}) as {:?}", &self.args[0], self.assoc_id.container_id)?;
+            w!(cx, f, "<({:?}) as {:?}", &self.args[0], self.assoc_id.parent())?;
             let args = &self.args[1..];
             if !args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", args))?;

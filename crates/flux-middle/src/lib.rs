@@ -57,7 +57,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::OwnerId;
+use rustc_hir::{OwnerId, def_id::DefIndex};
 use rustc_macros::{Decodable, Encodable, extension};
 use rustc_span::{
     Symbol,
@@ -535,6 +535,18 @@ impl ResolvedDefId {
     }
 }
 
+/// An id for an Flux item with a type-level invariant ensuring that it exists.
+///
+/// We represent the id as a Rust parent id and an the name of the item. Since the name can be an
+/// arbitrary [`Symbol`], this doesn't guarantee the existence of the item, so we must be careful
+/// when creating instances of this struct.
+///
+/// We make the struct fields private so we have to create one using [`FluxDefId::new`]. We also
+/// have a clippy lint disallowing [`FluxDefId::new`] which can be disabled selectively when we can
+/// ensure the associated refinement exists.
+///
+/// The struct is generic on the parent `Id` because we use it with various kinds of ids,
+/// e.g., [`DefId`], [`MaybeExternId`], ...
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub struct FluxDefId<Id = DefId> {
     parent: Id,
@@ -559,11 +571,17 @@ impl<Id> FluxDefId<Id> {
 
 impl FluxDefId {
     pub fn as_local(self) -> Option<FluxLocalDefId> {
+        #[allow(clippy::disallowed_methods, reason = "flux items cannot be extern specs")]
         Some(FluxDefId { parent: self.parent.as_local()?, name: self.name })
     }
 
     pub fn expect_local(self) -> FluxLocalDefId {
+        #[allow(clippy::disallowed_methods, reason = "flux items cannot be extern specs")]
         FluxDefId { parent: self.parent.expect_local(), name: self.name }
+    }
+
+    pub fn index(self) -> FluxDefId<DefIndex> {
+        FluxDefId { parent: self.parent.index, name: self.name }
     }
 }
 

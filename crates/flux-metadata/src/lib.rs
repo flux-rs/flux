@@ -24,10 +24,11 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
+    FluxDefId,
     cstore::{CrateStore, OptResult},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, AssocReftId},
+    rty,
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
@@ -80,11 +81,11 @@ impl Key for DefId {
     }
 }
 
-impl Key for AssocReftId {
-    type KeyIndex = AssocReftId<DefIndex>;
+impl Key for FluxDefId {
+    type KeyIndex = FluxDefId<DefIndex>;
 
     fn crate_num(self) -> CrateNum {
-        self.container_id.krate
+        self.parent().krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
@@ -92,7 +93,7 @@ impl Key for AssocReftId {
     }
 
     fn name(self, tcx: TyCtxt) -> String {
-        format!("{}::{}", tcx.def_path_str(self.container_id), self.name)
+        format!("{}::{}", tcx.def_path_str(self.parent()), self.name())
     }
 }
 
@@ -104,10 +105,10 @@ pub struct Tables<K: Eq + Hash> {
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
-    assoc_refinements_def: UnordMap<AssocReftId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    assoc_refinements_def: UnordMap<FluxDefId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinements_def:
-        UnordMap<AssocReftId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
-    sort_of_assoc_reft: UnordMap<AssocReftId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
+        UnordMap<FluxDefId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
+    sort_of_assoc_reft: UnordMap<FluxDefId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
@@ -224,18 +225,18 @@ impl CrateStore for CStore {
         get!(self, assoc_refinements_of, def_id)
     }
 
-    fn assoc_refinements_def(&self, key: AssocReftId) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
+    fn assoc_refinements_def(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
         get!(self, assoc_refinements_def, key)
     }
 
     fn default_assoc_refinements_def(
         &self,
-        key: AssocReftId,
+        key: FluxDefId,
     ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         get!(self, default_assoc_refinements_def, key)
     }
 
-    fn sort_of_assoc_reft(&self, key: AssocReftId) -> OptResult<rty::EarlyBinder<rty::FuncSort>> {
+    fn sort_of_assoc_reft(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::FuncSort>> {
         get!(self, sort_of_assoc_reft, key)
     }
 
@@ -252,7 +253,7 @@ impl CrateMetadata {
             genv.iter_local_def_id().map(LocalDefId::to_def_id),
             &mut local_tables,
             DefId::to_index,
-            AssocReftId::to_index,
+            FluxDefId::to_index,
         );
 
         let mut extern_tables = Tables::default();
@@ -273,7 +274,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
     def_ids: impl IntoIterator<Item = DefId>,
     tables: &mut Tables<K>,
     did_to_key: fn(DefId) -> K,
-    assoc_id_to_key: fn(AssocReftId) -> AssocReftId<K>,
+    assoc_id_to_key: fn(FluxDefId) -> FluxDefId<K>,
 ) {
     for def_id in def_ids {
         let def_kind = genv.def_kind(def_id);

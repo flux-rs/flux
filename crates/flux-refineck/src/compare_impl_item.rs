@@ -4,10 +4,8 @@ use flux_infer::{
     projections::NormalizeExt as _,
 };
 use flux_middle::{
-    MaybeExternId, def_id_to_string,
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{AssocReftId, TraitRef},
+    FluxDefId, MaybeExternId, def_id_to_string, global_env::GlobalEnv, queries::QueryResult,
+    rty::TraitRef,
 };
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
@@ -18,15 +16,15 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id)?;
-    let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name).collect();
+    let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name()).collect();
 
     for trait_assoc_id in &trait_assoc_refts.items {
         let has_default = genv
             .default_assoc_refinement_body(*trait_assoc_id)?
             .is_some();
-        if !impl_names.contains(&trait_assoc_id.name) && !has_default {
+        if !impl_names.contains(&trait_assoc_id.name()) && !has_default {
             let span = genv.tcx().def_span(impl_id);
-            Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_id.name)))?;
+            Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_id.name())))?;
         }
     }
 
@@ -46,7 +44,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
     let mut infcx = root_ctxt.infcx(trait_id, &rustc_infcx);
 
     for impl_assoc_id in &impl_assoc_refts.items {
-        let name = impl_assoc_id.name;
+        let name = impl_assoc_id.name();
         if let Some(trait_assoc_id) = trait_assoc_refts.find(name) {
             check_assoc_reft(&mut infcx, impl_id, &impl_trait_ref, trait_assoc_id, *impl_assoc_id)?;
         } else {
@@ -71,17 +69,17 @@ fn check_assoc_reft(
     infcx: &mut InferCtxt,
     impl_id: MaybeExternId,
     impl_trait_ref: &TraitRef,
-    trait_assoc_id: AssocReftId,
-    impl_assoc_id: AssocReftId,
+    trait_assoc_id: FluxDefId,
+    impl_assoc_id: FluxDefId,
 ) -> QueryResult {
-    debug_assert_eq!(trait_assoc_id.name, impl_assoc_id.name);
+    debug_assert_eq!(trait_assoc_id.name(), impl_assoc_id.name());
 
     let impl_span = infcx
         .genv
         .map()
         .expect_item(impl_id.local_id())?
         .expect_impl()
-        .find_assoc_reft(impl_assoc_id.name)
+        .find_assoc_reft(impl_assoc_id.name())
         .unwrap()
         .span;
 
@@ -100,7 +98,7 @@ fn check_assoc_reft(
     if impl_sort != trait_sort {
         Err(infcx.genv.emit(errors::IncompatibleSort::new(
             impl_span,
-            impl_assoc_id.name,
+            impl_assoc_id.name(),
             trait_sort,
             impl_sort,
         )))?;
