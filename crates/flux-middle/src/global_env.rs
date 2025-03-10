@@ -134,6 +134,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    pub fn normalized_defn(self, name: Symbol) -> &'genv rty::SpecFunc {
+        self.normalized_defns().func_defn(name)
+    }
+
     pub fn normalized_defns(self) -> &'genv NormalizedDefns {
         self.inner.queries.normalized_defns(self)
     }

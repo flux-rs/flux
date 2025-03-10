@@ -112,7 +112,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
     }
     errors.into_result()?;
 
-    let defns = rty::NormalizedDefns::new(&defns)
+    let defns = rty::NormalizedDefns::new(genv, &defns)
         .map_err(|cycle| {
             let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)
@@ -127,8 +127,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .qualifiers()
         .map(|qualifier| {
             let wfckresults = wf::check_qualifier(genv, qualifier)?;
-            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?
-                .normalize(genv.normalized_defns()))
+            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
         })
         .try_collect()
 }

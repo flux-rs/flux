@@ -11,7 +11,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, NormalizedDefns, Sort, Ty, TyCtor, TyKind, Var,
+        BaseTy, EVid, Expr, Name, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
@@ -54,8 +54,8 @@ impl RefineTree {
         RefineTree { root }
     }
 
-    pub(crate) fn simplify(&mut self, defns: &NormalizedDefns) {
-        self.root.borrow_mut().simplify(defns);
+    pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
+        self.root.borrow_mut().simplify(genv);
     }
 
     pub(crate) fn into_fixpoint(
@@ -390,14 +390,14 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, defns: &NormalizedDefns) {
+    fn simplify(&mut self, genv: GlobalEnv) {
         for child in &self.children {
-            child.borrow_mut().simplify(defns);
+            child.borrow_mut().simplify(genv);
         }
 
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(defns).simplify();
+                let pred = pred.normalize(genv).simplify();
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -406,7 +406,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(defns).simplify();
+                *pred = pred.normalize(genv).simplify();
                 self.children
                     .extract_if(.., |child| {
                         matches!(child.borrow().kind, NodeKind::True)

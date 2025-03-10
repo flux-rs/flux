@@ -9,6 +9,7 @@ use toposort_scc::IndexGraph;
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
     fhir::SpecFuncKind,
+    global_env::GlobalEnv,
     rty::{
         Binder, Expr, ExprKind, SpecFunc,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
@@ -20,29 +21,30 @@ pub struct NormalizedDefns {
     defns: UnordMap<Symbol, SpecFunc>,
 }
 
-pub(super) struct Normalizer<'a> {
-    defs: &'a NormalizedDefns,
+pub(super) struct Normalizer<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    defs: Option<&'a UnordMap<Symbol, SpecFunc>>,
 }
 
 impl NormalizedDefns {
-    pub fn new(defns: &[SpecFunc]) -> Result<Self, Vec<Symbol>> {
+    pub fn new(genv: GlobalEnv, defns: &[SpecFunc]) -> Result<Self, Vec<Symbol>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
 
         // 2. Expand each defn in the sorted order
-        let mut normalized = NormalizedDefns { defns: UnordMap::default() };
+        let mut normalized = UnordMap::default();
         for i in ds {
             let defn = &defns[i];
-            let body = defn.body.normalize(&normalized);
-            normalized
-                .defns
-                .insert(defn.name, SpecFunc { body, ..*defn });
+            let body = defn
+                .body
+                .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+            normalized.insert(defn.name, SpecFunc { body, ..*defn });
         }
-        Ok(normalized)
+        Ok(Self { defns: normalized })
     }
 
-    fn func_defn(&self, f: &Symbol) -> Option<&SpecFunc> {
-        self.defns.get(f)
+    pub fn func_defn(&self, f: Symbol) -> &SpecFunc {
+        self.defns.get(&f).unwrap()
     }
 }
 
@@ -100,9 +102,20 @@ fn defn_deps(body: &Binder<Expr>) -> FxHashSet<Symbol> {
     visitor.0
 }
 
-impl<'a> Normalizer<'a> {
-    pub(super) fn new(defs: &'a NormalizedDefns) -> Self {
-        Self { defs }
+impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
+    pub(super) fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        defs: Option<&'a UnordMap<Symbol, SpecFunc>>,
+    ) -> Self {
+        Self { genv, defs }
+    }
+
+    fn func_defn(&self, name: Symbol) -> &SpecFunc {
+        if let Some(defs) = self.defs {
+            defs.get(&name).unwrap()
+        } else {
+            self.genv.normalized_defn(name)
+        }
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {
@@ -114,10 +127,8 @@ impl<'a> Normalizer<'a> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(sym, SpecFuncKind::Def)
-                if let Some(defn) = self.defs.func_defn(sym) =>
-            {
-                let res = defn.body.replace_bound_refts(args);
+            ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
+                let res = self.func_defn(*sym).body.replace_bound_refts(args);
                 Self::at_base(res, espan)
             }
             ExprKind::Abs(lam) => {
@@ -129,7 +140,7 @@ impl<'a> Normalizer<'a> {
     }
 }
 
-impl TypeFolder for Normalizer<'_> {
+impl TypeFolder for Normalizer<'_, '_, '_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
         let span = expr.span();

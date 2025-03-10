@@ -12,10 +12,12 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind,
-    normalize::{NormalizedDefns, Normalizer},
+    TyKind, normalize::Normalizer,
 };
-use crate::rty::{Var, VariantSig, expr::HoleKind};
+use crate::{
+    global_env::GlobalEnv,
+    rty::{Var, VariantSig, expr::HoleKind},
+};
 
 pub trait TypeVisitor: Sized {
     type BreakTy = !;
@@ -233,8 +235,8 @@ pub trait TypeFoldable: TypeVisitable {
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, defns: &NormalizedDefns) -> Self {
-        self.fold_with(&mut Normalizer::new(defns))
+    fn normalize(&self, genv: GlobalEnv) -> Self {
+        self.fold_with(&mut Normalizer::new(genv, None))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
