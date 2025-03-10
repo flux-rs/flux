@@ -106,10 +106,10 @@
 
     <span class="comment">// Unless we are calling `cargo flux clean` append a check
     </span><span class="kw">match </span><span class="kw-2">&amp;</span>args[..] {
-        [subcommand, ..] <span class="kw">if </span>subcommand != <span class="string">"clean" </span>=&gt; {
+        [subcommand, ..] <span class="kw">if </span>subcommand == <span class="string">"clean" </span>=&gt; {}
+        <span class="kw">_ </span>=&gt; {
             cmd.arg(<span class="string">"check"</span>);
         }
-        <span class="kw">_ </span>=&gt; {}
     }
 
     <span class="kw">let </span>exit_code = cmd
