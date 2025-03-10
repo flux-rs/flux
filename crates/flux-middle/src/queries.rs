@@ -131,7 +131,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
-    pub func_decl: fn(GlobalEnv, FluxLocalDefId) -> QueryResult<rty::SpecFuncDecl>,
+    pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> QueryResult<rty::PolyFuncSort>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
@@ -175,7 +175,7 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
             normalized_defns: |_| empty_query!(),
-            func_decl: |_, _| empty_query!(),
+            func_sort: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -208,7 +208,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     normalized_defns: OnceCell<rty::NormalizedDefns>,
-    func_decl: Cache<FluxLocalDefId, QueryResult<rty::SpecFuncDecl>>,
+    func_sort: Cache<FluxLocalDefId, QueryResult<rty::PolyFuncSort>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -243,7 +243,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
             normalized_defns: Default::default(),
-            func_decl: Default::default(),
+            func_sort: Default::default(),
             qualifiers: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
@@ -390,13 +390,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .get_or_init(|| (self.providers.normalized_defns)(genv))
     }
 
-    pub(crate) fn func_decl(
+    pub(crate) fn func_sort(
         &self,
         genv: GlobalEnv,
         def_id: FluxDefId,
-    ) -> QueryResult<rty::SpecFuncDecl> {
+    ) -> QueryResult<rty::PolyFuncSort> {
         let def_id = def_id.expect_local();
-        run_with_cache(&self.func_decl, def_id, || (self.providers.func_decl)(genv, def_id))
+        run_with_cache(&self.func_sort, def_id, || (self.providers.func_sort)(genv, def_id))
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {

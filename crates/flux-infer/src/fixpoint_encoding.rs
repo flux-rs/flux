@@ -1395,8 +1395,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let sort = self
                     .genv
-                    .func_decl(def_id)
-                    .map(|decl| scx.func_sort_to_fixpoint(&decl.sort))
+                    .func_sort(def_id)
+                    .map(|sort| scx.func_sort_to_fixpoint(&sort))
                     .unwrap_or_else(|err| {
                         self.errors.emit(err.at(self.def_span));
                         fixpoint::Sort::Int

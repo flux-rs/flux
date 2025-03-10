@@ -470,7 +470,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 fsort
             }
             ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
-                self.genv.func_decl(name).emit(&self.genv)?.sort.clone()
+                self.genv.func_sort(name).emit(&self.genv)?
             }
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 THEORY_FUNCS.get(&itf).unwrap().sort.clone()

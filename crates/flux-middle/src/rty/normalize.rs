@@ -10,23 +10,26 @@ use crate::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
-        Binder, Expr, ExprKind, SpecFunc,
+        Binder, Expr, ExprKind,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 
 #[derive(Default)]
 pub struct NormalizedDefns {
-    defns: UnordMap<FluxLocalDefId, SpecFunc>,
+    defns: UnordMap<FluxLocalDefId, Binder<Expr>>,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    defs: Option<&'a UnordMap<FluxLocalDefId, SpecFunc>>,
+    defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
 }
 
 impl NormalizedDefns {
-    pub fn new(genv: GlobalEnv, defns: &[SpecFunc]) -> Result<Self, Vec<FluxLocalDefId>> {
+    pub fn new(
+        genv: GlobalEnv,
+        defns: &[(FluxLocalDefId, Binder<Expr>)],
+    ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
 
@@ -35,14 +38,14 @@ impl NormalizedDefns {
         for i in ds {
             let defn = &defns[i];
             let body = defn
-                .body
+                .1
                 .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
-            normalized.insert(defn.def_id.expect_local(), SpecFunc { body, ..*defn });
+            normalized.insert(defn.0, body);
         }
         Ok(Self { defns: normalized })
     }
 
-    pub fn func_defn(&self, did: FluxLocalDefId) -> &SpecFunc {
+    pub fn func_defn(&self, did: FluxLocalDefId) -> &Binder<Expr> {
         self.defns.get(&did).unwrap()
     }
 }
@@ -51,18 +54,18 @@ impl NormalizedDefns {
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+fn toposort(defns: &[(FluxLocalDefId, Binder<Expr>)]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
         .enumerate()
-        .map(|(i, defn)| (defn.def_id.expect_local(), i))
+        .map(|(i, defn)| (defn.0, i))
         .collect();
 
     // 2. Make the dependency graph
-    let mut adj_list: Vec<Vec<usize>> = Vec::with_capacity(defns.len());
+    let mut adj_list = Vec::with_capacity(defns.len());
     for defn in defns {
-        let deps = local_deps(&defn.body);
+        let deps = local_deps(&defn.1);
         let ddeps = deps
             .iter()
             .filter_map(|s| s2i.get(s).copied())
@@ -77,10 +80,7 @@ fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
         Ok(is) => Ok(is),
         Err(mut scc) => {
             let cycle = scc.pop().unwrap();
-            Err(cycle
-                .iter()
-                .map(|i| defns[*i].def_id.expect_local())
-                .collect())
+            Err(cycle.iter().map(|i| defns[*i].0).collect())
         }
     }
 }
@@ -106,12 +106,12 @@ fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
 impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     pub(super) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        defs: Option<&'a UnordMap<FluxLocalDefId, SpecFunc>>,
+        defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
     ) -> Self {
         Self { genv, defs }
     }
 
-    fn func_defn(&self, did: FluxDefId) -> &SpecFunc {
+    fn func_defn(&self, did: FluxDefId) -> &Binder<Expr> {
         if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()
         {
@@ -131,7 +131,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
-                let res = self.func_defn(*did).body.replace_bound_refts(args);
+                let res = self.func_defn(*did).replace_bound_refts(args);
                 Self::at_base(res, espan)
             }
             ExprKind::Abs(lam) => {

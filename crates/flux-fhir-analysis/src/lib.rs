@@ -45,7 +45,7 @@ fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
-    providers.func_decl = func_decl;
+    providers.func_sort = func_sort;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -70,7 +70,7 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-fn func_decl(genv: GlobalEnv, def_id: FluxLocalDefId) -> QueryResult<rty::SpecFuncDecl> {
+fn func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -> QueryResult<rty::PolyFuncSort> {
     let func = genv.map().spec_func(def_id).unwrap();
     conv::conv_func_decl(genv, func)
 }
@@ -97,7 +97,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         if let Some(defn) = defn {
-            defns.push(defn);
+            defns.push((func.def_id, defn));
         }
     }
     errors.into_result()?;

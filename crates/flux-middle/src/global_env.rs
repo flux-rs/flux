@@ -134,7 +134,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_defn(self, did: FluxDefId) -> &'genv rty::SpecFunc {
+    pub fn normalized_defn(self, did: FluxDefId) -> &'genv rty::Binder<rty::Expr> {
         let local_id = did.expect_local();
         self.normalized_defns().func_defn(local_id)
     }
@@ -159,8 +159,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qual| qual.global || names.contains(&qual.def_id)))
     }
 
-    pub fn func_decl(self, def_id: FluxDefId) -> QueryResult<rty::SpecFuncDecl> {
-        self.inner.queries.func_decl(self, def_id)
+    pub fn func_sort(self, def_id: FluxDefId) -> QueryResult<rty::PolyFuncSort> {
+        self.inner.queries.func_sort(self, def_id)
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {

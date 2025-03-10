@@ -431,14 +431,14 @@ pub(crate) fn conv_defn(
     genv: GlobalEnv,
     func: &fhir::SpecFunc,
     wfckresults: &WfckResults,
-) -> QueryResult<Option<rty::SpecFunc>> {
+) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
     if let Some(body) = &func.body {
         let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(wfckresults, 0, func.args));
         let expr = cx.conv_expr(&mut env, body)?;
         let body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
-        Ok(Some(rty::SpecFunc { def_id: func.def_id.to_def_id(), body }))
+        Ok(Some(body))
     } else {
         Ok(None)
     }
@@ -2420,7 +2420,7 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFuncDecl> {
+pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty::PolyFuncSort> {
     let wfckresults = WfckResults::new(FluxOwnerId::Flux(func.def_id));
     let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
     let inputs_and_output = func
@@ -2433,8 +2433,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
     let params = iter::repeat(rty::SortParamKind::Sort)
         .take(func.params)
         .collect();
-    let sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
-    Ok(rty::SpecFuncDecl { def_id: func.def_id.to_def_id(), sort })
+    Ok(rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output }))
 }
 
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {

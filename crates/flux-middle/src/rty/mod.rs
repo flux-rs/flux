@@ -1184,17 +1184,6 @@ pub struct Qualifier {
     pub global: bool,
 }
 
-pub struct SpecFunc {
-    pub def_id: FluxDefId,
-    pub body: Binder<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SpecFuncDecl {
-    pub def_id: FluxDefId,
-    pub sort: PolyFuncSort,
-}
-
 pub type TyCtor = Binder<Ty>;
 
 impl TyCtor {
