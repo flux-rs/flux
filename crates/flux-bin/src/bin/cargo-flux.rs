@@ -42,10 +42,10 @@ fn run() -> Result<i32> {
 
     // Unless we are calling `cargo flux clean` append a check
     match &args[..] {
-        [subcommand, ..] if subcommand != "clean" => {
+        [subcommand, ..] if subcommand == "clean" => {}
+        _ => {
             cmd.arg("check");
         }
-        _ => {}
     }
 
     let exit_code = cmd
