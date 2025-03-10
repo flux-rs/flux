@@ -24,7 +24,7 @@ use derive_where::derive_where;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FluxDefId,
+    FluxDefId, FluxId,
     cstore::{CrateStore, OptResult},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -82,7 +82,7 @@ impl Key for DefId {
 }
 
 impl Key for FluxDefId {
-    type KeyIndex = FluxDefId<DefIndex>;
+    type KeyIndex = FluxId<DefIndex>;
 
     fn crate_num(self) -> CrateNum {
         self.parent().krate
@@ -105,10 +105,10 @@ pub struct Tables<K: Eq + Hash> {
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
-    assoc_refinements_def: UnordMap<FluxDefId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    assoc_refinements_def: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinements_def:
-        UnordMap<FluxDefId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
-    sort_of_assoc_reft: UnordMap<FluxDefId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
+        UnordMap<FluxId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
+    sort_of_assoc_reft: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
@@ -274,7 +274,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
     def_ids: impl IntoIterator<Item = DefId>,
     tables: &mut Tables<K>,
     did_to_key: fn(DefId) -> K,
-    assoc_id_to_key: fn(FluxDefId) -> FluxDefId<K>,
+    assoc_id_to_key: fn(FluxDefId) -> FluxId<K>,
 ) {
     for def_id in def_ids {
         let def_kind = genv.def_kind(def_id);

@@ -541,21 +541,22 @@ impl ResolvedDefId {
 /// arbitrary [`Symbol`], this doesn't guarantee the existence of the item, so we must be careful
 /// when creating instances of this struct.
 ///
-/// We make the struct fields private so we have to create one using [`FluxDefId::new`]. We also
+/// We make the struct fields private so we have to create one using [`FluxId::new`]. We also
 /// have a clippy lint disallowing [`FluxDefId::new`] which can be disabled selectively when we can
 /// ensure the associated refinement exists.
 ///
 /// The struct is generic on the parent `Id` because we use it with various kinds of ids,
 /// e.g., [`DefId`], [`MaybeExternId`], ...
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
-pub struct FluxDefId<Id = DefId> {
+pub struct FluxId<Id> {
     parent: Id,
     name: Symbol,
 }
 
-pub type FluxLocalDefId = FluxDefId<LocalDefId>;
+pub type FluxDefId = FluxId<DefId>;
+pub type FluxLocalDefId = FluxId<LocalDefId>;
 
-impl<Id> FluxDefId<Id> {
+impl<Id> FluxId<Id> {
     pub fn new(parent: Id, name: Symbol) -> Self {
         Self { parent, name }
     }
@@ -572,16 +573,16 @@ impl<Id> FluxDefId<Id> {
 impl FluxDefId {
     pub fn as_local(self) -> Option<FluxLocalDefId> {
         #[allow(clippy::disallowed_methods, reason = "flux items cannot be extern specs")]
-        Some(FluxDefId { parent: self.parent.as_local()?, name: self.name })
+        Some(FluxId { parent: self.parent.as_local()?, name: self.name })
     }
 
     pub fn expect_local(self) -> FluxLocalDefId {
         #[allow(clippy::disallowed_methods, reason = "flux items cannot be extern specs")]
-        FluxDefId { parent: self.parent.expect_local(), name: self.name }
+        FluxId { parent: self.parent.expect_local(), name: self.name }
     }
 
-    pub fn index(self) -> FluxDefId<DefIndex> {
-        FluxDefId { parent: self.parent.index, name: self.name }
+    pub fn index(self) -> FluxId<DefIndex> {
+        FluxId { parent: self.parent.index, name: self.name }
     }
 }
 

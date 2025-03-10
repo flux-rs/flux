@@ -22,7 +22,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId, fhir,
+    FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId, fhir,
     global_env::GlobalEnv,
     rty::{
         self,
@@ -149,15 +149,12 @@ pub struct Providers {
         fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AssocRefinements>,
     pub sort_of_assoc_reft:
-        fn(GlobalEnv, FluxDefId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
     pub assoc_refinement_body:
-        fn(GlobalEnv, FluxDefId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
     #[allow(clippy::type_complexity)]
-    pub default_assoc_refinement_body: fn(
-        GlobalEnv,
-        FluxDefId<MaybeExternId>,
-    )
-        -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
+    pub default_assoc_refinement_body:
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
@@ -758,10 +755,10 @@ fn dispatch_query<R>(
 
 fn dispatch_query_flux_id<R>(
     genv: GlobalEnv,
-    def_id: FluxDefId<DefId>,
-    local: impl FnOnce(FluxDefId<MaybeExternId>) -> R,
-    external: impl FnOnce(FluxDefId<DefId>) -> Option<R>,
-    default: impl FnOnce(FluxDefId<DefId>) -> R,
+    def_id: FluxId<DefId>,
+    local: impl FnOnce(FluxId<MaybeExternId>) -> R,
+    external: impl FnOnce(FluxId<DefId>) -> Option<R>,
+    default: impl FnOnce(FluxId<DefId>) -> R,
 ) -> R {
     #[allow(
         clippy::disallowed_methods,
@@ -770,9 +767,9 @@ fn dispatch_query_flux_id<R>(
     dispatch_query(
         genv,
         def_id.parent(),
-        |container_id| local(FluxDefId::new(container_id, def_id.name)),
-        |container_id| external(FluxDefId::new(container_id, def_id.name)),
-        |container_id| default(FluxDefId::new(container_id, def_id.name)),
+        |container_id| local(FluxId::new(container_id, def_id.name)),
+        |container_id| external(FluxId::new(container_id, def_id.name)),
+        |container_id| default(FluxId::new(container_id, def_id.name)),
     )
 }
 

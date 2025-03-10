@@ -2,5 +2,5 @@ disallowed-methods = [
     { path = "rustc_span::def_id::DefId::is_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
     { path = "rustc_span::def_id::DefId::expect_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
     { path = "rustc_span::def_id::DefId::as_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
-    { path = "flux_middle::FluxDefId::new", reason = "you should only create an `FluxDefId` if you can guarantee that the item exists" },
+    { path = "flux_middle::FluxId::new", reason = "you should only create an `FluxDefId` if you can guarantee that the item exists" },
 ]

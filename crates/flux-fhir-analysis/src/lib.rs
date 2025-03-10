@@ -23,7 +23,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FluxDefId, FluxLocalDefId, MaybeExternId, fhir,
+    FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -239,7 +239,7 @@ fn assoc_refinements_of(
 
 fn default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_assoc_id: FluxDefId<MaybeExternId>,
+    trait_assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
     let trait_id = trait_assoc_id.parent();
     let assoc_reft = genv
@@ -257,7 +257,7 @@ fn default_assoc_refinement_body(
 
 fn assoc_refinement_body(
     genv: GlobalEnv,
-    impl_assoc_id: FluxDefId<MaybeExternId>,
+    impl_assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
     let impl_id = impl_assoc_id.parent();
 
@@ -276,7 +276,7 @@ fn assoc_refinement_body(
 
 fn sort_of_assoc_reft(
     genv: GlobalEnv,
-    assoc_id: FluxDefId<MaybeExternId>,
+    assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
     let container_id = assoc_id.parent();
 
