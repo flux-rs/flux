@@ -483,7 +483,7 @@ pub struct Requires<'fhir> {
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
     //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [Ident],
+    pub qualifiers: &'fhir [FluxLocalDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 

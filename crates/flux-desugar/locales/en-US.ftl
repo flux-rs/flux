@@ -76,6 +76,10 @@ desugar_illegal_binder =
     illegal binder
     .label = `{$kind}` binder not allowed in this position
 
+desugar_unknown_qualifier =
+    unknown qualifier
+
+
 # Lifting Errors
 
 desugar_unsupported_hir =

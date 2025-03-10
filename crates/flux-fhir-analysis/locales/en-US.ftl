@@ -24,9 +24,6 @@ fhir_analysis_illegal_binder =
 fhir_analysis_duplicated_ensures =
     an ensures clause already exists for `{$loc}`
 
-fhir_analysis_unknown_qualifier =
-    unknown qualifier
-
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 

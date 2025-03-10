@@ -5,7 +5,9 @@ use flux_common::{
     result::{ErrorCollector, ResultExt},
 };
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{FluxDefId, MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv};
+use flux_middle::{
+    FluxDefId, FluxLocalDefId, MaybeExternId, ResolverOutput, Specs, fhir, global_env::GlobalEnv,
+};
 use flux_syntax::surface::{self, Ident, visit::Visitor as _};
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -55,6 +57,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     /// [`DefId`]
     crates: UnordMap<Symbol, DefId>,
     prelude: PerNS<Rib>,
+    qualifiers: UnordMap<Symbol, FluxLocalDefId>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     enum_variants: FxHashMap<DefId, EnumVariants>,
@@ -78,6 +81,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 macro_ns: Rib::new(RibKind::Normal),
             },
             err: None,
+            qualifiers: Default::default(),
             func_decls: Default::default(),
             sort_decls: Default::default(),
             enum_variants: Default::default(),
@@ -87,16 +91,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn define_flux_global_items(&mut self) {
         for (parent, items) in self.specs.flux_items_by_parent.iter() {
-            let parent = parent.def_id.to_def_id();
             for item in items {
                 match item {
-                    surface::Item::Qualifier(_) => {}
+                    surface::Item::Qualifier(qual) => {
+                        let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
+                        self.qualifiers.insert(qual.name.name, def_id);
+                    }
                     surface::Item::FuncDef(defn) => {
-                        let id = FluxDefId::new(parent, defn.name.name);
+                        let parent = parent.def_id.to_def_id();
+                        let def_id = FluxDefId::new(parent, defn.name.name);
                         let kind = if defn.body.is_some() {
-                            fhir::SpecFuncKind::Def(id)
+                            fhir::SpecFuncKind::Def(def_id)
                         } else {
-                            fhir::SpecFuncKind::Uif(id)
+                            fhir::SpecFuncKind::Uif(def_id)
                         };
                         self.func_decls.insert(defn.name.name, kind);
                     }
@@ -305,12 +312,38 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id.local_id()].fn_sig {
+        let fn_spec = &self.specs.fn_sigs[&owner_id.local_id()];
+
+        if let Some(owner_id) = owner_id.as_local() {
+            self.resolve_qualifiers(owner_id, fn_spec.qual_names.as_ref())?;
+        }
+        if let Some(fn_sig) = &fn_spec.fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
             RefinementResolver::resolve_fn_sig(self, fn_sig)?;
         }
+        Ok(())
+    }
+
+    fn resolve_qualifiers(
+        &mut self,
+        owner_id: OwnerId,
+        quals: Option<&surface::QualNames>,
+    ) -> Result {
+        let qual_names = quals.map_or(&[][..], |q| &q.names[..]);
+        let mut qualifiers = Vec::with_capacity(qual_names.len());
+        for qual in qual_names {
+            if let Some(def_id) = self.qualifiers.get(&qual.name) {
+                qualifiers.push(*def_id);
+            } else {
+                return Err(self
+                    .genv
+                    .sess()
+                    .emit_err(errors::UnknownQualifier::new(qual.span)));
+            }
+        }
+        self.output.qualifier_res_map.insert(owner_id, qualifiers);
         Ok(())
     }
 
@@ -869,6 +902,19 @@ mod errors {
                 span: path.span,
                 path: path.segments.iter().map(|segment| segment.ident).join("::"),
             }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unknown_qualifier, code = E0999)]
+    pub(super) struct UnknownQualifier {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownQualifier {
+        pub(super) fn new(span: Span) -> UnknownQualifier {
+            Self { span }
         }
     }
 }

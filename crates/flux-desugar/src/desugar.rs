@@ -564,7 +564,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
 
-        let qual_names = fn_spec.qual_names.as_ref().map_or(&[][..], |it| &it.names);
+        let qual_names = self
+            .owner
+            .as_local()
+            .map_or(&[][..], |owner_id| &self.resolver_output.qualifier_res_map[&owner_id]);
         Ok((generics, fhir::FnSig {
             header,
             qualifiers: self.genv.alloc_slice(qual_names),

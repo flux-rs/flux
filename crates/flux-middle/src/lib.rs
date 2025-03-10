@@ -408,6 +408,8 @@ pub struct ResolverOutput {
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
+    /// The resolved list of local qualifiers per function
+    pub qualifier_res_map: UnordMap<OwnerId, Vec<FluxLocalDefId>>,
 }
 
 /// This enum serves as a type-level reminder that a local definition _may be_ a wrapper for an

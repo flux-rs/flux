@@ -1,8 +1,7 @@
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashSet;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
@@ -77,20 +76,17 @@ fn toposort(defns: &[SpecFunc]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     match g.toposort_or_scc() {
         Ok(is) => Ok(is),
         Err(mut scc) => {
-            // fix order
-            let a = 0;
             let cycle = scc.pop().unwrap();
             Err(cycle
                 .iter()
                 .map(|i| defns[*i].def_id.expect_local())
-                .sorted_by_key(|def_id| def_id.name())
                 .collect())
         }
     }
 }
 
-fn local_deps(body: &Binder<Expr>) -> FxHashSet<FluxLocalDefId> {
-    struct DepsVisitor(FxHashSet<FluxLocalDefId>);
+fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
+    struct DepsVisitor(FxIndexSet<FluxLocalDefId>);
     impl TypeVisitor for DepsVisitor {
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
             if let ExprKind::App(func, _) = expr.kind()
@@ -102,7 +98,7 @@ fn local_deps(body: &Binder<Expr>) -> FxHashSet<FluxLocalDefId> {
             expr.super_visit_with(self)
         }
     }
-    let mut visitor = DepsVisitor(FxHashSet::default());
+    let mut visitor = DepsVisitor(Default::default());
     body.visit_with(&mut visitor);
     visitor.0
 }

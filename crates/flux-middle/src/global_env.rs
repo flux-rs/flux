@@ -5,7 +5,7 @@ use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
-use rustc_hash::FxHashSet;
+use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -152,17 +152,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let a = 0;
-        let names: FxHashSet<Symbol> = self
-            .map()
-            .fn_quals_for(did)?
-            .iter()
-            .map(|qual| qual.name)
-            .collect();
+        let names: UnordSet<_> = self.map().fn_quals_for(did)?.iter().copied().collect();
         Ok(self
             .qualifiers()?
             .iter()
-            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.def_id.name())))
+            .filter(move |qual| qual.global || names.contains(&qual.def_id)))
     }
 
     pub fn func_decl(self, def_id: FluxDefId) -> QueryResult<rty::SpecFuncDecl> {
@@ -585,7 +579,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxLocalDefId]> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
             Ok(fn_sig.qualifiers)

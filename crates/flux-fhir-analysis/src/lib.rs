@@ -523,11 +523,7 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 }
 
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
-    let mut errors = Errors::new(genv.sess());
-
-    let a = 0;
-    let qualifiers = genv.map().qualifiers().map(|q| q.def_id.name()).collect();
-
+    let errors = Errors::new(genv.sess());
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
         if genv.ignored(def_id) || genv.is_dummy(def_id) {
             continue;
@@ -549,11 +545,6 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
                 let _ = genv.check_wf(def_id).emit(&errors);
             }
             _ => {}
-        }
-        if matches!(def_kind, DefKind::Fn | DefKind::AssocFn) {
-            if let Ok(fn_quals) = genv.map().fn_quals_for(def_id).emit(&errors) {
-                wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals).collect_err(&mut errors);
-            }
         }
     }
 
