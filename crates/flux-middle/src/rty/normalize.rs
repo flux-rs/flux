@@ -1,115 +1,126 @@
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_span::Symbol;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
+    def_id::{FluxDefId, FluxLocalDefId},
     fhir::SpecFuncKind,
+    global_env::GlobalEnv,
     rty::{
-        Binder, Expr, ExprKind, SpecFunc,
+        Binder, Expr, ExprKind,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 
 #[derive(Default)]
-pub struct SpecFuncDefns {
-    defns: FxHashMap<Symbol, SpecFunc>,
+pub struct NormalizedDefns {
+    defns: UnordMap<FluxLocalDefId, Binder<Expr>>,
 }
 
-pub(super) struct Normalizer<'a> {
-    defs: &'a SpecFuncDefns,
+pub(super) struct Normalizer<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
 }
 
-impl SpecFuncDefns {
-    pub fn new(defns: FxHashMap<Symbol, SpecFunc>) -> Result<Self, Vec<Symbol>> {
-        let raw = SpecFuncDefns { defns };
-        raw.normalize()
-    }
-
-    fn defn_deps(&self, expr: &Binder<Expr>) -> FxHashSet<Symbol> {
-        struct DepsVisitor(FxHashSet<Symbol>);
-        impl TypeVisitor for DepsVisitor {
-            fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-                if let ExprKind::App(func, _) = expr.kind()
-                    && let ExprKind::GlobalFunc(sym, SpecFuncKind::Def) = func.kind()
-                {
-                    self.0.insert(*sym);
-                }
-                expr.super_visit_with(self)
-            }
-        }
-        let mut visitor = DepsVisitor(FxHashSet::default());
-        expr.visit_with(&mut visitor);
-        visitor.0
-    }
-
-    /// Returns
-    /// * either Ok(d1...dn) which are topologically sorted such that
-    ///   forall i < j, di does not depend on i.e. "call" dj
-    /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-    fn sorted_defns(&self) -> Result<Vec<Symbol>, Vec<Symbol>> {
-        // 1. Make the Symbol-Index
-        let mut i2s: Vec<Symbol> = Vec::new();
-        let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
-        for (i, s) in self.defns.keys().enumerate() {
-            i2s.push(*s);
-            s2i.insert(*s, i);
-        }
-
-        // 2. Make the dependency graph
-        let mut adj_list: Vec<Vec<usize>> = vec![];
-        for name in &i2s {
-            let defn = self.defns.get(name).unwrap();
-            let deps = self.defn_deps(&defn.expr);
-            let ddeps = deps
-                .iter()
-                .filter_map(|s| s2i.get(s).copied())
-                .collect_vec();
-            adj_list.push(ddeps);
-        }
-        let mut g = IndexGraph::from_adjacency_list(&adj_list);
-        g.transpose();
-
-        // 3. Topologically sort the graph
-        match g.toposort_or_scc() {
-            Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
-            Err(mut scc) => {
-                let cycle = scc.pop().unwrap();
-                let mut names: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
-                names.sort();
-                Err(names)
-            }
-        }
-    }
-
-    // private function normalize (expand_defns) which does the SCC-expansion
-    fn normalize(mut self) -> Result<Self, Vec<Symbol>> {
+impl NormalizedDefns {
+    pub fn new(
+        genv: GlobalEnv,
+        defns: &[(FluxLocalDefId, Binder<Expr>)],
+    ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
-        let ds = self.sorted_defns()?;
+        let ds = toposort(defns)?;
 
         // 2. Expand each defn in the sorted order
-        let mut exp_defns = SpecFuncDefns { defns: FxHashMap::default() };
-        for d in ds {
-            if let Some(defn) = self.defns.remove(&d) {
-                let expr = defn.expr.normalize(&exp_defns);
-                let exp_defn = SpecFunc { expr, ..defn };
-                exp_defns.defns.insert(d, exp_defn);
-            }
+        let mut normalized = UnordMap::default();
+        for i in ds {
+            let defn = &defns[i];
+            let body = defn
+                .1
+                .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+            normalized.insert(defn.0, body);
         }
-        Ok(exp_defns)
+        Ok(Self { defns: normalized })
     }
 
-    fn func_defn(&self, f: &Symbol) -> Option<&SpecFunc> {
-        self.defns.get(f)
+    pub fn func_defn(&self, did: FluxLocalDefId) -> &Binder<Expr> {
+        self.defns.get(&did).unwrap()
     }
 }
 
-impl<'a> Normalizer<'a> {
-    pub(super) fn new(defs: &'a SpecFuncDefns) -> Self {
-        Self { defs }
+/// Returns
+/// * either Ok(d1...dn) which are topologically sorted such that
+///   forall i < j, di does not depend on i.e. "call" dj
+/// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
+fn toposort(defns: &[(FluxLocalDefId, Binder<Expr>)]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+    // 1. Make a Symbol to Index map
+    let s2i: UnordMap<FluxLocalDefId, usize> = defns
+        .iter()
+        .enumerate()
+        .map(|(i, defn)| (defn.0, i))
+        .collect();
+
+    // 2. Make the dependency graph
+    let mut adj_list = Vec::with_capacity(defns.len());
+    for defn in defns {
+        let deps = local_deps(&defn.1);
+        let ddeps = deps
+            .iter()
+            .filter_map(|s| s2i.get(s).copied())
+            .collect_vec();
+        adj_list.push(ddeps);
+    }
+    let mut g = IndexGraph::from_adjacency_list(&adj_list);
+    g.transpose();
+
+    // 3. Topologically sort the graph
+    match g.toposort_or_scc() {
+        Ok(is) => Ok(is),
+        Err(mut scc) => {
+            let cycle = scc.pop().unwrap();
+            Err(cycle.iter().map(|i| defns[*i].0).collect())
+        }
+    }
+}
+
+fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
+    struct DepsVisitor(FxIndexSet<FluxLocalDefId>);
+    impl TypeVisitor for DepsVisitor {
+        #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
+        fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
+            if let ExprKind::App(func, _) = expr.kind()
+                && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
+                && let Some(did) = did.as_local()
+            {
+                self.0.insert(did);
+            }
+            expr.super_visit_with(self)
+        }
+    }
+    let mut visitor = DepsVisitor(Default::default());
+    body.visit_with(&mut visitor);
+    visitor.0
+}
+
+impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
+    pub(super) fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
+    ) -> Self {
+        Self { genv, defs }
+    }
+
+    #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
+    fn func_defn(&self, did: FluxDefId) -> &Binder<Expr> {
+        if let Some(defs) = self.defs
+            && let Some(local_id) = did.as_local()
+        {
+            defs.get(&local_id).unwrap()
+        } else {
+            self.genv.normalized_defn(did)
+        }
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {
@@ -121,10 +132,8 @@ impl<'a> Normalizer<'a> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(sym, SpecFuncKind::Def)
-                if let Some(defn) = self.defs.func_defn(sym) =>
-            {
-                let res = defn.expr.replace_bound_refts(args);
+            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
+                let res = self.func_defn(*did).replace_bound_refts(args);
                 Self::at_base(res, espan)
             }
             ExprKind::Abs(lam) => {
@@ -136,7 +145,7 @@ impl<'a> Normalizer<'a> {
     }
 }
 
-impl TypeFolder for Normalizer<'_> {
+impl TypeFolder for Normalizer<'_, '_, '_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
         let span = expr.span();

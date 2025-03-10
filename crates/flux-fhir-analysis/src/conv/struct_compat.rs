@@ -8,7 +8,8 @@ use std::{fmt, iter};
 use flux_common::bug;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId, fhir,
+    def_id::MaybeExternId,
+    fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -636,7 +637,7 @@ mod errors {
     use flux_common::span_bug;
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{MaybeExternId, fhir, global_env::GlobalEnv, rty};
+    use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
     use flux_rustc_bridge::{
         ToRustc,
         ty::{FieldIdx, VariantIdx},

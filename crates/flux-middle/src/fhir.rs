@@ -39,7 +39,7 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 pub use rustc_target::abi::VariantIdx;
 use rustc_target::spec::abi;
 
-use crate::MaybeExternId;
+use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -108,7 +108,7 @@ pub enum GenericParamKind<'fhir> {
 
 #[derive(Debug)]
 pub struct Qualifier<'fhir> {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
     pub expr: Expr<'fhir>,
     pub global: bool,
@@ -280,15 +280,6 @@ pub enum ForeignItemKind<'fhir> {
     Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
 }
 
-impl FluxItem<'_> {
-    pub fn name(&self) -> Symbol {
-        match self {
-            FluxItem::Qualifier(qual) => qual.name,
-            FluxItem::Func(func) => func.name,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct SortDecl {
     pub name: Symbol,
@@ -384,7 +375,7 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct FluxItems<'fhir> {
-    pub items: FxHashMap<Symbol, FluxItem<'fhir>>,
+    pub items: FxHashMap<FluxLocalDefId, FluxItem<'fhir>>,
 }
 
 impl FluxItems<'_> {
@@ -492,7 +483,7 @@ pub struct Requires<'fhir> {
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
     //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [Ident],
+    pub qualifiers: &'fhir [FluxLocalDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
@@ -570,18 +561,10 @@ pub enum Lifetime {
     Resolved(ResolvedArg),
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum FluxLocalDefId {
-    /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
-    Flux(Symbol),
-    /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
-    Rust(LocalDefId),
-}
-
 /// Owner version of [`FluxLocalDefId`]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
-    Flux(Symbol),
+    Flux(FluxLocalDefId),
     Rust(OwnerId),
 }
 
@@ -1014,7 +997,7 @@ pub enum ExprRes<Id = ParamId> {
     Variant(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
-    GlobalFunc(SpecFuncKind, Symbol),
+    GlobalFunc(SpecFuncKind),
 }
 
 impl<Id> ExprRes<Id> {
@@ -1023,7 +1006,7 @@ impl<Id> ExprRes<Id> {
             ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
             ExprRes::Const(def_id) => ExprRes::Const(def_id),
             ExprRes::NumConst(val) => ExprRes::NumConst(val),
-            ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
+            ExprRes::GlobalFunc(kind) => ExprRes::GlobalFunc(kind),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
             ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
             ExprRes::Variant(def_id) => ExprRes::Variant(def_id),
@@ -1056,21 +1039,6 @@ impl PolyTraitRef<'_> {
         } else {
             span_bug!(path.span, "unexpected resolution {:?}", path.res);
         }
-    }
-}
-
-impl From<FluxOwnerId> for FluxLocalDefId {
-    fn from(flux_id: FluxOwnerId) -> Self {
-        match flux_id {
-            FluxOwnerId::Flux(sym) => FluxLocalDefId::Flux(sym),
-            FluxOwnerId::Rust(owner_id) => FluxLocalDefId::Rust(owner_id.def_id),
-        }
-    }
-}
-
-impl From<LocalDefId> for FluxLocalDefId {
-    fn from(def_id: LocalDefId) -> Self {
-        FluxLocalDefId::Rust(def_id)
     }
 }
 
@@ -1162,7 +1130,7 @@ pub struct RefinedBy<'fhir> {
 
 #[derive(Debug)]
 pub struct SpecFunc<'fhir> {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub params: usize,
     pub args: &'fhir [RefineParam<'fhir>],
     pub sort: Sort<'fhir>,
@@ -1174,9 +1142,9 @@ pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
     /// User-defined uninterpreted functions with no definition
-    Uif,
+    Uif(FluxDefId),
     /// User-defined functions with a body definition
-    Def,
+    Def(FluxDefId),
 }
 
 impl<'fhir> Generics<'fhir> {

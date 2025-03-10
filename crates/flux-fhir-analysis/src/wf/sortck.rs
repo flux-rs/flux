@@ -4,7 +4,8 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, visit::Visitor as _},
+    THEORY_FUNCS,
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -334,7 +335,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
-            ExprRes::GlobalFunc(_, _) => {
+            ExprRes::GlobalFunc(_) => {
                 span_bug!(path.span, "unexpected func in var position")
             }
             ExprRes::Ctor(_) => {
@@ -468,7 +469,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 };
                 fsort
             }
-            ExprRes::GlobalFunc(.., sym) => self.genv.func_decl(sym).emit(&self.genv)?.sort.clone(),
+            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
+                self.genv.func_sort(name).emit(&self.genv)?
+            }
+            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
+                THEORY_FUNCS.get(&itf).unwrap().sort.clone()
+            }
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         Ok(self.instantiate_func_sort(poly_fsort))

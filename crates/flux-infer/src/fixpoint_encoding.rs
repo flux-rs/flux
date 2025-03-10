@@ -14,8 +14,9 @@ use flux_common::{
 use flux_config as config;
 use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId, def_id_to_string,
-    fhir::{self, SpecFuncKind},
+    def_id::{FluxDefId, MaybeExternId},
+    def_id_to_string,
+    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
@@ -28,7 +29,7 @@ use rustc_data_structures::{
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -369,7 +370,7 @@ type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
 
 #[derive(Eq, Hash, PartialEq)]
 enum Key<'tcx> {
-    Uif(Symbol),
+    Uif(FluxDefId),
     Const(DefId),
     Alias(rustc_middle::ty::TraitRef<'tcx>),
     Lambda(Lambda),
@@ -1099,16 +1100,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
             }
-            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(itf)) => {
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
             }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
-                fixpoint::Expr::Var(self.register_uif(*sym, scx).into())
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) => {
+                fixpoint::Expr::Var(self.register_uif(*def_id, scx).into())
             }
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 span_bug!(
                     self.def_span,
-                    "unexpected global function `{sym}`. Function must be normalized away at this point"
+                    "unexpected global function `{def_id:?}`. Function must be normalized away at this point"
                 )
             }
             rty::ExprKind::Hole(..)
@@ -1384,18 +1385,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn register_uif(&mut self, name: Symbol, scx: &mut SortEncodingCtxt) -> fixpoint::GlobalVar {
-        let key = Key::Uif(name);
+    fn register_uif(
+        &mut self,
+        def_id: FluxDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::GlobalVar {
+        let key = Key::Uif(def_id);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
                 let sort = self
                     .genv
-                    .func_decl(name)
-                    .map(|decl| {
-                        debug_assert_eq!(decl.kind, fhir::SpecFuncKind::Uif);
-                        scx.func_sort_to_fixpoint(&decl.sort)
-                    })
+                    .func_sort(def_id)
+                    .map(|sort| scx.func_sort_to_fixpoint(&sort))
                     .unwrap_or_else(|err| {
                         self.errors.emit(err.at(self.def_span));
                         fixpoint::Sort::Int
@@ -1404,7 +1406,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     name: self.global_var_gen.fresh(),
                     sort,
                     val: None,
-                    comment: format!("uif: {name}"),
+                    comment: format!("uif: {def_id:?}"),
                 }
             })
             .name
@@ -1529,7 +1531,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
                 .collect();
 
-        let name = qualifier.name.to_string();
+        let name = qualifier.def_id.name().to_string();
 
         Ok(fixpoint::Qualifier { name, args, body })
     }

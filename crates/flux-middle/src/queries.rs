@@ -22,10 +22,11 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    MaybeExternId, ResolvedDefId, fhir,
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    fhir,
     global_env::GlobalEnv,
     rty::{
-        self, AssocReftId,
+        self,
         refining::{self, Refine, Refiner},
     },
 };
@@ -130,8 +131,8 @@ pub struct Providers {
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
-    pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
+    pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
+    pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> QueryResult<rty::PolyFuncSort>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
@@ -149,15 +150,12 @@ pub struct Providers {
         fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AssocRefinements>,
     pub sort_of_assoc_reft:
-        fn(GlobalEnv, AssocReftId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
     pub assoc_refinement_body:
-        fn(GlobalEnv, AssocReftId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
     #[allow(clippy::type_complexity)]
-    pub default_assoc_refinement_body: fn(
-        GlobalEnv,
-        AssocReftId<MaybeExternId>,
-    )
-        -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
+    pub default_assoc_refinement_body:
+        fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
@@ -174,8 +172,8 @@ impl Default for Providers {
             resolve_crate: |_| empty_query!(),
             desugar: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
-            spec_func_defns: |_| empty_query!(),
-            spec_func_decl: |_, _| empty_query!(),
+            normalized_defns: |_| empty_query!(),
+            func_sort: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -207,8 +205,8 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    defns: OnceCell<QueryResult<rty::SpecFuncDefns>>,
-    func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
+    normalized_defns: OnceCell<rty::NormalizedDefns>,
+    func_sort: Cache<FluxDefId, QueryResult<rty::PolyFuncSort>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -218,10 +216,10 @@ pub struct Queries<'genv, 'tcx> {
     refinement_generics_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     assoc_refinements_of: Cache<DefId, QueryResult<rty::AssocRefinements>>,
-    assoc_refinement_body: Cache<AssocReftId, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    assoc_refinement_body: Cache<FluxDefId, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinement_body:
-        Cache<AssocReftId, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
-    sort_of_assoc_reft: Cache<AssocReftId, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
+        Cache<FluxDefId, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
+    sort_of_assoc_reft: Cache<FluxDefId, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -242,8 +240,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
             lower_fn_sig: Default::default(),
-            defns: Default::default(),
-            func_decls: Default::default(),
+            normalized_defns: Default::default(),
+            func_sort: Default::default(),
             qualifiers: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
@@ -385,19 +383,38 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn spec_func_defns(&self, genv: GlobalEnv) -> QueryResult<&rty::SpecFuncDefns> {
-        self.defns
-            .get_or_init(|| (self.providers.spec_func_defns)(genv))
-            .as_ref()
-            .map_err(Clone::clone)
+    pub(crate) fn normalized_defns(&self, genv: GlobalEnv) -> &rty::NormalizedDefns {
+        self.normalized_defns
+            .get_or_init(|| (self.providers.normalized_defns)(genv))
     }
 
-    pub(crate) fn func_decl(
+    pub(crate) fn func_sort(
         &self,
         genv: GlobalEnv,
-        name: Symbol,
-    ) -> QueryResult<rty::SpecFuncDecl> {
-        run_with_cache(&self.func_decls, name, || (self.providers.spec_func_decl)(genv, name))
+        def_id: FluxDefId,
+    ) -> QueryResult<rty::PolyFuncSort> {
+        run_with_cache(&self.func_sort, def_id, || {
+            dispatch_query_flux_id(
+                genv,
+                def_id,
+                |def_id| {
+                    // refinement functions cannot be extern specs so we simply grab the local id
+                    (self.providers.func_sort)(genv, def_id.local_id())
+                },
+                |def_id| {
+                    Some(Err(query_bug!(
+                        def_id.parent(),
+                        "extern refinement functions are not yet implemented"
+                    )))
+                },
+                |def_id| {
+                    Err(query_bug!(
+                        def_id.parent(),
+                        "cannot generate default function sort, the refinement must be defined somewhere"
+                    ))
+                },
+            )
+        })
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
@@ -584,17 +601,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn assoc_refinement_body(
         &self,
         genv: GlobalEnv,
-        impl_assoc_id: AssocReftId,
+        impl_assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         run_with_cache(&self.assoc_refinement_body, impl_assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 impl_assoc_id,
                 |impl_assoc_id| (self.providers.assoc_refinement_body)(genv, impl_assoc_id),
                 |impl_assoc_id| genv.cstore().assoc_refinements_def(impl_assoc_id),
                 |impl_assoc_id| {
                     Err(query_bug!(
-                        impl_assoc_id.container_id,
+                        impl_assoc_id.parent(),
                         "cannot generate default associate refinement for extern impl"
                     ))
                 },
@@ -605,10 +622,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn default_assoc_refinement_body(
         &self,
         genv: GlobalEnv,
-        trait_assoc_id: AssocReftId,
+        trait_assoc_id: FluxDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 trait_assoc_id,
                 |trait_assoc_id| {
@@ -617,7 +634,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |trait_assoc_id| genv.cstore().default_assoc_refinements_def(trait_assoc_id),
                 |trait_assoc_id| {
                     Err(query_bug!(
-                        trait_assoc_id.container_id,
+                        trait_assoc_id.parent(),
                         "cannot generate default assoc refinement for extern trait"
                     ))
                 },
@@ -628,17 +645,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn sort_of_assoc_reft(
         &self,
         genv: GlobalEnv,
-        assoc_id: AssocReftId,
+        assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
         run_with_cache(&self.sort_of_assoc_reft, assoc_id, || {
-            dispatch_query_assoc_id(
+            dispatch_query_flux_id(
                 genv,
                 assoc_id,
                 |assoc_id| (self.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
                     Err(query_bug!(
-                        assoc_id.container_id,
+                        assoc_id.parent(),
                         "cannot generate default sort for assoc refinement in extern crate"
                     ))
                 },
@@ -757,23 +774,23 @@ fn dispatch_query<R>(
     }
 }
 
-fn dispatch_query_assoc_id<R>(
+fn dispatch_query_flux_id<R>(
     genv: GlobalEnv,
-    assoc_id: AssocReftId<DefId>,
-    local: impl FnOnce(AssocReftId<MaybeExternId>) -> R,
-    external: impl FnOnce(AssocReftId<DefId>) -> Option<R>,
-    default: impl FnOnce(AssocReftId<DefId>) -> R,
+    def_id: FluxId<DefId>,
+    local: impl FnOnce(FluxId<MaybeExternId>) -> R,
+    external: impl FnOnce(FluxId<DefId>) -> Option<R>,
+    default: impl FnOnce(FluxId<DefId>) -> R,
 ) -> R {
     #[allow(
         clippy::disallowed_methods,
-        reason = "we are mapping the container id to a different representation which still guarantees the existence of the associated refinement"
+        reason = "we are mapping the parent id to a different representation which still guarantees the existence of the item"
     )]
     dispatch_query(
         genv,
-        assoc_id.container_id,
-        |container_id| local(AssocReftId::new(container_id, assoc_id.name)),
-        |container_id| external(AssocReftId::new(container_id, assoc_id.name)),
-        |container_id| default(AssocReftId::new(container_id, assoc_id.name)),
+        def_id.parent(),
+        |container_id| local(FluxId::new(container_id, def_id.name())),
+        |container_id| external(FluxId::new(container_id, def_id.name())),
+        |container_id| default(FluxId::new(container_id, def_id.name())),
     )
 }
 

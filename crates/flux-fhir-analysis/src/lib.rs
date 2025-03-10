@@ -23,13 +23,13 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    MaybeExternId,
-    fhir::{self},
+    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, AssocReftId, WfckResults,
+        self, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -37,18 +37,16 @@ use flux_middle::{
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
-    providers.spec_func_defns = spec_func_defns;
-    providers.spec_func_decl = spec_func_decl;
+    providers.normalized_defns = normalized_defns;
+    providers.func_sort = func_sort;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -73,21 +71,22 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
-    if let Some(func) = genv.map().spec_func(name) {
-        conv::conv_func_decl(genv, func)
-    } else {
-        let itf = flux_middle::THEORY_FUNCS.get(&name).unwrap();
-        Ok(rty::SpecFuncDecl {
-            name: itf.name,
-            sort: itf.sort.clone(),
-            kind: fhir::SpecFuncKind::Thy(itf.itf),
-        })
+fn func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -> QueryResult<rty::PolyFuncSort> {
+    let func = genv.map().spec_func(def_id).unwrap();
+    conv::conv_func_decl(genv, func)
+}
+
+fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
+    match try_normalized_defns(genv) {
+        Ok(normalized) => normalized,
+        Err(err) => {
+            genv.sess().abort(err);
+        }
     }
 }
 
-fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
-    let mut defns = FxHashMap::default();
+fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGuaranteed> {
+    let mut defns = vec![];
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
@@ -99,12 +98,12 @@ fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
             continue;
         };
         if let Some(defn) = defn {
-            defns.insert(defn.name, defn);
+            defns.push((func.def_id, defn));
         }
     }
     errors.into_result()?;
 
-    let defns = rty::SpecFuncDefns::new(defns)
+    let defns = rty::NormalizedDefns::new(genv, &defns)
         .map_err(|cycle| {
             let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
             errors::DefinitionCycle::new(span, cycle)
@@ -119,8 +118,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .qualifiers()
         .map(|qualifier| {
             let wfckresults = wf::check_qualifier(genv, qualifier)?;
-            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?
-                .normalize(genv.spec_func_defns()?))
+            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
         })
         .try_collect()
 }
@@ -225,14 +223,14 @@ fn assoc_refinements_of(
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) => {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| rty::AssocReftId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
                 .collect()
         }
         _ => Err(query_bug!(local_id.resolved_id(), "expected trait or impl"))?,
@@ -242,14 +240,14 @@ fn assoc_refinements_of(
 
 fn default_assoc_refinement_body(
     genv: GlobalEnv,
-    trait_assoc_id: AssocReftId<MaybeExternId>,
+    trait_assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-    let trait_id = trait_assoc_id.container_id;
+    let trait_id = trait_assoc_id.parent();
     let assoc_reft = genv
         .map()
         .expect_item(trait_id.local_id())?
         .expect_trait()
-        .find_assoc_reft(trait_assoc_id.name)
+        .find_assoc_reft(trait_assoc_id.name())
         .unwrap();
     let Some(body) = assoc_reft.body else { return Ok(None) };
     let wfckresults = genv.check_wf(trait_id.local_id())?;
@@ -260,15 +258,15 @@ fn default_assoc_refinement_body(
 
 fn assoc_refinement_body(
     genv: GlobalEnv,
-    impl_assoc_id: AssocReftId<MaybeExternId>,
+    impl_assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let impl_id = impl_assoc_id.container_id;
+    let impl_id = impl_assoc_id.parent();
 
     let assoc_reft = genv
         .map()
         .expect_item(impl_id.local_id())?
         .expect_impl()
-        .find_assoc_reft(impl_assoc_id.name)
+        .find_assoc_reft(impl_assoc_id.name())
         .unwrap();
 
     let wfckresults = genv.check_wf(impl_id.local_id())?;
@@ -279,13 +277,13 @@ fn assoc_refinement_body(
 
 fn sort_of_assoc_reft(
     genv: GlobalEnv,
-    assoc_id: AssocReftId<MaybeExternId>,
+    assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
-    let container_id = assoc_id.container_id;
+    let container_id = assoc_id.parent();
 
     match &genv.map().expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
-            let assoc_reft = trait_.find_assoc_reft(assoc_id.name).unwrap();
+            let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
             let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
@@ -297,7 +295,7 @@ fn sort_of_assoc_reft(
             Ok(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         fhir::ItemKind::Impl(impl_) => {
-            let assoc_reft = impl_.find_assoc_reft(assoc_id.name).unwrap();
+            let assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
             let wfckresults = genv.check_wf(container_id.local_id())?;
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
@@ -526,10 +524,7 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
 }
 
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
-    let mut errors = Errors::new(genv.sess());
-
-    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
-
+    let errors = Errors::new(genv.sess());
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
         if genv.ignored(def_id) || genv.is_dummy(def_id) {
             continue;
@@ -552,16 +547,11 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             }
             _ => {}
         }
-        if matches!(def_kind, DefKind::Fn | DefKind::AssocFn) {
-            if let Ok(fn_quals) = genv.map().fn_quals_for(def_id).emit(&errors) {
-                wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals).collect_err(&mut errors);
-            }
-        }
     }
 
     // Query qualifiers and spec funcs to report wf errors
     let _ = genv.qualifiers().emit(&errors);
-    let _ = genv.spec_func_defns().emit(&errors);
+    let _ = genv.normalized_defns();
 
     errors.into_result()
 }
@@ -569,7 +559,8 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
+    use flux_middle::def_id::FluxLocalDefId;
+    use rustc_span::Span;
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_definition_cycle, code = E0999)]
@@ -581,9 +572,9 @@ mod errors {
     }
 
     impl DefinitionCycle {
-        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
-            let root = format!("`{}`", cycle[0]);
-            let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
+        pub(super) fn new(span: Span, cycle: Vec<FluxLocalDefId>) -> Self {
+            let root = format!("`{}`", cycle[0].name());
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s.name())).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
         }

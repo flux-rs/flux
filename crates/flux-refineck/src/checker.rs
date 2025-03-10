@@ -1869,7 +1869,7 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_middle::{MaybeExternId, def_id_to_string, global_env::GlobalEnv};
+    use flux_middle::{def_id::MaybeExternId, def_id_to_string, global_env::GlobalEnv};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_span::Span;

@@ -7,15 +7,14 @@ mod param_usage;
 mod sortck;
 
 use flux_common::result::{ErrorCollector, ResultExt as _};
-use flux_errors::{Errors, FluxSession};
+use flux_errors::Errors;
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{self, FhirId, FluxOwnerId, visit::Visitor},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, WfckResults},
 };
-use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
@@ -23,7 +22,6 @@ use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, DefIndex},
 };
-use rustc_span::{Symbol, symbol::Ident};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
 use crate::conv::{ConvPhase, WfckResultsProvider};
@@ -31,7 +29,7 @@ use crate::conv::{ConvPhase, WfckResultsProvider};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(qual.name);
+    let owner = FluxOwnerId::Flux(qual.def_id);
     let mut infcx = InferCtxt::new(genv, owner);
     let mut wf = Wf::new(&mut infcx);
     wf.insert_params(qual.args)?;
@@ -43,7 +41,7 @@ pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result
 }
 
 pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(func.name);
+    let owner = FluxOwnerId::Flux(func.def_id);
     let mut infcx = InferCtxt::new(genv, owner);
     let mut wf = Wf::new(&mut infcx);
     if let Some(body) = &func.body {
@@ -118,20 +116,6 @@ pub(crate) fn check_node<'genv>(
 /// Check that all param sorts are fully resolved and save them in [`WfckResults`]
 fn resolve_params(infcx: &mut InferCtxt, node: &fhir::OwnerNode) -> Result {
     visit_refine_params(node, |param| infcx.resolve_param_sort(param))
-}
-
-pub(crate) fn check_fn_quals(
-    sess: &FluxSession,
-    qualifiers: &UnordSet<Symbol>,
-    fn_quals: &[Ident],
-) -> Result {
-    for qual in fn_quals {
-        if !qualifiers.contains(&qual.name) {
-            let span = qual.span;
-            return Err(sess.emit_err(errors::UnknownQualifier::new(span)));
-        }
-    }
-    Ok(())
 }
 
 struct Wf<'a, 'genv, 'tcx> {

@@ -13,7 +13,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
-    MaybeExternId,
+    def_id::MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -431,14 +431,14 @@ pub(crate) fn conv_defn(
     genv: GlobalEnv,
     func: &fhir::SpecFunc,
     wfckresults: &WfckResults,
-) -> QueryResult<Option<rty::SpecFunc>> {
+) -> QueryResult<Option<rty::Binder<rty::Expr>>> {
     if let Some(body) = &func.body {
         let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(wfckresults, 0, func.args));
         let expr = cx.conv_expr(&mut env, body)?;
-        let expr = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
-        Ok(Some(rty::SpecFunc { name: func.name, expr }))
+        let body = rty::Binder::bind_with_vars(expr, env.pop_layer().into_bound_vars(genv)?);
+        Ok(Some(body))
     } else {
         Ok(None)
     }
@@ -454,7 +454,7 @@ pub(crate) fn conv_qualifier(
     env.push_layer(Layer::list(wfckresults, 0, qualifier.args));
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
-    Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
+    Ok(rty::Qualifier { def_id: qualifier.def_id, body, global: qualifier.global })
 }
 
 pub(crate) fn conv_default_type_parameter(
@@ -2183,7 +2183,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind, sym) => rty::Expr::global_func(sym, kind),
+            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(kind),
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         self.add_coercions(expr, func.fhir_id)
@@ -2420,8 +2420,8 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty::SpecFuncDecl> {
-    let wfckresults = WfckResults::new(FluxOwnerId::Flux(func.name));
+pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty::PolyFuncSort> {
+    let wfckresults = WfckResults::new(FluxOwnerId::Flux(func.def_id));
     let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
     let inputs_and_output = func
         .args
@@ -2433,9 +2433,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
     let params = iter::repeat(rty::SortParamKind::Sort)
         .take(func.params)
         .collect();
-    let sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
-    let kind = if func.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
-    Ok(rty::SpecFuncDecl { name: func.name, sort, kind })
+    Ok(rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output }))
 }
 
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {

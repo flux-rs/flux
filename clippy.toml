@@ -2,5 +2,7 @@ disallowed-methods = [
     { path = "rustc_span::def_id::DefId::is_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
     { path = "rustc_span::def_id::DefId::expect_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
     { path = "rustc_span::def_id::DefId::as_local", reason = "treating a `DefId` as a `LocalDefId` is typically wrong because it doesn't consider that the `DefId` may correspond to a local extern spec. Use `MaybeExternId` or `ResolvedDefId` if possible" },
-    { path = "flux_middle::rty::AssocReftId::new", reason = "you should only create an `AssocReftId` if you can guarantee that the associated refinement exists" },
+    { path = "flux_middle::def_id::FluxId::new", reason = "you should only create an `FluxId` if you can guarantee that the item exists" },
+    { path = "flux_middle::def_id::FluxId::as_local", reason = "treating a `FluxDefId` as a `FluxLocalDefId` is typically wrong because it doesn't consider that the `FluxDefId` may correspond to a local extern spec. This can happen for associated refinements on extern items." },
+    { path = "flux_middle::def_id::FluxId::expect_local", reason = "treating a `FluxDefId` as a `FluxLocalDefId` is typically wrong because it doesn't consider that the `FluxDefId` may correspond to a local extern spec. This can happen for associated refinements on extern items." },
 ]

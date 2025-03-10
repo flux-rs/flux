@@ -51,19 +51,6 @@ impl DuplicatedEnsures {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_unknown_qualifier, code = E0999)]
-pub(super) struct UnknownQualifier {
-    #[primary_span]
-    span: Span,
-}
-
-impl UnknownQualifier {
-    pub(super) fn new(span: Span) -> UnknownQualifier {
-        Self { span }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_missing_ensures, code = E0999)]
 pub(super) struct MissingEnsures {
     #[primary_span]

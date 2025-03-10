@@ -22,11 +22,12 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    AssocReftId, BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort,
-    GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
+    GenericArgsExt as _, IntTy, Sort, UintTy,
 };
 use crate::{
     big_int::BigInt,
+    def_id::FluxDefId,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     pretty::*,
@@ -84,13 +85,13 @@ impl Lambda {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct AliasReft {
     /// Id of the associated refinement in the trait
-    pub assoc_id: AssocReftId,
+    pub assoc_id: FluxDefId,
     pub args: GenericArgs,
 }
 
 impl AliasReft {
     pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
-        let trait_def_id = self.assoc_id.container_id;
+        let trait_def_id = self.assoc_id.parent();
         let args = self
             .args
             .to_rustc(tcx)
@@ -307,8 +308,8 @@ impl Expr {
         ExprKind::App(func.into(), args).intern()
     }
 
-    pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
-        ExprKind::GlobalFunc(func, kind).intern()
+    pub fn global_func(kind: SpecFuncKind) -> Expr {
+        ExprKind::GlobalFunc(kind).intern()
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -533,7 +534,7 @@ impl Expr {
     /// Applies a field projection to an expression and optimistically try to beta reduce it
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
-            ExprKind::Tuple(flds) | ExprKind::Ctor(_, flds) => {
+            ExprKind::Tuple(flds) | ExprKind::Ctor(Ctor::Struct(_), flds) => {
                 flds[proj.field_idx() as usize].clone()
             }
             _ => Expr::field_proj(self.clone(), proj),
@@ -653,7 +654,7 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId, ConstantInfo),
     BinaryOp(BinOp, Expr, Expr),
-    GlobalFunc(Symbol, SpecFuncKind),
+    GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
@@ -1137,7 +1138,7 @@ pub(crate) mod pretty {
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
-    use crate::rty::pretty::nested_with_bound_vars;
+    use crate::{name_of_thy_func, rty::pretty::nested_with_bound_vars};
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1306,7 +1307,16 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(func, _) => w!(cx, f, "{}", ^func),
+                ExprKind::GlobalFunc(SpecFuncKind::Def(did) | SpecFuncKind::Uif(did)) => {
+                    w!(cx, f, "{}", ^did.name())
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
+                    if let Some(name) = name_of_thy_func(*itf) {
+                        w!(cx, f, "{}", ^name)
+                    } else {
+                        w!(cx, f, "<error>")
+                    }
+                }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
                     cx.with_bound_vars(vars, || {
@@ -1345,12 +1355,12 @@ pub(crate) mod pretty {
 
     impl Pretty for AliasReft {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            w!(cx, f, "<({:?}) as {:?}", &self.args[0], self.assoc_id.container_id)?;
+            w!(cx, f, "<({:?}) as {:?}", &self.args[0], self.assoc_id.parent())?;
             let args = &self.args[1..];
             if !args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", args))?;
             }
-            w!(cx, f, ">::{}", ^self.assoc_id.name)
+            w!(cx, f, ">::{}", ^self.assoc_id.name())
         }
     }
 

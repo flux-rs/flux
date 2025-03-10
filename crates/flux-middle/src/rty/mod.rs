@@ -38,13 +38,10 @@ use flux_rustc_bridge::{
     ty::{self, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::SpecFuncDefns;
+pub use normalize::NormalizedDefns;
 use refining::{Refine as _, Refiner};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hir::{
-    LangItem, Safety,
-    def_id::{DefId, DefIndex},
-};
+use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
@@ -61,7 +58,8 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
+    def_id::{FluxDefId, FluxLocalDefId},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::subst::SortSubst,
@@ -731,42 +729,9 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
-/// An id for an associated refinement with a type-level invariant ensuring that it exists.
-///
-/// We represent the id as a container id and an arbitrary name. This doesn't guarantee the
-/// existence of the associated refinement, so we must be careful when creating instances of
-/// this struct.
-///
-/// We mark the struct as `non_exhaustive` to make it harder to create one by mistake without
-/// calling [`AssocReftId::new`]. We also have a clippy lint disallowing [`AssocReftId::new`]
-/// which can be disabled selectively when we can ensure the associated refinement exists.
-///
-/// The struct is generic on the container `Id` because we use it with various kinds of ids,
-/// e.g., [`DefId`], [`MaybeExternId`], ...
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, TypeVisitable, TypeFoldable)]
-#[non_exhaustive]
-pub struct AssocReftId<Id = DefId> {
-    /// Id of the container, i.e., the impl block or trait.
-    pub container_id: Id,
-    /// Name of the associated refinement
-    pub name: Symbol,
-}
-
-impl<Id> AssocReftId<Id> {
-    pub fn new(container_id: Id, name: Symbol) -> Self {
-        Self { container_id, name }
-    }
-}
-
-impl AssocReftId {
-    pub fn index(self) -> AssocReftId<DefIndex> {
-        AssocReftId { container_id: self.container_id.index, name: self.name }
-    }
-}
-
 #[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<AssocReftId>,
+    pub items: List<FluxDefId>,
 }
 
 impl Default for AssocRefinements {
@@ -776,8 +741,8 @@ impl Default for AssocRefinements {
 }
 
 impl AssocRefinements {
-    pub fn find(&self, name: Symbol) -> Option<AssocReftId> {
-        self.items.iter().find(|it| it.name == name).copied()
+    pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
+        self.items.iter().find(|it| it.name() == name).copied()
     }
 }
 
@@ -1214,21 +1179,9 @@ pub enum Ensures {
 
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub global: bool,
-}
-
-pub struct SpecFunc {
-    pub name: Symbol,
-    pub expr: Binder<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SpecFuncDecl {
-    pub name: Symbol,
-    pub sort: PolyFuncSort,
-    pub kind: SpecFuncKind,
 }
 
 pub type TyCtor = Binder<Ty>;
@@ -2694,7 +2647,7 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     RefineParam,
-    AssocReftId,
+    FluxDefId,
     SortParamKind,
 );
 

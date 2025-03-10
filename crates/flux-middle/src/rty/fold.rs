@@ -12,10 +12,12 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind,
-    normalize::{Normalizer, SpecFuncDefns},
+    TyKind, normalize::Normalizer,
 };
-use crate::rty::{Var, VariantSig, expr::HoleKind};
+use crate::{
+    global_env::GlobalEnv,
+    rty::{Var, VariantSig, expr::HoleKind},
+};
 
 pub trait TypeVisitor: Sized {
     type BreakTy = !;
@@ -233,8 +235,8 @@ pub trait TypeFoldable: TypeVisitable {
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, defns: &SpecFuncDefns) -> Self {
-        self.fold_with(&mut Normalizer::new(defns))
+    fn normalize(&self, genv: GlobalEnv) -> Self {
+        self.fold_with(&mut Normalizer::new(genv, None))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
@@ -941,7 +943,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
-            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
+            ExprKind::GlobalFunc(kind) => Expr::global_func(*kind),
             ExprKind::Alias(alias, args) => {
                 let alias = alias.try_fold_with(folder)?;
                 let args = args.try_fold_with(folder)?;
@@ -1018,6 +1020,8 @@ TrivialTypeTraversalImpls! {
     crate::rty::BoundReftKind,
     crate::rty::BvSize,
     crate::rty::KVid,
+    crate::def_id::FluxDefId,
+    crate::def_id::FluxLocalDefId,
     rustc_span::Symbol,
     rustc_hir::def_id::DefId,
     rustc_hir::Safety,

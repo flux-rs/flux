@@ -604,7 +604,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_global_func(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
         let kind = self.resolver.func_decls.get(&ident.name)?;
-        Some(ExprRes::GlobalFunc(*kind, ident.name))
+        Some(ExprRes::GlobalFunc(*kind))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
