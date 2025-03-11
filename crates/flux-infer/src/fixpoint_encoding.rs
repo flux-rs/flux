@@ -20,7 +20,7 @@ use flux_middle::{
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx, Name},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -33,6 +33,8 @@ use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::refine_tree::BinderProvenance;
 
 pub mod fixpoint {
     use std::fmt;
@@ -390,6 +392,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    blame_spans: IndexVec<TagIdx, Vec<(Name, BinderProvenance)>>,
     /// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
     /// invariants.
     def_id: MaybeExternId,
@@ -412,6 +415,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            blame_spans: IndexVec::new(),
             def_id,
         }
     }
@@ -594,6 +598,7 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
+                // TODO: need to thread binder_deps and generate the blame spans here
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
