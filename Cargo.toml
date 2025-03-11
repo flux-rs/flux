@@ -63,3 +63,7 @@ inefficient-to-string = "warn"
 mismatching-type-param-order = "warn"
 new-without-default = "allow"
 semicolon-if-nothing-returned = "warn"
+
+[profile.profiling]
+inherits = "release"
+debug = 1
