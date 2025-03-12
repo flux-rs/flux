@@ -375,9 +375,26 @@
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
-    ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -388,7 +405,7 @@
     Artifact, Message, TargetKind,
 };
 <span class="kw">use </span>tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
-<span class="kw">use </span>xshell::{cmd, PushEnv, Shell};
+<span class="kw">use </span>xshell::{cmd, Shell};
 
 <span class="macro">xflags::xflags!</span> {
     cmd xtask {
@@ -414,8 +431,8 @@
         }
         <span class="doccomment">/// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
         </span>cmd install {
-            <span class="doccomment">/// Build the `flux-driver` binary in debug mode (with the 'dev' profile) instead of release mode
-            </span>optional --debug
+            <span class="doccomment">/// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
+            </span>optional --profile profile: Profile
         }
         <span class="doccomment">/// Uninstall Flux binaries and libraries
         </span>cmd uninstall { }
@@ -424,6 +441,36 @@
         <span class="doccomment">/// Build the documentation
         </span>cmd doc {
             optional -o,--open
+        }
+    }
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">enum </span>Profile {
+    Release,
+    Dev,
+    Profiling,
+}
+
+<span class="kw">impl </span>Profile {
+    <span class="kw">fn </span>as_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Profile::Release =&gt; <span class="string">"release"</span>,
+            Profile::Dev =&gt; <span class="string">"dev"</span>,
+            Profile::Profiling =&gt; <span class="string">"profiling"</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>Profile {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">match </span>s {
+            <span class="string">"release" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Release),
+            <span class="string">"dev" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Dev),
+            <span class="string">"profiling" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Profiling),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="string">"invalid profile"</span>),
         }
     }
 }
@@ -453,10 +500,13 @@
         XtaskCmd::Test(args) =&gt; test(sh, args),
         XtaskCmd::Run(args) =&gt; run(sh, args),
         XtaskCmd::Install(args) =&gt; install(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>extra),
-        XtaskCmd::Doc(args) =&gt; doc(sh, args),
+        XtaskCmd::Doc(args) =&gt; doc(args),
         XtaskCmd::BuildSysroot(<span class="kw">_</span>) =&gt; {
-            <span class="kw">let </span>config =
-                SysrootConfig { release: <span class="bool-val">false</span>, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">true </span>};
+            <span class="kw">let </span>config = SysrootConfig {
+                profile: Profile::Dev,
+                dst: local_sysroot_dir()<span class="question-mark">?</span>,
+                force_build_libs: <span class="bool-val">true</span>,
+            };
             install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
         }
@@ -467,9 +517,9 @@
 
 <span class="kw">fn </span>test(sh: Shell, args: Test) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>config =
-        SysrootConfig { release: <span class="bool-val">false</span>, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
+        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
     <span class="kw">let </span>Test { filter } = args;
-    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.release)<span class="question-mark">?</span>;
+    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
     install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 
     Command::new(<span class="string">"cargo"</span>)
@@ -504,10 +554,10 @@
     flags: <span class="kw">impl </span>IntoIterator&lt;Item = String&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
     <span class="kw">let </span>config =
-        SysrootConfig { release: <span class="bool-val">false</span>, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
+        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
 
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
-    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.release)<span class="question-mark">?</span>;
+    <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
@@ -521,7 +571,7 @@
 
 <span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>config = SysrootConfig {
-        release: args.is_release(),
+        profile: args.profile(),
         dst: default_sysroot_dir(),
         force_build_libs: <span class="bool-val">false</span>,
     };
@@ -539,9 +589,11 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>doc(sh: Shell, args: Doc) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>_env = push_env(<span class="kw-2">&amp;</span>sh, <span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>);
-    <span class="macro">cmd!</span>(sh, <span class="string">"cargo doc --workspace --document-private-items --no-deps"</span>).run()<span class="question-mark">?</span>;
+<span class="kw">fn </span>doc(args: Doc) -&gt; anyhow::Result&lt;()&gt; {
+    Command::new(<span class="string">"cargo"</span>)
+        .args([<span class="string">"doc"</span>, <span class="string">"--workspace"</span>, <span class="string">"--document-private-items"</span>, <span class="string">"--no-deps"</span>])
+        .env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>)
+        .run()<span class="question-mark">?</span>;
     <span class="kw">if </span>args.open {
         opener::open(<span class="string">"target/doc/index.html"</span>)<span class="question-mark">?</span>;
     }
@@ -558,10 +610,9 @@
     .to_path_buf()
 }
 
-<span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, release: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
+<span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, profile: Profile) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
     Command::new(<span class="string">"cargo"</span>)
-        .args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin])
-        .arg_if(release, <span class="string">"--release"</span>)
+        .args([<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin, <span class="string">"--profile"</span>, profile.as_str()])
         .run_with_cargo_metadata()<span class="question-mark">?
         </span>.into_iter()
         .find(|artifact| artifact.target.name == bin &amp;&amp; artifact.target.is_kind(TargetKind::Bin))
@@ -570,8 +621,8 @@
 }
 
 <span class="kw">struct </span>SysrootConfig {
-    <span class="doccomment">/// Whether to build in release mode
-    </span>release: bool,
+    <span class="doccomment">/// Profile used to build `flux-driver` and libraries
+    </span>profile: Profile,
     <span class="doccomment">/// Destination path for sysroot artifacts
     </span>dst: PathBuf,
     force_build_libs: bool,
@@ -581,9 +632,9 @@
     sh.remove_path(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
     sh.create_dir(<span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
 
-    copy_file(sh, build_binary(<span class="string">"flux-driver"</span>, config.release)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
+    copy_file(sh, build_binary(<span class="string">"flux-driver"</span>, config.profile)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.release)<span class="question-mark">?</span>;
+    <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.profile)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>config.force_build_libs {
         Command::new(<span class="kw-2">&amp;</span>cargo_flux).args([<span class="string">"flux"</span>, <span class="string">"clean"</span>]).run()<span class="question-mark">?</span>;
@@ -627,8 +678,8 @@
 }
 
 <span class="kw">impl </span>Install {
-    <span class="kw">fn </span>is_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.debug
+    <span class="kw">fn </span>profile(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Profile {
+        <span class="self">self</span>.profile.unwrap_or(Profile::Release)
     }
 }
 
@@ -682,13 +733,6 @@
     <span class="macro">eprintln!</span>();
 }
 
-<span class="kw">fn </span>push_env&lt;K: AsRef&lt;OsStr&gt;, V: AsRef&lt;OsStr&gt;&gt;(sh: <span class="kw-2">&amp;</span>Shell, key: K, val: V) -&gt; PushEnv {
-    <span class="kw">let </span>key = key.as_ref();
-    <span class="kw">let </span>val = val.as_ref();
-    <span class="macro">eprintln!</span>(<span class="string">"$ export {}={}"</span>, key.to_string_lossy(), val.to_string_lossy());
-    sh.push_env(key, val)
-}
-
 <span class="kw">fn </span>copy_file&lt;S: AsRef&lt;Path&gt;, D: AsRef&lt;Path&gt;&gt;(sh: <span class="kw-2">&amp;</span>Shell, src: S, dst: D) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>src = src.as_ref();
     <span class="kw">let </span>dst = dst.as_ref();
@@ -698,20 +742,12 @@
 }
 
 <span class="kw">trait </span>CommandExt {
-    <span class="kw">fn </span>arg_if&lt;S: AsRef&lt;OsStr&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, arg: S) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>;
     <span class="kw">fn </span>map_opt&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;mut </span><span class="self">Self</span>)) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>;
     <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt;;
     <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt;;
 }
 
 <span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
-    <span class="kw">fn </span>arg_if&lt;S: AsRef&lt;OsStr&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, arg: S) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="kw">if </span>b {
-            <span class="self">self</span>.arg(arg);
-        }
-        <span class="self">self
-    </span>}
-
     <span class="kw">fn </span>map_opt&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;mut </span><span class="self">Self</span>)) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = opt {
             f(v, <span class="self">self</span>);

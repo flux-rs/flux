@@ -85,7 +85,24 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{env, ffi::OsString, fs, path::PathBuf};
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+    env,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+};
 
 <span class="kw">use </span>anyhow::{<span class="prelude-ty">Result</span>, anyhow};
 <span class="kw">use </span>serde::Deserialize;
@@ -101,9 +118,11 @@
 
 <span class="kw">pub const </span>FLUX_SYSROOT: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_SYSROOT"</span>;
 
+<span class="kw">const </span>FLUX_DRIVER: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_DRIVER"</span>;
+
 <span class="doccomment">/// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 </span><span class="kw">pub fn </span>sysroot_dir() -&gt; PathBuf {
-    env::var(FLUX_SYSROOT).map_or_else(|<span class="kw">_</span>| default_sysroot_dir(), PathBuf::from)
+    env::var_os(FLUX_SYSROOT).map_or_else(default_sysroot_dir, PathBuf::from)
 }
 
 <span class="attr">#[derive(Deserialize)]
@@ -123,13 +142,18 @@
         .join(<span class="string">".flux"</span>)
 }
 
-<span class="kw">pub fn </span>get_flux_driver_path() -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>path = sysroot_dir().join(<span class="string">"flux-driver"</span>);
-    <span class="kw">if </span><span class="macro">cfg!</span>(target_os = <span class="string">"windows"</span>) {
-        path.set_extension(<span class="string">"exe"</span>);
-    }
+<span class="kw">pub fn </span>get_flux_driver_path(sysroot: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf&gt; {
+    <span class="kw">let </span>path = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = env::var_os(FLUX_DRIVER) {
+        PathBuf::from(path)
+    } <span class="kw">else </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>path = sysroot.join(<span class="string">"flux-driver"</span>);
+        <span class="kw">if </span><span class="macro">cfg!</span>(target_os = <span class="string">"windows"</span>) {
+            path.set_extension(<span class="string">"exe"</span>);
+        }
+        path
+    };
     <span class="kw">if </span>!path.is_file() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"flux executable {:?} does not exist or is not a file"</span>, path));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"path to flux-driver {:?} does not exist or is not a file"</span>, path));
     }
     <span class="prelude-val">Ok</span>(path)
 }

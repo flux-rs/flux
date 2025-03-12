@@ -200,7 +200,10 @@
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::def_id::{DefId, DefIndex, LocalDefId};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_span::Symbol;
@@ -214,6 +217,7 @@
 /// composed of two parts:
 /// * `parent`: A reference to a parent Rust item
 /// * `name`: A name uniquely identifiying the item within the parent
+///
 /// Since the name can be an arbitrary [`Symbol`], this doesn't guarantee the existence of the item,
 /// so we must be careful when creating instances of this struct.
 ///
@@ -288,7 +292,7 @@
 /// [`GlobalEnv::maybe_extern_id`] to create one.
 ///
 /// The enum is generic on the local `Id` as we use it with various kinds of local ids, e.g.,
-/// [`LocalDefId`], [`OwnerId`], ...
+/// [`LocalDefId`], [`DefId`], ...
 ///
 /// [_local id_]: MaybeExternId::local_id
 /// [_resolved id_]: MaybeExternId::resolved_id
@@ -379,6 +383,8 @@
 ///
 /// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
 /// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
+///
+/// [`GlobalEnv::resolve_id`]: crate::global_env::GlobalEnv::resolve_id
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub enum </span>ResolvedDefId {
     <span class="doccomment">/// A local definition. Corresponds to [`MaybeExternId::Local`].

@@ -15,7 +15,7 @@ for more details.</p>
     terminator: &amp;'mir <a class="struct" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/mir/terminator/struct.Terminator.html" title="struct rustc_middle::mir::terminator::Terminator">Terminator</a>&lt;'tcx&gt;,
     state: &amp;mut <a class="struct" href="struct.State.html" title="struct flux_refineck::ghost_statements::points_to::State">State</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/mir/terminator/enum.TerminatorEdges.html" title="enum rustc_middle::mir::terminator::TerminatorEdges">TerminatorEdges</a>&lt;'mir, 'tcx&gt;</h4></section></summary><div class="docblock"><p>The effect of a successful function call return should not be
-applied here, see [<code>Analysis::apply_terminator_effect</code>].</p>
+applied here, see [<code>Analysis::apply_primary_terminator_effect</code>].</p>
 </div></details><section id="method.handle_call_return" class="method"><a class="src rightside" href="../../../src/flux_refineck/ghost_statements/points_to.rs.html#183-187">Source</a><h4 class="code-header">fn <a href="#method.handle_call_return" class="fn">handle_call_return</a>(
     &amp;self,
     return_places: <a class="enum" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/mir/terminator/enum.CallReturnPlaces.html" title="enum rustc_middle::mir::terminator::CallReturnPlaces">CallReturnPlaces</a>&lt;'_, '_&gt;,

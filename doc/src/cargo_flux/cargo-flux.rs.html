@@ -62,7 +62,9 @@
 <a href="#61" id="61">61</a>
 <a href="#62" id="62">62</a>
 <a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::PathBuf,
     process::{Command, exit},
@@ -70,8 +72,8 @@
 
 <span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>flux_bin::utils::{
-    EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
-    prepend_path_to_env_var,
+    EXIT_ERR, FLUX_SYSROOT, LIB_PATH, get_flux_driver_path, get_rust_toolchain,
+    get_rustc_driver_lib_path, prepend_path_to_env_var, sysroot_dir,
 };
 
 <span class="kw">fn </span>main() {
@@ -86,7 +88,8 @@
 }
 
 <span class="kw">fn </span>run() -&gt; <span class="prelude-ty">Result</span>&lt;i32&gt; {
-    <span class="kw">let </span>flux_driver_path = get_flux_driver_path()<span class="question-mark">?</span>;
+    <span class="kw">let </span>sysroot = sysroot_dir();
+    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
     <span class="kw">let </span>rust_toolchain = get_rust_toolchain()<span class="question-mark">?</span>;
     <span class="kw">let </span>ld_library_path = get_rustc_driver_lib_path(<span class="kw-2">&amp;</span>rust_toolchain)<span class="question-mark">?</span>;
     <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
@@ -115,6 +118,7 @@
     <span class="kw">let </span>exit_code = cmd
         .args(args)
         .env(LIB_PATH, extended_lib_path)
+        .env(FLUX_SYSROOT, sysroot)
         .env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>)
         .env(<span class="string">"FLUX_CARGO"</span>, <span class="string">"1"</span>)
         .env(<span class="string">"RUST_TOOLCHAIN"</span>, rust_toolchain.clone())
