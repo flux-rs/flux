@@ -29,7 +29,7 @@ use rustc_span::Span;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{Answer, FixQueryCache, FixpointCheckError, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{
         BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope,
