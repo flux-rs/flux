@@ -21,7 +21,8 @@ fn main() {
 }
 
 fn run() -> Result<i32> {
-    let flux_driver_path = get_flux_driver_path()?;
+    let sysroot = sysroot_dir();
+    let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let rust_toolchain = get_rust_toolchain()?;
     let ld_library_path = get_rustc_driver_lib_path(&rust_toolchain)?;
     let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
@@ -30,7 +31,7 @@ fn run() -> Result<i32> {
         // Skip the invocation of `flux` itself
         .args(env::args().skip(1))
         .arg("-L")
-        .arg(sysroot_dir())
+        .arg(sysroot)
         .arg("--extern")
         .arg("flux_rs")
         .env(LIB_PATH, extended_lib_path)

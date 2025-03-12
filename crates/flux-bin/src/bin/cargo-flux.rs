@@ -6,8 +6,8 @@ use std::{
 
 use anyhow::Result;
 use flux_bin::utils::{
-    EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
-    prepend_path_to_env_var,
+    EXIT_ERR, FLUX_SYSROOT, LIB_PATH, get_flux_driver_path, get_rust_toolchain,
+    get_rustc_driver_lib_path, prepend_path_to_env_var, sysroot_dir,
 };
 
 fn main() {
@@ -22,7 +22,8 @@ fn main() {
 }
 
 fn run() -> Result<i32> {
-    let flux_driver_path = get_flux_driver_path()?;
+    let sysroot = sysroot_dir();
+    let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let rust_toolchain = get_rust_toolchain()?;
     let ld_library_path = get_rustc_driver_lib_path(&rust_toolchain)?;
     let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
@@ -51,6 +52,7 @@ fn run() -> Result<i32> {
     let exit_code = cmd
         .args(args)
         .env(LIB_PATH, extended_lib_path)
+        .env(FLUX_SYSROOT, sysroot)
         .env("FLUX_BUILD_SYSROOT", "1")
         .env("FLUX_CARGO", "1")
         .env("RUST_TOOLCHAIN", rust_toolchain.clone())
