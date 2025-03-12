@@ -1,4 +1,9 @@
-use std::{env, ffi::OsString, fs, path::PathBuf};
+use std::{
+    env,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
@@ -14,9 +19,11 @@ pub const EXIT_ERR: i32 = -1;
 
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
+const FLUX_DRIVER: &str = "FLUX_DRIVER";
+
 /// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 pub fn sysroot_dir() -> PathBuf {
-    env::var(FLUX_SYSROOT).map_or_else(|_| default_sysroot_dir(), PathBuf::from)
+    env::var_os(FLUX_SYSROOT).map_or_else(default_sysroot_dir, PathBuf::from)
 }
 
 #[derive(Deserialize)]
@@ -36,13 +43,18 @@ fn default_sysroot_dir() -> PathBuf {
         .join(".flux")
 }
 
-pub fn get_flux_driver_path() -> Result<PathBuf> {
-    let mut path = sysroot_dir().join("flux-driver");
-    if cfg!(target_os = "windows") {
-        path.set_extension("exe");
-    }
+pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
+    let path = if let Some(path) = env::var_os(FLUX_DRIVER) {
+        PathBuf::from(path)
+    } else {
+        let mut path = sysroot.join("flux-driver");
+        if cfg!(target_os = "windows") {
+            path.set_extension("exe");
+        }
+        path
+    };
     if !path.is_file() {
-        return Err(anyhow!("flux executable {:?} does not exist or is not a file", path));
+        return Err(anyhow!("path to flux-driver {:?} does not exist or is not a file", path));
     }
     Ok(path)
 }

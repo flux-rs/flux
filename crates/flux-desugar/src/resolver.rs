@@ -602,7 +602,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 }
 
-/// Akin to [`rustc_resolve::Module`] but specialized to what we support
+/// Akin to `rustc_resolve::Module` but specialized to what we support
 struct Module {
     kind: ModuleKind,
     def_id: DefId,
@@ -614,7 +614,7 @@ impl Module {
     }
 }
 
-/// Akin to [`rustc_resolve::ModuleKind`] but specialized to what we support
+/// Akin to `rustc_resolve::ModuleKind` but specialized to what we support
 enum ModuleKind {
     Mod,
     Trait,

@@ -743,7 +743,7 @@ mod pretty {
     );
 }
 
-/// A very explicit representation of [`RefineCtxt`] for debugging/tracing/serialization ONLY.
+/// An explicit representation of a path in the [`RefineTree`] used for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
 pub struct RefineCtxtTrace {
     bindings: Vec<RcxBind>,

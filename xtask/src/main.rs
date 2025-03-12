@@ -1,6 +1,5 @@
 use std::{
     env,
-    ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -11,7 +10,7 @@ use cargo_metadata::{
     Artifact, Message, TargetKind,
 };
 use tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
-use xshell::{cmd, PushEnv, Shell};
+use xshell::{cmd, Shell};
 
 xflags::xflags! {
     cmd xtask {
@@ -37,8 +36,8 @@ xflags::xflags! {
         }
         /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux`
         cmd install {
-            /// Build the `flux-driver` binary in debug mode (with the 'dev' profile) instead of release mode
-            optional --debug
+            /// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
+            optional --profile profile: Profile
         }
         /// Uninstall Flux binaries and libraries
         cmd uninstall { }
@@ -47,6 +46,36 @@ xflags::xflags! {
         /// Build the documentation
         cmd doc {
             optional -o,--open
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Profile {
+    Release,
+    Dev,
+    Profiling,
+}
+
+impl Profile {
+    fn as_str(self) -> &'static str {
+        match self {
+            Profile::Release => "release",
+            Profile::Dev => "dev",
+            Profile::Profiling => "profiling",
+        }
+    }
+}
+
+impl std::str::FromStr for Profile {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "release" => Ok(Self::Release),
+            "dev" => Ok(Self::Dev),
+            "profiling" => Ok(Self::Profiling),
+            _ => Err("invalid profile"),
         }
     }
 }
@@ -76,10 +105,13 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
         XtaskCmd::Install(args) => install(&sh, &args, &extra),
-        XtaskCmd::Doc(args) => doc(sh, args),
+        XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
-            let config =
-                SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: true };
+            let config = SysrootConfig {
+                profile: Profile::Dev,
+                dst: local_sysroot_dir()?,
+                force_build_libs: true,
+            };
             install_sysroot(&sh, &config)?;
             Ok(())
         }
@@ -90,9 +122,9 @@ fn main() -> anyhow::Result<()> {
 
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let config =
-        SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: false };
+        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()?, force_build_libs: false };
     let Test { filter } = args;
-    let flux = build_binary("flux", config.release)?;
+    let flux = build_binary("flux", config.profile)?;
     install_sysroot(&sh, &config)?;
 
     Command::new("cargo")
@@ -127,10 +159,10 @@ fn run_inner(
     flags: impl IntoIterator<Item = String>,
 ) -> Result<(), anyhow::Error> {
     let config =
-        SysrootConfig { release: false, dst: local_sysroot_dir()?, force_build_libs: false };
+        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()?, force_build_libs: false };
 
     install_sysroot(sh, &config)?;
-    let flux = build_binary("flux", config.release)?;
+    let flux = build_binary("flux", config.profile)?;
 
     let mut rustc_flags = tests::default_rustc_flags();
     rustc_flags.extend(flags);
@@ -144,7 +176,7 @@ fn run_inner(
 
 fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     let config = SysrootConfig {
-        release: args.is_release(),
+        profile: args.profile(),
         dst: default_sysroot_dir(),
         force_build_libs: false,
     };
@@ -162,9 +194,11 @@ fn uninstall(sh: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
-    let _env = push_env(&sh, "RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
-    cmd!(sh, "cargo doc --workspace --document-private-items --no-deps").run()?;
+fn doc(args: Doc) -> anyhow::Result<()> {
+    Command::new("cargo")
+        .args(["doc", "--workspace", "--document-private-items", "--no-deps"])
+        .env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page")
+        .run()?;
     if args.open {
         opener::open("target/doc/index.html")?;
     }
@@ -181,10 +215,9 @@ fn project_root() -> PathBuf {
     .to_path_buf()
 }
 
-fn build_binary(bin: &str, release: bool) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(bin: &str, profile: Profile) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
-        .args(["build", "--bin", bin])
-        .arg_if(release, "--release")
+        .args(["build", "--bin", bin, "--profile", profile.as_str()])
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -193,8 +226,8 @@ fn build_binary(bin: &str, release: bool) -> anyhow::Result<Utf8PathBuf> {
 }
 
 struct SysrootConfig {
-    /// Whether to build in release mode
-    release: bool,
+    /// Profile used to build `flux-driver` and libraries
+    profile: Profile,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     force_build_libs: bool,
@@ -204,9 +237,9 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
     sh.remove_path(&config.dst)?;
     sh.create_dir(&config.dst)?;
 
-    copy_file(sh, build_binary("flux-driver", config.release)?, &config.dst)?;
+    copy_file(sh, build_binary("flux-driver", config.profile)?, &config.dst)?;
 
-    let cargo_flux = build_binary("cargo-flux", config.release)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile)?;
 
     if config.force_build_libs {
         Command::new(&cargo_flux).args(["flux", "clean"]).run()?;
@@ -250,8 +283,8 @@ fn is_flux_lib(artifact: &Artifact) -> bool {
 }
 
 impl Install {
-    fn is_release(&self) -> bool {
-        !self.debug
+    fn profile(&self) -> Profile {
+        self.profile.unwrap_or(Profile::Release)
     }
 }
 
@@ -305,13 +338,6 @@ fn display_command(cmd: &Command) {
     eprintln!();
 }
 
-fn push_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(sh: &Shell, key: K, val: V) -> PushEnv {
-    let key = key.as_ref();
-    let val = val.as_ref();
-    eprintln!("$ export {}={}", key.to_string_lossy(), val.to_string_lossy());
-    sh.push_env(key, val)
-}
-
 fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyhow::Result<()> {
     let src = src.as_ref();
     let dst = dst.as_ref();
@@ -321,20 +347,12 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyh
 }
 
 trait CommandExt {
-    fn arg_if<S: AsRef<OsStr>>(&mut self, b: bool, arg: S) -> &mut Self;
     fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<()>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
 impl CommandExt for Command {
-    fn arg_if<S: AsRef<OsStr>>(&mut self, b: bool, arg: S) -> &mut Self {
-        if b {
-            self.arg(arg);
-        }
-        self
-    }
-
     fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
         if let Some(v) = opt {
             f(v, self);
