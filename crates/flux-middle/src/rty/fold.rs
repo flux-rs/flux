@@ -537,9 +537,7 @@ where
 
 impl TypeVisitable for VariantSig {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.fields
-            .iter()
-            .try_for_each(|ty| ty.visit_with(visitor))?;
+        self.fields.visit_with(visitor)?;
         self.idx.visit_with(visitor)
     }
 }
@@ -918,17 +916,8 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj),
-
-            ExprKind::Tuple(flds) => {
-                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                Expr::tuple(flds)
-            }
-
-            ExprKind::Ctor(ctor, flds) => {
-                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                Expr::ctor(*ctor, flds)
-            }
-
+            ExprKind::Tuple(flds) => Expr::tuple(flds.try_fold_with(folder)?),
+            ExprKind::Ctor(ctor, flds) => Expr::ctor(*ctor, flds.try_fold_with(folder)?),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
                 Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
@@ -945,9 +934,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::GlobalFunc(kind) => Expr::global_func(*kind),
             ExprKind::Alias(alias, args) => {
-                let alias = alias.try_fold_with(folder)?;
-                let args = args.try_fold_with(folder)?;
-                Expr::alias(alias, args)
+                Expr::alias(alias.try_fold_with(folder)?, args.try_fold_with(folder)?)
             }
             ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
         };
