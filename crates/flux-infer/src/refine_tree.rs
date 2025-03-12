@@ -1,5 +1,8 @@
 use std::{
-    cell::RefCell, collections::HashSet, ops::ControlFlow, rc::{Rc, Weak}
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    ops::ControlFlow,
+    rc::{Rc, Weak},
 };
 
 use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -64,7 +67,7 @@ impl RefineTree {
         Ok(self
             .root
             .borrow()
-            .to_fixpoint(cx, IndexVec::new())?
+            .to_fixpoint(cx, HashMap::new())?
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
@@ -357,7 +360,7 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
-type BinderDeps = IndexVec<Name, (Option<BinderProvenance>, HashSet<Name>)>;
+pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, HashSet<Name>)>;
 
 impl Node {
     fn simplify(&mut self, genv: GlobalEnv) {
@@ -416,7 +419,11 @@ impl Node {
         Ok(())
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>, mut binder_deps: BinderDeps) -> QueryResult<Option<fixpoint::Constraint>> {
+    fn to_fixpoint(
+        &self,
+        cx: &mut FixpointCtxt<Tag>,
+        mut binder_deps: BinderDeps,
+    ) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
             NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children, binder_deps)?
@@ -443,9 +450,10 @@ impl Node {
                 Some(constr)
             }
             NodeKind::ForAll(name, sort, bp) => {
-                binder_deps[*name] = (bp.clone(), HashSet::new());
+                binder_deps.insert(*name, (bp.clone(), HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
-                    let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps)? else {
+                    let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps)?
+                    else {
                         return Ok(None);
                     };
                     Ok(Some(fixpoint::Constraint::ForAll(
@@ -459,25 +467,11 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let fvars = pred.fvars();
-                for fvar in fvars.iter() {
-                    // In the unlikely (and perhaps impossible) case that names
-                    // are reused for binders, we ensure that we don't
-                    // initialize the dependencies if a name is missing. Perhaps
-                    // it would be better to panic/error here.
-                    if let Some((_, deps)) = binder_deps.get_mut(*fvar) {
-                        for fvar2 in fvars.iter() {
-                            if fvar != fvar2 {
-                                deps.insert(*fvar2);
-                            }
-                        }
-                    }
-                }
                 // TODO: do we need to track relations between variables whenever
                 // cx.assumption_to_fixpoint is called (i.e. do we also need to track
                 // for assumptions inside of NodeKind::Head expressions) or is doing it
                 // only for NodeKind::Assumption sufficient?
-                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
+                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred, &mut binder_deps)?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children, binder_deps)? else {
                     return Ok(None);
                 };
@@ -489,8 +483,7 @@ impl Node {
                 Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
-                let fvars = pred.fvars();
-                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
+                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span), binder_deps)?)
             }
             NodeKind::True => None,
         };
@@ -519,7 +512,11 @@ fn children_to_fixpoint(
 ) -> QueryResult<Option<fixpoint::Constraint>> {
     let mut children = children
         .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx, binder_deps.clone()).transpose())
+        .filter_map(|node| {
+            node.borrow()
+                .to_fixpoint(cx, binder_deps.clone())
+                .transpose()
+        })
         .try_collect_vec()?;
     let cstr = match children.len() {
         0 => None,
@@ -562,13 +559,8 @@ mod pretty {
 
     type Binding = (Name, Sort, Option<BinderProvenance>);
 
-    fn bindings_chain(
-        ptr: &NodePtr,
-    ) -> (Vec<Binding>, Vec<NodePtr>) {
-        fn go(
-            ptr: &NodePtr,
-            mut bindings: Vec<Binding>,
-        ) -> (Vec<Binding>, Vec<NodePtr>) {
+    fn bindings_chain(ptr: &NodePtr) -> (Vec<Binding>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut bindings: Vec<Binding>) -> (Vec<Binding>, Vec<NodePtr>) {
             let node = ptr.borrow();
             if let NodeKind::ForAll(name, sort, bp) = &node.kind {
                 bindings.push((*name, sort.clone(), bp.clone()));
@@ -817,9 +809,9 @@ impl RefineCtxtTrace {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct BinderProvenance {
     /// Whence?
-    span: Option<Span>,
+    pub span: Option<Span>,
     /// Why?
-    originator: BinderOriginator,
+    pub originator: BinderOriginator,
 }
 
 impl BinderProvenance {
