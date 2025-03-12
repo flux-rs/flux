@@ -389,9 +389,7 @@ pub struct TyAlias<'fhir> {
     pub index: Option<RefineParam<'fhir>>,
     pub ty: Ty<'fhir>,
     pub span: Span,
-    /// Whether this alias was [lifted] from a `hir` alias
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_type_alias
+    /// Whether this alias was lifted from a `hir` alias
     pub lifted: bool,
 }
 
@@ -412,9 +410,7 @@ pub enum StructKind<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct FieldDef<'fhir> {
     pub ty: Ty<'fhir>,
-    /// Whether this field was [lifted] from a `hir` field
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_field_def
+    /// Whether this field was lifted from a `hir` field
     pub lifted: bool,
 }
 
@@ -447,9 +443,7 @@ pub struct VariantDef<'fhir> {
     pub fields: &'fhir [FieldDef<'fhir>],
     pub ret: VariantRet<'fhir>,
     pub span: Span,
-    /// Whether this variant was [lifted] from a hir variant
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_enum_variant
+    /// Whether this variant was lifted from a hir variant
     pub lifted: bool,
 }
 
@@ -465,9 +459,7 @@ pub struct FnDecl<'fhir> {
     pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
-    /// Whether the sig was [lifted] from a hir signature
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_fn_decl
+    /// Whether the sig was lifted from a hir signature
     pub lifted: bool,
 }
 

@@ -23,7 +23,7 @@ const FLUX_DRIVER: &str = "FLUX_DRIVER";
 
 /// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 pub fn sysroot_dir() -> PathBuf {
-    env::var_os(FLUX_SYSROOT).map_or_else(|| default_sysroot_dir(), PathBuf::from)
+    env::var_os(FLUX_SYSROOT).map_or_else(default_sysroot_dir, PathBuf::from)
 }
 
 #[derive(Deserialize)]

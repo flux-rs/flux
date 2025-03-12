@@ -148,7 +148,7 @@ impl<'a> PointsToAnalysis<'a> {
     }
 
     /// The effect of a successful function call return should not be
-    /// applied here, see [`Analysis::apply_terminator_effect`].
+    /// applied here, see [`Analysis::apply_primary_terminator_effect`].
     fn handle_terminator<'mir, 'tcx>(
         &self,
         terminator: &'mir mir::Terminator<'tcx>,

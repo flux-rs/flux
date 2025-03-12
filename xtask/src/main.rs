@@ -1,6 +1,5 @@
 use std::{
     env,
-    ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -11,7 +10,7 @@ use cargo_metadata::{
     Artifact, Message, TargetKind,
 };
 use tests::{FLUX_SYSROOT, FLUX_SYSROOT_TEST};
-use xshell::{cmd, PushEnv, Shell};
+use xshell::{cmd, Shell};
 
 xflags::xflags! {
     cmd xtask {
@@ -106,7 +105,7 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
         XtaskCmd::Install(args) => install(&sh, &args, &extra),
-        XtaskCmd::Doc(args) => doc(sh, args),
+        XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
                 profile: Profile::Dev,
@@ -195,9 +194,11 @@ fn uninstall(sh: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
-    let _env = push_env(&sh, "RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
-    cmd!(sh, "cargo doc --workspace --document-private-items --no-deps").run()?;
+fn doc(args: Doc) -> anyhow::Result<()> {
+    Command::new("cargo")
+        .args(["doc", "--workspace", "--document-private-items", "--no-deps"])
+        .env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page")
+        .run()?;
     if args.open {
         opener::open("target/doc/index.html")?;
     }
@@ -225,7 +226,7 @@ fn build_binary(bin: &str, profile: Profile) -> anyhow::Result<Utf8PathBuf> {
 }
 
 struct SysrootConfig {
-    /// Whether to build in release mode
+    /// Profile used to build `flux-driver` and libraries
     profile: Profile,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
@@ -335,13 +336,6 @@ fn display_command(cmd: &Command) {
         eprint!(" {}", arg.to_string_lossy());
     }
     eprintln!();
-}
-
-fn push_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(sh: &Shell, key: K, val: V) -> PushEnv {
-    let key = key.as_ref();
-    let val = val.as_ref();
-    eprintln!("$ export {}={}", key.to_string_lossy(), val.to_string_lossy());
-    sh.push_env(key, val)
 }
 
 fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyhow::Result<()> {

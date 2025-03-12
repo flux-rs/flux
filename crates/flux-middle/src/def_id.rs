@@ -12,6 +12,7 @@ use rustc_span::Symbol;
 /// composed of two parts:
 /// * `parent`: A reference to a parent Rust item
 /// * `name`: A name uniquely identifiying the item within the parent
+///
 /// Since the name can be an arbitrary [`Symbol`], this doesn't guarantee the existence of the item,
 /// so we must be careful when creating instances of this struct.
 ///
@@ -86,7 +87,7 @@ impl FluxId<MaybeExternId> {
 /// [`GlobalEnv::maybe_extern_id`] to create one.
 ///
 /// The enum is generic on the local `Id` as we use it with various kinds of local ids, e.g.,
-/// [`LocalDefId`], [`OwnerId`], ...
+/// [`LocalDefId`], [`DefId`], ...
 ///
 /// [_local id_]: MaybeExternId::local_id
 /// [_resolved id_]: MaybeExternId::resolved_id
@@ -177,6 +178,8 @@ impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
 ///
 /// This is used when we are given a [`DefId`] and we need to resolve it into one of these three
 /// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
+///
+/// [`GlobalEnv::resolve_id`]: crate::global_env::GlobalEnv::resolve_id
 #[derive(Clone, Copy)]
 pub enum ResolvedDefId {
     /// A local definition. Corresponds to [`MaybeExternId::Local`].
