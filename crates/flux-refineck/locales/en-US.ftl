@@ -71,3 +71,11 @@ refineck_missing_assoc_reft =
 
 refineck_impl_assoc_reft_final = 
     associated refinement `{$name}` is final and should not be implemented anywhere other than the trait definition
+
+# Blame spans (TBD)
+
+refineck_blame_span_note =
+    related variable `{$var}` defined here
+
+refineck_err_with_blame_spans =
+    there is an error with related variables
