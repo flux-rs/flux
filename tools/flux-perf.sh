@@ -8,7 +8,7 @@
 #   1. Set the `FLUX_DRIVER` environment variable to point to this script
 #   2. Configure the `CRATES` variable below to list the crates you want to profile
 #   3. Run `cargo flux` as normal, and this script will automatically profile Flux when
-#      checking the specified  crates
+#      checking the specified crates
 #
 # The script will generate `{crate_name}-perf.data` files that can be analyzed with:
 #   `perf report -i {crate_name}-perf.data`
@@ -28,9 +28,9 @@
 #              hanging or excessively long-running processes. Set to 0 to disable timeout.
 # --------------------------------------------------------------------------------------------
 
-# Specify the crate names to profile (space-separated). These are crate names not  packages, i.e.,
+# Specify the crate names to profile (space-separated). These are crate names not packages, i.e.,
 # the name of `[lib]` or a `[[bin]`.
-CRATES="veriasm"
+CRATES="crate1 crate2"
 # Configure perf sampling parameters
 PERF_FLAGS=("-F" "997" "--call-graph" "dwarf,16384" "-g" "-z")
 # Set timeout to prevent process from running too long
@@ -42,6 +42,17 @@ export FLUX_DRIVER="${FLUX_SYSROOT}/flux-driver"
 
 # Cargo reads for stdout so we must print to stderr
 info() { echo "$@" 1>&2; }
+
+rename_if_exists() {
+    local file="$1"
+
+    if [[ -e "$file" ]]; then
+        local rand_str
+        rand_str=$(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 6)
+        local new_file="${file}.old.${rand_str}"
+        mv "$file" "$new_file"
+    fi
+}
 
 # Parse arguments passed to `flux-driver` to find the crate name
 args=("$@")
@@ -56,15 +67,20 @@ done
 if [[ -n "$crate_name" && " $CRATES " =~ .*\ $crate_name\ .* ]]; then
     info "Running Flux with 'perf' for crate: $crate_name"
     info "Command: $FLUX_DRIVER" "$@"
-    timeout $TIMEOUT perf record "${PERF_FLAGS[@]}" -o "$crate_name-perf.data" "$FLUX_DRIVER" "$@"
+    rename_if_exists "${crate_name}-perf.data"
+    timeout $TIMEOUT perf record "${PERF_FLAGS[@]}" -o "${crate_name}-perf.data" "$FLUX_DRIVER" "$@"
+    status=$?
 
-    info "Converting perf data to text format: $crate_name.perf"
-    perf script -F +pid -i "$crate_name-perf.data" > "$crate_name.perf"
+    info "Converting perf data to text format: ${crate_name}.perf"
+    rename_if_exists "${crate_name}.perf"
+    perf script -F +pid -i "${crate_name}-perf.data" > "${crate_name}.perf"
 
     if command -v rustfilt >/dev/null 2>&1; then
         info "Demangling Rust symbols: $crate_name-demangled.perf"
-        rustfilt -i "$crate_name.perf" -o "$crate_name-demangled.perf"
+        rename_if_exists "${crate_name}-demangled.perf"
+        rustfilt -i "${crate_name}.perf" -o "${crate_name}-demangled.perf"
     fi
+    exit $status
 else
     "$FLUX_DRIVER" "$@"
 fi
