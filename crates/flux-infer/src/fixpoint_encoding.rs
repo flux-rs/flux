@@ -25,7 +25,7 @@ use flux_middle::{
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, Name, SpecFuncKind,
-        VariantIdx, fold::TypeFoldable as _,
+        VariantIdx, fold::TypeFoldable as _, fold::TypeVisitable,
     },
 };
 use itertools::Itertools;
@@ -52,7 +52,7 @@ use crate::{
 };
 
 pub mod decoding;
-use crate::refine_tree::BinderProvenance;
+use crate::refine_tree::{BinderDeps, BinderProvenance};
 
 pub mod fixpoint {
     use std::fmt;
@@ -241,7 +241,7 @@ impl SolutionTrace {
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
-    pub errors: Vec<Tag>,
+    pub errors: Vec<FixpointCheckError<Tag>>,
     pub solution: Solution,
 }
 
@@ -496,6 +496,8 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
+pub type BlameSpans = Vec<(Name, Option<BinderProvenance>)>;
+
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -505,10 +507,22 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    blame_spans: IndexVec<TagIdx, Vec<(Name, BinderProvenance)>>,
+    blame_spans: HashMap<TagIdx, BlameSpans>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
+
+#[derive(Debug, Clone)]
+pub struct FixpointCheckError<Tag> {
+    pub tag: Tag,
+    pub blame_spans: BlameSpans,
+}
+
+impl<Tag> FixpointCheckError<Tag> {
+    pub fn new(tag: Tag, blame_spans: BlameSpans) -> Self {
+        Self { tag, blame_spans }
+    }
+}
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -524,7 +538,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
-            blame_spans: IndexVec::new(),
+            blame_spans: HashMap::new(),
         }
     }
 
@@ -611,8 +625,11 @@ where
                 metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 errors
                     .into_iter()
-                    .map(|err| self.tags[err.tag])
+                    .map(|err| (err.tag, self.tags[err.tag]))
                     .unique()
+                    .map(|(tag_idx, tag)| {
+                        FixpointCheckError::new(tag, self.blame_spans[&tag_idx].clone())
+                    })
                     .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
@@ -760,6 +777,7 @@ where
         &mut self,
         expr: &rty::Expr,
         mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
+        mut binder_deps: BinderDeps,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,
@@ -770,13 +788,13 @@ where
                 let cstrs = expr
                     .flatten_conjs()
                     .into_iter()
-                    .map(|e| self.head_to_fixpoint(e, mk_tag))
+                    .map(|e| self.head_to_fixpoint(e, mk_tag, binder_deps.clone()))
                     .try_collect()?;
                 Ok(fixpoint::Constraint::conj(cstrs))
             }
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
-                let (bindings, assumption) = self.assumption_to_fixpoint(e1)?;
-                let cstr = self.head_to_fixpoint(e2, mk_tag)?;
+                let (bindings, assumption) = self.assumption_to_fixpoint(e1, &mut binder_deps)?;
+                let cstr = self.head_to_fixpoint(e2, mk_tag, binder_deps)?;
                 Ok(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             }
             rty::ExprKind::KVar(kvar) => {
@@ -788,7 +806,8 @@ where
                 self.ecx
                     .local_var_env
                     .push_layer_with_fresh_names(pred.vars().len());
-                let cstr = self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag)?;
+                let cstr =
+                    self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag, binder_deps)?;
                 let vars = self.ecx.local_var_env.pop_layer();
 
                 let bindings = iter::zip(vars, pred.vars())
@@ -804,8 +823,20 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
-                // TODO: need to thread binder_deps and generate the blame spans here
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
+                // Extract the spans from all of the vars related to the expression
+                // (including the vars in the expression).
+                let fvars = expr.fvars();
+                let blame_vars = fvars
+                    .iter()
+                    .filter_map(|var| binder_deps.get(var).map(|(_bp, related_vars)| related_vars))
+                    .flatten()
+                    .chain(&fvars)
+                    .copied();
+                let blame_var_spans = blame_vars
+                    .map(|var| (var, binder_deps[&var].0.clone()))
+                    .collect();
+                self.blame_spans.insert(tag_idx, blame_var_spans);
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
@@ -819,9 +850,27 @@ where
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
+        binder_deps: &mut BinderDeps,
     ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
+        // Add binder deps first
+        let fvars = pred.fvars();
+        for fvar in &fvars {
+            // In the unlikely (and perhaps impossible) case that names
+            // are reused for binders, we ensure that we don't
+            // initialize the dependencies if a name is missing. Perhaps
+            // it would be better to panic/error here.
+            if let Some((_, deps)) = binder_deps.get_mut(fvar) {
+                for fvar2 in &fvars {
+                    if fvar != fvar2 {
+                        deps.insert(*fvar2);
+                    }
+                }
+            }
+        }
+        // Convert assumption
         let mut bindings = vec![];
         let mut preds = vec![];
+
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
