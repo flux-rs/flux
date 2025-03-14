@@ -941,6 +941,12 @@ pub struct Expr<'fhir> {
 }
 
 #[derive(Clone, Copy)]
+pub enum QuantKind {
+    Forall,
+    Exists,
+}
+
+#[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
     Var(PathExpr<'fhir>, Option<ParamKind>),
     Dot(PathExpr<'fhir>, Ident),
@@ -951,6 +957,7 @@ pub enum ExprKind<'fhir> {
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    BoundedQuant(QuantKind, RefineParam<'fhir>, usize, usize, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Err(ErrorGuaranteed),

@@ -15,7 +15,7 @@ fn do_magic(_x: i32, _y: i32) {}
 
 // forall tests ----------------------------------------------------------------
 
-#[flux::sig(fn(n:{i32 | magic_all(n)}) ensures magic(3, n))]
+#[flux::sig(fn({i32[@n] | magic_all(n)}) ensures magic(3, n))]
 pub fn test_all_l(_x: i32) {}
 
 #[flux::sig(fn(n:i32) ensures magic_all(n))]
