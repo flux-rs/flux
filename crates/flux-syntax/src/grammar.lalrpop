@@ -601,6 +601,12 @@ Level10<AllowStruct>: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
+    <lo:@L> "exists" <f:Ident> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> => {
+        todo!("yikes, exists!")
+    },
+    <lo:@L> "forall" <f:Ident> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> => {
+        todo!("yikes, forall!")
+    },
     "(" <Level1<AllowStruct>> ")"
 }
 
@@ -767,6 +773,8 @@ extern {
         "ensures" => Token::Ensures,
         "where" => Token::Where,
         "forall" => Token::Forall,
+        "exists" => Token::Exists,
+        "in" => Token::In,
         "impl" => Token::Impl,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,

@@ -41,6 +41,8 @@ pub enum Token {
     Mut,
     Where,
     Forall,
+    Exists,
+    In,
     Impl,
     Requires,
     Ensures,
@@ -93,6 +95,8 @@ struct Symbols {
     hrn: Symbol,
     hdl: Symbol,
     forall: Symbol,
+    exists: Symbol,
+    in_: Symbol,
 }
 
 struct Frame<'t> {
@@ -123,6 +127,8 @@ impl<'t> Cursor<'t> {
                 hrn: Symbol::intern("hrn"),
                 hdl: Symbol::intern("hdl"),
                 forall: Symbol::intern("forall"),
+                exists: Symbol::intern("exists"),
+                in_: Symbol::intern("in"),
             },
         }
     }
@@ -166,6 +172,8 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == self.symbs.hrn => Token::Hrn,
             TokenKind::Ident(symb, _) if symb == self.symbs.hdl => Token::Hdl,
             TokenKind::Ident(symb, _) if symb == self.symbs.forall => Token::Forall,
+            TokenKind::Ident(symb, _) if symb == self.symbs.exists => Token::Exists,
+            TokenKind::Ident(symb, _) if symb == self.symbs.in_ => Token::In,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Impl => Token::Impl,
