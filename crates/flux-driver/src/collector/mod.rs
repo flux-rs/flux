@@ -932,7 +932,6 @@ mod errors {
             let msg = match err.kind {
                 ParseErrorKind::UnexpectedEof => "type annotation ended unexpectedly",
                 ParseErrorKind::UnexpectedToken => "unexpected token",
-                ParseErrorKind::IntTooLarge => "integer literal is too large",
             };
 
             SyntaxErr { span: err.span, msg }

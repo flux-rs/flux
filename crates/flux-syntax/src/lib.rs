@@ -1,35 +1,20 @@
-#![feature(rustc_private, box_patterns, new_range_api)]
+#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
 
 extern crate rustc_ast;
 extern crate rustc_span;
 
 pub mod lexer;
+mod parser;
 pub mod surface;
 
-use lalrpop_util::lalrpop_mod;
-use lexer::{Cursor, Location, Token};
+use lexer::Cursor;
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
 
-lalrpop_mod!(
-    #[allow(warnings)]
-    #[allow(clippy::all)]
-    grammar
-);
-
 #[derive(Default)]
 pub struct ParseSess {
     next_node_id: usize,
-}
-
-macro_rules! parse {
-    ($sess:expr, $parser:path, $tokens:expr, $span:expr) => {{
-        let mut cx = ParseCtxt::new($sess, $span);
-        <$parser>::new()
-            .parse(&mut cx, Cursor::new($tokens, $span.lo()))
-            .map_err(|err| cx.map_err(err))
-    }};
 }
 
 impl ParseSess {
@@ -38,7 +23,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::RefineParams> {
-        parse!(self, grammar::RefinedByParser, tokens, span)
+        ParseCtxt::new(self, span).parse_refined_by(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_generics(
@@ -46,7 +31,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::Generics> {
-        parse!(self, grammar::GenericsParser, tokens, span)
+        ParseCtxt::new(self, span).parse_generics(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_type_alias(
@@ -54,7 +39,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::TyAlias> {
-        parse!(self, grammar::TyAliasParser, tokens, span)
+        ParseCtxt::new(self, span).parse_type_alias(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_fn_sig(
@@ -62,7 +47,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::FnSig> {
-        parse!(self, grammar::FnSigParser, tokens, span)
+        ParseCtxt::new(self, span).parse_fn_sig(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_trait_assoc_reft(
@@ -70,7 +55,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::TraitAssocReft>> {
-        parse!(self, grammar::TraitAssocReftsParser, tokens, span)
+        ParseCtxt::new(self, span).parse_trait_assoc_refts(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_impl_assoc_reft(
@@ -78,7 +63,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::ImplAssocReft>> {
-        parse!(self, grammar::ImplAssocReftsParser, tokens, span)
+        ParseCtxt::new(self, span).parse_impl_assoc_refts(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_qual_names(
@@ -86,7 +71,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::QualNames> {
-        parse!(self, grammar::QualNamesParser, tokens, span)
+        ParseCtxt::new(self, span).parse_qual_names(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_flux_item(
@@ -94,11 +79,11 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::Item>> {
-        parse!(self, grammar::ItemsParser, tokens, span)
+        ParseCtxt::new(self, span).parse_flux_items(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_type(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Ty> {
-        parse!(self, grammar::TyParser, tokens, span)
+        ParseCtxt::new(self, span).parse_type(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_variant(
@@ -106,11 +91,11 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::VariantDef> {
-        parse!(self, grammar::VariantParser, tokens, span)
+        ParseCtxt::new(self, span).parse_variant(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn parse_expr(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {
-        parse!(self, grammar::ExprParser, tokens, span)
+        ParseCtxt::new(self, span).parse_expr(&mut Cursor::new(tokens, span.lo()), true)
     }
 
     pub fn parse_constant_info(
@@ -118,7 +103,9 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::ConstantInfo> {
-        parse!(self, grammar::ConstantInfoParser, tokens, span)
+        let expr =
+            ParseCtxt::new(self, span).parse_expr(&mut Cursor::new(tokens, span.lo()), true)?;
+        Ok(surface::ConstantInfo { expr: Some(expr) })
     }
 
     pub fn parse_yes_or_no_with_reason(
@@ -126,7 +113,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<bool> {
-        parse!(self, grammar::YesOrNoWithReasonParser, tokens, span)
+        ParseCtxt::new(self, span).parse_yes_or_no_with_reason(&mut Cursor::new(tokens, span.lo()))
     }
 
     pub fn next_node_id(&mut self) -> NodeId {
@@ -137,7 +124,6 @@ impl ParseSess {
 }
 
 struct ParseCtxt<'a> {
-    offset: BytePos,
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
     sess: &'a mut ParseSess,
@@ -145,39 +131,17 @@ struct ParseCtxt<'a> {
 
 impl<'a> ParseCtxt<'a> {
     fn new(sess: &'a mut ParseSess, span: Span) -> Self {
-        Self { sess, offset: span.lo(), ctx: span.ctxt(), parent: span.parent() }
+        Self { sess, ctx: span.ctxt(), parent: span.parent() }
     }
 
     fn next_node_id(&mut self) -> NodeId {
         self.sess.next_node_id()
     }
 
-    fn map_span(&self, lo: Location, hi: Location) -> Span {
-        Span::new(lo.0 + self.offset, hi.0 + self.offset, self.ctx, self.parent)
-    }
-
-    fn map_err(&self, err: LalrpopError) -> ParseError {
-        match err {
-            LalrpopError::InvalidToken { .. } => unreachable!(),
-            LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
-                ParseErrorKind::UnexpectedToken.into_error(self.map_span(lo, hi))
-            }
-            LalrpopError::UnrecognizedEof { location, expected: _ } => {
-                ParseErrorKind::UnexpectedEof.into_error(self.map_span(location, location))
-            }
-            LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
-            | LalrpopError::ExtraToken { token: (start, _, end) } => {
-                ParseErrorKind::UnexpectedToken.into_error(self.map_span(start, end))
-            }
-        }
+    fn mk_span(&self, lo: BytePos, hi: BytePos) -> Span {
+        Span::new(lo, hi, self.ctx, self.parent)
     }
 }
-
-pub enum UserParseError {
-    UnexpectedToken(Location, Location),
-}
-
-type LalrpopError = lalrpop_util::ParseError<Location, Token, UserParseError>;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -190,7 +154,6 @@ pub struct ParseError {
 pub enum ParseErrorKind {
     UnexpectedEof,
     UnexpectedToken,
-    IntTooLarge,
 }
 
 impl ParseErrorKind {

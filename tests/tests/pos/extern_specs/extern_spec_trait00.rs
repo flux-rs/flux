@@ -19,7 +19,7 @@ impl PartialEq for MyInt {
     }
 }
 
-#[sig(fn<T as base>(x: T, y: T) -> bool[<T as PartialEq<T>>::eq_rel(x, y)])]
+#[sig(fn(x: T, y: T) -> bool[<T as PartialEq<T>>::eq_rel(x, y)])]
 fn test00<T: PartialEq>(x: T, y: T) -> bool {
     x == y
 }

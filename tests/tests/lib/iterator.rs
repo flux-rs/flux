@@ -38,7 +38,6 @@ trait Iterator {
 }
 
 #[flux_rs::extern_spec(core::ops)]
-#[generics(A as base)]
 #[flux_rs::assoc(fn done(r: Range<A>) -> bool { r.start == r.end } )]
 #[flux_rs::assoc(fn step(self: Range<A>, other: Range<A>) -> bool { <A as Step>::can_step_forward(self.start, 1) => other.start == <A as Step>::step_forward(self.start, 1) } )]
 impl<A: Step> Iterator for Range<A> {
@@ -76,7 +75,6 @@ impl<I: Iterator> Iterator for Skip<I> {
 }
 
 #[flux_rs::extern_spec(core::iter)]
-#[generics(A as base, B as base)]
 // VTOCK todo: Is this really the right thing (see A::MAY_HAVE_SIDE_EFFECT)
 #[flux_rs::assoc(fn done(r: Zip<A, B>) -> bool { r.idx >= r.len && r.idx >= r.a_len })]
 #[flux_rs::assoc(fn step(self: Zip<A, B>, other: Zip<A, B>) -> bool { self.idx + 1 == other.idx } )]

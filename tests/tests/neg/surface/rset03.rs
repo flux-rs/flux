@@ -6,7 +6,7 @@
 
 use std::{
     borrow::Borrow,
-    collections::{hash_map::RandomState, HashSet},
+    collections::{HashSet, hash_map::RandomState},
     hash::{BuildHasher, Hash},
 };
 
@@ -21,7 +21,6 @@ struct HashSet<T, S = RandomState>;
 // FIRST IMPL
 
 #[extern_spec]
-#[flux::generics(T as base)]
 impl<T: Eq + Hash> HashSet<T, RandomState> {
     #[flux::sig(fn() -> HashSet<T>[set_empty(0)])]
     fn new() -> HashSet<T>;
@@ -30,7 +29,6 @@ impl<T: Eq + Hash> HashSet<T, RandomState> {
 // SECOND IMPL
 
 #[extern_spec]
-#[flux::generics(T as base, S)]
 impl<T: Eq + Hash, S: BuildHasher> HashSet<T, S> {
     #[flux::sig(fn(set: &strg HashSet<T, S>[@s], elem:T) -> bool ensures set: HashSet<T, S>[set_union(set_singleton(elem), s)])]
     fn insert(s: &mut HashSet<T, S>, elem: T) -> bool;
@@ -43,7 +41,7 @@ impl<T: Eq + Hash, S: BuildHasher> HashSet<T, S> {
 }
 
 #[flux::trusted]
-#[flux::sig(fn<T as base>(&HashSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
+#[flux::sig(fn(&HashSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
 fn member<T: Eq + Hash>(s: &HashSet<T>, elem: &T) -> bool {
     s.contains(elem)
 }

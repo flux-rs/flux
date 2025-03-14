@@ -12,7 +12,6 @@ use flux_rs::extern_spec;
 struct Vec<T, A: Allocator = Global>;
 
 #[extern_spec]
-#[flux::generics(Self as base, T as base)]
 #[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
 trait SliceIndex<T>
 where

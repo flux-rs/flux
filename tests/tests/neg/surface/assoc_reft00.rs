@@ -18,7 +18,7 @@ impl MyTrait for i32 {
 
 // Step 3 : abstract ------------------------------
 #[trusted] // TODO: subtyping with alias_pred on lhs
-#[sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
+#[sig(fn(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
 pub fn bob<T: MyTrait>(x: &T) {
     x.method();
 }
