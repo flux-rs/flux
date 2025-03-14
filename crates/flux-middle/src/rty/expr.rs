@@ -280,6 +280,10 @@ impl Expr {
         ExprKind::Abs(lam).intern()
     }
 
+    pub fn bounded_quant(kind: QuantKind, lo: usize, hi: usize, lam: Lambda) -> Expr {
+        ExprKind::BoundedQuant(kind, lo, hi, lam).intern()
+    }
+
     pub fn hole(kind: HoleKind) -> Expr {
         ExprKind::Hole(kind).intern()
     }
@@ -648,6 +652,12 @@ impl Ctor {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum QuantKind {
+    Exists,
+    Forall,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
     Local(Local),
@@ -680,6 +690,9 @@ pub enum ExprKind {
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
     Abs(Lambda),
+
+    /// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
+    BoundedQuant(QuantKind, usize, usize, Lambda),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -1200,6 +1213,15 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for QuantKind {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                QuantKind::Exists => w!(cx, f, "exists"),
+                QuantKind::Forall => w!(cx, f, "forall"),
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
@@ -1324,6 +1346,12 @@ pub(crate) mod pretty {
                             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
                         w!(cx, f, "{:?}", expr.as_ref().skip_binder())
+                    })
+                }
+                ExprKind::BoundedQuant(kind, i, j, lam) => {
+                    let vars = lam.body.vars();
+                    cx.with_bound_vars(vars, || {
+                        w!(cx, f, "{:?} {i}..{j} {{ {:?} }}", kind, lam.body.as_ref().skip_binder())
                     })
                 }
             }

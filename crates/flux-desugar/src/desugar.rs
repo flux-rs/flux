@@ -1446,12 +1446,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::ExprKind::BoundedQuant(kind, param, i, j, body) => {
                 let kind = match kind {
-                    surface::BoundedQuantKind::Exists => fhir::ExprKind::Exists,
-                    surface::BoundedQuantKind::Forall => fhir::ExprKind::Forall,
+                    surface::QuantKind::Exists => fhir::QuantKind::Exists,
+                    surface::QuantKind::Forall => fhir::QuantKind::Forall,
                 };
                 let body = self.genv().alloc(self.desugar_expr(body));
-                let params = self.desugar_refine_param(param);
-                fhir::ExprKind::BoundedQuant(kind, param, i, j, body)
+                let param = self.desugar_refine_param(param);
+                fhir::ExprKind::BoundedQuant(kind, param, *i, *j, body)
             }
         };
 

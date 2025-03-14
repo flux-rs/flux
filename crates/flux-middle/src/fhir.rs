@@ -1415,6 +1415,15 @@ impl fmt::Debug for AliasReft<'_> {
     }
 }
 
+impl fmt::Debug for QuantKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuantKind::Forall => write!(f, "forall"),
+            QuantKind::Exists => write!(f, "exists"),
+        }
+    }
+}
+
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -1454,6 +1463,9 @@ impl fmt::Debug for Expr<'_> {
                 } else {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
+            }
+            ExprKind::BoundedQuant(kind, refine_param, i, j, expr) => {
+                write!(f, "{kind:?} {refine_param:?} in {i}.. {j} {{ {expr:?} }}")
             }
             ExprKind::Err(_) => write!(f, "err"),
         }

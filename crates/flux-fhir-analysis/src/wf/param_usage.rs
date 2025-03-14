@@ -110,9 +110,10 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.errors.emit(InvalidParamPos::new(var.span, sort));
                 }
             }
-            fhir::ExprKind::Abs(_, body) => {
+            fhir::ExprKind::Abs(_, body) | fhir::ExprKind::BoundedQuant(_, _, _, _, body) => {
                 self.check_func_params_uses(body, true, is_top_level_var);
             }
+
             fhir::ExprKind::Record(fields) => {
                 for field in fields {
                     self.check_func_params_uses(field, is_top_level_conj, is_top_level_var);

@@ -2082,6 +2082,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 rty::Expr::abs(lam)
             }
+            fhir::ExprKind::BoundedQuant(kind, param, i, j, body) => {
+                let layer = Layer::list(self.results(), 0, &[*param]);
+                env.push_layer(layer);
+                let pred = self.conv_expr(env, body)?;
+                let inputs = env.pop_layer().into_bound_vars(self.genv())?;
+                let output = rty::Sort::Bool;
+                let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
+                rty::Expr::bounded_quant(kind, i, j, lam)
+            }
+
             fhir::ExprKind::Record(flds) => {
                 let def_id = self.results().record_ctor(expr.fhir_id);
                 let flds = flds
