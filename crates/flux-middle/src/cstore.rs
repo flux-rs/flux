@@ -1,3 +1,6 @@
+use std::rc::Rc;
+
+use rustc_hir::def_id::CrateNum;
 use rustc_span::def_id::DefId;
 
 use crate::{def_id::FluxDefId, queries::QueryResult, rty};
@@ -28,6 +31,7 @@ pub trait CrateStore {
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
+    fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

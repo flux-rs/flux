@@ -2,11 +2,13 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
+use rustc_macros::{TyDecodable, TyEncodable};
 use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
-    def_id::{FluxDefId, FluxLocalDefId},
+    def_id::{FluxDefId, FluxId, FluxLocalDefId},
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
@@ -15,9 +17,16 @@ use crate::{
     },
 };
 
-#[derive(Default)]
+#[derive(TyEncodable, TyDecodable)]
 pub struct NormalizedDefns {
-    defns: UnordMap<FluxLocalDefId, Binder<Expr>>,
+    krate: CrateNum,
+    defns: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
+}
+
+impl Default for NormalizedDefns {
+    fn default() -> Self {
+        Self { krate: LOCAL_CRATE, defns: UnordMap::default() }
+    }
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -42,11 +51,18 @@ impl NormalizedDefns {
                 .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
             normalized.insert(defn.0, body);
         }
-        Ok(Self { defns: normalized })
+        Ok(Self {
+            krate: LOCAL_CRATE,
+            defns: normalized
+                .into_items()
+                .map(|(id, body)| (id.local_def_index(), body))
+                .collect(),
+        })
     }
 
-    pub fn func_defn(&self, did: FluxLocalDefId) -> &Binder<Expr> {
-        self.defns.get(&did).unwrap()
+    pub fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
+        debug_assert_eq!(self.krate, did.krate());
+        self.defns.get(&did.index()).unwrap().clone()
     }
 }
 
@@ -113,11 +129,11 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     }
 
     #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
-    fn func_defn(&self, did: FluxDefId) -> &Binder<Expr> {
+    fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
         if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()
         {
-            defs.get(&local_id).unwrap()
+            defs.get(&local_id).unwrap().clone()
         } else {
             self.genv.normalized_defn(did)
         }

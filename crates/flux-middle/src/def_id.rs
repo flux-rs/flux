@@ -1,5 +1,5 @@
 use flux_common::bug;
-use rustc_hir::def_id::{DefId, DefIndex, LocalDefId};
+use rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
@@ -66,6 +66,10 @@ impl FluxDefId {
         }
     }
 
+    pub fn krate(self) -> CrateNum {
+        self.parent.krate
+    }
+
     pub fn index(self) -> FluxId<DefIndex> {
         FluxId { parent: self.parent.index, name: self.name }
     }
@@ -74,6 +78,10 @@ impl FluxDefId {
 impl FluxLocalDefId {
     pub fn to_def_id(self) -> FluxDefId {
         FluxDefId { parent: self.parent.to_def_id(), name: self.name }
+    }
+
+    pub fn local_def_index(self) -> FluxId<DefIndex> {
+        FluxId { parent: self.parent.local_def_index, name: self.name }
     }
 }
 

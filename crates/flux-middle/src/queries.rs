@@ -15,7 +15,7 @@ use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
@@ -205,7 +205,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    normalized_defns: OnceCell<rty::NormalizedDefns>,
+    normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
     func_sort: Cache<FluxDefId, QueryResult<rty::PolyFuncSort>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
@@ -383,9 +383,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn normalized_defns(&self, genv: GlobalEnv) -> &rty::NormalizedDefns {
-        self.normalized_defns
-            .get_or_init(|| (self.providers.normalized_defns)(genv))
+    pub(crate) fn normalized_defns(
+        &self,
+        genv: GlobalEnv,
+        krate: CrateNum,
+    ) -> Rc<rty::NormalizedDefns> {
+        run_with_cache(&self.normalized_defns, krate, || {
+            if krate == LOCAL_CRATE {
+                Rc::new((self.providers.normalized_defns)(genv))
+            } else {
+                genv.cstore().normalized_defns(krate)
+            }
+        })
     }
 
     pub(crate) fn func_sort(

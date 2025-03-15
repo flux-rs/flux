@@ -17,7 +17,7 @@ extern crate rustc_type_ir;
 mod decoder;
 mod encoder;
 
-use std::{hash::Hash, path::PathBuf};
+use std::{hash::Hash, path::PathBuf, rc::Rc};
 
 use decoder::decode_crate_metadata;
 use derive_where::derive_where;
@@ -31,7 +31,10 @@ use flux_middle::{
     rty,
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{LOCAL_CRATE, LocalDefId},
+};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
@@ -115,6 +118,7 @@ pub struct Tables<K: Eq + Hash> {
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
     variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
+    normalized_defns: Rc<rty::NormalizedDefns>,
 }
 
 impl CStore {
@@ -243,6 +247,10 @@ impl CrateStore for CStore {
     fn constant_info(&self, key: DefId) -> OptResult<rty::ConstantInfo> {
         get!(self, constant_info, key)
     }
+
+    fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
+        self.local_tables[&krate].normalized_defns.clone()
+    }
 }
 
 impl CrateMetadata {
@@ -255,6 +263,7 @@ impl CrateMetadata {
             DefId::to_index,
             FluxDefId::to_index,
         );
+        local_tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
         let mut extern_tables = Tables::default();
         encode_def_ids(
