@@ -1119,6 +1119,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::ForAll(_) => {
                 span_bug!(self.def_span, "unexpected expr: `{expr:?}`")
             }
+            rty::ExprKind::BoundedQuant(kind, lo, hi, body) => {
+                let exprs = (*lo..*hi)
+                    .map(|i| {
+                        let arg = rty::Expr::constant(rty::Constant::from(i));
+                        body.apply(&[arg])
+                    })
+                    .collect_vec();
+                let expr = match kind {
+                    rty::QuantKind::Exists => rty::Expr::and_from_iter(exprs),
+                    rty::QuantKind::Forall => rty::Expr::or_from_iter(exprs),
+                };
+                self.expr_to_fixpoint(&expr, scx)?
+            }
         };
         Ok(e)
     }

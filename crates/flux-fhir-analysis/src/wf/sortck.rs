@@ -189,6 +189,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Abs(refine_params, body) => {
                 self.check_abs(expr, refine_params, body, expected)?;
             }
+
+            fhir::ExprKind::BoundedQuant(_, param, _, _, body) => {
+                self.check_abs(expr, &[*param], body, expected)?;
+            }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;

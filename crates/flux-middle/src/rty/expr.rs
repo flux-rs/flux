@@ -1492,7 +1492,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            nested_with_bound_vars(cx, "λ", self.body.vars(), |prefix| {
+            nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
                 let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);
                 Ok(NestedString { text, children: expr_d.children, key: None })
@@ -1656,9 +1656,21 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
+                ExprKind::BoundedQuant(kind, i, j, body) => {
+                    let left = match kind {
+                        QuantKind::Exists => "forall",
+                        QuantKind::Forall => "exists",
+                    };
+                    let right = Some(format!(" in {i} .. {j}"));
 
+                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+                        let expr_d = body.body.as_ref().skip_binder().fmt_nested(cx)?;
+                        let text = format!("{}{}", all_str, expr_d.text);
+                        Ok(NestedString { text, children: expr_d.children, key: None })
+                    })
+                }
                 ExprKind::ForAll(expr) => {
-                    nested_with_bound_vars(cx, "∀", expr.vars(), |all_str| {
+                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
