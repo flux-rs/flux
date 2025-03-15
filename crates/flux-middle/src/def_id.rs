@@ -54,12 +54,16 @@ impl FluxDefId {
         Some(FluxId { parent: self.parent.as_local()?, name: self.name })
     }
 
+    #[track_caller]
     pub fn expect_local(self) -> FluxLocalDefId {
         #[allow(
             clippy::disallowed_methods,
             reason = "we also have a warning for `FluxId::expect_local`"
         )]
-        FluxId { parent: self.parent.expect_local(), name: self.name }
+        match self.as_local() {
+            Some(local_id) => local_id,
+            None => panic!("FluxDefId::expect_local: `{self:?}` isn't local"),
+        }
     }
 
     pub fn index(self) -> FluxId<DefIndex> {
