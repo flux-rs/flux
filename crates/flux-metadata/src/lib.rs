@@ -57,7 +57,7 @@ pub struct CrateMetadata {
 }
 
 /// Trait to deal with the fact that `assoc_refinmenents_of` and `assoc_refinements_def` use
-/// `AssocReftId<K>` as key;
+/// `FluxId<K>` as key;
 trait Key {
     type KeyIndex;
     fn crate_num(self) -> CrateNum;
@@ -262,7 +262,7 @@ impl CrateMetadata {
             genv.iter_extern_def_id(),
             &mut extern_tables,
             |def_id| def_id,
-            |assoc_id| assoc_id,
+            |flux_id| flux_id,
         );
 
         CrateMetadata { local_tables, extern_tables }
