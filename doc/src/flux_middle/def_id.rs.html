@@ -203,8 +203,20 @@
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
-<span class="kw">use </span>rustc_hir::def_id::{DefId, DefIndex, LocalDefId};
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_span::Symbol;
 
@@ -259,12 +271,20 @@
         </span><span class="prelude-val">Some</span>(FluxId { parent: <span class="self">self</span>.parent.as_local()<span class="question-mark">?</span>, name: <span class="self">self</span>.name })
     }
 
-    <span class="kw">pub fn </span>expect_local(<span class="self">self</span>) -&gt; FluxLocalDefId {
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_local(<span class="self">self</span>) -&gt; FluxLocalDefId {
         <span class="attr">#[allow(
             clippy::disallowed_methods,
             reason = <span class="string">"we also have a warning for `FluxId::expect_local`"
         </span>)]
-        </span>FluxId { parent: <span class="self">self</span>.parent.expect_local(), name: <span class="self">self</span>.name }
+        </span><span class="kw">match </span><span class="self">self</span>.as_local() {
+            <span class="prelude-val">Some</span>(local_id) =&gt; local_id,
+            <span class="prelude-val">None </span>=&gt; <span class="macro">panic!</span>(<span class="string">"FluxDefId::expect_local: `{self:?}` isn't local"</span>),
+        }
+    }
+
+    <span class="kw">pub fn </span>krate(<span class="self">self</span>) -&gt; CrateNum {
+        <span class="self">self</span>.parent.krate
     }
 
     <span class="kw">pub fn </span>index(<span class="self">self</span>) -&gt; FluxId&lt;DefIndex&gt; {
@@ -275,6 +295,10 @@
 <span class="kw">impl </span>FluxLocalDefId {
     <span class="kw">pub fn </span>to_def_id(<span class="self">self</span>) -&gt; FluxDefId {
         FluxDefId { parent: <span class="self">self</span>.parent.to_def_id(), name: <span class="self">self</span>.name }
+    }
+
+    <span class="kw">pub fn </span>local_def_index(<span class="self">self</span>) -&gt; FluxId&lt;DefIndex&gt; {
+        FluxId { parent: <span class="self">self</span>.parent.local_def_index, name: <span class="self">self</span>.name }
     }
 }
 

@@ -929,7 +929,16 @@
 <a href="#928" id="928">928</a>
 <a href="#929" id="929">929</a>
 <a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -946,7 +955,7 @@
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 <span class="kw">use </span>rustc_index::IndexVec;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
@@ -1136,7 +1145,7 @@
     lower_predicates_of: Cache&lt;DefId, QueryResult&lt;ty::GenericPredicates&gt;&gt;,
     lower_type_of: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt;&gt;,
     lower_fn_sig: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt;&gt;,
-    normalized_defns: OnceCell&lt;rty::NormalizedDefns&gt;,
+    normalized_defns: Cache&lt;CrateNum, Rc&lt;rty::NormalizedDefns&gt;&gt;,
     func_sort: Cache&lt;FluxDefId, QueryResult&lt;rty::PolyFuncSort&gt;&gt;,
     qualifiers: OnceCell&lt;QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;&gt;,
     adt_sort_def_of: Cache&lt;DefId, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
@@ -1314,9 +1323,18 @@
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalized_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; <span class="kw-2">&amp;</span>rty::NormalizedDefns {
-        <span class="self">self</span>.normalized_defns
-            .get_or_init(|| (<span class="self">self</span>.providers.normalized_defns)(genv))
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalized_defns(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        genv: GlobalEnv,
+        krate: CrateNum,
+    ) -&gt; Rc&lt;rty::NormalizedDefns&gt; {
+        run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.normalized_defns, krate, || {
+            <span class="kw">if </span>krate == LOCAL_CRATE {
+                Rc::new((<span class="self">self</span>.providers.normalized_defns)(genv))
+            } <span class="kw">else </span>{
+                genv.cstore().normalized_defns(krate)
+            }
+        })
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>func_sort(

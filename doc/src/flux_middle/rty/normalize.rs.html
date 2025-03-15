@@ -172,15 +172,33 @@
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+<span class="kw">use </span>rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
+<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <span class="kw">use </span>toposort_scc::IndexGraph;
 
 <span class="kw">use super</span>::{ESpan, fold::TypeSuperFoldable};
 <span class="kw">use crate</span>::{
-    def_id::{FluxDefId, FluxLocalDefId},
+    def_id::{FluxDefId, FluxId, FluxLocalDefId},
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
@@ -189,9 +207,16 @@
     },
 };
 
-<span class="attr">#[derive(Default)]
+<span class="attr">#[derive(TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>NormalizedDefns {
-    defns: UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;,
+    krate: CrateNum,
+    defns: UnordMap&lt;FluxId&lt;DefIndex&gt;, Binder&lt;Expr&gt;&gt;,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>NormalizedDefns {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ krate: LOCAL_CRATE, defns: UnordMap::default() }
+    }
 }
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -216,11 +241,18 @@
                 </span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>normalized)));
             normalized.insert(defn.<span class="number">0</span>, body);
         }
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ defns: normalized })
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            krate: LOCAL_CRATE,
+            defns: normalized
+                .into_items()
+                .map(|(id, body)| (id.local_def_index(), body))
+                .collect(),
+        })
     }
 
-    <span class="kw">pub fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxLocalDefId) -&gt; <span class="kw-2">&amp;</span>Binder&lt;Expr&gt; {
-        <span class="self">self</span>.defns.get(<span class="kw-2">&amp;</span>did).unwrap()
+    <span class="kw">pub fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; Binder&lt;Expr&gt; {
+        <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.krate, did.krate());
+        <span class="self">self</span>.defns.get(<span class="kw-2">&amp;</span>did.index()).unwrap().clone()
     }
 }
 
@@ -287,11 +319,11 @@
     }
 
     <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
-    </span><span class="kw">fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; <span class="kw-2">&amp;</span>Binder&lt;Expr&gt; {
+    </span><span class="kw">fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; Binder&lt;Expr&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(defs) = <span class="self">self</span>.defs
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = did.as_local()
         {
-            defs.get(<span class="kw-2">&amp;</span>local_id).unwrap()
+            defs.get(<span class="kw-2">&amp;</span>local_id).unwrap().clone()
         } <span class="kw">else </span>{
             <span class="self">self</span>.genv.normalized_defn(did)
         }

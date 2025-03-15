@@ -621,10 +621,7 @@
 <a href="#620" id="620">620</a>
 <a href="#621" id="621">621</a>
 <a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#623" id="623">623</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -634,7 +631,7 @@
 <span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{CrateNum, DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_middle::{
     query::IntoQueryParam,
@@ -649,7 +646,6 @@
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
         <span class="self">self</span>,
-        normalize::NormalizedDefns,
         refining::{Refine <span class="kw">as _</span>, Refiner},
     },
 };
@@ -760,14 +756,12 @@
         }
     }
 
-    <span class="kw">pub fn </span>normalized_defn(<span class="self">self</span>, did: FluxDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::Binder&lt;rty::Expr&gt; {
-        <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
-        </span><span class="kw">let </span>local_id = did.expect_local();
-        <span class="self">self</span>.normalized_defns().func_defn(local_id)
+    <span class="kw">pub fn </span>normalized_defn(<span class="self">self</span>, did: FluxDefId) -&gt; rty::Binder&lt;rty::Expr&gt; {
+        <span class="self">self</span>.normalized_defns(did.krate()).func_defn(did).clone()
     }
 
-    <span class="kw">pub fn </span>normalized_defns(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>NormalizedDefns {
-        <span class="self">self</span>.inner.queries.normalized_defns(<span class="self">self</span>)
+    <span class="kw">pub fn </span>normalized_defns(<span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;rty::NormalizedDefns&gt; {
+        <span class="self">self</span>.inner.queries.normalized_defns(<span class="self">self</span>, krate)
     }
 
     <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[rty::Qualifier]&gt; {

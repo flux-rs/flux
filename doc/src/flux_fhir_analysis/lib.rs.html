@@ -621,7 +621,7 @@
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 
 <span class="macro">fluent_messages!</span> { <span class="string">"../locales/en-US.ftl" </span>}
@@ -1133,7 +1133,7 @@
 
     <span class="comment">// Query qualifiers and spec funcs to report wf errors
     </span><span class="kw">let _ </span>= genv.qualifiers().emit(<span class="kw-2">&amp;</span>errors);
-    <span class="kw">let _ </span>= genv.normalized_defns();
+    <span class="kw">let _ </span>= genv.normalized_defns(LOCAL_CRATE);
 
     errors.into_result()
 }
