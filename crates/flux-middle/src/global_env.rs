@@ -8,7 +8,7 @@ use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{CrateNum, DefId, LocalDefId},
 };
 use rustc_middle::{
     query::IntoQueryParam,
@@ -23,7 +23,6 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
         self,
-        normalize::NormalizedDefns,
         refining::{Refine as _, Refiner},
     },
 };
@@ -134,14 +133,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_defn(self, did: FluxDefId) -> &'genv rty::Binder<rty::Expr> {
-        #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
-        let local_id = did.expect_local();
-        self.normalized_defns().func_defn(local_id)
+    pub fn normalized_defn(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        self.normalized_defns(did.krate()).func_defn(did).clone()
     }
 
-    pub fn normalized_defns(self) -> &'genv NormalizedDefns {
-        self.inner.queries.normalized_defns(self)
+    pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
+        self.inner.queries.normalized_defns(self, krate)
     }
 
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {

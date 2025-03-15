@@ -39,7 +39,7 @@ use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -551,7 +551,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     // Query qualifiers and spec funcs to report wf errors
     let _ = genv.qualifiers().emit(&errors);
-    let _ = genv.normalized_defns();
+    let _ = genv.normalized_defns(LOCAL_CRATE);
 
     errors.into_result()
 }

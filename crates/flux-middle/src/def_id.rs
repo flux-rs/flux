@@ -1,5 +1,5 @@
 use flux_common::bug;
-use rustc_hir::def_id::{DefId, DefIndex, LocalDefId};
+use rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
@@ -54,12 +54,20 @@ impl FluxDefId {
         Some(FluxId { parent: self.parent.as_local()?, name: self.name })
     }
 
+    #[track_caller]
     pub fn expect_local(self) -> FluxLocalDefId {
         #[allow(
             clippy::disallowed_methods,
             reason = "we also have a warning for `FluxId::expect_local`"
         )]
-        FluxId { parent: self.parent.expect_local(), name: self.name }
+        match self.as_local() {
+            Some(local_id) => local_id,
+            None => panic!("FluxDefId::expect_local: `{self:?}` isn't local"),
+        }
+    }
+
+    pub fn krate(self) -> CrateNum {
+        self.parent.krate
     }
 
     pub fn index(self) -> FluxId<DefIndex> {
@@ -70,6 +78,10 @@ impl FluxDefId {
 impl FluxLocalDefId {
     pub fn to_def_id(self) -> FluxDefId {
         FluxDefId { parent: self.parent.to_def_id(), name: self.name }
+    }
+
+    pub fn local_def_index(self) -> FluxId<DefIndex> {
+        FluxId { parent: self.parent.local_def_index, name: self.name }
     }
 }
 
