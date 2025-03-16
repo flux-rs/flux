@@ -700,7 +700,7 @@ pub fn nested_with_bound_vars(
     let mut buffer = String::new();
     cx.with_bound_vars(vars, || {
         if !vars.is_empty() {
-            let right = right.unwrap_or(format!(". "));
+            let right = right.unwrap_or(". ".to_string());
             cx.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
         }
         f(buffer)
