@@ -1418,8 +1418,8 @@ impl fmt::Debug for AliasReft<'_> {
 impl fmt::Debug for QuantKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QuantKind::Forall => write!(f, "forall"),
-            QuantKind::Exists => write!(f, "exists"),
+            QuantKind::Forall => write!(f, "∀"),
+            QuantKind::Exists => write!(f, "∃"),
         }
     }
 }

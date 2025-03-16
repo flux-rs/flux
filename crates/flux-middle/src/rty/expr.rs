@@ -1218,8 +1218,8 @@ pub(crate) mod pretty {
     impl Pretty for QuantKind {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                QuantKind::Exists => w!(cx, f, "exists"),
-                QuantKind::Forall => w!(cx, f, "forall"),
+                QuantKind::Exists => w!(cx, f, "∃"),
+                QuantKind::Forall => w!(cx, f, "∀"),
             }
         }
     }
@@ -1660,8 +1660,8 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
                 ExprKind::BoundedQuant(kind, i, j, body) => {
                     let left = match kind {
-                        QuantKind::Exists => "∀",
-                        QuantKind::Forall => "∃",
+                        QuantKind::Forall => "∀",
+                        QuantKind::Exists => "∃",
                     };
                     let right = Some(format!(" in {i} .. {j}"));
 
