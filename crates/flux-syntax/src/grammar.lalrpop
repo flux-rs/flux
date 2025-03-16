@@ -601,7 +601,7 @@ Level10<AllowStruct>: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> "exists"  <param:RefineParam<"!">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
+    <lo:@L> "exists"  <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
       if let surface::LitKind::Integer = i.kind {
         if let surface::LitKind::Integer = j.kind {
           if let Ok(i) = i.symbol.as_str().parse::<usize>() {

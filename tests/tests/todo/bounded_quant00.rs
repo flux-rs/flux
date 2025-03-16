@@ -2,13 +2,13 @@
     fn magic(xing:int, yonk:int) -> bool;
 
     fn magic_all(noob:int) -> bool {
-        forall i:int in 0 .. 4 {
+        forall i in 0 .. 4 {
             magic(i, noob)
         }
     }
 
     fn magic_ex(n:int) -> bool {
-        exists i:int in 0 .. 4 {
+        exists i in 0 .. 4 {
             i == n
         }
     }
