@@ -1123,12 +1123,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let exprs = (*lo..*hi)
                     .map(|i| {
                         let arg = rty::Expr::constant(rty::Constant::from(i));
-                        body.apply(&[arg])
+                        body.replace_bound_reft(&arg)
                     })
                     .collect_vec();
                 let expr = match kind {
-                    rty::QuantKind::Exists => rty::Expr::and_from_iter(exprs),
-                    rty::QuantKind::Forall => rty::Expr::or_from_iter(exprs),
+                    rty::QuantKind::Forall => rty::Expr::and_from_iter(exprs),
+                    rty::QuantKind::Exists => rty::Expr::or_from_iter(exprs),
                 };
                 self.expr_to_fixpoint(&expr, scx)?
             }

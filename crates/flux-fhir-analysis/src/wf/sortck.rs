@@ -191,7 +191,14 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
 
             fhir::ExprKind::BoundedQuant(_, param, _, _, body) => {
-                self.check_abs(expr, &[*param], body, expected)?;
+                let fsort = FuncSort::new(vec![rty::Sort::Int], rty::Sort::Bool);
+                let fsort = rty::PolyFuncSort::new(vec![].into(), fsort);
+                let fsort = rty::Sort::Func(fsort);
+                self.insert_param(param.id, rty::Sort::Int, fhir::ParamKind::Colon); // fixed-quantifiers HACK 1
+                self.wfckresults
+                    .node_sorts_mut()
+                    .insert(param.fhir_id, rty::Sort::Int); // fixed-quantifiers HACK 2
+                self.check_abs(expr, &[*param], body, &fsort)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
