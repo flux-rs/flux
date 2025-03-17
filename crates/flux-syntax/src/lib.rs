@@ -168,6 +168,18 @@ impl<'a> ParseCtxt<'a> {
         };
         ParseError { kind, span: self.mk_span(lo, hi) }
     }
+
+    fn unsupported_callee(&self, span: Span) -> ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedCallee, span }
+    }
+
+    fn unsupported_proj(&self, span: Span) -> ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedProj, span }
+    }
+
+    fn cannot_be_chained(&self, lo: BytePos, hi: BytePos) -> ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedProj, span: self.mk_span(lo, hi) }
+    }
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -181,4 +193,7 @@ pub struct ParseError {
 pub enum ParseErrorKind {
     UnexpectedToken,
     UnexpectedEof,
+    UnsupportedCallee,
+    UnsupportedProj,
+    CannotBeChained,
 }

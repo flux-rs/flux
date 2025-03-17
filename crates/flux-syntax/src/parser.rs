@@ -471,6 +471,7 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 ///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
 ///       | ( ⟨ty⟩,* )
 ///       | { ⟨ty⟩ | ⟨expr⟩ }
+///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
 ///       | & mut? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
@@ -494,7 +495,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     } else if peek!(cx, OpenDelim(Brace)) {
         delimited(cx, Brace, |cx| {
             if peek!(cx, Tok::Ident(_), Tok::Comma | Tok::Dot | Tok::Colon) {
-                // { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+                // { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
                 parse_general_exists(cx)
             } else {
                 // { ⟨ty⟩ | ⟨expr⟩ }
@@ -558,6 +559,7 @@ fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
     Ok(BaseTy { kind, span: cx.mk_span(lo, hi) })
 }
 
+/// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
 fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     let params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
     expect!(cx, Tok::Dot)?;
@@ -698,7 +700,8 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     Ok(arg)
 }
 
-/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?
+/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if !require_sort
+///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort
 fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<RefineParam> {
     let lo = cx.lo();
     let mode = parse_param_mode(cx);
@@ -733,19 +736,20 @@ pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<
 fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> ParseResult<Expr> {
     let mut lhs = unary_expr(cx, allow_struct)?;
     loop {
+        let lo = cx.lo();
         let Some((op, ntokens)) = peek_binop(cx) else { break };
         let precedence = Precedence::of_binop(&op);
         if precedence < base {
             break;
         }
+        cx.tokens.advance_by(ntokens);
         if matches!(precedence, Precedence::Iff | Precedence::Implies | Precedence::Compare) {
             if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
                 if Precedence::of_binop(op) == precedence {
-                    todo!("comparison operators cannot be chained");
+                    return Err(cx.cannot_be_chained(lo, cx.hi()));
                 }
             }
         }
-        cx.tokens.advance_by(ntokens);
         let rhs = parse_binops(cx, precedence, allow_struct)?;
         let span = lhs.span.to(rhs.span);
         lhs = Expr {
@@ -783,7 +787,7 @@ fn peek_binop(cx: &mut ParseCtxt) -> Option<(BinOp, usize)> {
     Some(op)
 }
 
-/// ⟨unary_expr⟩ := -⟨unary_expr⟩ | !⟨unary_expr⟩ | ⟨trailer_expr⟩
+/// ⟨unary_expr⟩ := - ⟨unary_expr⟩ | ! ⟨unary_expr⟩ | ⟨trailer_expr⟩
 fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     let kind = if advance_if!(cx, Tok::Minus) {
@@ -822,8 +826,11 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     let kind = if advance_if!(cx, Tok::Dot) {
         // ⟨epath⟩ . ⟨ident⟩
         let field = parse_ident(cx)?;
-        let ExprKind::Path(path) = atom.kind else { todo!("report has to be a path") };
-        ExprKind::Dot(path, field)
+        if let ExprKind::Path(path) = atom.kind {
+            ExprKind::Dot(path, field)
+        } else {
+            return Err(cx.unsupported_proj(atom.span));
+        }
     } else if peek!(cx, OpenDelim(Parenthesis)) {
         let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
         if let ExprKind::Path(path) = atom.kind
@@ -832,7 +839,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
             // ⟨ident⟩ ( ⟨expr⟩,* )
             ExprKind::App(segment.ident, args)
         } else {
-            todo!("report error")
+            return Err(cx.unsupported_callee(atom.span));
         }
     } else {
         // ⟨atom⟩
@@ -907,7 +914,7 @@ fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
             span: cx.mk_span(lo, hi),
         }))
     } else {
-        todo!("unexpected token")
+        Err(cx.unexpected_token())
     }
 }
 
@@ -931,6 +938,7 @@ fn parse_expr_path_segment(cx: &mut ParseCtxt) -> ParseResult<ExprPathSegment> {
     Ok(ExprPathSegment { ident: parse_ident(cx)?, node_id: cx.next_node_id() })
 }
 
+/// ⟨if_expr⟩ := if ⟨cond⟩ ⟨block_expr⟩ ⟨ else if ⟨cond⟩ ⟨block_expr⟩ ⟩* else ⟨block_expr⟩
 fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let mut branches = vec![];
 
@@ -972,13 +980,15 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
 }
 
 fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
-    let lit = expect!(cx, Tok::Literal(lit) => lit)?;
-    if let LitKind::Integer = lit.kind {
-        if let Ok(value) = lit.symbol.as_str().parse::<T>() {
-            return Ok(value);
+    if let Tok::Literal(lit) = cx.tokens.at(0).1 {
+        if let LitKind::Integer = lit.kind {
+            if let Ok(value) = lit.symbol.as_str().parse::<T>() {
+                cx.tokens.advance();
+                return Ok(value);
+            }
         }
     }
-    todo!("unexpected token")
+    Err(cx.unexpected_token())
 }
 
 /// ⟨sort⟩ :=  ⟨base_sort⟩

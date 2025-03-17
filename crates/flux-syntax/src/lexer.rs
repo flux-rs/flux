@@ -225,10 +225,13 @@ impl<'t> Cursor<'t> {
         }
     }
 
+    /// Returns the starting byte position of the token the cursor is currently at.
     pub fn lo(&self) -> BytePos {
         if let Some((lo, ..)) = self.tokens.front() { *lo } else { self.hi }
     }
 
+    /// Returns the highest byte position the cursor has yielded. You could also think of this as
+    /// the ending position of the last yielded token.
     pub fn hi(&self) -> BytePos {
         self.hi
     }
@@ -293,8 +296,10 @@ impl<'t> Cursor<'t> {
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
             TokenKind::BinOp(BinOpToken::Shl) => Token::Shl,
             TokenKind::BinOp(BinOpToken::Shr) => {
-                self.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1));
-                self.push_token(span.lo() + BytePos(1), Token::Gt, span.hi());
+                self.tokens
+                    .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1)));
+                self.tokens
+                    .push_back((span.lo() + BytePos(1), Token::Gt, span.hi()));
                 return;
             }
             TokenKind::Not => Token::Not,
@@ -302,11 +307,7 @@ impl<'t> Cursor<'t> {
             TokenKind::DotDot => Token::DotDot,
             _ => Token::Invalid,
         };
-        self.push_token(span.lo(), token, span.hi());
-    }
-
-    fn push_token(&mut self, lo: BytePos, token: Token, hi: BytePos) {
-        self.tokens.push_back((lo, token, hi));
+        self.tokens.push_back((span.lo(), token, span.hi()));
     }
 
     fn fetch_tokens(&mut self) -> bool {
