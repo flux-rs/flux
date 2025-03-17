@@ -211,17 +211,6 @@ impl<'t> Cursor<'t> {
     }
 
     #[must_use]
-    #[track_caller]
-    pub fn expect(&mut self, tok: Token) -> bool {
-        if self.at(0) == tok {
-            self.advance();
-            true
-        } else {
-            panic!("expected '{tok}': '{}'", self.debug(10));
-        }
-    }
-
-    #[must_use]
     pub fn next(&mut self) -> Token {
         if let Some(tok) = self.tokens.pop_front() {
             if self.tokens.is_empty() {
@@ -234,25 +223,10 @@ impl<'t> Cursor<'t> {
         }
     }
 
-    #[must_use]
-    pub fn advance_if(&mut self, tok: Token) -> bool {
-        if self.at(0) == tok {
-            let _ = self.next();
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn advance(&mut self) -> BytePos {
-        self.advance_by(1)
-    }
-
-    pub fn advance_by(&mut self, n: usize) -> BytePos {
+    pub fn advance_by(&mut self, n: usize) {
         for _ in 0..n {
             let _ = self.next();
         }
-        self.hi()
     }
 
     pub fn lo(&self) -> BytePos {

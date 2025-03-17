@@ -17,7 +17,8 @@ use crate::{
     },
 };
 
-macro_rules! advance_if {
+#[macro_export]
+macro_rules! peek {
     ($cx:expr, $($pat:pat),+) => {{
         let tokens = &mut $cx.cursor;
         let mut idx = 0;
@@ -25,6 +26,20 @@ macro_rules! advance_if {
         #[allow(unused_assignments)]
         {$(
             res &= matches!(tokens.at(idx), $pat);
+            idx += 1;
+        )+}
+        res
+    }};
+}
+
+macro_rules! advance_if {
+    ($cx:expr, $($pat:pat $(if $guard:expr)?),+) => {{
+        let tokens = &mut $cx.cursor;
+        let mut idx = 0;
+        let mut res = true;
+        #[allow(unused_assignments)]
+        {$(
+            res &= matches!(tokens.at(idx), $pat $(if $guard)?);
             idx += 1;
         )+}
         if res {
@@ -45,21 +60,6 @@ macro_rules! expect {
             $pat $(if $guard)? => Ok($arm),
             _ => todo!("unexpected token {}", tokens.debug(10))
         }
-    }};
-}
-
-#[macro_export]
-macro_rules! peek {
-    ($cx:expr, $($pat:pat),+) => {{
-        let tokens = &mut $cx.cursor;
-        let mut idx = 0;
-        let mut res = true;
-        #[allow(unused_assignments)]
-        {$(
-            res &= matches!(tokens.at(idx), $pat);
-            idx += 1;
-        )+}
-        res
     }};
 }
 
@@ -750,7 +750,7 @@ pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr>
 }
 
 fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Result<Expr> {
-    let mut lhs = expr_unary(cx, allow_struct)?;
+    let mut lhs = unary_expr(cx, allow_struct)?;
     loop {
         let Some((op, ntokens)) = peek_binop(cx) else { break };
         let precedence = Precedence::of_binop(&op);
@@ -802,12 +802,13 @@ fn peek_binop(cx: &mut ParseCtxt) -> Option<(BinOp, usize)> {
     Some(op)
 }
 
-fn expr_unary(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
+/// ⟨unary_expr⟩ := -⟨unary_expr⟩ | !⟨unary_expr⟩ | ⟨trailer_expr⟩
+fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
     let lo = cx.lo();
     let kind = if advance_if!(cx, Tok::Minus) {
-        ExprKind::UnaryOp(UnOp::Neg, Box::new(expr_unary(cx, allow_struct)?))
+        ExprKind::UnaryOp(UnOp::Neg, Box::new(unary_expr(cx, allow_struct)?))
     } else if advance_if!(cx, Tok::Not) {
-        ExprKind::UnaryOp(UnOp::Not, Box::new(expr_unary(cx, allow_struct)?))
+        ExprKind::UnaryOp(UnOp::Not, Box::new(unary_expr(cx, allow_struct)?))
     } else {
         return parse_trailer_expr(cx, allow_struct);
     };
@@ -815,10 +816,10 @@ fn expr_unary(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
     Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
-/// ⟨trailer⟩ := ⟨epath⟩ . ⟨ident⟩
-///            | ⟨ident⟩ ( ⟨expr⟩,* )
-///            | ⟨atom⟩
-///            | <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
+/// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
+///                 |  ⟨ident⟩ ( ⟨expr⟩,* )
+///                 |  ⟨atom⟩
+///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
     if advance_if!(cx, Tok::Lt) {
         // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
@@ -840,7 +841,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
     let kind = if advance_if!(cx, Tok::Dot) {
         // ⟨epath⟩ . ⟨ident⟩
         let field = parse_ident(cx)?;
-        let ExprKind::Path(path) = atom.kind else { todo!() };
+        let ExprKind::Path(path) = atom.kind else { todo!("report has to be a path") };
         ExprKind::Dot(path, field)
     } else if peek!(cx, OpenDelim(Parenthesis)) {
         let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
@@ -864,8 +865,8 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
 ///         | ⟨epath⟩
-///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }
-///         | { ⟨constructor_arg⟩,* }
+///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
+///         | { ⟨constructor_arg⟩,* }            if allow_struct
 fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
     let lo = cx.lo();
     if peek!(cx, Tok::If) {
@@ -1062,7 +1063,7 @@ fn angle_brackets<T>(
     while !peek!(cx, Tok::Gt | Tok::GtFollowedByGt) {
         items.push(parse(cx)?);
 
-        if !cx.cursor.advance_if(Comma) {
+        if !advance_if!(cx, tok if tok == Comma) {
             break;
         }
     }
@@ -1120,7 +1121,7 @@ fn punctuated<T>(
     while cx.cursor.at(0) != CloseDelim(delim) {
         items.push(parse(cx)?);
 
-        trailing = cx.cursor.advance_if(sep);
+        trailing = advance_if!(cx, tok if tok == sep);
         if !trailing {
             break;
         }
@@ -1135,7 +1136,7 @@ fn sep1<T>(
     mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
 ) -> Result<Vec<T>> {
     let mut items = vec![parse(cx)?];
-    while cx.cursor.advance_if(sep) {
+    while advance_if!(cx, tok if tok == sep) {
         items.push(parse(cx)?);
     }
     Ok(items)
@@ -1150,7 +1151,7 @@ fn terminated<T>(
     let mut items = vec![];
     while cx.cursor.at(0) != end {
         items.push(parse(cx)?);
-        if !cx.cursor.advance_if(sep) {
+        if !advance_if!(cx, tok if tok == sep) {
             break;
         }
     }
@@ -1173,10 +1174,7 @@ enum Precedence {
     Compare,
     /// |
     BitOr,
-    #[expect(
-        dead_code,
-        reason = "we don't support xor yet but keeping this here so we don't have to find the precedence once we add it"
-    )]
+    #[expect(dead_code, reason = "leaving this here for when we support xor")]
     /// ^
     BitXor,
     /// &
