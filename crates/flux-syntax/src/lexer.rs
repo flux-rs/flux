@@ -197,30 +197,34 @@ impl<'t> Cursor<'t> {
     }
 
     #[must_use]
-    pub fn at(&mut self, pos: usize) -> Token {
+    pub fn at(&mut self, pos: usize) -> (BytePos, Token, BytePos) {
         while self.tokens.len() <= pos && self.fetch_tokens() {}
-        if pos < self.tokens.len() { self.tokens[pos].1 } else { Token::Eof }
+        if pos < self.tokens.len() { self.tokens[pos] } else { (self.hi, Token::Eof, self.hi) }
     }
 
     pub fn debug(&mut self, size: usize) -> String {
         let mut s = String::new();
         for i in 0..size {
-            s = format!("{s} {}", self.at(i));
+            s = format!("{s} {}", self.at(i).1);
         }
         s
     }
 
     #[must_use]
-    pub fn next(&mut self) -> Token {
+    pub fn next(&mut self) -> (BytePos, Token, BytePos) {
         if let Some(tok) = self.tokens.pop_front() {
             if self.tokens.is_empty() {
                 self.fetch_tokens();
             }
             self.hi = tok.2;
-            tok.1
+            tok
         } else {
-            Token::Eof
+            (self.hi, Token::Eof, self.hi)
         }
+    }
+
+    pub fn advance(&mut self) {
+        self.advance_by(1);
     }
 
     pub fn advance_by(&mut self, n: usize) {

@@ -19,27 +19,33 @@ use crate::{
 
 #[macro_export]
 macro_rules! peek {
-    ($cx:expr, $($pat:pat),+) => {{
-        let tokens = &mut $cx.cursor;
+    ($cx:expr, $($pat:pat $(if $guard:expr)?),+) => {{
+        let tokens = &mut $cx.tokens;
         let mut idx = 0;
         let mut res = true;
         #[allow(unused_assignments)]
         {$(
-            res &= matches!(tokens.at(idx), $pat);
+            res &= matches!(tokens.at(idx).1, $pat $(if $guard)?);
             idx += 1;
         )+}
         res
     }};
 }
 
+macro_rules! peek_ident {
+    ($cx:expr, $pat:pat) => {
+        peek!($cx, Tok::Ident(sym) if matches!(sym.as_str(), $pat))
+    }
+}
+
 macro_rules! advance_if {
     ($cx:expr, $($pat:pat $(if $guard:expr)?),+) => {{
-        let tokens = &mut $cx.cursor;
+        let tokens = &mut $cx.tokens;
         let mut idx = 0;
         let mut res = true;
         #[allow(unused_assignments)]
         {$(
-            res &= matches!(tokens.at(idx), $pat $(if $guard)?);
+            res &= matches!(tokens.at(idx).1, $pat $(if $guard)?);
             idx += 1;
         )+}
         if res {
@@ -54,11 +60,14 @@ macro_rules! expect {
         expect!($cx, $pat $(if $guard)? => ())
     }};
     ($cx:expr, $pat:pat $(if $guard:expr)? => $arm:expr) => {{
-        let tokens = &mut $cx.cursor;
-        let tok = tokens.next();
-        match tok {
-            $pat $(if $guard)? => Ok($arm),
-            _ => todo!("unexpected token {}", tokens.debug(10))
+        let cx = &mut *$cx;
+        let tokens = &mut cx.tokens;
+        match tokens.at(0).1 {
+            $pat $(if $guard)? => {
+                tokens.advance();
+                Ok($arm)
+            },
+            _ => Err(cx.unexpected_token())
         }
     }};
 }
@@ -66,24 +75,22 @@ macro_rules! expect {
 type Result<T = ()> = std::result::Result<T, ParseError>;
 
 pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> Result<bool> {
-    let ident = expect!(cx, Tok::Ident(ident) => ident)?;
-    let yes = match ident.as_str() {
-        s @ ("yes" | "no") => {
-            if advance_if!(cx, Tok::Comma) {
-                expect!(cx, Tok::Ident(sym) if sym.as_str() == "reason")?;
-                expect!(cx, Tok::Eq)?;
-                expect!(cx, Tok::Literal(_))?;
-            }
-            s == "yes"
-        }
-        "reason" => {
+    if peek_ident!(cx, "yes" | "no") {
+        let sym = expect!(cx, Tok::Ident(sym) => sym)?;
+        if advance_if!(cx, Tok::Comma) {
+            expect!(cx, Tok::Ident(sym) if sym.as_str() == "reason")?;
             expect!(cx, Tok::Eq)?;
             expect!(cx, Tok::Literal(_))?;
-            true
         }
-        _ => todo!("unexpected token"),
-    };
-    Ok(yes)
+        Ok(sym.as_str() == "yes")
+    } else if peek_ident!(cx, "reason") {
+        expect!(cx, Tok::Ident(_))?;
+        expect!(cx, Tok::Eq)?;
+        expect!(cx, Tok::Literal(_))?;
+        Ok(true)
+    } else {
+        Err(cx.unexpected_token())
+    }
 }
 
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> Result<QualNames> {
@@ -114,7 +121,7 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> Result<Item> {
     } else if peek!(cx, Tok::Opaque) {
         parse_sort_decl(cx).map(Item::SortDecl)
     } else {
-        todo!("unexpected token")
+        Err(cx.unexpected_token())
     }
 }
 
@@ -203,6 +210,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> Result<ImplAssocReft> {
     Ok(ImplAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
 }
 
+/// ⟨refined_by⟩ := ⟨refine_param⟩,*
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> Result<RefineParams> {
     let mut params = vec![];
     while !peek!(cx, Tok::Eof) {
@@ -241,7 +249,7 @@ fn parse_fields(cx: &mut ParseCtxt) -> Result<Vec<Ty>> {
     } else if peek!(cx, OpenDelim(Brace)) {
         braces(cx, Comma, parse_type)
     } else {
-        todo!("unexpected")
+        Err(cx.unexpected_token())
     }
 }
 
@@ -301,12 +309,16 @@ fn parse_generic_param(cx: &mut ParseCtxt) -> Result<GenericParam> {
     let name = parse_ident(cx)?;
     let mut kind = GenericParamKind::Type;
     if advance_if!(cx, Tok::As) {
-        kind = match expect!(cx, Tok::Ident(sym) => sym)?.as_str() {
-            "type" => GenericParamKind::Type,
-            "base" => GenericParamKind::Base,
-            _ => todo!("report unexpected token"),
-        };
-    }
+        if peek_ident!(cx, "type") {
+            cx.tokens.advance();
+            kind = GenericParamKind::Type;
+        } else if peek_ident!(cx, "base") {
+            cx.tokens.advance();
+            kind = GenericParamKind::Base;
+        } else {
+            return Err(cx.unexpected_token());
+        }
+    };
     Ok(GenericParam { name, kind, node_id: cx.next_node_id() })
 }
 
@@ -553,7 +565,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> Result<Ty> {
         let bty = parse_qpath(cx)?;
         return parse_bty_rhs(cx, bty);
     } else {
-        todo!("unexpected token")
+        return Err(cx.unexpected_token());
     };
     let hi = cx.hi();
     Ok(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
@@ -645,7 +657,7 @@ fn parse_const_arg(cx: &mut ParseCtxt) -> Result<ConstArg> {
     } else if advance_if!(cx, Tok::Underscore) {
         ConstArgKind::Infer
     } else {
-        todo!("unexpected token")
+        return Err(cx.unexpected_token());
     };
     let hi = cx.hi();
     Ok(ConstArg { kind, span: cx.mk_span(lo, hi) })
@@ -764,7 +776,7 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Res
                 }
             }
         }
-        cx.cursor.advance_by(ntokens);
+        cx.tokens.advance_by(ntokens);
         let rhs = parse_binops(cx, precedence, allow_struct)?;
         let span = lhs.span.to(rhs.span);
         lhs = Expr {
@@ -777,7 +789,7 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Res
 }
 
 fn peek_binop(cx: &mut ParseCtxt) -> Option<(BinOp, usize)> {
-    let op = match cx.cursor.at(0) {
+    let op = match cx.tokens.at(0).1 {
         Tok::Iff => (BinOp::Iff, 1),
         Tok::FatArrow => (BinOp::Imp, 1),
         Tok::OrOr => (BinOp::Or, 1),
@@ -899,7 +911,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
             span: cx.mk_span(lo, hi),
         })
     } else {
-        todo!("unexpected token {}", cx.cursor.debug(10));
+        Err(cx.unexpected_token())
     }
 }
 
@@ -1118,7 +1130,7 @@ fn punctuated<T>(
     let mut items = vec![];
 
     let mut trailing = false;
-    while cx.cursor.at(0) != CloseDelim(delim) {
+    while !peek!(cx, CloseDelim(d) if d == delim) {
         items.push(parse(cx)?);
 
         trailing = advance_if!(cx, tok if tok == sep);
@@ -1149,7 +1161,7 @@ fn terminated<T>(
     mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
 ) -> Result<Vec<T>> {
     let mut items = vec![];
-    while cx.cursor.at(0) != end {
+    while !peek!(cx, tok if tok == end) {
         items.push(parse(cx)?);
         if !advance_if!(cx, tok if tok == sep) {
             break;

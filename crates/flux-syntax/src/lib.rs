@@ -7,7 +7,7 @@ pub mod lexer;
 mod parser;
 pub mod surface;
 
-use lexer::Cursor;
+use lexer::{Cursor, Token};
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
@@ -129,7 +129,7 @@ impl ParseSess {
 struct ParseCtxt<'a> {
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
-    cursor: Cursor<'a>,
+    tokens: Cursor<'a>,
     sess: &'a mut ParseSess,
 }
 
@@ -137,7 +137,7 @@ impl<'a> ParseCtxt<'a> {
     fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
         Self {
             sess,
-            cursor: Cursor::new(tokens, span.lo()),
+            tokens: Cursor::new(tokens, span.lo()),
             ctx: span.ctxt(),
             parent: span.parent(),
         }
@@ -152,11 +152,21 @@ impl<'a> ParseCtxt<'a> {
     }
 
     fn lo(&self) -> BytePos {
-        self.cursor.lo()
+        self.tokens.lo()
     }
 
     fn hi(&self) -> BytePos {
-        self.cursor.hi()
+        self.tokens.hi()
+    }
+
+    fn unexpected_token(&mut self) -> ParseError {
+        let (lo, tok, hi) = self.tokens.at(0);
+        let kind = if tok == Token::Eof {
+            ParseErrorKind::UnexpectedToken
+        } else {
+            ParseErrorKind::UnexpectedToken
+        };
+        ParseError { kind, span: self.mk_span(lo, hi) }
     }
 }
 
@@ -169,12 +179,6 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
-    UnexpectedEof,
     UnexpectedToken,
-}
-
-impl ParseErrorKind {
-    fn into_error(self, span: Span) -> ParseError {
-        ParseError { kind: self, span }
-    }
+    UnexpectedEof,
 }
