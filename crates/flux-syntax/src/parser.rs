@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    ParseCtxt, ParseError,
+    ParseCtxt, ParseResult,
     lexer::{
         Delimiter::{self, *},
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
@@ -72,9 +72,7 @@ macro_rules! expect {
     }};
 }
 
-type Result<T = ()> = std::result::Result<T, ParseError>;
-
-pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> Result<bool> {
+pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<bool> {
     if peek_ident!(cx, "yes" | "no") {
         let sym = expect!(cx, Tok::Ident(sym) => sym)?;
         if advance_if!(cx, Tok::Comma) {
@@ -93,27 +91,22 @@ pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> Result<bool> {
     }
 }
 
-pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> Result<QualNames> {
+pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
     let names = terminated(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
 }
 
-pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> Result<Generics> {
+pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     let lo = cx.lo();
     let params = terminated(cx, Comma, Tok::Eof, parse_generic_param)?;
     let hi = cx.hi();
     Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
 }
 
-pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> Result<Vec<Item>> {
-    let mut items = vec![];
-    while !peek!(cx, Tok::Eof) {
-        items.push(parse_flux_item(cx)?);
-    }
-    expect!(cx, Tok::Eof)?;
-    Ok(items)
+pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
+    until_eof(cx, parse_flux_item)
 }
-fn parse_flux_item(cx: &mut ParseCtxt) -> Result<Item> {
+fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     if peek!(cx, Tok::Fn) {
         parse_reft_func(cx).map(Item::FuncDef)
     } else if peek!(cx, Tok::Local | Tok::Qualifier) {
@@ -125,7 +118,7 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> Result<Item> {
     }
 }
 
-fn parse_reft_func(cx: &mut ParseCtxt) -> Result<SpecFunc> {
+fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     expect!(cx, Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle_brackets(cx, parse_ident)?;
@@ -141,7 +134,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> Result<SpecFunc> {
     Ok(SpecFunc { name, sort_vars, params, output, body })
 }
 
-fn parse_qualifier(cx: &mut ParseCtxt) -> Result<Qualifier> {
+fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let lo = cx.lo();
     let local = advance_if!(cx, Tok::Local);
     expect!(cx, Tok::Qualifier)?;
@@ -152,7 +145,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> Result<Qualifier> {
     Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_sort_decl(cx: &mut ParseCtxt) -> Result<SortDecl> {
+fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     expect!(cx, Tok::Opaque)?;
     expect!(cx, Tok::Sort)?;
     let name = parse_ident(cx)?;
@@ -160,18 +153,13 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> Result<SortDecl> {
     Ok(SortDecl { name })
 }
 
-pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> Result<Vec<TraitAssocReft>> {
-    let mut assoc_refts = vec![];
-    while !peek!(cx, Tok::Eof) {
-        assoc_refts.push(parse_trait_assoc_reft(cx)?);
-    }
-    expect!(cx, Tok::Eof)?;
-    Ok(assoc_refts)
+pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {
+    until_eof(cx, parse_trait_assoc_reft)
 }
 
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
 ///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
-fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> Result<TraitAssocReft> {
+fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
     expect!(cx, Tok::Fn)?;
     let name = parse_ident(cx)?;
@@ -188,17 +176,12 @@ fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> Result<TraitAssocReft> {
     Ok(TraitAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
 }
 
-pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> Result<Vec<ImplAssocReft>> {
-    let mut assoc_refts = vec![];
-    while !peek!(cx, Tok::Eof) {
-        assoc_refts.push(parse_impl_assoc_reft(cx)?);
-    }
-    expect!(cx, Tok::Eof)?;
-    Ok(assoc_refts)
+pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<ImplAssocReft>> {
+    until_eof(cx, parse_impl_assoc_reft)
 }
 
 /// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
-fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> Result<ImplAssocReft> {
+fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     let lo = cx.lo();
     expect!(cx, Tok::Fn)?;
     let name = parse_ident(cx)?;
@@ -211,22 +194,14 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> Result<ImplAssocReft> {
 }
 
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
-pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> Result<RefineParams> {
-    let mut params = vec![];
-    while !peek!(cx, Tok::Eof) {
-        params.push(parse_refine_param(cx, true)?);
-        if !advance_if!(cx, Tok::Comma) {
-            break;
-        }
-    }
-    expect!(cx, Tok::Eof)?;
-    Ok(params)
+pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
+    terminated(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
 }
 
 /// ⟨variant⟩ := ⟨fields⟩ -> ⟨variant_ret⟩
 ///            | ⟨fields⟩
 ///            | ⟨variant_ret⟩
-pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> Result<VariantDef> {
+pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
     let lo = cx.lo();
     let mut fields = vec![];
     let mut ret = None;
@@ -243,7 +218,7 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> Result<VariantDef> {
 }
 
 /// ⟨fields⟩ := ( ⟨ty⟩,* ) | { ⟨ty⟩,* }
-fn parse_fields(cx: &mut ParseCtxt) -> Result<Vec<Ty>> {
+fn parse_fields(cx: &mut ParseCtxt) -> ParseResult<Vec<Ty>> {
     if peek!(cx, OpenDelim(Parenthesis)) {
         parens(cx, Comma, parse_type)
     } else if peek!(cx, OpenDelim(Brace)) {
@@ -254,7 +229,7 @@ fn parse_fields(cx: &mut ParseCtxt) -> Result<Vec<Ty>> {
 }
 
 /// ⟨variant_ret⟩ := ⟨path⟩ ⟨ [ ⟨refine_arg⟩,? ] ⟩?
-fn parse_variant_ret(cx: &mut ParseCtxt) -> Result<VariantRet> {
+fn parse_variant_ret(cx: &mut ParseCtxt) -> ParseResult<VariantRet> {
     let path = parse_path(cx)?;
     let indices = if peek!(cx, OpenDelim(Bracket)) {
         parse_indices(cx)?
@@ -265,7 +240,7 @@ fn parse_variant_ret(cx: &mut ParseCtxt) -> Result<VariantRet> {
     Ok(VariantRet { path, indices })
 }
 
-pub(crate) fn parse_type_alias(cx: &mut ParseCtxt) -> Result<TyAlias> {
+pub(crate) fn parse_type_alias(cx: &mut ParseCtxt) -> ParseResult<TyAlias> {
     let lo = cx.lo();
     expect!(cx, Tok::Type)?;
     let ident = parse_ident(cx)?;
@@ -294,7 +269,7 @@ pub(crate) fn parse_type_alias(cx: &mut ParseCtxt) -> Result<TyAlias> {
     })
 }
 
-fn parse_opt_generics(cx: &mut ParseCtxt) -> Result<Generics> {
+fn parse_opt_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     if !peek!(cx, Tok::Lt) {
         let hi = cx.hi();
         return Ok(Generics { params: vec![], predicates: None, span: cx.mk_span(hi, hi) });
@@ -305,7 +280,7 @@ fn parse_opt_generics(cx: &mut ParseCtxt) -> Result<Generics> {
     Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_generic_param(cx: &mut ParseCtxt) -> Result<GenericParam> {
+fn parse_generic_param(cx: &mut ParseCtxt) -> ParseResult<GenericParam> {
     let name = parse_ident(cx)?;
     let mut kind = GenericParamKind::Type;
     if advance_if!(cx, Tok::As) {
@@ -327,7 +302,7 @@ fn parse_generic_param(cx: &mut ParseCtxt) -> Result<GenericParam> {
 ///             ( ⟨fn_inputs⟩,* )
 ///             ⟨-> ⟨ty⟩⟩?
 ///             ⟨requires⟩ ⟨ensures⟩ ⟨where⟩
-pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> Result<FnSig> {
+pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let lo = cx.lo();
     let asyncness = parse_asyncness(cx);
     expect!(cx, Tok::Fn)?;
@@ -358,7 +333,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> Result<FnSig> {
 }
 
 /// ⟨requires⟩ := ⟨ requires ⟨requires_clause⟩,* ⟩?
-fn parse_opt_requires(cx: &mut ParseCtxt) -> Result<Vec<Requires>> {
+fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     let mut requires = vec![];
 
     if !advance_if!(cx, Tok::Requires) {
@@ -375,7 +350,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> Result<Vec<Requires>> {
 }
 
 /// ⟨requires_clause⟩ := ⟨ forall ⟨refine_param⟩,+ . ⟩? ⟨expr⟩
-fn parse_requires_clause(cx: &mut ParseCtxt) -> Result<Requires> {
+fn parse_requires_clause(cx: &mut ParseCtxt) -> ParseResult<Requires> {
     let mut params = vec![];
     if advance_if!(cx, Tok::Forall) {
         params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
@@ -386,7 +361,7 @@ fn parse_requires_clause(cx: &mut ParseCtxt) -> Result<Requires> {
 }
 
 /// ⟨ensures⟩ := ⟨ensures ⟨ensures_clause⟩,*⟩?
-fn parse_opt_ensures(cx: &mut ParseCtxt) -> Result<Vec<Ensures>> {
+fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     let mut ensures = vec![];
 
     if !advance_if!(cx, Tok::Ensures) {
@@ -404,7 +379,7 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> Result<Vec<Ensures>> {
 
 /// ⟨ensures_clause⟩ :=  ⟨ident⟩ : ⟨ty⟩
 ///                   |  ⟨expr⟩
-fn parse_ensures_clause(cx: &mut ParseCtxt) -> Result<Ensures> {
+fn parse_ensures_clause(cx: &mut ParseCtxt) -> ParseResult<Ensures> {
     if peek!(cx, Tok::Ident(_), Tok::Colon) {
         // ⟨ident⟩ : ⟨ty⟩
         let ident = parse_ident(cx)?;
@@ -417,21 +392,14 @@ fn parse_ensures_clause(cx: &mut ParseCtxt) -> Result<Ensures> {
     }
 }
 
-fn parse_opt_where(cx: &mut ParseCtxt) -> Result<Option<Vec<WhereBoundPredicate>>> {
+fn parse_opt_where(cx: &mut ParseCtxt) -> ParseResult<Option<Vec<WhereBoundPredicate>>> {
     if !advance_if!(cx, Tok::Where) {
         return Ok(None);
     }
-    let mut predicates = vec![];
-    while !peek!(cx, Tok::Eof) {
-        predicates.push(parse_where_bound(cx)?);
-        if !advance_if!(cx, Comma) {
-            break;
-        }
-    }
-    Ok(Some(predicates))
+    Ok(Some(terminated(cx, Comma, Tok::Eof, parse_where_bound)?))
 }
 
-fn parse_where_bound(cx: &mut ParseCtxt) -> Result<WhereBoundPredicate> {
+fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
     let lo = cx.lo();
     let bounded_ty = parse_type(cx)?;
     expect!(cx, Tok::Colon)?;
@@ -441,7 +409,7 @@ fn parse_where_bound(cx: &mut ParseCtxt) -> Result<WhereBoundPredicate> {
 }
 
 /// ⟨fn_ret⟩ := ⟨ -> ⟨ty⟩ ⟩?
-fn parse_fn_ret(cx: &mut ParseCtxt) -> Result<FnRetTy> {
+fn parse_fn_ret(cx: &mut ParseCtxt) -> ParseResult<FnRetTy> {
     if advance_if!(cx, Tok::RArrow) {
         Ok(FnRetTy::Ty(parse_type(cx)?))
     } else {
@@ -454,7 +422,7 @@ fn parse_fn_ret(cx: &mut ParseCtxt) -> Result<FnRetTy> {
 ///             | ⟨ident⟩ : ⟨path⟩ { ⟨expr⟩ }
 ///             | ⟨ident⟩ : ⟨ty⟩
 ///             | ⟨ty⟩
-fn parse_fn_input(cx: &mut ParseCtxt) -> Result<FnInput> {
+fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
     if peek!(cx, Tok::Ident(_), Tok::Colon) {
         let bind = parse_ident(cx)?;
         expect!(cx, Tok::Colon)?;
@@ -510,7 +478,7 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 ///       | ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
 ///
 /// ⟨bty⟩ := ⟨path⟩ | ⟨qpath⟩ | [ ⟨ty⟩ ]
-pub(crate) fn parse_type(cx: &mut ParseCtxt) -> Result<Ty> {
+pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     let lo = cx.lo();
     let kind = if advance_if!(cx, Tok::Underscore) {
         TyKind::Hole
@@ -572,7 +540,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> Result<Ty> {
 }
 
 /// ⟨qpath⟩ := < ⟨ty⟩ as ⟨segments⟩> :: ⟨segments⟩
-fn parse_qpath(cx: &mut ParseCtxt) -> Result<BaseTy> {
+fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
     let lo = cx.lo();
     expect!(cx, Tok::Lt)?;
     let qself = parse_type(cx)?;
@@ -589,7 +557,7 @@ fn parse_qpath(cx: &mut ParseCtxt) -> Result<BaseTy> {
     Ok(BaseTy { kind, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_general_exists(cx: &mut ParseCtxt) -> Result<TyKind> {
+fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     let params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
     expect!(cx, Tok::Dot)?;
     let ty = parse_type(cx)?;
@@ -600,7 +568,7 @@ fn parse_general_exists(cx: &mut ParseCtxt) -> Result<TyKind> {
 ///    ⟨bty⟩ [ ⟨refine_arg⟩,* ]
 /// |  ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
 /// |  ⟨bty⟩
-fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> Result<Ty> {
+fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     let lo = bty.span.lo();
     if peek!(cx, OpenDelim(Bracket)) {
         // ⟨bty⟩ [ ⟨refine_arg⟩,* ]
@@ -620,7 +588,7 @@ fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> Result<Ty> {
 }
 
 /// ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
-fn parse_bty_exists(cx: &mut ParseCtxt, bty: BaseTy) -> Result<Ty> {
+fn parse_bty_exists(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     let lo = bty.span.lo();
     delimited(cx, Brace, |cx| {
         let bind = parse_ident(cx)?;
@@ -637,19 +605,19 @@ fn path_to_bty(path: Path) -> BaseTy {
     BaseTy { kind: BaseTyKind::Path(None, path), span }
 }
 
-fn parse_indices(cx: &mut ParseCtxt) -> Result<Indices> {
+fn parse_indices(cx: &mut ParseCtxt) -> ParseResult<Indices> {
     let lo = cx.lo();
     let indices = brackets(cx, Comma, parse_refine_arg)?;
     let hi = cx.hi();
     Ok(Indices { indices, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_generic_bounds(cx: &mut ParseCtxt) -> Result<GenericBounds> {
+fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
     let path = parse_path(cx)?;
     Ok(vec![TraitRef { path }])
 }
 
-fn parse_const_arg(cx: &mut ParseCtxt) -> Result<ConstArg> {
+fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {
     let lo = cx.lo();
     let kind = if peek!(cx, Tok::Literal(_)) {
         let len = parse_int(cx)?;
@@ -664,7 +632,7 @@ fn parse_const_arg(cx: &mut ParseCtxt) -> Result<ConstArg> {
 }
 
 /// ⟨path⟩ := ⟨segments⟩ ⟨ ( ⟨refine_arg⟩,* ) ⟩?
-fn parse_path(cx: &mut ParseCtxt) -> Result<Path> {
+fn parse_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
     let lo = cx.lo();
     let segments = parse_segments(cx)?;
     let refine = if peek!(cx, OpenDelim(Parenthesis)) {
@@ -677,19 +645,19 @@ fn parse_path(cx: &mut ParseCtxt) -> Result<Path> {
 }
 
 /// ⟨segments⟩ := ⟨segment⟩ ⟨:: ⟨segment⟩ ⟩*
-fn parse_segments(cx: &mut ParseCtxt) -> Result<Vec<PathSegment>> {
+fn parse_segments(cx: &mut ParseCtxt) -> ParseResult<Vec<PathSegment>> {
     sep1(cx, Tok::PathSep, parse_segment)
 }
 
 /// ⟨segment⟩ := ⟨ident⟩ ⟨ < ⟨generic_arg⟩,* > ⟩?
-fn parse_segment(cx: &mut ParseCtxt) -> Result<PathSegment> {
+fn parse_segment(cx: &mut ParseCtxt) -> ParseResult<PathSegment> {
     let ident = parse_ident(cx)?;
     let args = opt_angle_brackets(cx, parse_generic_arg)?;
     Ok(PathSegment { ident, node_id: cx.next_node_id(), args })
 }
 
 /// ⟨generic_arg⟩ := ⟨ty⟩ | ⟨ident⟩ = ⟨ty⟩
-fn parse_generic_arg(cx: &mut ParseCtxt) -> Result<GenericArg> {
+fn parse_generic_arg(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     let kind = if peek!(cx, Tok::Ident(_), Tok::Eq) {
         let ident = parse_ident(cx)?;
         expect!(cx, Tok::Eq)?;
@@ -705,7 +673,7 @@ fn parse_generic_arg(cx: &mut ParseCtxt) -> Result<GenericArg> {
 ///               |  # ⟨ident⟩
 ///               |  |⟨⟨refine_parm⟩,*| ⟨expr⟩
 ///               |  ⟨expr⟩
-fn parse_refine_arg(cx: &mut ParseCtxt) -> Result<RefineArg> {
+fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     let lo = cx.lo();
     let arg = if advance_if!(cx, Tok::At) {
         // @ ⟨ident⟩
@@ -730,7 +698,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> Result<RefineArg> {
 }
 
 /// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?
-fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> Result<RefineParam> {
+fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<RefineParam> {
     let lo = cx.lo();
     let mode = parse_param_mode(cx);
     let ident = parse_ident(cx)?;
@@ -757,11 +725,11 @@ fn parse_param_mode(cx: &mut ParseCtxt) -> Option<ParamMode> {
     }
 }
 
-pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
+pub(crate) fn parse_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     parse_binops(cx, Precedence::MIN, allow_struct)
 }
 
-fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Result<Expr> {
+fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> ParseResult<Expr> {
     let mut lhs = unary_expr(cx, allow_struct)?;
     loop {
         let Some((op, ntokens)) = peek_binop(cx) else { break };
@@ -815,7 +783,7 @@ fn peek_binop(cx: &mut ParseCtxt) -> Option<(BinOp, usize)> {
 }
 
 /// ⟨unary_expr⟩ := -⟨unary_expr⟩ | !⟨unary_expr⟩ | ⟨trailer_expr⟩
-fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
+fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     let kind = if advance_if!(cx, Tok::Minus) {
         ExprKind::UnaryOp(UnOp::Neg, Box::new(unary_expr(cx, allow_struct)?))
@@ -832,7 +800,7 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
 ///                 |  ⟨ident⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 ///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
-fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
+fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     if advance_if!(cx, Tok::Lt) {
         // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
         let lo = cx.lo();
@@ -879,7 +847,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
 ///         | ⟨epath⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
-fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
+fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     if peek!(cx, Tok::If) {
         // ⟨if_expr⟩
@@ -916,7 +884,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> Result<Expr> {
 }
 
 /// ⟨constructor_arg⟩ :=  ⟨ident⟩ : ⟨expr⟩ |  ..
-fn parse_constructor_arg(cx: &mut ParseCtxt) -> Result<ConstructorArg> {
+fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
     let lo = cx.lo();
     if peek!(cx, Tok::Ident(_)) {
         let ident = parse_ident(cx)?;
@@ -943,7 +911,7 @@ fn parse_constructor_arg(cx: &mut ParseCtxt) -> Result<ConstructorArg> {
 }
 
 /// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
-fn parse_lit(cx: &mut ParseCtxt) -> Result<Expr> {
+fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
     let lit = expect!(cx, Tok::Literal(lit) => lit)?;
     let hi = cx.hi();
@@ -951,22 +919,18 @@ fn parse_lit(cx: &mut ParseCtxt) -> Result<Expr> {
 }
 
 /// ⟨epath⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*
-fn parse_expr_path(cx: &mut ParseCtxt) -> Result<ExprPath> {
+fn parse_expr_path(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
     let lo = cx.lo();
-    let mut segments = vec![parse_expr_path_segment(cx)?];
-    while advance_if!(cx, Tok::PathSep) {
-        segments.push(parse_expr_path_segment(cx)?);
-    }
+    let segments = sep1(cx, Tok::PathSep, parse_expr_path_segment)?;
     let hi = cx.hi();
-    let span = cx.mk_span(lo, hi);
-    Ok(ExprPath { segments, node_id: cx.next_node_id(), span })
+    Ok(ExprPath { segments, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
-fn parse_expr_path_segment(cx: &mut ParseCtxt) -> Result<ExprPathSegment> {
+fn parse_expr_path_segment(cx: &mut ParseCtxt) -> ParseResult<ExprPathSegment> {
     Ok(ExprPathSegment { ident: parse_ident(cx)?, node_id: cx.next_node_id() })
 }
 
-fn parse_if_expr(cx: &mut ParseCtxt) -> Result<Expr> {
+fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let mut branches = vec![];
 
     loop {
@@ -995,18 +959,18 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> Result<Expr> {
 }
 
 /// ⟨block_expr⟩ := { ⟨expr⟩ }
-fn parse_block_expr(cx: &mut ParseCtxt) -> Result<Expr> {
+fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     delimited(cx, Brace, |cx| parse_expr(cx, true))
 }
 
-fn parse_ident(cx: &mut ParseCtxt) -> Result<Ident> {
+fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
     let lo = cx.lo();
     let name = expect!(cx, Tok::Ident(name) => name)?;
     let hi = cx.hi();
     Ok(Ident { name, span: cx.mk_span(lo, hi) })
 }
 
-fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> Result<T> {
+fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
     let lit = expect!(cx, Tok::Literal(lit) => lit)?;
     if let LitKind::Integer = lit.kind {
         if let Ok(value) = lit.symbol.as_str().parse::<T>() {
@@ -1019,7 +983,7 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> Result<T> {
 /// ⟨sort⟩ :=  ⟨base_sort⟩
 ///         |  ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
 ///         |  ⟨base_sort⟩ -> ⟨base_sort⟩
-fn parse_sort(cx: &mut ParseCtxt) -> Result<Sort> {
+fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     if peek!(cx, OpenDelim(Parenthesis)) {
         // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
         let inputs = parens(cx, Comma, parse_base_sort)?;
@@ -1042,7 +1006,7 @@ fn parse_sort(cx: &mut ParseCtxt) -> Result<Sort> {
 /// ⟨base_sort⟩ := bitvec < ⟨u32⟩ >
 ///              | ⟨sort_path⟩ < ⟨base_sort⟩,* >
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* < (⟨base_sort⟩,*) >
-fn parse_base_sort(cx: &mut ParseCtxt) -> Result<BaseSort> {
+fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
     if advance_if!(cx, Tok::BitVec) {
         expect!(cx, Tok::Lt)?;
         let len = parse_int(cx)?;
@@ -1058,8 +1022,8 @@ fn parse_base_sort(cx: &mut ParseCtxt) -> Result<BaseSort> {
 
 fn opt_angle_brackets<T>(
     cx: &mut ParseCtxt,
-    parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     if !peek!(cx, Tok::Lt) {
         return Ok(vec![]);
     }
@@ -1068,8 +1032,8 @@ fn opt_angle_brackets<T>(
 
 fn angle_brackets<T>(
     cx: &mut ParseCtxt,
-    mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     expect!(cx, Tok::Lt)?;
     let mut items = vec![];
     while !peek!(cx, Tok::Gt | Tok::GtFollowedByGt) {
@@ -1087,8 +1051,8 @@ fn angle_brackets<T>(
 fn delimited<T>(
     cx: &mut ParseCtxt,
     delim: Delimiter,
-    parse: impl FnOnce(&mut ParseCtxt) -> Result<T>,
-) -> Result<T> {
+    parse: impl FnOnce(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<T> {
     expect!(cx, OpenDelim(d) if d == delim)?;
     let r = parse(cx)?;
     expect!(cx, CloseDelim(d) if d == delim)?;
@@ -1098,24 +1062,24 @@ fn delimited<T>(
 fn brackets<T>(
     cx: &mut ParseCtxt,
     sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     Ok(punctuated(cx, Bracket, sep, parse)?.0)
 }
 
 fn parens<T>(
     cx: &mut ParseCtxt,
     sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     Ok(punctuated(cx, Parenthesis, sep, parse)?.0)
 }
 
 fn braces<T>(
     cx: &mut ParseCtxt,
     sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     Ok(punctuated(cx, Brace, sep, parse)?.0)
 }
 
@@ -1124,8 +1088,8 @@ fn punctuated<T>(
     cx: &mut ParseCtxt,
     delim: Delimiter,
     sep: Tok,
-    mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<(Vec<T>, bool)> {
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<(Vec<T>, bool)> {
     expect!(cx, OpenDelim(d) if delim == d)?;
     let mut items = vec![];
 
@@ -1145,8 +1109,8 @@ fn punctuated<T>(
 fn sep1<T>(
     cx: &mut ParseCtxt,
     sep: Tok,
-    mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     let mut items = vec![parse(cx)?];
     while advance_if!(cx, tok if tok == sep) {
         items.push(parse(cx)?);
@@ -1154,12 +1118,24 @@ fn sep1<T>(
     Ok(items)
 }
 
+fn until_eof<T>(
+    cx: &mut ParseCtxt,
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
+    let mut items = vec![];
+    while !peek!(cx, Tok::Eof) {
+        items.push(parse(cx)?);
+    }
+    expect!(cx, Tok::Eof)?;
+    Ok(items)
+}
+
 fn terminated<T>(
     cx: &mut ParseCtxt,
     sep: Tok,
     end: Tok,
-    mut parse: impl FnMut(&mut ParseCtxt) -> Result<T>,
-) -> Result<Vec<T>> {
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
+) -> ParseResult<Vec<T>> {
     let mut items = vec![];
     while !peek!(cx, tok if tok == end) {
         items.push(parse(cx)?);
