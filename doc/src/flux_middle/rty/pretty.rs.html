@@ -781,7 +781,9 @@
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{FieldBind, pretty::aggregate_nested};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -1378,7 +1380,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             GenericArg::Ty(ty) =&gt; ty.fmt_nested(cx),
             GenericArg::Base(ctor) =&gt; {
-                nested_with_bound_vars(cx, <span class="string">"λ"</span>, ctor.vars(), |prefix| {
+                nested_with_bound_vars(cx, <span class="string">"λ"</span>, ctor.vars(), <span class="prelude-val">None</span>, |prefix| {
                     <span class="kw">let </span>ctor_d = ctor.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
                     <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, ctor_d.text);
                     <span class="prelude-val">Ok</span>(NestedString { text, children: ctor_d.children, key: <span class="prelude-val">None </span>})
@@ -1477,12 +1479,14 @@
     cx: <span class="kw-2">&amp;</span>PrettyCx,
     left: <span class="kw-2">&amp;</span>str,
     vars: <span class="kw-2">&amp;</span>[BoundVariableKind],
+    right: <span class="prelude-ty">Option</span>&lt;String&gt;,
     f: <span class="kw">impl </span>FnOnce(String) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>buffer = String::new();
     cx.with_bound_vars(vars, || {
         <span class="kw">if </span>!vars.is_empty() {
-            cx.fmt_bound_vars(<span class="bool-val">false</span>, left, vars, <span class="string">". "</span>, <span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
+            <span class="kw">let </span>right = right.unwrap_or(<span class="string">". "</span>.to_string());
+            cx.fmt_bound_vars(<span class="bool-val">false</span>, left, vars, <span class="kw-2">&amp;</span>right, <span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
         }
         f(buffer)
     })
@@ -1503,7 +1507,7 @@
                 <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
             }
             TyKind::Exists(ty_ctor) =&gt; {
-                nested_with_bound_vars(cx, <span class="string">"∃"</span>, ty_ctor.vars(), |exi_str| {
+                nested_with_bound_vars(cx, <span class="string">"∃"</span>, ty_ctor.vars(), <span class="prelude-val">None</span>, |exi_str| {
                     <span class="kw">let </span>ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
                     <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, exi_str, ty_ctor_d.text);
                     <span class="prelude-val">Ok</span>(NestedString { text, children: ty_ctor_d.children, key: <span class="prelude-val">None </span>})

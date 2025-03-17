@@ -947,7 +947,18 @@
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1137,6 +1148,17 @@
             }
             fhir::ExprKind::Abs(refine_params, body) =&gt; {
                 <span class="self">self</span>.check_abs(expr, refine_params, body, expected)<span class="question-mark">?</span>;
+            }
+
+            fhir::ExprKind::BoundedQuant(<span class="kw">_</span>, param, <span class="kw">_</span>, body) =&gt; {
+                <span class="kw">let </span>fsort = FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], rty::Sort::Bool);
+                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(<span class="macro">vec!</span>[].into(), fsort);
+                <span class="kw">let </span>fsort = rty::Sort::Func(fsort);
+                <span class="self">self</span>.insert_param(param.id, rty::Sort::Int, fhir::ParamKind::Colon); <span class="comment">// fixed-quantifiers HACK 1
+                </span><span class="self">self</span>.wfckresults
+                    .node_sorts_mut()
+                    .insert(param.fhir_id, rty::Sort::Int); <span class="comment">// fixed-quantifiers HACK 2
+                </span><span class="self">self</span>.check_abs(expr, <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>param], body, <span class="kw-2">&amp;</span>fsort)<span class="question-mark">?</span>;
             }
             fhir::ExprKind::Record(fields) =&gt; <span class="self">self</span>.check_record(expr, fields, expected)<span class="question-mark">?</span>,
             fhir::ExprKind::Constructor(<span class="prelude-val">None</span>, exprs, spread) =&gt; {

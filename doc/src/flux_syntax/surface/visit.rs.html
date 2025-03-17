@@ -531,7 +531,11 @@
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
     AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
@@ -1053,6 +1057,10 @@
                 vis.visit_path_expr(path);
             }
             <span class="macro">walk_list!</span>(vis, visit_constructor_args, exprs);
+        }
+        ExprKind::BoundedQuant(<span class="kw">_</span>, i, <span class="kw">_</span>, e) =&gt; {
+            vis.visit_refine_param(i);
+            vis.visit_expr(e);
         }
     }
 }

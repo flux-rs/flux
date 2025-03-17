@@ -528,7 +528,11 @@
 <a href="#527" id="527">527</a>
 <a href="#528" id="528">528</a>
 <a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, ForeignItemKind,
     FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind,
@@ -1054,6 +1058,10 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = spread {
                 vis.visit_expr(<span class="kw-2">&amp;</span>s.expr);
             }
+        }
+        ExprKind::BoundedQuant(<span class="kw">_</span>, param, <span class="kw">_</span>, expr) =&gt; {
+            vis.visit_refine_param(<span class="kw-2">&amp;</span>param);
+            vis.visit_expr(expr);
         }
         ExprKind::Err(<span class="kw">_</span>) =&gt; {}
     }

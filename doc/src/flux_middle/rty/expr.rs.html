@@ -1640,7 +1640,51 @@
 <a href="#1639" id="1639">1639</a>
 <a href="#1640" id="1640">1640</a>
 <a href="#1641" id="1641">1641</a>
-<a href="#1642" id="1642">1642</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
 
 <span class="kw">use </span>flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
 <span class="kw">use </span>flux_common::bug;
@@ -1670,7 +1714,7 @@
 <span class="kw">use crate</span>::{
     big_int::BigInt,
     def_id::FluxDefId,
-    fhir::SpecFuncKind,
+    fhir::{<span class="self">self</span>, SpecFuncKind},
     global_env::GlobalEnv,
     pretty::<span class="kw-2">*</span>,
     queries::QueryResult,
@@ -1920,6 +1964,10 @@
 
     <span class="kw">pub fn </span>abs(lam: Lambda) -&gt; Expr {
         ExprKind::Abs(lam).intern()
+    }
+
+    <span class="kw">pub fn </span>bounded_quant(kind: fhir::QuantKind, rng: fhir::Range, body: Binder&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::BoundedQuant(kind, rng, body).intern()
     }
 
     <span class="kw">pub fn </span>hole(kind: HoleKind) -&gt; Expr {
@@ -2233,7 +2281,9 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
+<span class="attr">#[derive(
+    Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug, TypeFoldable, TypeVisitable,
+)]
 </span><span class="kw">pub enum </span>BinOp {
     Iff,
     Imp,
@@ -2256,13 +2306,13 @@
     BitShr,
 }
 
-<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Debug, Decodable)]
 </span><span class="kw">pub enum </span>UnOp {
     Not,
     Neg,
 }
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Ctor {
     <span class="doccomment">/// for indices represented as `struct` in the refinement logic (e.g. using `refined_by` annotations)
     </span>Struct(DefId),
@@ -2289,7 +2339,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 </span><span class="kw">pub enum </span>ExprKind {
     Var(Var),
     Local(Local),
@@ -2322,6 +2372,9 @@
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
     </span>Abs(Lambda),
+
+    <span class="doccomment">/// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
+    </span>BoundedQuant(fhir::QuantKind, fhir::Range, Binder&lt;Expr&gt;),
     <span class="doccomment">/// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -2842,6 +2895,15 @@
         }
     }
 
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>fhir::QuantKind {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+            <span class="kw">match </span><span class="self">self </span>{
+                fhir::QuantKind::Exists =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∃"</span>),
+                fhir::QuantKind::Forall =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∀"</span>),
+            }
+        }
+    }
+
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Expr {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.clone() };
@@ -2966,6 +3028,20 @@
                             cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"∀"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
                         }
                         <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, expr.as_ref().skip_binder())
+                    })
+                }
+                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
+                    <span class="kw">let </span>vars = body.vars();
+                    cx.with_bound_vars(vars, || {
+                        <span class="macro">w!</span>(
+                            cx,
+                            f,
+                            <span class="string">"{:?} {}..{} {{ {:?} }}"</span>,
+                            kind,
+                            ^rng.start,
+                            ^rng.end,
+                            body.as_ref().skip_binder()
+                        )
                     })
                 }
             }
@@ -3106,7 +3182,7 @@
 
     <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Lambda {
         <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-            nested_with_bound_vars(cx, <span class="string">"λ"</span>, <span class="self">self</span>.body.vars(), |prefix| {
+            nested_with_bound_vars(cx, <span class="string">"λ"</span>, <span class="self">self</span>.body.vars(), <span class="prelude-val">None</span>, |prefix| {
                 <span class="kw">let </span>expr_d = <span class="self">self</span>.body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
                 <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, expr_d.text);
                 <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
@@ -3270,9 +3346,21 @@
                     <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
                 }
                 ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
+                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
+                    <span class="kw">let </span>left = <span class="kw">match </span>kind {
+                        fhir::QuantKind::Forall =&gt; <span class="string">"∀"</span>,
+                        fhir::QuantKind::Exists =&gt; <span class="string">"∃"</span>,
+                    };
+                    <span class="kw">let </span>right = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">" in {}..{}"</span>, rng.start, rng.end));
 
+                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+                        <span class="kw">let </span>expr_d = body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+                    })
+                }
                 ExprKind::ForAll(expr) =&gt; {
-                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), |all_str| {
+                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), <span class="prelude-val">None</span>, |all_str| {
                         <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
                         <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
                         <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})

@@ -1607,7 +1607,17 @@
 <a href="#1606" id="1606">1606</a>
 <a href="#1607" id="1607">1607</a>
 <a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -3052,6 +3062,16 @@
             }
             surface::ExprKind::Constructor(path, args) =&gt; {
                 <span class="self">self</span>.desugar_constructor(path.as_ref(), args)
+            }
+            surface::ExprKind::BoundedQuant(kind, param, rng, body) =&gt; {
+                <span class="kw">let </span>kind = <span class="kw">match </span>kind {
+                    surface::QuantKind::Exists =&gt; fhir::QuantKind::Exists,
+                    surface::QuantKind::Forall =&gt; fhir::QuantKind::Forall,
+                };
+                <span class="kw">let </span>body = <span class="self">self</span>.genv().alloc(<span class="self">self</span>.desugar_expr(body));
+                <span class="kw">let </span>param = <span class="self">self</span>.desugar_refine_param(param);
+                <span class="kw">let </span>rng = fhir::Range { start: rng.start, end: rng.end };
+                fhir::ExprKind::BoundedQuant(kind, param, rng, body)
             }
         };
 
