@@ -959,7 +959,9 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1893,7 +1895,9 @@
             <span class="kw">let </span>msg = <span class="kw">match </span>err.kind {
                 ParseErrorKind::UnexpectedEof =&gt; <span class="string">"type annotation ended unexpectedly"</span>,
                 ParseErrorKind::UnexpectedToken =&gt; <span class="string">"unexpected token"</span>,
-                ParseErrorKind::IntTooLarge =&gt; <span class="string">"integer literal is too large"</span>,
+                ParseErrorKind::UnsupportedCallee =&gt; <span class="string">"expression not allowed in callee position"</span>,
+                ParseErrorKind::UnsupportedProj =&gt; <span class="string">"expression not allowed in field projection"</span>,
+                ParseErrorKind::CannotBeChained =&gt; <span class="string">"operator cannot be chained"</span>,
             };
 
             SyntaxErr { span: err.span, msg }

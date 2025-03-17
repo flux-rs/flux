@@ -197,48 +197,36 @@
 <a href="#196" id="196">196</a>
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, new_range_api)]
+<a href="#199" id="199">199</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_span;
 
 <span class="kw">pub mod </span>lexer;
+<span class="kw">mod </span>parser;
 <span class="kw">pub mod </span>surface;
 
-<span class="kw">use </span>lalrpop_util::lalrpop_mod;
-<span class="kw">use </span>lexer::{Cursor, Location, Token};
+<span class="kw">use </span>lexer::{Cursor, Token};
 <span class="kw">use </span>rustc_ast::tokenstream::TokenStream;
 <span class="kw">use </span>rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 <span class="kw">use </span>surface::NodeId;
-
-<span class="macro">lalrpop_mod!</span>(
-    <span class="attr">#[allow(warnings)]
-    #[allow(clippy::all)]
-    </span>grammar
-);
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>ParseSess {
     next_node_id: usize,
 }
 
-<span class="macro">macro_rules!</span> parse {
-    (<span class="macro-nonterminal">$sess</span>:expr, <span class="macro-nonterminal">$parser</span>:path, <span class="macro-nonterminal">$tokens</span>:expr, <span class="macro-nonterminal">$span</span>:expr) =&gt; {{
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = ParseCtxt::new(<span class="macro-nonterminal">$sess</span>, <span class="macro-nonterminal">$span</span>);
-        &lt;<span class="macro-nonterminal">$parser</span>&gt;::new()
-            .parse(<span class="kw-2">&amp;mut </span>cx, Cursor::new(<span class="macro-nonterminal">$tokens</span>, <span class="macro-nonterminal">$span</span>.lo()))
-            .map_err(|err| cx.map_err(err))
-    }};
-}
-
 <span class="kw">impl </span>ParseSess {
+    <span class="kw">fn </span>cx&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>, tokens: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TokenStream, span: Span) -&gt; ParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
+        ParseCtxt::new(<span class="self">self</span>, tokens, span)
+    }
+
     <span class="kw">pub fn </span>parse_refined_by(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::RefineParams&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::RefinedByParser, tokens, span)
+        parser::parse_refined_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_generics(
@@ -246,7 +234,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::Generics&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::GenericsParser, tokens, span)
+        parser::parse_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_type_alias(
@@ -254,7 +242,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::TyAlias&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::TyAliasParser, tokens, span)
+        parser::parse_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_fn_sig(
@@ -262,7 +250,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::FnSig&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::FnSigParser, tokens, span)
+        parser::parse_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_trait_assoc_reft(
@@ -270,7 +258,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;Vec&lt;surface::TraitAssocReft&gt;&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::TraitAssocReftsParser, tokens, span)
+        parser::parse_trait_assoc_refts(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_impl_assoc_reft(
@@ -278,7 +266,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;Vec&lt;surface::ImplAssocReft&gt;&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ImplAssocReftsParser, tokens, span)
+        parser::parse_impl_assoc_refts(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_qual_names(
@@ -286,7 +274,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::QualNames&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::QualNamesParser, tokens, span)
+        parser::parse_qual_names(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_flux_item(
@@ -294,11 +282,11 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;Vec&lt;surface::Item&gt;&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ItemsParser, tokens, span)
+        parser::parse_flux_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_type(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tokens: <span class="kw-2">&amp;</span>TokenStream, span: Span) -&gt; ParseResult&lt;surface::Ty&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::TyParser, tokens, span)
+        parser::parse_type(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_variant(
@@ -306,11 +294,11 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::VariantDef&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::VariantParser, tokens, span)
+        parser::parse_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>parse_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tokens: <span class="kw-2">&amp;</span>TokenStream, span: Span) -&gt; ParseResult&lt;surface::Expr&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ExprParser, tokens, span)
+        parser::parse_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span), <span class="bool-val">true</span>)
     }
 
     <span class="kw">pub fn </span>parse_constant_info(
@@ -318,7 +306,8 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;surface::ConstantInfo&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::ConstantInfoParser, tokens, span)
+        <span class="kw">let </span>expr = parser::parse_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span), <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(surface::ConstantInfo { expr: <span class="prelude-val">Some</span>(expr) })
     }
 
     <span class="kw">pub fn </span>parse_yes_or_no_with_reason(
@@ -326,7 +315,7 @@
         tokens: <span class="kw-2">&amp;</span>TokenStream,
         span: Span,
     ) -&gt; ParseResult&lt;bool&gt; {
-        <span class="macro">parse!</span>(<span class="self">self</span>, grammar::YesOrNoWithReasonParser, tokens, span)
+        parser::parse_yes_or_no_with_reason(<span class="kw-2">&amp;mut </span><span class="self">self</span>.cx(tokens, span))
     }
 
     <span class="kw">pub fn </span>next_node_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; NodeId {
@@ -337,47 +326,60 @@
 }
 
 <span class="kw">struct </span>ParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
-    offset: BytePos,
     ctx: SyntaxContext,
     parent: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;,
+    tokens: Cursor&lt;<span class="lifetime">'a</span>&gt;,
     sess: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ParseSess,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ParseCtxt&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ParseSess, span: Span) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ sess, offset: span.lo(), ctx: span.ctxt(), parent: span.parent() }
+    <span class="kw">fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ParseSess, tokens: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>TokenStream, span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            sess,
+            tokens: Cursor::new(tokens, span.lo()),
+            ctx: span.ctxt(),
+            parent: span.parent(),
+        }
     }
 
     <span class="kw">fn </span>next_node_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; NodeId {
         <span class="self">self</span>.sess.next_node_id()
     }
 
-    <span class="kw">fn </span>map_span(<span class="kw-2">&amp;</span><span class="self">self</span>, lo: Location, hi: Location) -&gt; Span {
-        Span::new(lo.<span class="number">0 </span>+ <span class="self">self</span>.offset, hi.<span class="number">0 </span>+ <span class="self">self</span>.offset, <span class="self">self</span>.ctx, <span class="self">self</span>.parent)
+    <span class="kw">fn </span>mk_span(<span class="kw-2">&amp;</span><span class="self">self</span>, lo: BytePos, hi: BytePos) -&gt; Span {
+        Span::new(lo, hi, <span class="self">self</span>.ctx, <span class="self">self</span>.parent)
     }
 
-    <span class="kw">fn </span>map_err(<span class="kw-2">&amp;</span><span class="self">self</span>, err: LalrpopError) -&gt; ParseError {
-        <span class="kw">match </span>err {
-            LalrpopError::InvalidToken { .. } =&gt; <span class="macro">unreachable!</span>(),
-            LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } =&gt; {
-                ParseErrorKind::UnexpectedToken.into_error(<span class="self">self</span>.map_span(lo, hi))
-            }
-            LalrpopError::UnrecognizedEof { location, expected: <span class="kw">_ </span>} =&gt; {
-                ParseErrorKind::UnexpectedEof.into_error(<span class="self">self</span>.map_span(location, location))
-            }
-            LalrpopError::UnrecognizedToken { token: (start, <span class="kw">_</span>, end), expected: <span class="kw">_ </span>}
-            | LalrpopError::ExtraToken { token: (start, <span class="kw">_</span>, end) } =&gt; {
-                ParseErrorKind::UnexpectedToken.into_error(<span class="self">self</span>.map_span(start, end))
-            }
-        }
+    <span class="kw">fn </span>lo(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+        <span class="self">self</span>.tokens.lo()
+    }
+
+    <span class="kw">fn </span>hi(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+        <span class="self">self</span>.tokens.hi()
+    }
+
+    <span class="kw">fn </span>unexpected_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; ParseError {
+        <span class="kw">let </span>(lo, tok, hi) = <span class="self">self</span>.tokens.at(<span class="number">0</span>);
+        <span class="kw">let </span>kind = <span class="kw">if </span>tok == Token::Eof {
+            ParseErrorKind::UnexpectedEof
+        } <span class="kw">else </span>{
+            ParseErrorKind::UnexpectedToken
+        };
+        ParseError { kind, span: <span class="self">self</span>.mk_span(lo, hi) }
+    }
+
+    <span class="kw">fn </span>unsupported_callee(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span) -&gt; ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedCallee, span }
+    }
+
+    <span class="kw">fn </span>unsupported_proj(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span) -&gt; ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedProj, span }
+    }
+
+    <span class="kw">fn </span>cannot_be_chained(<span class="kw-2">&amp;</span><span class="self">self</span>, lo: BytePos, hi: BytePos) -&gt; ParseError {
+        ParseError { kind: ParseErrorKind::UnsupportedProj, span: <span class="self">self</span>.mk_span(lo, hi) }
     }
 }
-
-<span class="kw">pub enum </span>UserParseError {
-    UnexpectedToken(Location, Location),
-}
-
-<span class="kw">type </span>LalrpopError = lalrpop_util::ParseError&lt;Location, Token, UserParseError&gt;;
 
 <span class="kw">pub type </span>ParseResult&lt;T&gt; = <span class="prelude-ty">Result</span>&lt;T, ParseError&gt;;
 
@@ -388,14 +390,10 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ParseErrorKind {
-    UnexpectedEof,
     UnexpectedToken,
-    IntTooLarge,
-}
-
-<span class="kw">impl </span>ParseErrorKind {
-    <span class="kw">fn </span>into_error(<span class="self">self</span>, span: Span) -&gt; ParseError {
-        ParseError { kind: <span class="self">self</span>, span }
-    }
+    UnexpectedEof,
+    UnsupportedCallee,
+    UnsupportedProj,
+    CannotBeChained,
 }
 </code></pre></div></section></main></body></html>

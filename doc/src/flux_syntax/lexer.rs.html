@@ -275,7 +275,94 @@
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
 <a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, iter::Peekable};
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, fmt, iter::Peekable};
 
 <span class="kw">pub use </span>rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 <span class="kw">use </span>rustc_ast::{
@@ -284,7 +371,7 @@
 };
 <span class="kw">use </span>rustc_span::{BytePos, Symbol, symbol::kw};
 
-<span class="attr">#[derive(Clone, Debug)]
+<span class="attr">#[derive(Copy, Clone, Debug, PartialEq)]
 </span><span class="kw">pub enum </span>Token {
     Caret,
     EqEq,
@@ -296,17 +383,17 @@
     Slash,
     Not,
     Star,
-    Shl,
     Colon,
     Comma,
     Semi,
     RArrow,
     Dot,
-    Lt,
     Le,
     Ne,
-    Gt,
     GtFollowedByGt,
+    Gt,
+    LtFollowedByLt,
+    Lt,
     Ge,
     At,
     Pound,
@@ -333,10 +420,6 @@
     Percent,
     Strg,
     Type,
-    Ignore,
-    Trusted,
-    TrustedImpl,
-    Check,
     If,
     Else,
     PathSep,
@@ -349,18 +432,90 @@
     Hrn,
     Hdl,
     DotDot,
+    Eof,
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Cursor&lt;<span class="lifetime">'t</span>&gt; {
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Token {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            Token::Caret =&gt; <span class="macro">write!</span>(f, <span class="string">"|"</span>),
+            Token::EqEq =&gt; <span class="macro">write!</span>(f, <span class="string">"=="</span>),
+            Token::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">"="</span>),
+            Token::AndAnd =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;&amp;"</span>),
+            Token::OrOr =&gt; <span class="macro">write!</span>(f, <span class="string">"||"</span>),
+            Token::Plus =&gt; <span class="macro">write!</span>(f, <span class="string">"+"</span>),
+            Token::Minus =&gt; <span class="macro">write!</span>(f, <span class="string">"-"</span>),
+            Token::Slash =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
+            Token::Not =&gt; <span class="macro">write!</span>(f, <span class="string">"!"</span>),
+            Token::Star =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
+            Token::Colon =&gt; <span class="macro">write!</span>(f, <span class="string">":"</span>),
+            Token::Comma =&gt; <span class="macro">write!</span>(f, <span class="string">","</span>),
+            Token::Semi =&gt; <span class="macro">write!</span>(f, <span class="string">";"</span>),
+            Token::RArrow =&gt; <span class="macro">write!</span>(f, <span class="string">"-&gt;"</span>),
+            Token::Dot =&gt; <span class="macro">write!</span>(f, <span class="string">"."</span>),
+            Token::Le =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;="</span>),
+            Token::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
+            Token::GtFollowedByGt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
+            Token::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
+            Token::LtFollowedByLt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
+            Token::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
+            Token::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
+            Token::At =&gt; <span class="macro">write!</span>(f, <span class="string">"@"</span>),
+            Token::Pound =&gt; <span class="macro">write!</span>(f, <span class="string">"#"</span>),
+            Token::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
+            Token::Fn =&gt; <span class="macro">write!</span>(f, <span class="string">"fn"</span>),
+            Token::Async =&gt; <span class="macro">write!</span>(f, <span class="string">"async"</span>),
+            Token::Iff =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;=&gt;"</span>),
+            Token::FatArrow =&gt; <span class="macro">write!</span>(f, <span class="string">"=&gt;"</span>),
+            Token::Mut =&gt; <span class="macro">write!</span>(f, <span class="string">"mut"</span>),
+            Token::Where =&gt; <span class="macro">write!</span>(f, <span class="string">"where"</span>),
+            Token::Forall =&gt; <span class="macro">write!</span>(f, <span class="string">"forall"</span>),
+            Token::Exists =&gt; <span class="macro">write!</span>(f, <span class="string">"exists"</span>),
+            Token::In =&gt; <span class="macro">write!</span>(f, <span class="string">"in"</span>),
+            Token::Impl =&gt; <span class="macro">write!</span>(f, <span class="string">"impl"</span>),
+            Token::Requires =&gt; <span class="macro">write!</span>(f, <span class="string">"requires"</span>),
+            Token::Ensures =&gt; <span class="macro">write!</span>(f, <span class="string">"ensures"</span>),
+            Token::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit}"</span>),
+            Token::Ident(sym) =&gt; <span class="macro">write!</span>(f, <span class="string">"{sym}"</span>),
+            Token::OpenDelim(Delimiter::Parenthesis) =&gt; <span class="macro">write!</span>(f, <span class="string">"("</span>),
+            Token::OpenDelim(Delimiter::Brace) =&gt; <span class="macro">write!</span>(f, <span class="string">"{{"</span>),
+            Token::OpenDelim(Delimiter::Bracket) =&gt; <span class="macro">write!</span>(f, <span class="string">"["</span>),
+            Token::OpenDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="macro">write!</span>(f, <span class="string">""</span>),
+            Token::CloseDelim(Delimiter::Parenthesis) =&gt; <span class="macro">write!</span>(f, <span class="string">")"</span>),
+            Token::CloseDelim(Delimiter::Brace) =&gt; <span class="macro">write!</span>(f, <span class="string">"}}"</span>),
+            Token::CloseDelim(Delimiter::Bracket) =&gt; <span class="macro">write!</span>(f, <span class="string">"]"</span>),
+            Token::CloseDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="macro">write!</span>(f, <span class="string">""</span>),
+            Token::Invalid =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;invalid&gt;"</span>),
+            Token::Ref =&gt; <span class="macro">write!</span>(f, <span class="string">"ref"</span>),
+            Token::And =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;"</span>),
+            Token::Percent =&gt; <span class="macro">write!</span>(f, <span class="string">"%"</span>),
+            Token::Strg =&gt; <span class="macro">write!</span>(f, <span class="string">"strg"</span>),
+            Token::Type =&gt; <span class="macro">write!</span>(f, <span class="string">"type"</span>),
+            Token::If =&gt; <span class="macro">write!</span>(f, <span class="string">"if"</span>),
+            Token::Else =&gt; <span class="macro">write!</span>(f, <span class="string">"else"</span>),
+            Token::PathSep =&gt; <span class="macro">write!</span>(f, <span class="string">"::"</span>),
+            Token::Qualifier =&gt; <span class="macro">write!</span>(f, <span class="string">"qualifier"</span>),
+            Token::Sort =&gt; <span class="macro">write!</span>(f, <span class="string">"sort"</span>),
+            Token::Opaque =&gt; <span class="macro">write!</span>(f, <span class="string">"opaque"</span>),
+            Token::Local =&gt; <span class="macro">write!</span>(f, <span class="string">"local"</span>),
+            Token::BitVec =&gt; <span class="macro">write!</span>(f, <span class="string">"bitvec"</span>),
+            Token::As =&gt; <span class="macro">write!</span>(f, <span class="string">"as"</span>),
+            Token::Hrn =&gt; <span class="macro">write!</span>(f, <span class="string">"rn"</span>),
+            Token::Hdl =&gt; <span class="macro">write!</span>(f, <span class="string">"hdl"</span>),
+            Token::DotDot =&gt; <span class="macro">write!</span>(f, <span class="string">".."</span>),
+            Token::Eof =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;eof&gt;"</span>),
+        }
+    }
+}
+
+<span class="kw">pub struct </span>Cursor&lt;<span class="lifetime">'t</span>&gt; {
     stack: Vec&lt;Frame&lt;<span class="lifetime">'t</span>&gt;&gt;,
-    offset: BytePos,
     symbs: Symbols,
-    tokens: VecDeque&lt;(Location, Token, Location)&gt;,
+    tokens: VecDeque&lt;(BytePos, Token, BytePos)&gt;,
+    hi: BytePos,
 }
 
 <span class="kw">struct </span>Symbols {
-    fn_: Symbol,
-    ref_: Symbol,
     requires: Symbol,
     ensures: Symbol,
     strg: Symbol,
@@ -377,21 +532,15 @@
 
 <span class="kw">struct </span>Frame&lt;<span class="lifetime">'t</span>&gt; {
     cursor: Peekable&lt;TokenStreamIter&lt;<span class="lifetime">'t</span>&gt;&gt;,
-    close: <span class="prelude-ty">Option</span>&lt;(Location, Token, Location)&gt;,
+    close: <span class="prelude-ty">Option</span>&lt;(BytePos, Token, BytePos)&gt;,
 }
-
-<span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>Location(<span class="kw">pub</span>(<span class="kw">crate</span>) BytePos);
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'t</span>&gt; Cursor&lt;<span class="lifetime">'t</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(stream: <span class="kw-2">&amp;</span><span class="lifetime">'t </span>TokenStream, offset: BytePos) -&gt; <span class="self">Self </span>{
-        Cursor {
+        <span class="kw">let </span><span class="kw-2">mut </span>cursor = Cursor {
             stack: <span class="macro">vec!</span>[Frame { cursor: stream.iter().peekable(), close: <span class="prelude-val">None </span>}],
-            offset,
             tokens: VecDeque::new(),
             symbs: Symbols {
-                fn_: Symbol::intern(<span class="string">"fn"</span>),
-                ref_: Symbol::intern(<span class="string">"ref"</span>),
                 strg: Symbol::intern(<span class="string">"strg"</span>),
                 requires: Symbol::intern(<span class="string">"requires"</span>),
                 ensures: Symbol::intern(<span class="string">"ensures"</span>),
@@ -405,7 +554,50 @@
                 forall: Symbol::intern(<span class="string">"forall"</span>),
                 exists: Symbol::intern(<span class="string">"exists"</span>),
             },
+            hi: offset,
+        };
+        cursor.fetch_tokens();
+        cursor
+    }
+
+    <span class="attr">#[must_use]
+    </span><span class="kw">pub fn </span>at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: usize) -&gt; (BytePos, Token, BytePos) {
+        <span class="kw">while </span><span class="self">self</span>.tokens.len() &lt;= pos &amp;&amp; <span class="self">self</span>.fetch_tokens() {}
+        <span class="kw">if </span>pos &lt; <span class="self">self</span>.tokens.len() { <span class="self">self</span>.tokens[pos] } <span class="kw">else </span>{ (<span class="self">self</span>.hi, Token::Eof, <span class="self">self</span>.hi) }
+    }
+
+    <span class="kw">pub fn </span>debug(<span class="kw-2">&amp;mut </span><span class="self">self</span>, size: usize) -&gt; String {
+        <span class="kw">let </span><span class="kw-2">mut </span>s = String::new();
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..size {
+            s = <span class="macro">format!</span>(<span class="string">"{s} {}"</span>, <span class="self">self</span>.at(i).<span class="number">1</span>);
         }
+        s
+    }
+
+    <span class="kw">pub fn </span>advance(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(tok) = <span class="self">self</span>.tokens.pop_front() {
+            <span class="kw">if </span><span class="self">self</span>.tokens.is_empty() {
+                <span class="self">self</span>.fetch_tokens();
+            }
+            <span class="self">self</span>.hi = tok.<span class="number">2</span>;
+        }
+    }
+
+    <span class="kw">pub fn </span>advance_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>, n: usize) {
+        <span class="kw">for _ in </span><span class="number">0</span>..n {
+            <span class="self">self</span>.advance();
+        }
+    }
+
+    <span class="doccomment">/// Returns the starting byte position of the token the cursor is currently at.
+    </span><span class="kw">pub fn </span>lo(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((lo, ..)) = <span class="self">self</span>.tokens.front() { <span class="kw-2">*</span>lo } <span class="kw">else </span>{ <span class="self">self</span>.hi }
+    }
+
+    <span class="doccomment">/// Returns the highest byte position the cursor has yielded. You could also think of this as
+    /// the ending position of the last yielded token.
+    </span><span class="kw">pub fn </span>hi(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+        <span class="self">self</span>.hi
     }
 
     <span class="kw">fn </span>map_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, token: <span class="kw-2">&amp;</span>token::Token) {
@@ -434,8 +626,6 @@
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::True || symb == kw::False =&gt; {
                 Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: <span class="prelude-val">None </span>})
             }
-            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.ref_ =&gt; Token::Ref,
-            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.fn_ =&gt; Token::Fn,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.strg =&gt; Token::Strg,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.requires =&gt; Token::Requires,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.ensures =&gt; Token::Ensures,
@@ -449,6 +639,8 @@
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.forall =&gt; Token::Forall,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.exists =&gt; Token::Exists,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::In =&gt; Token::In,
+            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Ref =&gt; Token::Ref,
+            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Fn =&gt; Token::Fn,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Mut =&gt; Token::Mut,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Where =&gt; Token::Where,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Impl =&gt; Token::Impl,
@@ -466,10 +658,18 @@
             TokenKind::BinOp(BinOpToken::And) =&gt; Token::And,
             TokenKind::BinOp(BinOpToken::Percent) =&gt; Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) =&gt; Token::Star,
-            TokenKind::BinOp(BinOpToken::Shl) =&gt; Token::Shl,
+            TokenKind::BinOp(BinOpToken::Shl) =&gt; {
+                <span class="self">self</span>.tokens
+                    .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(<span class="number">1</span>)));
+                <span class="self">self</span>.tokens
+                    .push_back((span.lo() + BytePos(<span class="number">1</span>), Token::Lt, span.hi()));
+                <span class="kw">return</span>;
+            }
             TokenKind::BinOp(BinOpToken::Shr) =&gt; {
-                <span class="self">self</span>.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(<span class="number">1</span>));
-                <span class="self">self</span>.push_token(span.lo() + BytePos(<span class="number">1</span>), Token::Gt, span.hi());
+                <span class="self">self</span>.tokens
+                    .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(<span class="number">1</span>)));
+                <span class="self">self</span>.tokens
+                    .push_back((span.lo() + BytePos(<span class="number">1</span>), Token::Gt, span.hi()));
                 <span class="kw">return</span>;
             }
             TokenKind::Not =&gt; Token::Not,
@@ -477,79 +677,53 @@
             TokenKind::DotDot =&gt; Token::DotDot,
             <span class="kw">_ </span>=&gt; Token::Invalid,
         };
-        <span class="self">self</span>.push_token(span.lo(), token, span.hi());
+        <span class="self">self</span>.tokens.push_back((span.lo(), token, span.hi()));
     }
 
-    <span class="kw">fn </span>push_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lo: BytePos, token: Token, hi: BytePos) {
-        <span class="self">self</span>.tokens
-            .push_back((Location(lo - <span class="self">self</span>.offset), token, Location(hi - <span class="self">self</span>.offset)));
-    }
-
-    <span class="kw">fn </span>advance(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;()&gt; {
-        <span class="kw">let </span>top = <span class="self">self</span>.stack.last_mut()<span class="question-mark">?</span>;
+    <span class="kw">fn </span>fetch_tokens(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(top) = <span class="self">self</span>.stack.last_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
 
         <span class="kw">match </span>top.cursor.next() {
             <span class="prelude-val">Some</span>(TokenTree::Token(token, <span class="kw">_</span>)) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(TokenTree::Token(next, <span class="kw">_</span>)) = top.cursor.peek() {
                     <span class="kw">match </span>(<span class="kw-2">&amp;</span>token.kind, <span class="kw-2">&amp;</span>next.kind) {
                         (TokenKind::Le, TokenKind::Gt) <span class="kw">if </span>token.span.hi() == next.span.lo() =&gt; {
-                            <span class="kw">let </span>lo = Location(token.span.lo() - <span class="self">self</span>.offset);
-                            <span class="kw">let </span>hi = Location(next.span.hi() - <span class="self">self</span>.offset);
                             top.cursor.next();
-                            <span class="self">self</span>.tokens.push_back((lo, Token::Iff, hi));
-                            <span class="kw">return </span><span class="prelude-val">Some</span>(());
+                            <span class="self">self</span>.tokens
+                                .push_back((token.span.lo(), Token::Iff, next.span.hi()));
+                            <span class="kw">return </span><span class="bool-val">true</span>;
                         }
                         <span class="kw">_ </span>=&gt; {}
                     }
                 }
                 <span class="self">self</span>.map_token(token);
-                <span class="prelude-val">Some</span>(())
-            }
+                <span class="bool-val">true
+            </span>}
             <span class="prelude-val">Some</span>(TokenTree::Delimited(<span class="kw">_</span>, _spacing, Delimiter::Invisible(..), tokens)) =&gt; {
                 <span class="self">self</span>.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">None </span>});
-                <span class="self">self</span>.advance()
+                <span class="self">self</span>.fetch_tokens()
             }
             <span class="prelude-val">Some</span>(TokenTree::Delimited(span, _spacing, delim, tokens)) =&gt; {
-                <span class="kw">let </span>close = (
-                    Location(span.close.lo() - <span class="self">self</span>.offset),
-                    Token::CloseDelim(<span class="kw-2">*</span>delim),
-                    Location(span.close.hi() - <span class="self">self</span>.offset),
-                );
+                <span class="kw">let </span>close = (span.close.lo(), Token::CloseDelim(<span class="kw-2">*</span>delim), span.close.hi());
 
                 <span class="self">self</span>.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">Some</span>(close) });
 
                 <span class="kw">let </span>token = token::Token { kind: TokenKind::OpenDelim(<span class="kw-2">*</span>delim), span: span.open };
                 <span class="self">self</span>.map_token(<span class="kw-2">&amp;</span>token);
-                <span class="prelude-val">Some</span>(())
-            }
+                <span class="bool-val">true
+            </span>}
             <span class="prelude-val">None </span>=&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = <span class="self">self</span>.stack.pop()<span class="question-mark">?</span>.close {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(frame) = <span class="self">self</span>.stack.pop() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = frame.close {
                     <span class="self">self</span>.tokens.push_back(token);
-                    <span class="prelude-val">Some</span>(())
-                } <span class="kw">else </span>{
-                    <span class="self">self</span>.advance()
+                    <span class="bool-val">true
+                </span>} <span class="kw">else </span>{
+                    <span class="self">self</span>.fetch_tokens()
                 }
             }
         }
-    }
-}
-
-<span class="kw">impl </span>Iterator <span class="kw">for </span>Cursor&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span>Item = (Location, Token, Location);
-
-    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
-        <span class="kw">if </span><span class="self">self</span>.tokens.is_empty() {
-            <span class="self">self</span>.advance();
-        }
-        <span class="self">self</span>.tokens.pop_front()
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>Location {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        Location(BytePos(<span class="number">0</span>))
     }
 }
 </code></pre></div></section></main></body></html>

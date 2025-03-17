@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOpToken","Delimiter","LitKind","Token"],"struct":["Cursor","Frame","Lit","Location","Symbols"]};
+window.SIDEBAR_ITEMS = {"enum":["BinOpToken","Delimiter","LitKind","Token"],"struct":["Cursor","Frame","Lit","Symbols"]};
