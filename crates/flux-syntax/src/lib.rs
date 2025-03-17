@@ -23,7 +23,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::RefineParams> {
-        ParseCtxt::new(self, span).parse_refined_by(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_refined_by()
     }
 
     pub fn parse_generics(
@@ -31,7 +31,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::Generics> {
-        ParseCtxt::new(self, span).parse_generics(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_generics()
     }
 
     pub fn parse_type_alias(
@@ -39,7 +39,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::TyAlias> {
-        ParseCtxt::new(self, span).parse_type_alias(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_type_alias()
     }
 
     pub fn parse_fn_sig(
@@ -47,7 +47,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::FnSig> {
-        ParseCtxt::new(self, span).parse_fn_sig(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_fn_sig()
     }
 
     pub fn parse_trait_assoc_reft(
@@ -55,7 +55,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::TraitAssocReft>> {
-        ParseCtxt::new(self, span).parse_trait_assoc_refts(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_trait_assoc_refts()
     }
 
     pub fn parse_impl_assoc_reft(
@@ -63,7 +63,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::ImplAssocReft>> {
-        ParseCtxt::new(self, span).parse_impl_assoc_refts(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_impl_assoc_refts()
     }
 
     pub fn parse_qual_names(
@@ -71,7 +71,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::QualNames> {
-        ParseCtxt::new(self, span).parse_qual_names(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_qual_names()
     }
 
     pub fn parse_flux_item(
@@ -79,11 +79,11 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<Vec<surface::Item>> {
-        ParseCtxt::new(self, span).parse_flux_items(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_flux_items()
     }
 
     pub fn parse_type(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Ty> {
-        ParseCtxt::new(self, span).parse_type(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_type()
     }
 
     pub fn parse_variant(
@@ -91,11 +91,11 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::VariantDef> {
-        ParseCtxt::new(self, span).parse_variant(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_variant()
     }
 
     pub fn parse_expr(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {
-        ParseCtxt::new(self, span).parse_expr(&mut Cursor::new(tokens, span.lo()), true)
+        ParseCtxt::new(self, tokens, span).parse_expr(true)
     }
 
     pub fn parse_constant_info(
@@ -103,8 +103,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::ConstantInfo> {
-        let expr =
-            ParseCtxt::new(self, span).parse_expr(&mut Cursor::new(tokens, span.lo()), true)?;
+        let expr = ParseCtxt::new(self, tokens, span).parse_expr(true)?;
         Ok(surface::ConstantInfo { expr: Some(expr) })
     }
 
@@ -113,7 +112,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<bool> {
-        ParseCtxt::new(self, span).parse_yes_or_no_with_reason(&mut Cursor::new(tokens, span.lo()))
+        ParseCtxt::new(self, tokens, span).parse_yes_or_no_with_reason()
     }
 
     pub fn next_node_id(&mut self) -> NodeId {
@@ -126,12 +125,18 @@ impl ParseSess {
 struct ParseCtxt<'a> {
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
+    cursor: Cursor<'a>,
     sess: &'a mut ParseSess,
 }
 
 impl<'a> ParseCtxt<'a> {
-    fn new(sess: &'a mut ParseSess, span: Span) -> Self {
-        Self { sess, ctx: span.ctxt(), parent: span.parent() }
+    fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
+        Self {
+            sess,
+            cursor: Cursor::new(tokens, span.lo()),
+            ctx: span.ctxt(),
+            parent: span.parent(),
+        }
     }
 
     fn next_node_id(&mut self) -> NodeId {
@@ -140,6 +145,14 @@ impl<'a> ParseCtxt<'a> {
 
     fn mk_span(&self, lo: BytePos, hi: BytePos) -> Span {
         Span::new(lo, hi, self.ctx, self.parent)
+    }
+
+    fn lo(&self) -> BytePos {
+        self.cursor.lo()
+    }
+
+    fn hi(&self) -> BytePos {
+        self.cursor.hi()
     }
 }
 
