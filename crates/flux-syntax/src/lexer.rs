@@ -19,17 +19,17 @@ pub enum Token {
     Slash,
     Not,
     Star,
-    Shl,
     Colon,
     Comma,
     Semi,
     RArrow,
     Dot,
-    Lt,
     Le,
     Ne,
-    Gt,
     GtFollowedByGt,
+    Gt,
+    LtFollowedByLt,
+    Lt,
     Ge,
     At,
     Pound,
@@ -84,17 +84,17 @@ impl fmt::Display for Token {
             Token::Slash => write!(f, "/"),
             Token::Not => write!(f, "!"),
             Token::Star => write!(f, "*"),
-            Token::Shl => write!(f, "<<"),
             Token::Colon => write!(f, ":"),
             Token::Comma => write!(f, ","),
             Token::Semi => write!(f, ";"),
             Token::RArrow => write!(f, "->"),
             Token::Dot => write!(f, "."),
-            Token::Lt => write!(f, "<"),
             Token::Le => write!(f, "<="),
             Token::Ne => write!(f, ">="),
-            Token::Gt => write!(f, ">"),
             Token::GtFollowedByGt => write!(f, ">"),
+            Token::Gt => write!(f, ">"),
+            Token::LtFollowedByLt => write!(f, "<"),
+            Token::Lt => write!(f, "<"),
             Token::Ge => write!(f, ">="),
             Token::At => write!(f, "@"),
             Token::Pound => write!(f, "#"),
@@ -294,7 +294,13 @@ impl<'t> Cursor<'t> {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
-            TokenKind::BinOp(BinOpToken::Shl) => Token::Shl,
+            TokenKind::BinOp(BinOpToken::Shl) => {
+                self.tokens
+                    .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(1)));
+                self.tokens
+                    .push_back((span.lo() + BytePos(1), Token::Lt, span.hi()));
+                return;
+            }
             TokenKind::BinOp(BinOpToken::Shr) => {
                 self.tokens
                     .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1)));

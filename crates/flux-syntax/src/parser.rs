@@ -271,7 +271,7 @@ pub(crate) fn parse_type_alias(cx: &mut ParseCtxt) -> ParseResult<TyAlias> {
 }
 
 fn parse_opt_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
-    if !peek!(cx, Tok::Lt) {
+    if !peek!(cx, Tok::LtFollowedByLt | Tok::Lt) {
         let hi = cx.hi();
         return Ok(Generics { params: vec![], predicates: None, span: cx.mk_span(hi, hi) });
     }
@@ -531,7 +531,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         let path = parse_path(cx)?;
         let bty = path_to_bty(path);
         return parse_bty_rhs(cx, bty);
-    } else if peek!(cx, Tok::Lt) {
+    } else if peek!(cx, Tok::LtFollowedByLt | Tok::Lt) {
         let bty = parse_qpath(cx)?;
         return parse_bty_rhs(cx, bty);
     } else {
@@ -544,7 +544,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
 /// ⟨qpath⟩ := < ⟨ty⟩ as ⟨segments⟩> :: ⟨segments⟩
 fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
     let lo = cx.lo();
-    expect!(cx, Tok::Lt)?;
+    expect!(cx, Tok::LtFollowedByLt | Tok::Lt)?;
     let qself = parse_type(cx)?;
     expect!(cx, Tok::As)?;
     let mut segments = parse_segments(cx)?;
@@ -775,7 +775,7 @@ fn peek_binop(cx: &mut ParseCtxt) -> Option<(BinOp, usize)> {
         Tok::Ge => (BinOp::Ge, 1),
         Tok::Caret => (BinOp::BitOr, 1),
         Tok::And => (BinOp::BitAnd, 1),
-        Tok::Shl => (BinOp::BitShl, 1),
+        Tok::LtFollowedByLt => (BinOp::BitShl, 2),
         Tok::GtFollowedByGt => (BinOp::BitShr, 2),
         Tok::Plus => (BinOp::Add, 1),
         Tok::Minus => (BinOp::Sub, 1),
@@ -806,7 +806,7 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 ///                 |  ⟨atom⟩
 ///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
-    if advance_if!(cx, Tok::Lt) {
+    if advance_if!(cx, Tok::LtFollowedByLt | Tok::Lt) {
         // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
         let lo = cx.lo();
         let qself = parse_type(cx)?;
@@ -1035,7 +1035,7 @@ fn opt_angle_brackets<T>(
     cx: &mut ParseCtxt,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
 ) -> ParseResult<Vec<T>> {
-    if !peek!(cx, Tok::Lt) {
+    if !peek!(cx, Tok::LtFollowedByLt | Tok::Lt) {
         return Ok(vec![]);
     }
     angle_brackets(cx, parse)
@@ -1045,7 +1045,7 @@ fn angle_brackets<T>(
     cx: &mut ParseCtxt,
     mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<T>,
 ) -> ParseResult<Vec<T>> {
-    expect!(cx, Tok::Lt)?;
+    expect!(cx, Tok::LtFollowedByLt | Tok::Lt)?;
     let mut items = vec![];
     while !peek!(cx, Tok::Gt | Tok::GtFollowedByGt) {
         items.push(parse(cx)?);
