@@ -11,9 +11,10 @@ use crate::{
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
-        ParamMode, Path, PathSegment, QualNames, Qualifier, RefineArg, RefineParam, RefineParams,
-        Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft, TraitRef, Ty,
-        TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, Range, RefineArg,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
+        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
 };
 
@@ -704,7 +705,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
 ///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort
 fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<RefineParam> {
     let lo = cx.lo();
-    let mode = parse_param_mode(cx);
+    let mode = parse_opt_param_mode(cx);
     let ident = parse_ident(cx)?;
     let sort = if require_sort {
         expect!(cx, Tok::Colon)?;
@@ -719,7 +720,7 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<Ref
 }
 
 /// ⟨mode⟩ := hrn | hdl
-fn parse_param_mode(cx: &mut ParseCtxt) -> Option<ParamMode> {
+fn parse_opt_param_mode(cx: &mut ParseCtxt) -> Option<ParamMode> {
     if advance_if!(cx, Tok::Hrn) {
         Some(ParamMode::Horn)
     } else if advance_if!(cx, Tok::Hdl) {
@@ -886,9 +887,34 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
             node_id: cx.next_node_id(),
             span: cx.mk_span(lo, hi),
         })
+    } else if peek!(cx, Tok::Exists | Tok::Forall) {
+        parse_bounded_quantifier(cx)
     } else {
         Err(cx.unexpected_token())
     }
+}
+
+fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    let lo = cx.lo();
+    let quant = if advance_if!(cx, Tok::Forall) {
+        QuantKind::Forall
+    } else if advance_if!(cx, Tok::Exists) {
+        QuantKind::Exists
+    } else {
+        return Err(cx.unexpected_token());
+    };
+    let param = parse_refine_param(cx, false)?;
+    expect!(cx, Tok::In)?;
+    let start = parse_int(cx)?;
+    expect!(cx, Tok::DotDot)?;
+    let end = parse_int(cx)?;
+    let body = parse_block_expr(cx)?;
+    let hi = cx.hi();
+    Ok(Expr {
+        kind: ExprKind::BoundedQuant(quant, param, Range { start, end }, Box::new(body)),
+        node_id: cx.next_node_id(),
+        span: cx.mk_span(lo, hi),
+    })
 }
 
 /// ⟨constructor_arg⟩ :=  ⟨ident⟩ : ⟨expr⟩ |  ..
