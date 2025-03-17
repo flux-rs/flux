@@ -6,8 +6,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-use rustc_span::Span;
-pub use rustc_span::symbol::Ident;
+pub use rustc_span::{Span, symbol::Ident};
 
 use crate::surface::visit::Visitor;
 
@@ -536,7 +535,7 @@ pub struct ExprPathSegment {
     pub node_id: NodeId,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum BinOp {
     Iff,
     Imp,

@@ -8,7 +8,7 @@ pub trait MyTrait {
 }
 
 #[trusted]
-#[sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
+#[sig(fn(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
 pub fn bob<T: MyTrait>(x: &T) {
     x.method();
 }
@@ -16,7 +16,7 @@ pub fn bob<T: MyTrait>(x: &T) {
 pub struct S1;
 impl S1 {
     #[trusted]
-    #[sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))]
+    #[sig(fn(&{T[@x] | <T as MyTrait>::f(x)}))]
     pub fn bob<T: MyTrait>(x: &T) {
         x.method();
     }

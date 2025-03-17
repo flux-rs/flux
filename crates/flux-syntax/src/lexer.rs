@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, iter::Peekable};
+use std::{collections::VecDeque, fmt, iter::Peekable};
 
 pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 use rustc_ast::{
@@ -7,7 +7,7 @@ use rustc_ast::{
 };
 use rustc_span::{BytePos, Symbol, symbol::kw};
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Token {
     Caret,
     EqEq,
@@ -19,17 +19,17 @@ pub enum Token {
     Slash,
     Not,
     Star,
-    Shl,
     Colon,
     Comma,
     Semi,
     RArrow,
     Dot,
-    Lt,
     Le,
     Ne,
-    Gt,
     GtFollowedByGt,
+    Gt,
+    LtFollowedByLt,
+    Lt,
     Ge,
     At,
     Pound,
@@ -56,10 +56,6 @@ pub enum Token {
     Percent,
     Strg,
     Type,
-    Ignore,
-    Trusted,
-    TrustedImpl,
-    Check,
     If,
     Else,
     PathSep,
@@ -72,18 +68,90 @@ pub enum Token {
     Hrn,
     Hdl,
     DotDot,
+    Eof,
 }
 
-pub(crate) struct Cursor<'t> {
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Caret => write!(f, "|"),
+            Token::EqEq => write!(f, "=="),
+            Token::Eq => write!(f, "="),
+            Token::AndAnd => write!(f, "&&"),
+            Token::OrOr => write!(f, "||"),
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Slash => write!(f, "/"),
+            Token::Not => write!(f, "!"),
+            Token::Star => write!(f, "*"),
+            Token::Colon => write!(f, ":"),
+            Token::Comma => write!(f, ","),
+            Token::Semi => write!(f, ";"),
+            Token::RArrow => write!(f, "->"),
+            Token::Dot => write!(f, "."),
+            Token::Le => write!(f, "<="),
+            Token::Ne => write!(f, ">="),
+            Token::GtFollowedByGt => write!(f, ">"),
+            Token::Gt => write!(f, ">"),
+            Token::LtFollowedByLt => write!(f, "<"),
+            Token::Lt => write!(f, "<"),
+            Token::Ge => write!(f, ">="),
+            Token::At => write!(f, "@"),
+            Token::Pound => write!(f, "#"),
+            Token::Underscore => write!(f, "_"),
+            Token::Fn => write!(f, "fn"),
+            Token::Async => write!(f, "async"),
+            Token::Iff => write!(f, "<=>"),
+            Token::FatArrow => write!(f, "=>"),
+            Token::Mut => write!(f, "mut"),
+            Token::Where => write!(f, "where"),
+            Token::Forall => write!(f, "forall"),
+            Token::Exists => write!(f, "exists"),
+            Token::In => write!(f, "in"),
+            Token::Impl => write!(f, "impl"),
+            Token::Requires => write!(f, "requires"),
+            Token::Ensures => write!(f, "ensures"),
+            Token::Literal(lit) => write!(f, "{lit}"),
+            Token::Ident(sym) => write!(f, "{sym}"),
+            Token::OpenDelim(Delimiter::Parenthesis) => write!(f, "("),
+            Token::OpenDelim(Delimiter::Brace) => write!(f, "{{"),
+            Token::OpenDelim(Delimiter::Bracket) => write!(f, "["),
+            Token::OpenDelim(Delimiter::Invisible(_)) => write!(f, ""),
+            Token::CloseDelim(Delimiter::Parenthesis) => write!(f, ")"),
+            Token::CloseDelim(Delimiter::Brace) => write!(f, "}}"),
+            Token::CloseDelim(Delimiter::Bracket) => write!(f, "]"),
+            Token::CloseDelim(Delimiter::Invisible(_)) => write!(f, ""),
+            Token::Invalid => write!(f, "<invalid>"),
+            Token::Ref => write!(f, "ref"),
+            Token::And => write!(f, "&"),
+            Token::Percent => write!(f, "%"),
+            Token::Strg => write!(f, "strg"),
+            Token::Type => write!(f, "type"),
+            Token::If => write!(f, "if"),
+            Token::Else => write!(f, "else"),
+            Token::PathSep => write!(f, "::"),
+            Token::Qualifier => write!(f, "qualifier"),
+            Token::Sort => write!(f, "sort"),
+            Token::Opaque => write!(f, "opaque"),
+            Token::Local => write!(f, "local"),
+            Token::BitVec => write!(f, "bitvec"),
+            Token::As => write!(f, "as"),
+            Token::Hrn => write!(f, "rn"),
+            Token::Hdl => write!(f, "hdl"),
+            Token::DotDot => write!(f, ".."),
+            Token::Eof => write!(f, "<eof>"),
+        }
+    }
+}
+
+pub struct Cursor<'t> {
     stack: Vec<Frame<'t>>,
-    offset: BytePos,
     symbs: Symbols,
-    tokens: VecDeque<(Location, Token, Location)>,
+    tokens: VecDeque<(BytePos, Token, BytePos)>,
+    hi: BytePos,
 }
 
 struct Symbols {
-    fn_: Symbol,
-    ref_: Symbol,
     requires: Symbol,
     ensures: Symbol,
     strg: Symbol,
@@ -100,21 +168,15 @@ struct Symbols {
 
 struct Frame<'t> {
     cursor: Peekable<TokenStreamIter<'t>>,
-    close: Option<(Location, Token, Location)>,
+    close: Option<(BytePos, Token, BytePos)>,
 }
-
-#[derive(Clone, Copy, Debug)]
-pub struct Location(pub(crate) BytePos);
 
 impl<'t> Cursor<'t> {
     pub(crate) fn new(stream: &'t TokenStream, offset: BytePos) -> Self {
-        Cursor {
+        let mut cursor = Cursor {
             stack: vec![Frame { cursor: stream.iter().peekable(), close: None }],
-            offset,
             tokens: VecDeque::new(),
             symbs: Symbols {
-                fn_: Symbol::intern("fn"),
-                ref_: Symbol::intern("ref"),
                 strg: Symbol::intern("strg"),
                 requires: Symbol::intern("requires"),
                 ensures: Symbol::intern("ensures"),
@@ -128,7 +190,50 @@ impl<'t> Cursor<'t> {
                 forall: Symbol::intern("forall"),
                 exists: Symbol::intern("exists"),
             },
+            hi: offset,
+        };
+        cursor.fetch_tokens();
+        cursor
+    }
+
+    #[must_use]
+    pub fn at(&mut self, pos: usize) -> (BytePos, Token, BytePos) {
+        while self.tokens.len() <= pos && self.fetch_tokens() {}
+        if pos < self.tokens.len() { self.tokens[pos] } else { (self.hi, Token::Eof, self.hi) }
+    }
+
+    pub fn debug(&mut self, size: usize) -> String {
+        let mut s = String::new();
+        for i in 0..size {
+            s = format!("{s} {}", self.at(i).1);
         }
+        s
+    }
+
+    pub fn advance(&mut self) {
+        if let Some(tok) = self.tokens.pop_front() {
+            if self.tokens.is_empty() {
+                self.fetch_tokens();
+            }
+            self.hi = tok.2;
+        }
+    }
+
+    pub fn advance_by(&mut self, n: usize) {
+        for _ in 0..n {
+            self.advance();
+        }
+    }
+
+    /// Returns the starting byte position of the token the cursor is currently at.
+    pub fn lo(&self) -> BytePos {
+        if let Some((lo, ..)) = self.tokens.front() { *lo } else { self.hi }
+    }
+
+    /// Returns the highest byte position the cursor has yielded. You could also think of this as
+    /// the ending position of the last yielded token.
+    pub fn hi(&self) -> BytePos {
+        self.hi
     }
 
     fn map_token(&mut self, token: &token::Token) {
@@ -157,8 +262,6 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
-            TokenKind::Ident(symb, _) if symb == self.symbs.ref_ => Token::Ref,
-            TokenKind::Ident(symb, _) if symb == self.symbs.fn_ => Token::Fn,
             TokenKind::Ident(symb, _) if symb == self.symbs.strg => Token::Strg,
             TokenKind::Ident(symb, _) if symb == self.symbs.requires => Token::Requires,
             TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
@@ -172,6 +275,8 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == self.symbs.forall => Token::Forall,
             TokenKind::Ident(symb, _) if symb == self.symbs.exists => Token::Exists,
             TokenKind::Ident(symb, _) if symb == kw::In => Token::In,
+            TokenKind::Ident(symb, _) if symb == kw::Ref => Token::Ref,
+            TokenKind::Ident(symb, _) if symb == kw::Fn => Token::Fn,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Impl => Token::Impl,
@@ -189,10 +294,18 @@ impl<'t> Cursor<'t> {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
-            TokenKind::BinOp(BinOpToken::Shl) => Token::Shl,
+            TokenKind::BinOp(BinOpToken::Shl) => {
+                self.tokens
+                    .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(1)));
+                self.tokens
+                    .push_back((span.lo() + BytePos(1), Token::Lt, span.hi()));
+                return;
+            }
             TokenKind::BinOp(BinOpToken::Shr) => {
-                self.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1));
-                self.push_token(span.lo() + BytePos(1), Token::Gt, span.hi());
+                self.tokens
+                    .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1)));
+                self.tokens
+                    .push_back((span.lo() + BytePos(1), Token::Gt, span.hi()));
                 return;
             }
             TokenKind::Not => Token::Not,
@@ -200,78 +313,52 @@ impl<'t> Cursor<'t> {
             TokenKind::DotDot => Token::DotDot,
             _ => Token::Invalid,
         };
-        self.push_token(span.lo(), token, span.hi());
+        self.tokens.push_back((span.lo(), token, span.hi()));
     }
 
-    fn push_token(&mut self, lo: BytePos, token: Token, hi: BytePos) {
-        self.tokens
-            .push_back((Location(lo - self.offset), token, Location(hi - self.offset)));
-    }
-
-    fn advance(&mut self) -> Option<()> {
-        let top = self.stack.last_mut()?;
+    fn fetch_tokens(&mut self) -> bool {
+        let Some(top) = self.stack.last_mut() else { return false };
 
         match top.cursor.next() {
             Some(TokenTree::Token(token, _)) => {
                 if let Some(TokenTree::Token(next, _)) = top.cursor.peek() {
                     match (&token.kind, &next.kind) {
                         (TokenKind::Le, TokenKind::Gt) if token.span.hi() == next.span.lo() => {
-                            let lo = Location(token.span.lo() - self.offset);
-                            let hi = Location(next.span.hi() - self.offset);
                             top.cursor.next();
-                            self.tokens.push_back((lo, Token::Iff, hi));
-                            return Some(());
+                            self.tokens
+                                .push_back((token.span.lo(), Token::Iff, next.span.hi()));
+                            return true;
                         }
                         _ => {}
                     }
                 }
                 self.map_token(token);
-                Some(())
+                true
             }
             Some(TokenTree::Delimited(_, _spacing, Delimiter::Invisible(..), tokens)) => {
                 self.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: None });
-                self.advance()
+                self.fetch_tokens()
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
-                let close = (
-                    Location(span.close.lo() - self.offset),
-                    Token::CloseDelim(*delim),
-                    Location(span.close.hi() - self.offset),
-                );
+                let close = (span.close.lo(), Token::CloseDelim(*delim), span.close.hi());
 
                 self.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: Some(close) });
 
                 let token = token::Token { kind: TokenKind::OpenDelim(*delim), span: span.open };
                 self.map_token(&token);
-                Some(())
+                true
             }
             None => {
-                if let Some(token) = self.stack.pop()?.close {
+                let Some(frame) = self.stack.pop() else { return false };
+                if let Some(token) = frame.close {
                     self.tokens.push_back(token);
-                    Some(())
+                    true
                 } else {
-                    self.advance()
+                    self.fetch_tokens()
                 }
             }
         }
-    }
-}
-
-impl Iterator for Cursor<'_> {
-    type Item = (Location, Token, Location);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.tokens.is_empty() {
-            self.advance();
-        }
-        self.tokens.pop_front()
-    }
-}
-
-impl Default for Location {
-    fn default() -> Self {
-        Location(BytePos(0))
     }
 }

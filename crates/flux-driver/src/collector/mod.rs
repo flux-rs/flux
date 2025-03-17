@@ -932,7 +932,9 @@ mod errors {
             let msg = match err.kind {
                 ParseErrorKind::UnexpectedEof => "type annotation ended unexpectedly",
                 ParseErrorKind::UnexpectedToken => "unexpected token",
-                ParseErrorKind::IntTooLarge => "integer literal is too large",
+                ParseErrorKind::UnsupportedCallee => "expression not allowed in callee position",
+                ParseErrorKind::UnsupportedProj => "expression not allowed in field projection",
+                ParseErrorKind::CannotBeChained => "operator cannot be chained",
             };
 
             SyntaxErr { span: err.span, msg }
