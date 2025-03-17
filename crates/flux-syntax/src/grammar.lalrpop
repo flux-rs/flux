@@ -601,13 +601,13 @@ Level10<AllowStruct>: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> "exists"  <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
+    <lo:@L> "forall" <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
       if let surface::LitKind::Integer = i.kind {
         if let surface::LitKind::Integer = j.kind {
-          if let Ok(i) = i.symbol.as_str().parse::<usize>() {
-            if let Ok(j) = j.symbol.as_str().parse::<usize>() {
+          if let Ok(start) = i.symbol.as_str().parse::<usize>() {
+            if let Ok(end) = j.symbol.as_str().parse::<usize>() {
               return Ok(surface::Expr {
-                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Exists, param, i, j, Box::new(p)),
+                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Forall, param, surface::Range {start, end}, Box::new(p)),
                 node_id: cx.next_node_id(),
                 span: cx.map_span(lo, hi),
               })
@@ -617,13 +617,13 @@ Level10<AllowStruct>: surface::Expr = {
       }
       Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
-    <lo:@L> "forall" <x:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
+    <lo:@L> "exists" <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
       if let surface::LitKind::Integer = i.kind {
         if let surface::LitKind::Integer = j.kind {
-          if let Ok(i) = i.symbol.as_str().parse::<usize>() {
-            if let Ok(j) = j.symbol.as_str().parse::<usize>() {
+          if let Ok(start) = i.symbol.as_str().parse::<usize>() {
+            if let Ok(end) = j.symbol.as_str().parse::<usize>() {
               return Ok(surface::Expr {
-                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Forall, x, i, j, Box::new(p)),
+                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Exists, param, surface::Range {start, end}, Box::new(p)),
                 node_id: cx.next_node_id(),
                 span: cx.map_span(lo, hi),
               })
@@ -632,7 +632,6 @@ Level10<AllowStruct>: surface::Expr = {
       }
       }
       Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-
     },
     "(" <Level1<AllowStruct>> ")"
 }

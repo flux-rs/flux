@@ -190,7 +190,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, refine_params, body, expected)?;
             }
 
-            fhir::ExprKind::BoundedQuant(_, param, _, _, body) => {
+            fhir::ExprKind::BoundedQuant(_, param, _, body) => {
                 let fsort = FuncSort::new(vec![rty::Sort::Int], rty::Sort::Bool);
                 let fsort = rty::PolyFuncSort::new(vec![].into(), fsort);
                 let fsort = rty::Sort::Func(fsort);

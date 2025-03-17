@@ -280,8 +280,8 @@ impl Expr {
         ExprKind::Abs(lam).intern()
     }
 
-    pub fn bounded_quant(kind: fhir::QuantKind, lo: usize, hi: usize, body: Binder<Expr>) -> Expr {
-        ExprKind::BoundedQuant(kind, lo, hi, body).intern()
+    pub fn bounded_quant(kind: fhir::QuantKind, rng: fhir::Range, body: Binder<Expr>) -> Expr {
+        ExprKind::BoundedQuant(kind, rng, body).intern()
     }
 
     pub fn hole(kind: HoleKind) -> Expr {
@@ -653,12 +653,6 @@ impl Ctor {
     }
 }
 
-// CUT #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
-// CUT pub enum QuantKind {
-// CUT     Exists,
-// CUT     Forall,
-// CUT }
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
@@ -694,7 +688,7 @@ pub enum ExprKind {
     Abs(Lambda),
 
     /// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
-    BoundedQuant(fhir::QuantKind, usize, usize, Binder<Expr>),
+    BoundedQuant(fhir::QuantKind, fhir::Range, Binder<Expr>),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -1350,10 +1344,18 @@ pub(crate) mod pretty {
                         w!(cx, f, "{:?}", expr.as_ref().skip_binder())
                     })
                 }
-                ExprKind::BoundedQuant(kind, i, j, body) => {
+                ExprKind::BoundedQuant(kind, rng, body) => {
                     let vars = body.vars();
                     cx.with_bound_vars(vars, || {
-                        w!(cx, f, "{:?} {i}..{j} {{ {:?} }}", kind, body.as_ref().skip_binder())
+                        w!(
+                            cx,
+                            f,
+                            "{:?} {}..{} {{ {:?} }}",
+                            kind,
+                            ^rng.start,
+                            ^rng.end,
+                            body.as_ref().skip_binder()
+                        )
                     })
                 }
             }
@@ -1658,12 +1660,12 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
-                ExprKind::BoundedQuant(kind, i, j, body) => {
+                ExprKind::BoundedQuant(kind, rng, body) => {
                     let left = match kind {
                         fhir::QuantKind::Forall => "∀",
                         fhir::QuantKind::Exists => "∃",
                     };
-                    let right = Some(format!(" in {i} .. {j}"));
+                    let right = Some(format!(" in {}..{}", rng.start, rng.end));
 
                     nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
                         let expr_d = body.as_ref().skip_binder().fmt_nested(cx)?;
