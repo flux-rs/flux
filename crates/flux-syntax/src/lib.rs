@@ -162,7 +162,7 @@ impl<'a> ParseCtxt<'a> {
     fn unexpected_token(&mut self) -> ParseError {
         let (lo, tok, hi) = self.tokens.at(0);
         let kind = if tok == Token::Eof {
-            ParseErrorKind::UnexpectedToken
+            ParseErrorKind::UnexpectedEof
         } else {
             ParseErrorKind::UnexpectedToken
         };

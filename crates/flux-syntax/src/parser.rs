@@ -106,6 +106,7 @@ pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
 pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
     until_eof(cx, parse_flux_item)
 }
+
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     if peek!(cx, Tok::Fn) {
         parse_reft_func(cx).map(Item::FuncDef)
@@ -313,7 +314,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     } else {
         vec![]
     };
-    let (inputs, _) = punctuated(cx, Parenthesis, Comma, |cx| parse_fn_input(cx))?;
+    let (inputs, _) = punctuated(cx, Parenthesis, Comma, parse_fn_input)?;
     let returns = parse_fn_ret(cx)?;
     let requires = parse_opt_requires(cx)?;
     let ensures = parse_opt_ensures(cx)?;
@@ -739,7 +740,7 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
         }
         if matches!(precedence, Precedence::Iff | Precedence::Implies | Precedence::Compare) {
             if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
-                if Precedence::of_binop(&op) == precedence {
+                if Precedence::of_binop(op) == precedence {
                     todo!("comparison operators cannot be chained");
                 }
             }

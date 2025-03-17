@@ -210,26 +210,18 @@ impl<'t> Cursor<'t> {
         s
     }
 
-    #[must_use]
-    pub fn next(&mut self) -> (BytePos, Token, BytePos) {
+    pub fn advance(&mut self) {
         if let Some(tok) = self.tokens.pop_front() {
             if self.tokens.is_empty() {
                 self.fetch_tokens();
             }
             self.hi = tok.2;
-            tok
-        } else {
-            (self.hi, Token::Eof, self.hi)
         }
-    }
-
-    pub fn advance(&mut self) {
-        self.advance_by(1);
     }
 
     pub fn advance_by(&mut self, n: usize) {
         for _ in 0..n {
-            let _ = self.next();
+            self.advance();
         }
     }
 
