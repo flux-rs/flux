@@ -12,6 +12,7 @@ test = false
 
 [dependencies]
 lalrpop-util = "0.22.1"
+flux-macros.workspace = true
 
 [build-dependencies]
 lalrpop = "0.22.1"

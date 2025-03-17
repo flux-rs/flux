@@ -940,6 +940,18 @@ pub struct Expr<'fhir> {
     pub span: Span,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum QuantKind {
+    Forall,
+    Exists,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+pub struct Range {
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
     Var(PathExpr<'fhir>, Option<ParamKind>),
@@ -951,6 +963,7 @@ pub enum ExprKind<'fhir> {
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    BoundedQuant(QuantKind, RefineParam<'fhir>, Range, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Err(ErrorGuaranteed),
@@ -1408,6 +1421,15 @@ impl fmt::Debug for AliasReft<'_> {
     }
 }
 
+impl fmt::Debug for QuantKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuantKind::Forall => write!(f, "∀"),
+            QuantKind::Exists => write!(f, "∃"),
+        }
+    }
+}
+
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -1447,6 +1469,9 @@ impl fmt::Debug for Expr<'_> {
                 } else {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
+            }
+            ExprKind::BoundedQuant(kind, refine_param, rng, expr) => {
+                write!(f, "{kind:?} {refine_param:?} in {}.. {} {{ {expr:?} }}", rng.start, rng.end)
             }
             ExprKind::Err(_) => write!(f, "err"),
         }

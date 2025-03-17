@@ -497,6 +497,18 @@ pub struct Expr {
 }
 
 #[derive(Debug)]
+pub enum QuantKind {
+    Forall,
+    Exists,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Range {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug)]
 pub enum ExprKind {
     Path(ExprPath),
     Dot(ExprPath, Ident),
@@ -507,6 +519,7 @@ pub enum ExprKind {
     Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
+    BoundedQuant(QuantKind, RefineParam, Range, Box<Expr>),
 }
 
 /// A [`Path`] but for refinement expressions

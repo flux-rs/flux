@@ -9,7 +9,8 @@
     min_specialization,
     never_type,
     rustc_private,
-    unwrap_infallible
+    unwrap_infallible,
+    new_range_api
 )]
 
 extern crate rustc_ast;

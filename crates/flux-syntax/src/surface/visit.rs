@@ -521,6 +521,10 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             }
             walk_list!(vis, visit_constructor_args, exprs);
         }
+        ExprKind::BoundedQuant(_, i, _, e) => {
+            vis.visit_refine_param(i);
+            vis.visit_expr(e);
+        }
     }
 }
 

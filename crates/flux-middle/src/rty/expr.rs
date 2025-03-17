@@ -28,7 +28,7 @@ use super::{
 use crate::{
     big_int::BigInt,
     def_id::FluxDefId,
-    fhir::SpecFuncKind,
+    fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     pretty::*,
     queries::QueryResult,
@@ -278,6 +278,10 @@ impl Expr {
 
     pub fn abs(lam: Lambda) -> Expr {
         ExprKind::Abs(lam).intern()
+    }
+
+    pub fn bounded_quant(kind: fhir::QuantKind, rng: fhir::Range, body: Binder<Expr>) -> Expr {
+        ExprKind::BoundedQuant(kind, rng, body).intern()
     }
 
     pub fn hole(kind: HoleKind) -> Expr {
@@ -591,7 +595,9 @@ impl ESpan {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeFoldable, TypeVisitable)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug, TypeFoldable, TypeVisitable,
+)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -614,13 +620,13 @@ pub enum BinOp {
     BitShr,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Debug, Decodable)]
 pub enum UnOp {
     Not,
     Neg,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
 pub enum Ctor {
     /// for indices represented as `struct` in the refinement logic (e.g. using `refined_by` annotations)
     Struct(DefId),
@@ -647,7 +653,7 @@ impl Ctor {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
     Local(Local),
@@ -680,6 +686,9 @@ pub enum ExprKind {
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
     Abs(Lambda),
+
+    /// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
+    BoundedQuant(fhir::QuantKind, fhir::Range, Binder<Expr>),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -1200,6 +1209,15 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for fhir::QuantKind {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                fhir::QuantKind::Exists => w!(cx, f, "∃"),
+                fhir::QuantKind::Forall => w!(cx, f, "∀"),
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
@@ -1324,6 +1342,20 @@ pub(crate) mod pretty {
                             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
                         w!(cx, f, "{:?}", expr.as_ref().skip_binder())
+                    })
+                }
+                ExprKind::BoundedQuant(kind, rng, body) => {
+                    let vars = body.vars();
+                    cx.with_bound_vars(vars, || {
+                        w!(
+                            cx,
+                            f,
+                            "{:?} {}..{} {{ {:?} }}",
+                            kind,
+                            ^rng.start,
+                            ^rng.end,
+                            body.as_ref().skip_binder()
+                        )
                     })
                 }
             }
@@ -1464,7 +1496,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            nested_with_bound_vars(cx, "λ", self.body.vars(), |prefix| {
+            nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
                 let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);
                 Ok(NestedString { text, children: expr_d.children, key: None })
@@ -1628,9 +1660,21 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
+                ExprKind::BoundedQuant(kind, rng, body) => {
+                    let left = match kind {
+                        fhir::QuantKind::Forall => "∀",
+                        fhir::QuantKind::Exists => "∃",
+                    };
+                    let right = Some(format!(" in {}..{}", rng.start, rng.end));
 
+                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+                        let expr_d = body.as_ref().skip_binder().fmt_nested(cx)?;
+                        let text = format!("{}{}", all_str, expr_d.text);
+                        Ok(NestedString { text, children: expr_d.children, key: None })
+                    })
+                }
                 ExprKind::ForAll(expr) => {
-                    nested_with_bound_vars(cx, "∀", expr.vars(), |all_str| {
+                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })

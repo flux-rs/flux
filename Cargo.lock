@@ -594,6 +594,7 @@ dependencies = [
 name = "flux-syntax"
 version = "0.1.0"
 dependencies = [
+ "flux-macros",
  "lalrpop",
  "lalrpop-util",
 ]
