@@ -940,7 +940,7 @@ pub struct Expr<'fhir> {
     pub span: Span,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum QuantKind {
     Forall,
     Exists,

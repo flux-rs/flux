@@ -2088,11 +2088,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let pred = self.conv_expr(env, body)?;
                 let inputs = env.pop_layer().into_bound_vars(self.genv())?;
                 let body = rty::Binder::bind_with_vars(pred, inputs);
-                let kind = match kind {
-                    fhir::QuantKind::Forall => rty::QuantKind::Forall,
-                    fhir::QuantKind::Exists => rty::QuantKind::Exists,
-                };
-                rty::Expr::bounded_quant(kind, *lo, *hi, body)
+                rty::Expr::bounded_quant(*kind, *lo, *hi, body)
             }
             fhir::ExprKind::Record(flds) => {
                 let def_id = self.results().record_ctor(expr.fhir_id);

@@ -28,7 +28,7 @@ use super::{
 use crate::{
     big_int::BigInt,
     def_id::FluxDefId,
-    fhir::SpecFuncKind,
+    fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     pretty::*,
     queries::QueryResult,
@@ -280,7 +280,7 @@ impl Expr {
         ExprKind::Abs(lam).intern()
     }
 
-    pub fn bounded_quant(kind: QuantKind, lo: usize, hi: usize, body: Binder<Expr>) -> Expr {
+    pub fn bounded_quant(kind: fhir::QuantKind, lo: usize, hi: usize, body: Binder<Expr>) -> Expr {
         ExprKind::BoundedQuant(kind, lo, hi, body).intern()
     }
 
@@ -653,11 +653,11 @@ impl Ctor {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
-pub enum QuantKind {
-    Exists,
-    Forall,
-}
+// CUT #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
+// CUT pub enum QuantKind {
+// CUT     Exists,
+// CUT     Forall,
+// CUT }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
@@ -694,7 +694,7 @@ pub enum ExprKind {
     Abs(Lambda),
 
     /// Bounded quantifiers `exists i in 0..4 { pred(i) }` and `forall i in 0..4 { pred(i) }`.
-    BoundedQuant(QuantKind, usize, usize, Binder<Expr>),
+    BoundedQuant(fhir::QuantKind, usize, usize, Binder<Expr>),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
@@ -1215,11 +1215,11 @@ pub(crate) mod pretty {
         }
     }
 
-    impl Pretty for QuantKind {
+    impl Pretty for fhir::QuantKind {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                QuantKind::Exists => w!(cx, f, "∃"),
-                QuantKind::Forall => w!(cx, f, "∀"),
+                fhir::QuantKind::Exists => w!(cx, f, "∃"),
+                fhir::QuantKind::Forall => w!(cx, f, "∀"),
             }
         }
     }
@@ -1660,8 +1660,8 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
                 ExprKind::BoundedQuant(kind, i, j, body) => {
                     let left = match kind {
-                        QuantKind::Forall => "∀",
-                        QuantKind::Exists => "∃",
+                        fhir::QuantKind::Forall => "∀",
+                        fhir::QuantKind::Exists => "∃",
                     };
                     let right = Some(format!(" in {i} .. {j}"));
 

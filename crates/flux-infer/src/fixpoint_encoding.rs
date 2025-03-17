@@ -1127,8 +1127,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     })
                     .collect_vec();
                 let expr = match kind {
-                    rty::QuantKind::Forall => rty::Expr::and_from_iter(exprs),
-                    rty::QuantKind::Exists => rty::Expr::or_from_iter(exprs),
+                    flux_middle::fhir::QuantKind::Forall => rty::Expr::and_from_iter(exprs),
+                    flux_middle::fhir::QuantKind::Exists => rty::Expr::or_from_iter(exprs),
                 };
                 self.expr_to_fixpoint(&expr, scx)?
             }
