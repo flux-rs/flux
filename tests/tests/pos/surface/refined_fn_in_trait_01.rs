@@ -19,7 +19,7 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::sig(fn<T as base>[hrn q: T -> bool](&T{v:q(v)}) -> T{v: q(v)})]
+#[flux::sig(fn[hrn q: T -> bool](&T{v:q(v)}) -> T{v: q(v)})]
 pub fn bar1<T: MyTrait>(x: &T) -> T {
     x.foo1()
 }

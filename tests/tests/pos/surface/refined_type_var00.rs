@@ -3,7 +3,7 @@ fn assert(_: bool) {}
 
 #[flux::trusted]
 #[flux::sig(
-    fn<T as base>(x: &strg T[@n], y: &strg T[@m])
+    fn(x: &strg T[@n], y: &strg T[@m])
     ensures x: T[m], y: T[n]
 )]
 fn swap<T>(x: &mut T, y: &mut T) {
@@ -18,13 +18,9 @@ pub fn test00() {
     assert(y == 0);
 }
 
-#[flux::sig(fn<T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
+#[flux::sig(fn(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
 pub fn choose<T>(b: bool, x: T, y: T) -> T {
-    if b {
-        x
-    } else {
-        y
-    }
+    if b { x } else { y }
 }
 
 pub fn test01() {

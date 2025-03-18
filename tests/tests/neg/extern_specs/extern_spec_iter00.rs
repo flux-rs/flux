@@ -33,7 +33,6 @@ trait Iterator {
 fn assert(_b: bool) {}
 
 #[flux_rs::extern_spec]
-#[flux_rs::generics(T as base)]
 #[flux_rs::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
 #[flux_rs::assoc(fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
 impl<'a, T> Iterator for Iter<'a, T> {

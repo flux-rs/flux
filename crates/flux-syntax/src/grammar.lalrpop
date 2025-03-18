@@ -549,16 +549,16 @@ Level10<AllowStruct>: surface::Expr = {
     <lo:@L> <name:ExprPath> "{" <args:Comma<ConstructorArg>> "}" <hi:@L> if AllowStruct == "true" => {
     	surface::Expr {
             kind: surface::ExprKind::Constructor(Some(name), args) ,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi),
-	}
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi),
+    	}
     },
     <lo:@L> "{" <args:Comma<ConstructorArg>> "}" <hi:@L> if AllowStruct == "true" => {
     	surface::Expr {
             kind: surface::ExprKind::Constructor(None, args) ,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi),
-	}
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi),
+    	}
     },
     <lo:@L> "if" <p:Level1<"false">> "{" <e1:Level1<AllowStruct>> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
@@ -639,18 +639,18 @@ Level10<AllowStruct>: surface::Expr = {
 ConstructorArg: surface::ConstructorArg = {
     <lo:@L> <name:Ident> ":" <arg:Level1<"true">> <hi:@L> => {
     	surface::ConstructorArg::FieldExpr(surface::FieldExpr {
-	    ident: name,
-	    expr: arg,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi)
-	})
+    	    ident: name,
+    	    expr: arg,
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi)
+    	})
     },
     <lo:@L> ".." <spread:Level1<"true">> <hi:@L> => {
     	surface::ConstructorArg::Spread(surface::Spread {
-	    expr: spread,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi)
-	})
+    	    expr: spread,
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi)
+    	})
     }
 }
 
@@ -811,6 +811,7 @@ extern {
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
         "async" => Token::Async,
+        "let" => Token::Let,
         "type" => Token::Type,
         "ref" => Token::Ref,
         "hrn" => Token::Hrn,
