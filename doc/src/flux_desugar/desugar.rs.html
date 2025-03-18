@@ -1617,7 +1617,10 @@
 <a href="#1616" id="1616">1616</a>
 <a href="#1617" id="1617">1617</a>
 <a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
+<a href="#1622" id="1622">1622</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -2196,16 +2199,16 @@
     }
 
     <span class="kw">fn </span>desugar_fn_sig_refine_params(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         fn_sig: <span class="kw-2">&amp;</span>surface::FnSig,
     ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;] {
-        <span class="kw">let </span>explicit = <span class="self">self</span>.desugar_refine_params_iter(<span class="kw-2">&amp;</span>fn_sig.params);
-        <span class="kw">let </span>implicit = <span class="self">self</span>.implicit_params_to_params(fn_sig.node_id);
+        <span class="kw">let </span>genv = <span class="self">self</span>.genv;
+        <span class="kw">let </span><span class="kw-2">mut </span>params = <span class="self">self
+            </span>.desugar_refine_params_iter(<span class="kw-2">&amp;</span>fn_sig.params)
+            .collect_vec();
+        params.extend(<span class="self">self</span>.implicit_params_to_params(fn_sig.node_id));
 
-        <span class="self">self</span>.genv.alloc_slice_with_capacity(
-            explicit.len() + implicit.len(),
-            explicit.into_iter().chain(implicit),
-        )
+        genv.alloc_slice(<span class="kw-2">&amp;</span>params)
     }
 
     <span class="kw">fn </span>desugar_fn_output(
@@ -2608,7 +2611,7 @@
     }
 
     <span class="kw">fn </span>desugar_refine_params(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         params: <span class="kw-2">&amp;</span>[surface::RefineParam],
     ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;] {
         <span class="self">self</span>.genv()
@@ -2616,13 +2619,13 @@
     }
 
     <span class="kw">fn </span>desugar_refine_params_iter(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         params: <span class="kw-2">&amp;</span>[surface::RefineParam],
     ) -&gt; <span class="kw">impl </span>ExactSizeIterator&lt;Item = fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         params.iter().map(|param| <span class="self">self</span>.desugar_refine_param(param))
     }
 
-    <span class="kw">fn </span>desugar_refine_param(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::RefineParam) -&gt; fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt; {
+    <span class="kw">fn </span>desugar_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::RefineParam) -&gt; fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>(id, kind) = <span class="self">self</span>.resolve_param(param.node_id);
         fhir::RefineParam {
             id,
@@ -2635,7 +2638,7 @@
     }
 
     <span class="kw">fn </span>desugar_sort(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sort: <span class="kw-2">&amp;</span>surface::Sort,
         generic_id_to_var_idx: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxIndexSet&lt;DefId&gt;&gt;,
     ) -&gt; fhir::Sort&lt;<span class="lifetime">'genv</span>&gt; {
@@ -2656,7 +2659,7 @@
     }
 
     <span class="kw">fn </span>desugar_base_sort(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sort: <span class="kw-2">&amp;</span>surface::BaseSort,
         generic_id_to_var_idx: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>FxIndexSet&lt;DefId&gt;&gt;,
     ) -&gt; fhir::Sort&lt;<span class="lifetime">'genv</span>&gt; {
@@ -2683,6 +2686,9 @@
 
                 <span class="kw">let </span>path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
                 fhir::Sort::Path(path)
+            }
+            surface::BaseSort::SortOf(qself, path) =&gt; {
+                fhir::Sort::SortOf(<span class="self">self</span>.desugar_path_to_bty(<span class="prelude-val">Some</span>(qself), path))
             }
         }
     }

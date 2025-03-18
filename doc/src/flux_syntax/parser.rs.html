@@ -1299,7 +1299,22 @@
 <a href="#1298" id="1298">1298</a>
 <a href="#1299" id="1299">1299</a>
 <a href="#1300" id="1300">1300</a>
-<a href="#1301" id="1301">1301</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>rustc_span::BytePos;
 
@@ -1343,7 +1358,7 @@
     }
 }
 
-<span class="doccomment">/// ⟨reason⟩ = reason = ⟨literal⟩
+<span class="doccomment">/// ⟨reason⟩ := reason = ⟨literal⟩
 </span><span class="kw">fn </span>parse_reason(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult {
     cx.expect(<span class="string">"reason"</span>)<span class="question-mark">?</span>;
     cx.expect(Tok::Eq)<span class="question-mark">?</span>;
@@ -2065,6 +2080,7 @@
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
 ///         | ⟨epath⟩
+///         | ⟨bounded_quant⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 </span><span class="kw">fn </span>parse_atom(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, allow_struct: bool) -&gt; ParseResult&lt;Expr&gt; {
@@ -2105,7 +2121,9 @@
     }
 }
 
-<span class="kw">fn </span>parse_bounded_quantifier(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
+<span class="doccomment">/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+</span><span class="kw">fn </span>parse_bounded_quantifier(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
     <span class="kw">let </span>lo = cx.lo();
     <span class="kw">let </span>quant = <span class="kw">if </span>cx.advance_if(Tok::Forall) {
         QuantKind::Forall
@@ -2261,15 +2279,27 @@
 
 <span class="doccomment">/// ⟨base_sort⟩ := bitvec &lt; ⟨u32⟩ &gt;
 ///              | ⟨sort_path⟩ &lt; ⟨base_sort⟩,* &gt;
+///              | &lt; ⟨ty⟩ as ⟨path⟩ &gt; :: ⟨segment⟩
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* &lt; (⟨base_sort⟩,*) &gt;
 </span><span class="kw">fn </span>parse_base_sort(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;BaseSort&gt; {
     <span class="kw">if </span>cx.advance_if(Tok::BitVec) {
-        cx.expect(LAngle)<span class="question-mark">?</span>;
+        <span class="comment">// bitvec &lt; ⟨u32⟩ &gt;
+        </span>cx.expect(LAngle)<span class="question-mark">?</span>;
         <span class="kw">let </span>len = parse_int(cx)<span class="question-mark">?</span>;
         cx.expect(RAngle)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BaseSort::BitVec(len))
+    } <span class="kw">else if </span>cx.advance_if(LAngle) {
+        <span class="comment">// &lt; ⟨ty⟩ as ⟨path⟩ &gt; :: ⟨segment⟩
+        </span><span class="kw">let </span>qself = parse_type(cx)<span class="question-mark">?</span>;
+        cx.expect(Tok::As)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>path = parse_path(cx)<span class="question-mark">?</span>;
+        cx.expect(RAngle)<span class="question-mark">?</span>;
+        cx.expect(Tok::PathSep)<span class="question-mark">?</span>;
+        path.segments.push(parse_segment(cx)<span class="question-mark">?</span>);
+        <span class="prelude-val">Ok</span>(BaseSort::SortOf(Box::new(qself), path))
     } <span class="kw">else </span>{
-        <span class="kw">let </span>segments = sep1(cx, Tok::PathSep, parse_ident)<span class="question-mark">?</span>;
+        <span class="comment">// ⟨sort_path⟩ &lt; ⟨base_sort⟩,* &gt;
+        </span><span class="kw">let </span>segments = sep1(cx, Tok::PathSep, parse_ident)<span class="question-mark">?</span>;
         <span class="kw">let </span>args = opt_angle(cx, Comma, parse_base_sort)<span class="question-mark">?</span>;
         <span class="kw">let </span>path = SortPath { segments, args, node_id: cx.next_node_id() };
         <span class="prelude-val">Ok</span>(BaseSort::Path(path))

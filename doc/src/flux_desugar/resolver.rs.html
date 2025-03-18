@@ -921,8 +921,7 @@
 <a href="#920" id="920">920</a>
 <a href="#921" id="921">921</a>
 <a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<a href="#923" id="923">923</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>flux_common::{
     bug,
@@ -1817,7 +1816,6 @@
 
     <span class="attr">#[derive(Diagnostic)]
     #[diag(desugar_unresolved_path, code = E0999)]
-    #[help]
     </span><span class="kw">pub struct </span>UnresolvedPath {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,

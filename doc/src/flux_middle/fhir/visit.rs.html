@@ -532,7 +532,8 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, ForeignItemKind,
     FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind,
@@ -993,6 +994,7 @@
     <span class="kw">match </span>sort {
         Sort::Path(path) =&gt; vis.visit_sort_path(path),
         Sort::Func(func) =&gt; vis.visit_poly_func_sort(func),
+        Sort::SortOf(bty) =&gt; vis.visit_bty(bty),
         Sort::Loc | Sort::BitVec(<span class="kw">_</span>) | Sort::Infer | Sort::Err(<span class="kw">_</span>) =&gt; {}
     }
 }

@@ -663,7 +663,8 @@
 <a href="#662" id="662">662</a>
 <a href="#663" id="663">663</a>
 <a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::{fmt, ops::Range};
 
@@ -852,6 +853,7 @@
 </span><span class="kw">pub enum </span>BaseSort {
     <span class="doccomment">/// a bitvector sort, e.g., bitvec&lt;32&gt;
     </span>BitVec(u32),
+    SortOf(Box&lt;Ty&gt;, Path),
     Path(SortPath),
 }
 

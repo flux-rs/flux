@@ -2804,7 +2804,14 @@
 <a href="#2803" id="2803">2803</a>
 <a href="#2804" id="2804">2804</a>
 <a href="#2805" id="2805">2805</a>
-<a href="#2806" id="2806">2806</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a>
+<a href="#2808" id="2808">2808</a>
+<a href="#2809" id="2809">2809</a>
+<a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3600,8 +3607,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params));
         <span class="kw">let </span>expr = <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
-        <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="kw">let </span>output = <span class="self">self</span>.conv_sort(output)<span class="question-mark">?</span>;
+        <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::Lambda::bind_with_vars(expr, inputs, output))
     }
 }
@@ -3614,6 +3621,13 @@
             fhir::Sort::BitVec(size) =&gt; rty::Sort::BitVec(rty::BvSize::Fixed(<span class="kw-2">*</span>size)),
             fhir::Sort::Loc =&gt; rty::Sort::Loc,
             fhir::Sort::Func(fsort) =&gt; rty::Sort::Func(<span class="self">self</span>.conv_poly_func_sort(fsort)<span class="question-mark">?</span>),
+            fhir::Sort::SortOf(bty) =&gt; {
+                <span class="kw">let </span>rty::TyOrCtor::Ctor(ty_ctor) = <span class="self">self</span>.conv_bty(<span class="kw-2">&amp;mut </span>Env::empty(), bty)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="comment">// FIXME: maybe we should have a dedicated error for this
+                    </span><span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::RefinedUnrefinableType::new(bty.span)))<span class="question-mark">?</span>;
+                };
+                ty_ctor.sort()
+            }
             fhir::Sort::Infer =&gt; rty::Sort::Infer(rty::SortVar(<span class="self">self</span>.next_sort_vid())),
             fhir::Sort::Err(<span class="kw">_</span>) =&gt; rty::Sort::Err,
         };

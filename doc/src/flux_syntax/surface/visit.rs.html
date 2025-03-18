@@ -535,7 +535,11 @@
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
     AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
@@ -793,6 +797,10 @@
     <span class="kw">match </span>bsort {
         BaseSort::BitVec(_len) =&gt; {}
         BaseSort::Path(path) =&gt; vis.visit_sort_path(path),
+        BaseSort::SortOf(qself, path) =&gt; {
+            vis.visit_ty(qself);
+            vis.visit_path(path);
+        }
     }
 }
 
