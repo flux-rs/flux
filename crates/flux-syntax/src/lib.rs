@@ -182,7 +182,7 @@ impl<'a> ParseCtxt<'a> {
     }
 }
 
-pub type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T = ()> = Result<T, ParseError>;
 
 pub struct ParseError {
     pub kind: ParseErrorKind,
