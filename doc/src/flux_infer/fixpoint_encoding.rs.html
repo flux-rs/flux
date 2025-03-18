@@ -1558,7 +1558,12 @@
 <a href="#1557" id="1557">1557</a>
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1579,7 +1584,7 @@
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{<span class="self">self</span>, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{<span class="self">self</span>, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -1932,7 +1937,7 @@
 </span><span class="kw">enum </span>Key&lt;<span class="lifetime">'tcx</span>&gt; {
     Uif(FluxDefId),
     Const(DefId),
-    Alias(rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;),
+    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;),
     Lambda(Lambda),
 }
 
@@ -2117,7 +2122,7 @@
                     .into_iter()
                     .map(|e| <span class="self">self</span>.head_to_fixpoint(e, mk_tag))
                     .try_collect()<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fixpoint::Constraint::Conj(cstrs))
+                <span class="prelude-val">Ok</span>(fixpoint::Constraint::conj(cstrs))
             }
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) =&gt; {
                 <span class="kw">let </span>(bindings, assumption) = <span class="self">self</span>.assumption_to_fixpoint(e1)<span class="question-mark">?</span>;
@@ -2167,7 +2172,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>preds = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assumption_to_fixpoint_aux(pred, <span class="kw-2">&amp;mut </span>bindings, <span class="kw-2">&amp;mut </span>preds)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>((bindings, fixpoint::Pred::And(preds)))
+        <span class="prelude-val">Ok</span>((bindings, fixpoint::Pred::and(preds)))
     }
 
     <span class="doccomment">/// Auxiliary function to merge nested conjunctions in a single predicate
@@ -2918,7 +2923,7 @@
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
         mk_proj: <span class="kw">impl </span>Fn(u32) -&gt; rty::FieldProj,
     ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
-        <span class="prelude-val">Ok</span>(fixpoint::Expr::And(
+        <span class="prelude-val">Ok</span>(fixpoint::Expr::and(
             sorts
                 .iter()
                 .enumerate()
@@ -3017,7 +3022,12 @@
         fsort: rty::FuncSort,
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
     ) -&gt; fixpoint::GlobalVar {
-        <span class="kw">let </span>key = Key::Alias(alias_reft.to_rustc_trait_ref(<span class="self">self</span>.genv.tcx()));
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>args = alias_reft
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+        <span class="kw">let </span>key = Key::Alias(alias_reft.assoc_id, args);
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
