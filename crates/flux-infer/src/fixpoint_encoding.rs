@@ -557,7 +557,7 @@ where
                     .into_iter()
                     .map(|e| self.head_to_fixpoint(e, mk_tag))
                     .try_collect()?;
-                Ok(fixpoint::Constraint::Conj(cstrs))
+                Ok(fixpoint::Constraint::conj(cstrs))
             }
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
                 let (bindings, assumption) = self.assumption_to_fixpoint(e1)?;
@@ -607,7 +607,7 @@ where
         let mut bindings = vec![];
         let mut preds = vec![];
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
-        Ok((bindings, fixpoint::Pred::And(preds)))
+        Ok((bindings, fixpoint::Pred::and(preds)))
     }
 
     /// Auxiliary function to merge nested conjunctions in a single predicate
@@ -1358,7 +1358,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
         mk_proj: impl Fn(u32) -> rty::FieldProj,
     ) -> QueryResult<fixpoint::Expr> {
-        Ok(fixpoint::Expr::And(
+        Ok(fixpoint::Expr::and(
             sorts
                 .iter()
                 .enumerate()
