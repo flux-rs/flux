@@ -1,6 +1,6 @@
 pub mod visit;
 
-use std::fmt;
+use std::{fmt, ops::Range};
 
 pub use rustc_ast::{
     Mutability,
@@ -502,12 +502,6 @@ pub enum QuantKind {
     Exists,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Range {
-    pub start: usize,
-    pub end: usize,
-}
-
 #[derive(Debug)]
 pub enum ExprKind {
     Path(ExprPath),
@@ -519,7 +513,7 @@ pub enum ExprKind {
     Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
-    BoundedQuant(QuantKind, RefineParam, Range, Box<Expr>),
+    BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
 }
 
 /// A [`Path`] but for refinement expressions
