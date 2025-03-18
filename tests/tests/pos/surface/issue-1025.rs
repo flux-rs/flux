@@ -13,5 +13,5 @@ trait Trait {
 
 #[sig(fn(x: i32{ <T as Trait>::p1(x) }, y: bool { <T as Trait>::p2(y) }))]
 fn test00<T: Trait>(x: i32, y: bool) {
-    assert(x > 0);
+    assert(x + 1 >= 1 + x); // We need the constraint to contain at least one head
 }

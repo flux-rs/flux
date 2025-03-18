@@ -19,7 +19,7 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List, VariantIdx},
+    rty::{self, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -372,7 +372,7 @@ type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
 enum Key<'tcx> {
     Uif(FluxDefId),
     Const(DefId),
-    Alias(rustc_middle::ty::TraitRef<'tcx>),
+    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
 }
 
@@ -1457,7 +1457,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fsort: rty::FuncSort,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::GlobalVar {
-        let key = Key::Alias(alias_reft.to_rustc_trait_ref(self.genv.tcx()));
+        let tcx = self.genv.tcx();
+        let args = alias_reft
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+        let key = Key::Alias(alias_reft.assoc_id, args);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
