@@ -998,7 +998,6 @@ fn angle<R>(
     Ok(items)
 }
 
-#[track_caller]
 fn delimited<R>(
     cx: &mut ParseCtxt,
     delim: Delimiter,
@@ -1158,8 +1157,8 @@ impl ParseCtxt<'_> {
         self.tokens.at(n)
     }
 
-    /// Looks at the next token in the cursor to determine whether it matches the requested
-    /// type of token. Does not advance the position of the underlying cursor.
+    /// Looks at the next token in the underlying cursor to determine whether it matches the
+    /// requested type of token. Does not advance the position of the cursor.
     fn peek<T: Peek>(&mut self, t: T) -> bool {
         t.peek_at(&mut self.tokens, 0)
     }
@@ -1176,7 +1175,7 @@ impl ParseCtxt<'_> {
             && t3.peek_at(&mut self.tokens, 2)
     }
 
-    /// Looks whether the next token matchs a binary operation. In case of a match, returns
+    /// Looks whether the next token matches a binary operation. In case of a match, returns
     /// the corresponding binary operation and its size in number of tokens. This function
     /// doesn't advance the position of the underlying cursor.
     fn peek_binop(&mut self) -> Option<(BinOp, usize)> {
@@ -1236,14 +1235,17 @@ impl ParseCtxt<'_> {
         }
     }
 
-    /// If it next token matches the requested type of token advances the cursor otherwise it
-    /// returns an unexpected token error.
+    /// If the next token matches the requested type of token advances the cursor, otherwise
+    /// returns an `unexpected token` error.
     fn expect<T: Peek>(&mut self, t: T) -> ParseResult {
         if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token()) }
     }
 }
 
+/// A trait for testing whether a single token matches some rule. This is mainly implemented
+/// for [`Token`] to test whether a token is equal to a specific token.
 trait Peek {
+    /// Returns true if the token at the requested position matches this peek rule
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool;
 }
 
