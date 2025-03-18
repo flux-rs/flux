@@ -878,6 +878,8 @@ pub enum Sort<'fhir> {
     BitVec(u32),
     /// A polymorphic sort function.
     Func(PolyFuncSort<'fhir>),
+    /// The sort associated with a base type. This is normalized into a concrete sort during
+    /// conversion
     SortOf(BaseTy<'fhir>),
     /// A sort that needs to be inferred.
     Infer,
