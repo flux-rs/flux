@@ -381,7 +381,7 @@
     }
 }
 
-<span class="kw">pub type </span>ParseResult&lt;T&gt; = <span class="prelude-ty">Result</span>&lt;T, ParseError&gt;;
+<span class="kw">pub type </span>ParseResult&lt;T = ()&gt; = <span class="prelude-ty">Result</span>&lt;T, ParseError&gt;;
 
 <span class="kw">pub struct </span>ParseError {
     <span class="kw">pub </span>kind: ParseErrorKind,
