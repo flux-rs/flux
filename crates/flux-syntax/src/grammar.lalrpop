@@ -200,6 +200,11 @@ BaseSort: surface::BaseSort = {
         };
         surface::BaseSort::Path(path)
     },
+    "<" <qself:Ty> "as" <mut path:Path> ">" "::" <ident:Ident> => {
+        let segment = surface::PathSegment { ident, args: vec![], node_id: cx.next_node_id() };
+        path.segments.push(segment);
+        surface::BaseSort::SortOf(qself, path)
+    }
 }
 
 BitVecWidth: u32 = {

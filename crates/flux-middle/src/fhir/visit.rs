@@ -459,6 +459,7 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
     match sort {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
+        Sort::SortOf(bty) => vis.visit_bty(bty),
         Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }

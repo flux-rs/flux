@@ -187,6 +187,7 @@ pub enum Sort {
 pub enum BaseSort {
     /// a bitvector sort, e.g., bitvec<32>
     BitVec(u32),
+    SortOf(Box<Ty>, Path),
     Path(SortPath),
 }
 

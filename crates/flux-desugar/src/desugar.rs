@@ -577,16 +577,16 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn desugar_fn_sig_refine_params(
-        &self,
+        &mut self,
         fn_sig: &surface::FnSig,
     ) -> &'genv [fhir::RefineParam<'genv>] {
-        let explicit = self.desugar_refine_params_iter(&fn_sig.params);
-        let implicit = self.implicit_params_to_params(fn_sig.node_id);
+        let genv = self.genv;
+        let mut params = self
+            .desugar_refine_params_iter(&fn_sig.params)
+            .collect_vec();
+        params.extend(self.implicit_params_to_params(fn_sig.node_id));
 
-        self.genv.alloc_slice_with_capacity(
-            explicit.len() + implicit.len(),
-            explicit.into_iter().chain(implicit),
-        )
+        genv.alloc_slice(&params)
     }
 
     fn desugar_fn_output(
@@ -989,7 +989,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_refine_params(
-        &self,
+        &mut self,
         params: &[surface::RefineParam],
     ) -> &'genv [fhir::RefineParam<'genv>] {
         self.genv()
@@ -997,13 +997,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_refine_params_iter(
-        &self,
+        &mut self,
         params: &[surface::RefineParam],
     ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
         params.iter().map(|param| self.desugar_refine_param(param))
     }
 
-    fn desugar_refine_param(&self, param: &surface::RefineParam) -> fhir::RefineParam<'genv> {
+    fn desugar_refine_param(&mut self, param: &surface::RefineParam) -> fhir::RefineParam<'genv> {
         let (id, kind) = self.resolve_param(param.node_id);
         fhir::RefineParam {
             id,
@@ -1016,7 +1016,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_sort(
-        &self,
+        &mut self,
         sort: &surface::Sort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
@@ -1037,7 +1037,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_base_sort(
-        &self,
+        &mut self,
         sort: &surface::BaseSort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
@@ -1064,6 +1064,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
                 let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
                 fhir::Sort::Path(path)
+            }
+            surface::BaseSort::SortOf(qself, path) => {
+                fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
             }
         }
     }
