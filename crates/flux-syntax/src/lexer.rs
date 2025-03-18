@@ -225,7 +225,7 @@ impl<'t> Cursor<'t> {
         }
     }
 
-    /// Returns the starting byte position of the token the cursor is currently at.
+    /// Returns the starting byte position of the next token
     pub fn lo(&self) -> BytePos {
         if let Some((lo, ..)) = self.tokens.front() { *lo } else { self.hi }
     }
