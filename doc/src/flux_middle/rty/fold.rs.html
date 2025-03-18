@@ -1956,7 +1956,7 @@
             ExprKind::KVar(kvar) =&gt; Expr::kvar(kvar.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::Abs(lam) =&gt; Expr::abs(lam.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::BoundedQuant(kind, rng, body) =&gt; {
-                Expr::bounded_quant(kind.clone(), <span class="kw-2">*</span>rng, body.try_fold_with(folder)<span class="question-mark">?</span>)
+                Expr::bounded_quant(<span class="kw-2">*</span>kind, <span class="kw-2">*</span>rng, body.try_fold_with(folder)<span class="question-mark">?</span>)
             }
             ExprKind::GlobalFunc(kind) =&gt; Expr::global_func(<span class="kw-2">*</span>kind),
             ExprKind::Alias(alias, args) =&gt; {

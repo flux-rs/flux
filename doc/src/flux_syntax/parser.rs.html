@@ -1231,8 +1231,7 @@
 <a href="#1230" id="1230">1230</a>
 <a href="#1231" id="1231">1231</a>
 <a href="#1232" id="1232">1232</a>
-<a href="#1233" id="1233">1233</a>
-<a href="#1234" id="1234">1234</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#1233" id="1233">1233</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use crate</span>::{
     ParseCtxt, ParseResult,
@@ -1245,10 +1244,9 @@
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
-        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, Range, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
+        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft,
+        TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
     },
 };
 
@@ -2145,7 +2143,7 @@
     <span class="kw">let </span>body = parse_block_expr(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
     <span class="prelude-val">Ok</span>(Expr {
-        kind: ExprKind::BoundedQuant(quant, param, Range { start, end }, Box::new(body)),
+        kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
     })
