@@ -934,7 +934,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::BoundedQuant(kind, rng, body) => {
-                Expr::bounded_quant(kind.clone(), *rng, body.try_fold_with(folder)?)
+                Expr::bounded_quant(*kind, *rng, body.try_fold_with(folder)?)
             }
             ExprKind::GlobalFunc(kind) => Expr::global_func(*kind),
             ExprKind::Alias(alias, args) => {

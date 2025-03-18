@@ -11,10 +11,9 @@ use crate::{
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
-        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, Range, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
+        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft,
+        TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
     },
 };
 
@@ -911,7 +910,7 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let body = parse_block_expr(cx)?;
     let hi = cx.hi();
     Ok(Expr {
-        kind: ExprKind::BoundedQuant(quant, param, Range { start, end }, Box::new(body)),
+        kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
         node_id: cx.next_node_id(),
         span: cx.mk_span(lo, hi),
     })
