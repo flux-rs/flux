@@ -697,7 +697,7 @@ mod pretty {
                     NodeKind::Root(bindings) => {
                         // We reverse here because is reversed again at the end
                         for (name, sort) in bindings.iter().rev() {
-                            elements.push(format_cx!(cx, "{:?} {:?}", ^name, sort));
+                            elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
                     NodeKind::ForAll(name, sort) => {

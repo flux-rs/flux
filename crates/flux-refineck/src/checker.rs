@@ -332,6 +332,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
 
     let trait_fn_sig = genv.fn_sig(trait_method_id)?;
     let impl_sig = genv.fn_sig(impl_method_id)?;
+
     check_fn_subtyping(
         &mut infcx,
         &impl_method_id,
