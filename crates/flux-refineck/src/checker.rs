@@ -315,9 +315,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         return Ok(None);
     }
 
-    let impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-    let impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())?;
-    let trait_args = impl_args.rebase_onto(&tcx, impl_id, &impl_trait_ref.args);
+    let impl_id = tcx.impl_of_method(impl_method_id).unwrap();
+    let impl_method_args = GenericArg::identity_for_item(genv, impl_method_id)?;
+    let trait_method_args = impl_method_args.rebase_onto(&tcx, impl_id, &impl_trait_ref.args);
     let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
 
     let mut root_ctxt = genv
@@ -337,8 +337,8 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         &mut infcx,
         &impl_method_id,
         impl_sig,
-        &impl_args,
-        &trait_fn_sig.instantiate(tcx, &trait_args, &trait_refine_args),
+        &impl_method_args,
+        &trait_fn_sig.instantiate(tcx, &trait_method_args, &trait_refine_args),
         span,
     )?;
     Ok(Some(root_ctxt))
