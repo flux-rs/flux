@@ -268,6 +268,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let trait_ = &self.specs.traits[&owner_id.local_id()];
+        ItemResolver::run(self, owner_id, |item_resolver| {
+            item_resolver.visit_trait(trait_);
+        })?;
         RefinementResolver::resolve_trait(self, trait_)
     }
 
