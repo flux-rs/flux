@@ -4,8 +4,8 @@ use std::str::FromStr;
 
 use rustc_span::BytePos;
 use utils::{
-    angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_until, sep1,
-    until,
+    angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_with_trailing,
+    sep1, until,
 };
 
 use crate::{
@@ -56,13 +56,13 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 }
 
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
-    let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
+    let names = punctuated(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
 }
 
 pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     let lo = cx.lo();
-    let params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)?;
+    let params = punctuated(cx, Comma, Tok::Eof, parse_generic_param)?;
     let hi = cx.hi();
     Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
 }
@@ -160,7 +160,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
 
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
-    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
+    punctuated(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
 }
 
 /// ⟨variant⟩ := ⟨fields⟩ -> ⟨variant_ret⟩
@@ -301,7 +301,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     if !cx.advance_if(Tok::Requires) {
         return Ok(vec![]);
     }
-    punctuated_until(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
+    punctuated(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
 }
 
 /// ⟨requires_clause⟩ := ⟨ forall ⟨refine_param⟩,+ . ⟩? ⟨expr⟩
@@ -320,7 +320,7 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     if !cx.advance_if(Tok::Ensures) {
         return Ok(vec![]);
     }
-    punctuated_until(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
+    punctuated(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
 }
 
 /// ⟨ensures_clause⟩ :=  ⟨ident⟩ : ⟨ty⟩
@@ -342,7 +342,7 @@ fn parse_opt_where(cx: &mut ParseCtxt) -> ParseResult<Option<Vec<WhereBoundPredi
     if !cx.advance_if(Tok::Where) {
         return Ok(None);
     }
-    Ok(Some(punctuated_until(cx, Comma, Tok::Eof, parse_where_bound)?))
+    Ok(Some(punctuated(cx, Comma, Tok::Eof, parse_where_bound)?))
 }
 
 fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
@@ -429,9 +429,11 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     let lo = cx.lo();
     let kind = if cx.advance_if(Tok::Underscore) {
         TyKind::Hole
-    } else if cx.peek(OpenDelim(Parenthesis)) {
+    } else if cx.advance_if(OpenDelim(Parenthesis)) {
         // ( ⟨ty⟩,* )
-        let (mut tys, trailing) = punctuated(cx, Parenthesis, Comma, parse_type)?;
+        let (mut tys, trailing) =
+            punctuated_with_trailing(cx, Comma, CloseDelim(Parenthesis), parse_type)?;
+        cx.expect(CloseDelim(Parenthesis))?;
         if tys.len() == 1 && !trailing {
             return Ok(tys.remove(0));
         } else {
@@ -631,7 +633,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } else if cx.advance_if(Caret) {
-        let params = punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
+        let params = punctuated(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
         cx.expect(Caret)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
