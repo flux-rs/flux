@@ -322,7 +322,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
 
     let mut root_ctxt = genv
         .infcx_root(trait_method_id, opts)
-        .with_generic_args(&impl_trait_ref.args)
+        .with_generic_args(&trait_method_args)
         .build()?;
     let rustc_infcx = genv
         .tcx()
@@ -330,7 +330,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         .build(TypingMode::non_body_analysis());
     let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);
 
-    let trait_fn_sig = genv.fn_sig(trait_method_id)?;
+    let trait_fn_sig =
+        genv.fn_sig(trait_method_id)?
+            .instantiate(tcx, &trait_method_args, &trait_refine_args);
     let impl_sig = genv.fn_sig(impl_method_id)?;
 
     check_fn_subtyping(
@@ -338,7 +340,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         &impl_method_id,
         impl_sig,
         &impl_method_args,
-        &trait_fn_sig.instantiate(tcx, &trait_method_args, &trait_refine_args),
+        &trait_fn_sig,
         span,
     )?;
     Ok(Some(root_ctxt))
