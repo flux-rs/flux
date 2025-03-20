@@ -137,10 +137,17 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            let orig_ty =
-                BaseTy::Alias(AliasKind::Projection, obligation.clone()).to_subset_ty_ctor();
-            let ty = self.normalize_projection_ty_with_rustc(obligation)?;
-            return Ok((ty != orig_ty, ty));
+            // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
+            //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
+            //       by suitably chasing down the super-trait predicates,
+            //       see https://github.com/flux-rs/flux/issues/737
+            let (changed, ty_ctor) = normalize_projection_ty_with_rustc(
+                self.genv(),
+                self.def_id(),
+                &mut self.selcx,
+                obligation,
+            )?;
+            return Ok((changed, ty_ctor));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id());
@@ -486,6 +493,36 @@ impl GenericsSubstDelegate for &TVarSubst {
     }
 }
 
+struct SortNormalizer<'infcx, 'genv, 'tcx> {
+    def_id: DefId,
+    selcx: SelectionContext<'infcx, 'tcx>,
+    genv: GlobalEnv<'genv, 'tcx>,
+}
+
+impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
+    type Error = QueryErr;
+    fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
+        match sort {
+            Sort::Alias(AliasKind::Weak, alias_ty) => {
+                self.genv
+                    .normalize_weak_alias_sort(alias_ty)?
+                    .try_fold_with(self)
+            }
+            Sort::Alias(AliasKind::Projection, alias_ty) => {
+                let (changed, ctor) = normalize_projection_ty_with_rustc(
+                    self.genv,
+                    self.def_id,
+                    &mut self.selcx,
+                    alias_ty,
+                )?;
+                let sort = ctor.sort();
+                if changed { sort.try_fold_with(self) } else { Ok(sort) }
+            }
+            _ => sort.try_super_fold_with(self),
+        }
+    }
+}
+
 impl TVarSubst {
     fn new(generics: &rustc_middle::ty::Generics) -> Self {
         Self { args: vec![None; generics.count()] }
@@ -608,4 +645,36 @@ impl TVarSubst {
         }
         self.args[idx as usize].replace(arg);
     }
+}
+
+fn normalize_projection_ty_with_rustc<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
+    def_id: DefId,
+    selcx: &mut SelectionContext<'_, 'tcx>,
+    obligation: &AliasTy,
+) -> QueryResult<(bool, SubsetTyCtor)> {
+    let tcx = genv.tcx();
+    let projection_ty = obligation.to_rustc(tcx);
+    let cause = ObligationCause::dummy();
+    let param_env = tcx.param_env(def_id);
+
+    let ty = rustc_trait_selection::traits::normalize_projection_ty(
+        selcx,
+        param_env,
+        projection_ty,
+        cause,
+        10,
+        &mut rustc_infer::traits::PredicateObligations::new(),
+    )
+    .expect_type();
+
+    let changed = projection_ty.to_ty(tcx) != ty;
+
+    let rustc_ty = ty.lower(tcx).unwrap();
+    Ok((
+        changed,
+        Refiner::default_for_item(genv, def_id)?
+            .refine_ty_or_base(&rustc_ty)?
+            .expect_base(),
+    ))
 }
