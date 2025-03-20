@@ -151,16 +151,17 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let span = genv.tcx().def_span(local_id);
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
+            let body = genv.mir(local_id).with_span(span)?;
+
             // In shape mode we don't care about kvars
             let mut root_ctxt = genv
-                .infcx_root(def_id, opts)
+                .infcx_root(def_id, &body.infcx, opts)
                 .with_dummy_kvars()
                 .build()
                 .with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
-            let body = genv.mir(local_id).with_span(span)?;
             let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(local_id)
@@ -185,14 +186,18 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
-        let mut root_ctxt = genv.infcx_root(def_id, opts).build().with_span(span)?;
+
+        let body = genv.mir(local_id).with_span(span)?;
+        let mut root_ctxt = genv
+            .infcx_root(def_id, &body.infcx, opts)
+            .build()
+            .with_span(span)?;
         let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
-            let body = genv.mir(local_id).with_span(span)?;
             let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(def_id)
@@ -320,14 +325,16 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let trait_method_args = impl_method_args.rebase_onto(&tcx, impl_id, &impl_trait_ref.args);
     let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
 
-    let mut root_ctxt = genv
-        .infcx_root(trait_method_id, opts)
-        .with_generic_args(&trait_method_args)
-        .build()?;
     let rustc_infcx = genv
         .tcx()
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
+
+    let mut root_ctxt = genv
+        .infcx_root(trait_method_id, &rustc_infcx, opts)
+        .with_generic_args(&trait_method_args)
+        .build()?;
+
     let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);
 
     let trait_fn_sig =

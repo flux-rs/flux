@@ -26,11 +26,27 @@ use crate::infer::InferCtxt;
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
+    fn normalize_sorts<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
+        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self>;
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
         let mut normalizer = Normalizer::new(infcx.branch())?;
+        self.erase_regions().try_fold_with(&mut normalizer)
+    }
+
+    fn normalize_sorts<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
+        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self> {
+        let mut normalizer = SortNormalizer::new(def_id, genv, infcx);
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 }
@@ -100,33 +116,6 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         }
     }
 
-    // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
-    //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
-    //       by suitably chasing down the super-trait predicates,
-    //       see https://github.com/flux-rs/flux/issues/737
-    fn normalize_projection_ty_with_rustc(
-        &mut self,
-        obligation: &AliasTy,
-    ) -> QueryResult<SubsetTyCtor> {
-        let projection_ty = obligation.to_rustc(self.tcx());
-        let cause = ObligationCause::dummy();
-        let param_env = self.rustc_param_env();
-
-        let ty = rustc_trait_selection::traits::normalize_projection_ty(
-            &mut self.selcx,
-            param_env,
-            projection_ty,
-            cause,
-            10,
-            &mut rustc_infer::traits::PredicateObligations::new(),
-        )
-        .expect_type();
-        let rustc_ty = ty.lower(self.tcx()).unwrap();
-        Ok(Refiner::default_for_item(self.genv(), self.def_id())?
-            .refine_ty_or_base(&rustc_ty)?
-            .expect_base())
-    }
-
     fn normalize_projection_ty(
         &mut self,
         obligation: &AliasTy,
@@ -137,7 +126,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
+            // TODO: This is a temporary hack that uses rustc's trait selection when FLUX fails;
             //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
             //       by suitably chasing down the super-trait predicates,
             //       see https://github.com/flux-rs/flux/issues/737
@@ -497,6 +486,16 @@ struct SortNormalizer<'infcx, 'genv, 'tcx> {
     def_id: DefId,
     selcx: SelectionContext<'infcx, 'tcx>,
     genv: GlobalEnv<'genv, 'tcx>,
+}
+impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
+    fn new(
+        def_id: DefId,
+        genv: GlobalEnv<'genv, 'tcx>,
+        infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> Self {
+        let selcx = SelectionContext::new(infcx);
+        Self { def_id, selcx, genv }
+    }
 }
 
 impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
