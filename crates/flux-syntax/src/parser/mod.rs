@@ -1,8 +1,9 @@
+mod lookahead;
 mod utils;
 
 use std::str::FromStr;
 
-use rustc_span::BytePos;
+use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_with_trailing,
     sep1, until,
@@ -11,7 +12,6 @@ use utils::{
 use crate::{
     ParseCtxt, ParseResult,
     lexer::{
-        Cursor,
         Delimiter::*,
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
     },
@@ -252,7 +252,6 @@ fn parse_generic_param(cx: &mut ParseCtxt) -> ParseResult<GenericParam> {
         if cx.advance_if("type") {
             kind = GenericParamKind::Type;
         } else if cx.advance_if("base") {
-            cx.tokens.advance();
             kind = GenericParamKind::Base;
         } else {
             return Err(cx.unexpected_token());
@@ -1045,155 +1044,5 @@ impl Precedence {
             BinOp::Add | BinOp::Sub => Precedence::Sum,
             BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::Product,
         }
-    }
-}
-
-impl ParseCtxt<'_> {
-    /// Returns the token (and span) at the requested position.
-    fn at(&mut self, n: usize) -> (BytePos, Tok, BytePos) {
-        self.tokens.at(n)
-    }
-
-    /// Looks at the next token in the underlying cursor to determine whether it matches the
-    /// requested type of token. Does not advance the position of the cursor.
-    fn peek<T: Peek>(&mut self, t: T) -> bool {
-        t.peek_at(&mut self.tokens, 0)
-    }
-
-    /// Looks at the next two tokens
-    fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        t1.peek_at(&mut self.tokens, 0) && t2.peek_at(&mut self.tokens, 1)
-    }
-
-    /// Looks at the next three tokens
-    fn peek3<T1: Peek, T2: Peek, T3: Peek>(&mut self, t1: T1, t2: T2, t3: T3) -> bool {
-        t1.peek_at(&mut self.tokens, 0)
-            && t2.peek_at(&mut self.tokens, 1)
-            && t3.peek_at(&mut self.tokens, 2)
-    }
-
-    /// Looks whether the next token matches a binary operation. In case of a match, returns
-    /// the corresponding binary operation and its size in number of tokens. This function
-    /// doesn't advance the position of the underlying cursor.
-    fn peek_binop(&mut self) -> Option<(BinOp, usize)> {
-        let op = match self.at(0).1 {
-            Tok::Iff => (BinOp::Iff, 1),
-            Tok::FatArrow => (BinOp::Imp, 1),
-            Tok::OrOr => (BinOp::Or, 1),
-            Tok::AndAnd => (BinOp::And, 1),
-            Tok::EqEq => (BinOp::Eq, 1),
-            Tok::Ne => (BinOp::Ne, 1),
-            Tok::Lt => (BinOp::Lt, 1),
-            Tok::Gt => (BinOp::Gt, 1),
-            Tok::Le => (BinOp::Le, 1),
-            Tok::Ge => (BinOp::Ge, 1),
-            Tok::Caret => (BinOp::BitOr, 1),
-            Tok::And => (BinOp::BitAnd, 1),
-            Tok::LtFollowedByLt => (BinOp::BitShl, 2),
-            Tok::GtFollowedByGt => (BinOp::BitShr, 2),
-            Tok::Plus => (BinOp::Add, 1),
-            Tok::Minus => (BinOp::Sub, 1),
-            Tok::Star => (BinOp::Mul, 1),
-            Tok::Slash => (BinOp::Div, 1),
-            Tok::Percent => (BinOp::Mod, 1),
-            _ => return None,
-        };
-        Some(op)
-    }
-
-    /// Advances the underlying cursor to the next token
-    fn advance(&mut self) {
-        self.tokens.advance();
-    }
-
-    /// Advances the underlying cursor by the requested number of tokens
-    fn advance_by(&mut self, n: usize) {
-        self.tokens.advance_by(n);
-    }
-
-    /// Looks at the next token and advances the cursor if it matches the requested type of
-    /// token. Returns `true` if there was a match.
-    fn advance_if<T: Peek>(&mut self, t: T) -> bool {
-        if self.peek(t) {
-            self.advance();
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Looks at the next two tokens advacing the cursor if there's a match on both of them
-    fn advance_if2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        if self.peek2(t1, t2) {
-            self.advance_by(2);
-            true
-        } else {
-            false
-        }
-    }
-
-    /// If the next token matches the requested type of token advances the cursor, otherwise
-    /// returns an `unexpected token` error.
-    fn expect<T: Peek>(&mut self, t: T) -> ParseResult {
-        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token()) }
-    }
-}
-
-/// A trait for testing whether a single token matches some rule. This is mainly implemented
-/// for [`Token`] to test whether a token is equal to a specific token.
-trait Peek {
-    /// Returns true if the token at the requested position matches this peek rule
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool;
-}
-
-impl Peek for Tok {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        tokens.at(pos).1 == self
-    }
-}
-
-/// A peekable struct that matches any identifier
-struct AnyIdent;
-impl Peek for AnyIdent {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Tok::Ident(_))
-    }
-}
-
-/// A peekable struct that matches any literal
-struct AnyLit;
-impl Peek for AnyLit {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Tok::Literal(_))
-    }
-}
-
-#[derive(Clone, Copy)]
-struct LAngle;
-impl Peek for LAngle {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Tok::LtFollowedByLt | Tok::Lt)
-    }
-}
-
-#[derive(Clone, Copy)]
-struct RAngle;
-impl Peek for RAngle {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Tok::GtFollowedByGt | Tok::Gt)
-    }
-}
-
-/// Use a string to match an identifier equal to it
-impl Peek for &str {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Tok::Ident(sym) if sym.as_str() == self)
-    }
-}
-
-/// An array can be used to match any token in a set
-impl<T: Peek, const N: usize> Peek for [T; N] {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        self.into_iter().any(|t| t.peek_at(tokens, pos))
     }
 }

@@ -1,4 +1,4 @@
-use super::{LAngle, Peek, RAngle};
+use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
     lexer::{Delimiter, Token},
