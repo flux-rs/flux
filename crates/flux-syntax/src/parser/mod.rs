@@ -1,12 +1,18 @@
+mod utils;
+
 use std::str::FromStr;
 
 use rustc_span::BytePos;
+use utils::{
+    angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_until, sep1,
+    until,
+};
 
 use crate::{
     ParseCtxt, ParseResult,
     lexer::{
         Cursor,
-        Delimiter::{self, *},
+        Delimiter::*,
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
     },
     surface::{
@@ -50,13 +56,13 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 }
 
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
-    let names = sep_until(cx, Comma, Tok::Eof, parse_ident)?;
+    let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
 }
 
 pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     let lo = cx.lo();
-    let params = sep_until(cx, Comma, Tok::Eof, parse_generic_param)?;
+    let params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)?;
     let hi = cx.hi();
     Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
 }
@@ -154,7 +160,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
 
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
-    sep_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
+    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
 }
 
 /// ⟨variant⟩ := ⟨fields⟩ -> ⟨variant_ret⟩
@@ -271,7 +277,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     } else {
         vec![]
     };
-    let (inputs, _) = punctuated(cx, Parenthesis, Comma, parse_fn_input)?;
+    let inputs = parens(cx, Comma, parse_fn_input)?;
     let returns = parse_fn_ret(cx)?;
     let requires = parse_opt_requires(cx)?;
     let ensures = parse_opt_ensures(cx)?;
@@ -295,7 +301,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     if !cx.advance_if(Tok::Requires) {
         return Ok(vec![]);
     }
-    sep_until(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
+    punctuated_until(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
 }
 
 /// ⟨requires_clause⟩ := ⟨ forall ⟨refine_param⟩,+ . ⟩? ⟨expr⟩
@@ -314,7 +320,7 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     if !cx.advance_if(Tok::Ensures) {
         return Ok(vec![]);
     }
-    sep_until(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
+    punctuated_until(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
 }
 
 /// ⟨ensures_clause⟩ :=  ⟨ident⟩ : ⟨ty⟩
@@ -336,7 +342,7 @@ fn parse_opt_where(cx: &mut ParseCtxt) -> ParseResult<Option<Vec<WhereBoundPredi
     if !cx.advance_if(Tok::Where) {
         return Ok(None);
     }
-    Ok(Some(sep_until(cx, Comma, Tok::Eof, parse_where_bound)?))
+    Ok(Some(punctuated_until(cx, Comma, Tok::Eof, parse_where_bound)?))
 }
 
 fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
@@ -625,7 +631,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } else if cx.advance_if(Caret) {
-        let params = sep_until(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
+        let params = punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
         cx.expect(Caret)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
@@ -988,132 +994,6 @@ fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
         let path = SortPath { segments, args, node_id: cx.next_node_id() };
         Ok(BaseSort::Path(path))
     }
-}
-
-fn opt_angle<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    if !cx.peek(LAngle) {
-        return Ok(vec![]);
-    }
-    angle(cx, sep, parse)
-}
-
-fn angle<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    cx.expect(LAngle)?;
-    let items = sep_until(cx, sep, RAngle, parse)?;
-    cx.expect(RAngle)?;
-    Ok(items)
-}
-
-fn delimited<R>(
-    cx: &mut ParseCtxt,
-    delim: Delimiter,
-    parse: impl FnOnce(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<R> {
-    cx.expect(OpenDelim(delim))?;
-    let r = parse(cx)?;
-    cx.expect(CloseDelim(delim))?;
-    Ok(r)
-}
-
-fn brackets<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    Ok(punctuated(cx, Bracket, sep, parse)?.0)
-}
-
-fn parens<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    Ok(punctuated(cx, Parenthesis, sep, parse)?.0)
-}
-
-fn braces<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    Ok(punctuated(cx, Brace, sep, parse)?.0)
-}
-
-fn punctuated<R>(
-    cx: &mut ParseCtxt,
-    delim: Delimiter,
-    sep: Tok,
-    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<(Vec<R>, bool)> {
-    cx.expect(OpenDelim(delim))?;
-    let mut items = vec![];
-
-    let mut trailing = false;
-    while !cx.peek(CloseDelim(delim)) {
-        items.push(parse(cx)?);
-
-        trailing = cx.advance_if(sep);
-        if !trailing {
-            break;
-        }
-    }
-    cx.expect(CloseDelim(delim))?;
-    Ok((items, trailing))
-}
-
-/// Parses a list of one ore more items separated by the requested token. Parsing continues
-/// until no separation token is found.
-fn sep1<R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    let mut items = vec![parse(cx)?];
-    while cx.advance_if(sep) {
-        items.push(parse(cx)?);
-    }
-    Ok(items)
-}
-
-/// Parses a list of zero or more items. Parsing continues until the requested `end` token
-/// is reached. This does not consume the end token.
-fn until<P: Peek + Copy, R>(
-    cx: &mut ParseCtxt,
-    end: P,
-    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    let mut items = vec![];
-    while !cx.peek(end) {
-        items.push(parse(cx)?);
-    }
-    Ok(items)
-}
-
-/// Parses a list of zero or more items separated by a punctuation, with optional trailing
-/// punctuation. Parsing continues until the requested `end` token is reached. This does not
-/// consume the end token.
-fn sep_until<E: Peek + Copy, R>(
-    cx: &mut ParseCtxt,
-    sep: Tok,
-    end: E,
-    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
-) -> ParseResult<Vec<R>> {
-    let mut items = vec![];
-    while !cx.peek(end) {
-        items.push(parse(cx)?);
-        if !cx.advance_if(sep) {
-            break;
-        }
-    }
-    Ok(items)
 }
 
 // Reference: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
