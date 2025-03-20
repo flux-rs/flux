@@ -783,7 +783,13 @@
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter};
 
 <span class="kw">use </span>expr::{FieldBind, pretty::aggregate_nested};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -904,6 +910,10 @@
             Sort::Infer(svar) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, svar),
             Sort::Err =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"err"</span>),
         }
+    }
+
+    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+        PrettyCx::default(tcx).hide_refinements(<span class="bool-val">true</span>)
     }
 }
 
@@ -1314,7 +1324,9 @@
             GenericArg::Ty(ty) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ty),
             GenericArg::Base(ctor) =&gt; {
                 cx.with_bound_vars(ctor.vars(), || {
-                    cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, ctor.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                    <span class="kw">if </span>!cx.hide_refinements {
+                        cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, ctor.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                    }
                     <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ctor.skip_binder_ref())
                 })
             }

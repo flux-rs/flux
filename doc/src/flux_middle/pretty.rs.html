@@ -633,7 +633,11 @@
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
 <a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -971,6 +975,10 @@
 
     <span class="kw">pub fn </span>hide_sorts(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ hide_sorts: b, ..<span class="self">self </span>}
+    }
+
+    <span class="kw">pub fn </span>hide_refinements(<span class="self">self</span>, b: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ hide_refinements: b, ..<span class="self">self </span>}
     }
 }
 

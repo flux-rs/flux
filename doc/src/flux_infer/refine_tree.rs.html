@@ -1491,7 +1491,7 @@
                     NodeKind::Root(bindings) =&gt; {
                         <span class="comment">// We reverse here because is reversed again at the end
                         </span><span class="kw">for </span>(name, sort) <span class="kw">in </span>bindings.iter().rev() {
-                            elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?} {:?}"</span>, ^name, sort));
+                            elements.push(<span class="macro">format_cx!</span>(cx, <span class="string">"{:?}: {:?}"</span>, ^name, sort));
                         }
                     }
                     NodeKind::ForAll(name, sort) =&gt; {

@@ -1927,7 +1927,10 @@
 <a href="#1926" id="1926">1926</a>
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
-<a href="#1929" id="1929">1929</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -2244,14 +2247,14 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
     }
 
-    <span class="kw">let </span>impl_id = tcx.impl_of_method(def_id.to_def_id()).unwrap();
-    <span class="kw">let </span>impl_args = GenericArg::identity_for_item(genv, def_id.to_def_id())<span class="question-mark">?</span>;
-    <span class="kw">let </span>trait_args = impl_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>impl_trait_ref.args);
+    <span class="kw">let </span>impl_id = tcx.impl_of_method(impl_method_id).unwrap();
+    <span class="kw">let </span>impl_method_args = GenericArg::identity_for_item(genv, impl_method_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_method_args = impl_method_args.rebase_onto(<span class="kw-2">&amp;</span>tcx, impl_id, <span class="kw-2">&amp;</span>impl_trait_ref.args);
     <span class="kw">let </span>trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
         .infcx_root(trait_method_id, opts)
-        .with_generic_args(<span class="kw-2">&amp;</span>impl_trait_ref.args)
+        .with_generic_args(<span class="kw-2">&amp;</span>trait_method_args)
         .build()<span class="question-mark">?</span>;
     <span class="kw">let </span>rustc_infcx = genv
         .tcx()
@@ -2259,14 +2262,17 @@
         .build(TypingMode::non_body_analysis());
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(impl_method_id, <span class="kw-2">&amp;</span>rustc_infcx);
 
-    <span class="kw">let </span>trait_fn_sig = genv.fn_sig(trait_method_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_fn_sig =
+        genv.fn_sig(trait_method_id)<span class="question-mark">?
+            </span>.instantiate(tcx, <span class="kw-2">&amp;</span>trait_method_args, <span class="kw-2">&amp;</span>trait_refine_args);
     <span class="kw">let </span>impl_sig = genv.fn_sig(impl_method_id)<span class="question-mark">?</span>;
+
     check_fn_subtyping(
         <span class="kw-2">&amp;mut </span>infcx,
         <span class="kw-2">&amp;</span>impl_method_id,
         impl_sig,
-        <span class="kw-2">&amp;</span>impl_args,
-        <span class="kw-2">&amp;</span>trait_fn_sig.instantiate(tcx, <span class="kw-2">&amp;</span>trait_args, <span class="kw-2">&amp;</span>trait_refine_args),
+        <span class="kw-2">&amp;</span>impl_method_args,
+        <span class="kw-2">&amp;</span>trait_fn_sig,
         span,
     )<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(root_ctxt))
