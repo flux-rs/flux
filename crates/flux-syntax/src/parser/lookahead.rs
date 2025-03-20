@@ -3,7 +3,7 @@
 use rustc_span::BytePos;
 
 use crate::{
-    ParseCtxt, ParseResult,
+    ParseCtxt, ParseError, ParseResult,
     lexer::{Cursor, Token},
     surface::BinOp,
 };
@@ -11,30 +11,46 @@ use crate::{
 /// A trait for testing whether a token matches a rule.
 ///
 /// This trait is primarily implemented for [`Token`] to test for exact equality.
-pub(crate) trait Peek {
+pub(crate) trait Peek: Copy {
     /// Returns true if the token at the requested position in the cursor matches this rule
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool;
+
+    fn display(self) -> impl Iterator<Item = &'static str>;
 }
 
 impl Peek for Token {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         tokens.at(pos).1 == self
     }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        [self.descr()].into_iter()
+    }
 }
 
 /// A struct that can be used to match any identifier
+#[derive(Clone, Copy)]
 pub(crate) struct AnyIdent;
 impl Peek for AnyIdent {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         matches!(tokens.at(pos).1, Token::Ident(_))
     }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        ["identifier"].into_iter()
+    }
 }
 
 /// A struct that can be used to match any literal
+#[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
 impl Peek for AnyLit {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         matches!(tokens.at(pos).1, Token::Literal(_))
+    }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        ["literal"].into_iter()
     }
 }
 
@@ -44,6 +60,10 @@ impl Peek for LAngle {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         matches!(tokens.at(pos).1, Token::LtFollowedByLt | Token::Lt)
     }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        ["<"].into_iter()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -52,12 +72,20 @@ impl Peek for RAngle {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         matches!(tokens.at(pos).1, Token::GtFollowedByGt | Token::Gt)
     }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        [">"].into_iter()
+    }
 }
 
 /// Use a string to match an identifier equal to it
-impl Peek for &str {
+impl Peek for &'static str {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         matches!(tokens.at(pos).1, Token::Ident(sym) if sym.as_str() == self)
+    }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        [self].into_iter()
     }
 }
 
@@ -66,9 +94,38 @@ impl<T: Peek, const N: usize> Peek for [T; N] {
     fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
         self.into_iter().any(|t| t.peek_at(tokens, pos))
     }
+
+    fn display(self) -> impl Iterator<Item = &'static str> {
+        self.into_iter().map(Peek::display).flatten()
+    }
 }
 
-impl ParseCtxt<'_> {
+pub(crate) struct Lookahead1<'a, 'cx> {
+    expected: Vec<&'static str>,
+    cx: &'a mut ParseCtxt<'cx>,
+}
+
+impl<'a, 'cx> Lookahead1<'a, 'cx> {
+    fn new(cx: &'a mut ParseCtxt<'cx>) -> Self {
+        Lookahead1 { expected: Vec::new(), cx }
+    }
+
+    pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
+        self.expected.extend(t.display());
+        self.cx.peek(t)
+    }
+
+    pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
+        self.expected.extend(t.display());
+        self.cx.advance_if(t)
+    }
+
+    pub(crate) fn into_error(self) -> ParseError {
+        self.cx.unexpected_token(self.expected)
+    }
+}
+
+impl<'cx> ParseCtxt<'cx> {
     /// Returns the token (and span) at the requested position.
     pub(crate) fn at(&mut self, n: usize) -> (BytePos, Token, BytePos) {
         self.tokens.at(n)
@@ -155,6 +212,10 @@ impl ParseCtxt<'_> {
     /// If the next token matches the requested type of token advances the cursor, otherwise
     /// returns an `unexpected token` error.
     pub(crate) fn expect<T: Peek>(&mut self, t: T) -> ParseResult {
-        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token()) }
+        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(t.display().collect())) }
+    }
+
+    pub(crate) fn lookahead1(&mut self) -> Lookahead1<'_, 'cx> {
+        Lookahead1::new(self)
     }
 }

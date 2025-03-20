@@ -2088,7 +2088,7 @@ impl GenericArg {
         }
         for param in &generics.own_params {
             let kind = mk_kind(param, args);
-            tracked_span_assert_eq!(param.index as usize, args.len()); // "{args:#?}, {generics:#?}");
+            tracked_span_assert_eq!(param.index as usize, args.len());
             args.push(kind);
         }
         Ok(())

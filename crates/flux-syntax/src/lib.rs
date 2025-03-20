@@ -8,6 +8,7 @@ mod parser;
 pub mod surface;
 
 use lexer::{Cursor, Token};
+use parser::lookahead::Peek;
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
@@ -159,12 +160,12 @@ impl<'a> ParseCtxt<'a> {
         self.tokens.hi()
     }
 
-    fn unexpected_token(&mut self) -> ParseError {
+    fn unexpected_token(&mut self, expected: Vec<&'static str>) -> ParseError {
         let (lo, tok, hi) = self.tokens.at(0);
         let kind = if tok == Token::Eof {
             ParseErrorKind::UnexpectedEof
         } else {
-            ParseErrorKind::UnexpectedToken
+            ParseErrorKind::UnexpectedToken { expected }
         };
         ParseError { kind, span: self.mk_span(lo, hi) }
     }
@@ -191,7 +192,7 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
-    UnexpectedToken,
+    UnexpectedToken { expected: Vec<&'static str> },
     UnexpectedEof,
     UnsupportedCallee,
     UnsupportedProj,
