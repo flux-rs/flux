@@ -34,7 +34,7 @@ use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace}, fixpoint_encoding::{FixQueryCache, FixpointCheckError},
-    infer::{ConstrReason, SubtypeReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag}, refine_tree::BinderProvenance,
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -197,6 +197,14 @@ fn report_errors(
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
+        let vars_and_originators: String = err.blame_spans.iter()
+                                                          .map(|(name, bp)| {
+                                                              let origin_str = match bp {
+                                                                  Some(BinderProvenance {originator: origin, ..}) => format!("{:?}", origin),
+                                                                  _ => "No provenance".to_string(),
+                                                              };
+                                                              format!("({:?}: {})", name, origin_str)
+                                                          }).join(", ");
         let blame_span_err = errors::ErrWithBlameSpans {
             span,
             // For now, swallow blame spans without emitting any errors
@@ -215,6 +223,8 @@ fn report_errors(
                     })
                 })
                 .collect(),
+            // Omit span information in this debug print
+            related_vars: format!("{:?}", vars_and_originators),
         };
         genv.sess().emit_err(blame_span_err);
     }
@@ -371,5 +381,6 @@ mod errors {
         pub span: Span,
         #[subdiagnostic]
         pub blame_spans: Vec<BlameSpan>,
+        pub related_vars: String,
     }
 }
