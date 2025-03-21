@@ -19,7 +19,7 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, Lambda, List, Name, VariantIdx, fold::TypeVisitable},
+    rty::{self, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, Name, VariantIdx, fold::TypeVisitable},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
