@@ -35,6 +35,8 @@ use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::refine_tree::BinderProvenance;
+
 pub mod fixpoint {
     use std::fmt;
 
@@ -388,6 +390,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    blame_spans: IndexVec<TagIdx, Vec<(Name, BinderProvenance)>>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
     /// an extern spec on an enum.
     def_id: MaybeExternId,
@@ -410,6 +413,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            blame_spans: IndexVec::new(),
             def_id,
         }
     }
@@ -596,6 +600,7 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
+                // TODO: need to thread binder_deps and generate the blame spans here
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
