@@ -75,4 +75,4 @@ refineck_blame_span_note =
     related variable `{$var}` defined here with originator `{$originator}`
 
 refineck_err_with_blame_spans =
-    there is an error with related variables
+    there is an error with related variables `{$related_vars}`
