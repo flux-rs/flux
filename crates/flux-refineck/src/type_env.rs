@@ -74,11 +74,12 @@ impl<'a> TypeEnv<'a> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
+            let local_decl = &body.local_decls[local];
+            let local_name = body.local_names.get(&local);
             let ty = infcx.unpack(
                 ty,
-                BinderProvenance::new(BinderOriginator::FnDef)
-                    // HACK(ck) This is wrong but better than nothing
-                    .with_span(body.span()),
+                BinderProvenance::new(BinderOriginator::FnArg(local_name.copied()))
+                    .with_span(local_decl.source_info.span),
             );
             infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
