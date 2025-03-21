@@ -184,8 +184,13 @@ fn report_errors(
                 .iter()
                 .filter_map(|(name, bp)| {
                     bp.clone().and_then(|bp| {
-                        bp.span
-                            .map(|span| errors::BlameSpan { var: format!("{:?}", name), span })
+                        bp.span.map(|span| {
+                            errors::BlameSpan {
+                                var: format!("{:?}", name),
+                                span,
+                                originator: format!("{:?}", bp.originator),
+                            }
+                        })
                     })
                 })
                 .collect(),
@@ -328,6 +333,7 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub var: String,
+        pub originator: String,
     }
 
     #[derive(Diagnostic)]
