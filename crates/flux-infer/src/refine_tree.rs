@@ -18,7 +18,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
 use crate::{
@@ -834,8 +834,8 @@ pub enum BinderOriginator {
     Call,
     /// The return of a function call
     CallReturn,
-    /// Arguments from the definition of a function
-    FnDef,
+    /// Argument from the definition of a function
+    FnArg(Option<Symbol>),
     /// Unfold a local pointer
     UnfoldPtr,
     /// Unfold a strong ref
