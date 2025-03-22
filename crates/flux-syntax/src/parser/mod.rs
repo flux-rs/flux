@@ -26,9 +26,11 @@ use crate::{
     },
 };
 
+/// ```text
 ///   yes ⟨ , reason = ⟨literal⟩ ⟩?
 /// | no ⟨ , reason = ⟨literal⟩ ⟩?
 /// | reason = ⟨literal⟩
+/// ```
 pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<bool> {
     let mut lookahead = cx.lookahead1();
     if lookahead.advance_if("yes") {
@@ -49,13 +51,18 @@ pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<boo
     }
 }
 
+/// ```text
 /// ⟨reason⟩ := reason = ⟨literal⟩
+/// ```
 fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
     cx.expect("reason")?;
     cx.expect(Tok::Eq)?;
     cx.expect(AnyLit)
 }
 
+/// ```text
+/// ⟨ident⟩,*
+/// ```
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
     let names = punctuated(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
@@ -124,8 +131,10 @@ pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Tra
     until(cx, Tok::Eof, parse_trait_assoc_reft)
 }
 
+/// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
 ///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
+/// ```
 fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
     cx.expect(Tok::Fn)?;
@@ -147,7 +156,9 @@ pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Impl
     until(cx, Tok::Eof, parse_impl_assoc_reft)
 }
 
+/// ```text
 /// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
+/// ```
 fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     let lo = cx.lo();
     cx.expect(Tok::Fn)?;
@@ -160,14 +171,18 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     Ok(ImplAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
+/// ```
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
     punctuated(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
 }
 
+/// ```text
 /// ⟨variant⟩ := ⟨fields⟩ -> ⟨variant_ret⟩
 ///            | ⟨fields⟩
 ///            | ⟨variant_ret⟩
+/// ```
 pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
     let lo = cx.lo();
     let mut fields = vec![];
@@ -184,7 +199,9 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
     Ok(VariantDef { fields, ret, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨fields⟩ := ( ⟨ty⟩,* ) | { ⟨ty⟩,* }
+/// ```
 fn parse_fields(cx: &mut ParseCtxt) -> ParseResult<Vec<Ty>> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(OpenDelim(Parenthesis)) {
@@ -196,7 +213,9 @@ fn parse_fields(cx: &mut ParseCtxt) -> ParseResult<Vec<Ty>> {
     }
 }
 
+/// ```text
 /// ⟨variant_ret⟩ := ⟨path⟩ ⟨ [ ⟨refine_arg⟩,? ] ⟩?
+/// ```
 fn parse_variant_ret(cx: &mut ParseCtxt) -> ParseResult<VariantRet> {
     let path = parse_path(cx)?;
     let indices = if cx.peek(OpenDelim(Bracket)) {
@@ -264,11 +283,13 @@ fn parse_generic_param(cx: &mut ParseCtxt) -> ParseResult<GenericParam> {
     Ok(GenericParam { name, kind, node_id: cx.next_node_id() })
 }
 
+/// ```text
 /// ⟨fn_sig⟩ := ⟨asyncness⟩ fn ⟨ident⟩?
 ///             ⟨ [ ⟨refine_param⟩,* ] ⟩?
 ///             ( ⟨fn_inputs⟩,* )
 ///             ⟨-> ⟨ty⟩⟩?
 ///             ⟨requires⟩ ⟨ensures⟩ ⟨where⟩
+/// ```
 pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let lo = cx.lo();
     let asyncness = parse_asyncness(cx);
@@ -300,7 +321,9 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     })
 }
 
+/// ```text
 /// ⟨requires⟩ := ⟨ requires ⟨requires_clause⟩,* ⟩?
+/// ```
 fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     if !cx.advance_if(Tok::Requires) {
         return Ok(vec![]);
@@ -308,7 +331,9 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     punctuated(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
 }
 
+/// ```text
 /// ⟨requires_clause⟩ := ⟨ forall ⟨refine_param⟩,+ . ⟩? ⟨expr⟩
+/// ```
 fn parse_requires_clause(cx: &mut ParseCtxt) -> ParseResult<Requires> {
     let mut params = vec![];
     if cx.advance_if(Tok::Forall) {
@@ -319,7 +344,9 @@ fn parse_requires_clause(cx: &mut ParseCtxt) -> ParseResult<Requires> {
     Ok(Requires { params, pred })
 }
 
+/// ```text
 /// ⟨ensures⟩ := ⟨ensures ⟨ensures_clause⟩,*⟩?
+/// ```
 fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     if !cx.advance_if(Tok::Ensures) {
         return Ok(vec![]);
@@ -327,8 +354,10 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     punctuated(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
 }
 
+/// ```text
 /// ⟨ensures_clause⟩ :=  ⟨ident⟩ : ⟨ty⟩
 ///                   |  ⟨expr⟩
+/// ```
 fn parse_ensures_clause(cx: &mut ParseCtxt) -> ParseResult<Ensures> {
     if cx.peek2(AnyIdent, Tok::Colon) {
         // ⟨ident⟩ : ⟨ty⟩
@@ -358,7 +387,9 @@ fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
     Ok(WhereBoundPredicate { span: cx.mk_span(lo, hi), bounded_ty, bounds })
 }
 
+/// ```text
 /// ⟨fn_ret⟩ := ⟨ -> ⟨ty⟩ ⟩?
+/// ```
 fn parse_fn_ret(cx: &mut ParseCtxt) -> ParseResult<FnRetTy> {
     if cx.advance_if(Tok::RArrow) {
         Ok(FnRetTy::Ty(parse_type(cx)?))
@@ -368,10 +399,12 @@ fn parse_fn_ret(cx: &mut ParseCtxt) -> ParseResult<FnRetTy> {
     }
 }
 
+/// ```text
 /// ⟨fn_input⟩ := ⟨ident⟩ : &strg ⟨ty⟩
 ///             | ⟨ident⟩ : ⟨path⟩ { ⟨expr⟩ }
 ///             | ⟨ident⟩ : ⟨ty⟩
 ///             | ⟨ty⟩
+/// ```
 fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
     if cx.peek2(AnyIdent, Tok::Colon) {
         let bind = parse_ident(cx)?;
@@ -382,7 +415,7 @@ fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
         } else if cx.peek(AnyIdent) {
             let path = parse_path(cx)?;
             if cx.peek3(OpenDelim(Brace), AnyIdent, Tok::Colon) {
-                // ⟨ident⟩ : ⟨ty⟩
+                // ⟨ident⟩ : ⟨path⟩ { ⟨ident⟩ : ⟨expr⟩ }
                 let bty = path_to_bty(path);
                 let ty = parse_bty_exists(cx, bty)?;
                 Ok(FnInput::Ty(Some(bind), ty, cx.next_node_id()))
@@ -406,7 +439,9 @@ fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
     }
 }
 
+/// ```text
 /// ⟨asyncness⟩ := async?
+/// ```
 fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
     let lo = cx.lo();
     if cx.advance_if(Tok::Async) {
@@ -416,6 +451,7 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
     }
 }
 
+/// ```text
 /// ⟨ty⟩ := _
 ///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
 ///       | ( ⟨ty⟩,* )
@@ -429,6 +465,7 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 ///       | ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
 ///
 /// ⟨bty⟩ := ⟨path⟩ | ⟨qpath⟩ | [ ⟨ty⟩ ]
+/// ```
 pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     let lo = cx.lo();
     let mut lookahead = cx.lookahead1();
@@ -469,21 +506,22 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
             cx.expect(CloseDelim(Bracket))?;
             TyKind::Array(Box::new(ty), len)
         } else {
-            // [ ⟨ty⟩ ] ⟨[ ⟨refine_arg⟩,* ]⟩
+            // [ ⟨ty⟩ ] ...
             cx.expect(CloseDelim(Bracket))?;
-            let hi = cx.hi();
+            let span = cx.mk_span(lo, cx.hi());
             let kind = BaseTyKind::Slice(Box::new(ty));
-            let bty = BaseTy { kind, span: cx.mk_span(lo, hi) };
-            return parse_bty_rhs(cx, bty);
+            return parse_bty_rhs(cx, BaseTy { kind, span });
         }
     } else if lookahead.advance_if(Tok::Impl) {
         // impl ⟨bounds⟩
         TyKind::ImplTrait(cx.next_node_id(), parse_generic_bounds(cx)?)
     } else if lookahead.peek(AnyIdent) {
+        // ⟨path⟩ ...
         let path = parse_path(cx)?;
         let bty = path_to_bty(path);
         return parse_bty_rhs(cx, bty);
     } else if lookahead.peek(LAngle) {
+        // ⟨qpath⟩ ...
         let bty = parse_qpath(cx)?;
         return parse_bty_rhs(cx, bty);
     } else {
@@ -493,7 +531,9 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     Ok(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨qpath⟩ := < ⟨ty⟩ as ⟨segments⟩> :: ⟨segments⟩
+/// ```
 fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
     let lo = cx.lo();
     cx.expect(LAngle)?;
@@ -505,13 +545,15 @@ fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
     segments.extend(parse_segments(cx)?);
     let hi = cx.hi();
 
-    let path =
-        Path { segments, refine: vec![], node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
+    let span = cx.mk_span(lo, hi);
+    let path = Path { segments, refine: vec![], node_id: cx.next_node_id(), span };
     let kind = BaseTyKind::Path(Some(Box::new(qself)), path);
-    Ok(BaseTy { kind, span: cx.mk_span(lo, hi) })
+    Ok(BaseTy { kind, span })
 }
 
+/// ```text
 /// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+/// ```
 fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     let params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
     cx.expect(Tok::Dot)?;
@@ -520,9 +562,11 @@ fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     Ok(TyKind::GeneralExists { params, ty: Box::new(ty), pred })
 }
 
+/// ```text
 ///    ⟨bty⟩ [ ⟨refine_arg⟩,* ]
 /// |  ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
 /// |  ⟨bty⟩
+/// ```
 fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     let lo = bty.span.lo();
     if cx.peek(OpenDelim(Bracket)) {
@@ -542,7 +586,9 @@ fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     }
 }
 
+/// ```text
 /// ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+/// ```
 fn parse_bty_exists(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     let lo = bty.span.lo();
     delimited(cx, Brace, |cx| {
@@ -587,7 +633,9 @@ fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {
     Ok(ConstArg { kind, span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨path⟩ := ⟨segments⟩ ⟨ ( ⟨refine_arg⟩,* ) ⟩?
+/// ```
 fn parse_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
     let lo = cx.lo();
     let segments = parse_segments(cx)?;
@@ -597,19 +645,25 @@ fn parse_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
     Ok(Path { segments, refine, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨segments⟩ := ⟨segment⟩ ⟨:: ⟨segment⟩ ⟩*
+/// ```
 fn parse_segments(cx: &mut ParseCtxt) -> ParseResult<Vec<PathSegment>> {
     sep1(cx, Tok::PathSep, parse_segment)
 }
 
+/// ```text
 /// ⟨segment⟩ := ⟨ident⟩ ⟨ < ⟨generic_arg⟩,* > ⟩?
+/// ```
 fn parse_segment(cx: &mut ParseCtxt) -> ParseResult<PathSegment> {
     let ident = parse_ident(cx)?;
     let args = opt_angle(cx, Comma, parse_generic_arg)?;
     Ok(PathSegment { ident, node_id: cx.next_node_id(), args })
 }
 
+/// ```text
 /// ⟨generic_arg⟩ := ⟨ty⟩ | ⟨ident⟩ = ⟨ty⟩
+/// ```
 fn parse_generic_arg(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     let kind = if cx.peek2(AnyIdent, Tok::Eq) {
         let ident = parse_ident(cx)?;
@@ -622,10 +676,12 @@ fn parse_generic_arg(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     Ok(GenericArg { kind, node_id: cx.next_node_id() })
 }
 
+/// ```text
 /// ⟨refine_arg⟩ :=  @ ⟨ident⟩
 ///               |  # ⟨ident⟩
 ///               |  |⟨⟨refine_parm⟩,*| ⟨expr⟩
 ///               |  ⟨expr⟩
+/// ```
 fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     let lo = cx.lo();
     let arg = if cx.advance_if(Tok::At) {
@@ -651,8 +707,10 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     Ok(arg)
 }
 
+/// ```text
 /// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if !require_sort
 ///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort
+/// ```
 fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<RefineParam> {
     let lo = cx.lo();
     let mode = parse_opt_param_mode(cx);
@@ -669,7 +727,9 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<Ref
     Ok(RefineParam { mode, ident, sort, span: cx.mk_span(lo, hi), node_id: cx.next_node_id() })
 }
 
+/// ```text
 /// ⟨mode⟩ := hrn | hdl
+/// ```
 fn parse_opt_param_mode(cx: &mut ParseCtxt) -> Option<ParamMode> {
     if cx.advance_if(Tok::Hrn) {
         Some(ParamMode::Horn)
@@ -693,7 +753,7 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
         if precedence < base {
             break;
         }
-        cx.tokens.advance_by(ntokens);
+        cx.advance_by(ntokens);
         if matches!(precedence, Precedence::Iff | Precedence::Implies | Precedence::Compare) {
             if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
                 if Precedence::of_binop(op) == precedence {
@@ -712,7 +772,9 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
     Ok(lhs)
 }
 
+/// ```text
 /// ⟨unary_expr⟩ := - ⟨unary_expr⟩ | ! ⟨unary_expr⟩ | ⟨trailer_expr⟩
+/// ```
 fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     let kind = if cx.advance_if(Tok::Minus) {
@@ -726,10 +788,12 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
 ///                 |  ⟨ident⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 ///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
+/// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     if cx.advance_if(LAngle) {
         // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
@@ -774,6 +838,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
 /// ⟨atom⟩ := ⟨if_expr⟩
 ///         | ⟨lit⟩
 ///         | ( ⟨expr⟩ )
@@ -781,6 +846,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | ⟨bounded_quant⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
+/// ```
 fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     let mut lookahead = cx.lookahead1();
@@ -820,8 +886,10 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     }
 }
 
+/// ```text
 /// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
 ///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+/// ```
 fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
     let mut lookahead = cx.lookahead1();
@@ -846,7 +914,9 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     })
 }
 
+/// ```text
 /// ⟨constructor_arg⟩ :=  ⟨ident⟩ : ⟨expr⟩ |  ..
+/// ```
 fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
     let lo = cx.lo();
     let mut lookahead = cx.lookahead1();
@@ -874,7 +944,9 @@ fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
     }
 }
 
+/// ```text
 /// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
+/// ```
 fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     if let (lo, Tok::Literal(lit), hi) = cx.at(0) {
         cx.advance();
@@ -888,7 +960,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     }
 }
 
-/// ⟨epath⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*
+/// `⟨epath⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*`
 fn parse_expr_path(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
     let lo = cx.lo();
     let segments = sep1(cx, Tok::PathSep, parse_expr_path_segment)?;
@@ -900,7 +972,9 @@ fn parse_expr_path_segment(cx: &mut ParseCtxt) -> ParseResult<ExprPathSegment> {
     Ok(ExprPathSegment { ident: parse_ident(cx)?, node_id: cx.next_node_id() })
 }
 
-/// ⟨if_expr⟩ := if ⟨cond⟩ ⟨block_expr⟩ ⟨ else if ⟨cond⟩ ⟨block_expr⟩ ⟩* else ⟨block_expr⟩
+/// `⟨if_expr⟩ := if ⟨expr⟩ ⟨block_expr⟩ ⟨ else if ⟨expr⟩ ⟨block_expr⟩ ⟩* else ⟨block_expr⟩`
+///
+/// The `⟨expr⟩` in conditions is parsed with `allow_struct = false`
 fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let mut branches = vec![];
 

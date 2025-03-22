@@ -8,7 +8,7 @@ use crate::{ParseCtxt, ParseError, ParseResult, lexer::Token, surface::BinOp};
 ///
 /// This trait is primarily implemented for [`Token`] to test for exact equality.
 pub(crate) trait Peek: Copy {
-    /// Returns true if the token at the requested position in the cursor matches this rule
+    /// Returns true if a token matches this rule
     fn matches(self, tok: Token) -> bool;
 
     fn display(self) -> impl Iterator<Item = &'static str>;
@@ -16,7 +16,7 @@ pub(crate) trait Peek: Copy {
 
 impl Peek for Token {
     fn matches(self, tok: Token) -> bool {
-        tok == self
+        self == tok
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -96,6 +96,12 @@ impl<T: Peek, const N: usize> Peek for [T; N] {
     }
 }
 
+/// Support for checking the next token in a stream to decide how to parse.
+///
+/// An important advantage over [`ParseCtxt::peek`] is that here we automatically construct
+/// an appropriate error message based on the token alternatives that get peeked.
+///
+/// Use [`ParseCtxt::lookahead1`] to construct this object.
 pub(crate) struct Lookahead1<'a, 'cx> {
     expected: Vec<&'static str>,
     cx: &'a mut ParseCtxt<'cx>,
@@ -106,16 +112,24 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
         Lookahead1 { expected: Vec::new(), cx }
     }
 
+    /// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
+    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// discarded.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
         self.expected.extend(t.display());
         self.cx.peek(t)
     }
 
+    /// Like [`ParseCtxt::advance_if`] but it records the expected token to construct an error in
+    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// discarded.
     pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
         self.expected.extend(t.display());
         self.cx.advance_if(t)
     }
 
+    /// Create an `unexpected token` error based on the expected tokens that have been peeked
+    /// with this [`Lookahead1`] object.
     pub(crate) fn into_error(self) -> ParseError {
         self.cx.unexpected_token(self.expected)
     }

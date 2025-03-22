@@ -1,3 +1,5 @@
+//! Implementation of parser combinators
+
 use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
@@ -20,7 +22,7 @@ pub(crate) fn sep1<R>(
 
 /// Parses a list of zero or more items. Parsing continues until the requested `end` token
 /// is reached. This does not consume the end token.
-pub(crate) fn until<P: Peek + Copy, R>(
+pub(crate) fn until<P: Peek, R>(
     cx: &mut ParseCtxt,
     end: P,
     mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
@@ -37,7 +39,7 @@ pub(crate) fn until<P: Peek + Copy, R>(
 /// consume the end token.
 ///
 /// Returns the vector of items and a boolean indicating whether trailing punctuation was present.
-pub(crate) fn punctuated_with_trailing<E: Peek + Copy, R>(
+pub(crate) fn punctuated_with_trailing<E: Peek, R>(
     cx: &mut ParseCtxt,
     sep: Token,
     end: E,
@@ -58,7 +60,7 @@ pub(crate) fn punctuated_with_trailing<E: Peek + Copy, R>(
 /// Parses a list of zero or more items separated by a punctuation, with optional trailing
 /// punctuation. Parsing continues until the requested `end` token is reached. This does not
 /// consume the end token.
-pub(crate) fn punctuated<E: Peek + Copy, R>(
+pub(crate) fn punctuated<E: Peek, R>(
     cx: &mut ParseCtxt,
     sep: Token,
     end: E,
