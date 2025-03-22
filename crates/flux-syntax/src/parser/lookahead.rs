@@ -2,25 +2,21 @@
 
 use rustc_span::BytePos;
 
-use crate::{
-    ParseCtxt, ParseError, ParseResult,
-    lexer::{Cursor, Token},
-    surface::BinOp,
-};
+use crate::{ParseCtxt, ParseError, ParseResult, lexer::Token, surface::BinOp};
 
 /// A trait for testing whether a token matches a rule.
 ///
 /// This trait is primarily implemented for [`Token`] to test for exact equality.
 pub(crate) trait Peek: Copy {
     /// Returns true if the token at the requested position in the cursor matches this rule
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool;
+    fn matches(self, tok: Token) -> bool;
 
     fn display(self) -> impl Iterator<Item = &'static str>;
 }
 
 impl Peek for Token {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        tokens.at(pos).1 == self
+    fn matches(self, tok: Token) -> bool {
+        tok == self
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -32,8 +28,8 @@ impl Peek for Token {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyIdent;
 impl Peek for AnyIdent {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Token::Ident(_))
+    fn matches(self, tok: Token) -> bool {
+        matches!(tok, Token::Ident(_))
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -45,8 +41,8 @@ impl Peek for AnyIdent {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
 impl Peek for AnyLit {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Token::Literal(_))
+    fn matches(self, tok: Token) -> bool {
+        matches!(tok, Token::Literal(_))
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -57,8 +53,8 @@ impl Peek for AnyLit {
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
 impl Peek for LAngle {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Token::LtFollowedByLt | Token::Lt)
+    fn matches(self, tok: Token) -> bool {
+        matches!(tok, Token::LtFollowedByLt | Token::Lt)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -69,8 +65,8 @@ impl Peek for LAngle {
 #[derive(Clone, Copy)]
 pub(crate) struct RAngle;
 impl Peek for RAngle {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Token::GtFollowedByGt | Token::Gt)
+    fn matches(self, tok: Token) -> bool {
+        matches!(tok, Token::GtFollowedByGt | Token::Gt)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -80,8 +76,8 @@ impl Peek for RAngle {
 
 /// Use a string to match an identifier equal to it
 impl Peek for &'static str {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        matches!(tokens.at(pos).1, Token::Ident(sym) if sym.as_str() == self)
+    fn matches(self, tok: Token) -> bool {
+        matches!(tok, Token::Ident(sym) if sym.as_str() == self)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -91,8 +87,8 @@ impl Peek for &'static str {
 
 /// Use an array to match any token in a set
 impl<T: Peek, const N: usize> Peek for [T; N] {
-    fn peek_at(self, tokens: &mut Cursor, pos: usize) -> bool {
-        self.into_iter().any(|t| t.peek_at(tokens, pos))
+    fn matches(self, tok: Token) -> bool {
+        self.into_iter().any(|t| t.matches(tok))
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -134,19 +130,17 @@ impl<'cx> ParseCtxt<'cx> {
     /// Looks at the next token in the underlying cursor to determine whether it matches the
     /// requested type of token. Does not advance the position of the cursor.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        t.peek_at(&mut self.tokens, 0)
+        t.matches(self.at(0).1)
     }
 
     /// Looks at the next two tokens
     pub(crate) fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        t1.peek_at(&mut self.tokens, 0) && t2.peek_at(&mut self.tokens, 1)
+        t1.matches(self.at(0).1) && t2.matches(self.at(1).1)
     }
 
     /// Looks at the next three tokens
     pub(crate) fn peek3<T1: Peek, T2: Peek, T3: Peek>(&mut self, t1: T1, t2: T2, t3: T3) -> bool {
-        t1.peek_at(&mut self.tokens, 0)
-            && t2.peek_at(&mut self.tokens, 1)
-            && t3.peek_at(&mut self.tokens, 2)
+        t1.matches(self.at(0).1) && t2.matches(self.at(1).1) && t3.matches(self.at(2).1)
     }
 
     /// Looks whether the next token matches a binary operation. In case of a match, returns
