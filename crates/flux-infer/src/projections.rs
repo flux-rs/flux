@@ -26,6 +26,8 @@ use crate::infer::InferCtxt;
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
+
+    /// Normalize projections but only inside sorts
     fn normalize_sorts<'tcx>(
         &self,
         def_id: DefId,
@@ -646,6 +648,13 @@ impl TVarSubst {
     }
 }
 
+/// Normalize an [`rty::AliasTy`] by converting it to rustc, normalizing it using rustc api, and
+/// then mapping the result back to `rty`. This will lose refinements and it should only be used
+/// to normalize sorts because they should only contain unrefined types. However, we are also using
+/// it as a hack to normalize types in cases where we fail to collect a candidate, this is unsound
+/// and should be removed.
+///
+/// [`rty::AliasTy`]: AliasTy
 fn normalize_projection_ty_with_rustc<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
