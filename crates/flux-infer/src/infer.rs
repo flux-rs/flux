@@ -82,22 +82,35 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     opts: InferOpts,
 }
 
-pub struct InferCtxtRootBuilder<'genv, 'tcx> {
+pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opts: InferOpts,
     root_id: DefId,
+    infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     generic_args: Option<GenericArgs>,
     dummy_kvars: bool,
 }
 
 #[extension(pub trait GlobalEnvExt<'genv, 'tcx>)]
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    fn infcx_root(self, root_id: DefId, opts: InferOpts) -> InferCtxtRootBuilder<'genv, 'tcx> {
-        InferCtxtRootBuilder { genv: self, root_id, opts, generic_args: None, dummy_kvars: false }
+    fn infcx_root<'a>(
+        self,
+        root_id: DefId,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+        opts: InferOpts,
+    ) -> InferCtxtRootBuilder<'a, 'genv, 'tcx> {
+        InferCtxtRootBuilder {
+            genv: self,
+            infcx,
+            root_id,
+            opts,
+            generic_args: None,
+            dummy_kvars: false,
+        }
     }
 }
 
-impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
+impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
     pub fn with_dummy_kvars(mut self) -> Self {
         self.dummy_kvars = true;
         self
@@ -128,8 +141,12 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
                 } else {
                     param.instantiate_identity()
                 };
+                let sort = param
+                    .sort
+                    .normalize_sorts(self.root_id, self.genv, self.infcx)?;
+
                 let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
-                (var, param.sort)
+                Ok((var, sort))
             },
         )?;
 
@@ -240,7 +257,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     ) -> InferResult<List<Expr>> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
-            self.fresh_infer_var(&param.sort, param.mode)
+            Ok(self.fresh_infer_var(&param.sort, param.mode))
         })?)
     }
 

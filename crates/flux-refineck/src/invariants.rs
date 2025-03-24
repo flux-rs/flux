@@ -46,12 +46,17 @@ fn check_invariant(
     opts: InferOpts,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
-    let mut infcx_root = genv.infcx_root(resolved_id, opts).build().emit(&genv)?;
 
     let region_infercx = genv
         .tcx()
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
+
+    let mut infcx_root = genv
+        .infcx_root(resolved_id, &region_infercx, opts)
+        .build()
+        .emit(&genv)?;
+
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = infcx_root.infcx(resolved_id, &region_infercx);
 

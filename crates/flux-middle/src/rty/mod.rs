@@ -1864,13 +1864,16 @@ pub type RefineArgs = List<Expr>;
 impl RefineArgs {
     fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
         Self::for_item(genv, def_id, |param, index| {
-            Expr::var(Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() }))
+            Ok(Expr::var(Var::EarlyParam(EarlyReftParam {
+                index: index as u32,
+                name: param.name(),
+            })))
         })
     }
 
     fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<RefineArgs>
     where
-        F: FnMut(EarlyBinder<RefineParam>, usize) -> Expr,
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<Expr>,
     {
         let reft_generics = genv.refinement_generics_of(def_id)?;
         let count = reft_generics.count();
@@ -2313,14 +2316,14 @@ impl EarlyBinder<RefinementGenerics> {
 
     pub fn fill_item<F, R>(&self, genv: GlobalEnv, vec: &mut Vec<R>, mk: &mut F) -> QueryResult
     where
-        F: FnMut(EarlyBinder<RefineParam>, usize) -> R,
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<R>,
     {
         if let Some(def_id) = self.parent() {
             genv.refinement_generics_of(def_id)?
                 .fill_item(genv, vec, mk)?;
         }
         for param in self.iter_own_params() {
-            vec.push(mk(param, vec.len()));
+            vec.push(mk(param, vec.len())?);
         }
         Ok(())
     }
