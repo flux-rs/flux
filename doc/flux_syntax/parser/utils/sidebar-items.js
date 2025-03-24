@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["angle","braces","brackets","delimited","opt_angle","parens","punctuated","punctuated_delimited","punctuated_with_trailing","sep1","until"]};

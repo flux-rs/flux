@@ -4867,8 +4867,8 @@
         }
         <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.own_params {
             <span class="kw">let </span>kind = mk_kind(param, args);
-            <span class="macro">tracked_span_assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len()); <span class="comment">// "{args:#?}, {generics:#?}");
-            </span>args.push(kind);
+            <span class="macro">tracked_span_assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len());
+            args.push(kind);
         }
         <span class="prelude-val">Ok</span>(())
     }

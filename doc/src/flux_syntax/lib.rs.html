@@ -197,7 +197,8 @@
 <a href="#196" id="196">196</a>
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_span;
@@ -207,6 +208,7 @@
 <span class="kw">pub mod </span>surface;
 
 <span class="kw">use </span>lexer::{Cursor, Token};
+<span class="kw">use </span>parser::lookahead::Peek;
 <span class="kw">use </span>rustc_ast::tokenstream::TokenStream;
 <span class="kw">use </span>rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 <span class="kw">use </span>surface::NodeId;
@@ -358,12 +360,12 @@
         <span class="self">self</span>.tokens.hi()
     }
 
-    <span class="kw">fn </span>unexpected_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; ParseError {
+    <span class="kw">fn </span>unexpected_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;) -&gt; ParseError {
         <span class="kw">let </span>(lo, tok, hi) = <span class="self">self</span>.tokens.at(<span class="number">0</span>);
         <span class="kw">let </span>kind = <span class="kw">if </span>tok == Token::Eof {
             ParseErrorKind::UnexpectedEof
         } <span class="kw">else </span>{
-            ParseErrorKind::UnexpectedToken
+            ParseErrorKind::UnexpectedToken { expected }
         };
         ParseError { kind, span: <span class="self">self</span>.mk_span(lo, hi) }
     }
@@ -390,7 +392,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ParseErrorKind {
-    UnexpectedToken,
+    UnexpectedToken { expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; },
     UnexpectedEof,
     UnsupportedCallee,
     UnsupportedProj,

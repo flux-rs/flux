@@ -362,7 +362,17 @@
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, fmt, iter::Peekable};
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, fmt, iter::Peekable};
 
 <span class="kw">pub use </span>rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 <span class="kw">use </span>rustc_ast::{
@@ -435,75 +445,85 @@
     Eof,
 }
 
+<span class="kw">impl </span>Token {
+    <span class="kw">pub fn </span>descr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Token::Caret =&gt; <span class="string">"|"</span>,
+            Token::EqEq =&gt; <span class="string">"=="</span>,
+            Token::Eq =&gt; <span class="string">"="</span>,
+            Token::AndAnd =&gt; <span class="string">"&amp;&amp;"</span>,
+            Token::OrOr =&gt; <span class="string">"||"</span>,
+            Token::Plus =&gt; <span class="string">"+"</span>,
+            Token::Minus =&gt; <span class="string">"-"</span>,
+            Token::Slash =&gt; <span class="string">"/"</span>,
+            Token::Not =&gt; <span class="string">"!"</span>,
+            Token::Star =&gt; <span class="string">"*"</span>,
+            Token::Colon =&gt; <span class="string">":"</span>,
+            Token::Comma =&gt; <span class="string">","</span>,
+            Token::Semi =&gt; <span class="string">";"</span>,
+            Token::RArrow =&gt; <span class="string">"-&gt;"</span>,
+            Token::Dot =&gt; <span class="string">"."</span>,
+            Token::Le =&gt; <span class="string">"&lt;="</span>,
+            Token::Ne =&gt; <span class="string">"&gt;="</span>,
+            Token::GtFollowedByGt =&gt; <span class="string">"&gt;"</span>,
+            Token::Gt =&gt; <span class="string">"&gt;"</span>,
+            Token::LtFollowedByLt =&gt; <span class="string">"&lt;"</span>,
+            Token::Lt =&gt; <span class="string">"&lt;"</span>,
+            Token::Ge =&gt; <span class="string">"&gt;="</span>,
+            Token::At =&gt; <span class="string">"@"</span>,
+            Token::Pound =&gt; <span class="string">"#"</span>,
+            Token::Underscore =&gt; <span class="string">"_"</span>,
+            Token::Fn =&gt; <span class="string">"fn"</span>,
+            Token::Async =&gt; <span class="string">"async"</span>,
+            Token::Iff =&gt; <span class="string">"&lt;=&gt;"</span>,
+            Token::FatArrow =&gt; <span class="string">"=&gt;"</span>,
+            Token::Mut =&gt; <span class="string">"mut"</span>,
+            Token::Where =&gt; <span class="string">"where"</span>,
+            Token::Forall =&gt; <span class="string">"forall"</span>,
+            Token::Exists =&gt; <span class="string">"exists"</span>,
+            Token::In =&gt; <span class="string">"in"</span>,
+            Token::Impl =&gt; <span class="string">"impl"</span>,
+            Token::Requires =&gt; <span class="string">"requires"</span>,
+            Token::Ensures =&gt; <span class="string">"ensures"</span>,
+            Token::Literal(<span class="kw">_</span>) =&gt; <span class="string">"literal"</span>,
+            Token::Ident(<span class="kw">_</span>) =&gt; <span class="string">"identifier"</span>,
+            Token::OpenDelim(Delimiter::Parenthesis) =&gt; <span class="string">"("</span>,
+            Token::OpenDelim(Delimiter::Brace) =&gt; <span class="string">"{"</span>,
+            Token::OpenDelim(Delimiter::Bracket) =&gt; <span class="string">"["</span>,
+            Token::OpenDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="string">""</span>,
+            Token::CloseDelim(Delimiter::Parenthesis) =&gt; <span class="string">")"</span>,
+            Token::CloseDelim(Delimiter::Brace) =&gt; <span class="string">"}"</span>,
+            Token::CloseDelim(Delimiter::Bracket) =&gt; <span class="string">"]"</span>,
+            Token::CloseDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="string">""</span>,
+            Token::Invalid =&gt; <span class="string">"&lt;invalid&gt;"</span>,
+            Token::Ref =&gt; <span class="string">"ref"</span>,
+            Token::And =&gt; <span class="string">"&amp;"</span>,
+            Token::Percent =&gt; <span class="string">"%"</span>,
+            Token::Strg =&gt; <span class="string">"strg"</span>,
+            Token::Type =&gt; <span class="string">"type"</span>,
+            Token::If =&gt; <span class="string">"if"</span>,
+            Token::Else =&gt; <span class="string">"else"</span>,
+            Token::PathSep =&gt; <span class="string">"::"</span>,
+            Token::Qualifier =&gt; <span class="string">"qualifier"</span>,
+            Token::Sort =&gt; <span class="string">"sort"</span>,
+            Token::Opaque =&gt; <span class="string">"opaque"</span>,
+            Token::Local =&gt; <span class="string">"local"</span>,
+            Token::BitVec =&gt; <span class="string">"bitvec"</span>,
+            Token::As =&gt; <span class="string">"as"</span>,
+            Token::Hrn =&gt; <span class="string">"rn"</span>,
+            Token::Hdl =&gt; <span class="string">"hdl"</span>,
+            Token::DotDot =&gt; <span class="string">".."</span>,
+            Token::Eof =&gt; <span class="string">"&lt;eof&gt;"</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Token {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Token::Caret =&gt; <span class="macro">write!</span>(f, <span class="string">"|"</span>),
-            Token::EqEq =&gt; <span class="macro">write!</span>(f, <span class="string">"=="</span>),
-            Token::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">"="</span>),
-            Token::AndAnd =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;&amp;"</span>),
-            Token::OrOr =&gt; <span class="macro">write!</span>(f, <span class="string">"||"</span>),
-            Token::Plus =&gt; <span class="macro">write!</span>(f, <span class="string">"+"</span>),
-            Token::Minus =&gt; <span class="macro">write!</span>(f, <span class="string">"-"</span>),
-            Token::Slash =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
-            Token::Not =&gt; <span class="macro">write!</span>(f, <span class="string">"!"</span>),
-            Token::Star =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
-            Token::Colon =&gt; <span class="macro">write!</span>(f, <span class="string">":"</span>),
-            Token::Comma =&gt; <span class="macro">write!</span>(f, <span class="string">","</span>),
-            Token::Semi =&gt; <span class="macro">write!</span>(f, <span class="string">";"</span>),
-            Token::RArrow =&gt; <span class="macro">write!</span>(f, <span class="string">"-&gt;"</span>),
-            Token::Dot =&gt; <span class="macro">write!</span>(f, <span class="string">"."</span>),
-            Token::Le =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;="</span>),
-            Token::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
-            Token::GtFollowedByGt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
-            Token::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>),
-            Token::LtFollowedByLt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
-            Token::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;"</span>),
-            Token::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">"&gt;="</span>),
-            Token::At =&gt; <span class="macro">write!</span>(f, <span class="string">"@"</span>),
-            Token::Pound =&gt; <span class="macro">write!</span>(f, <span class="string">"#"</span>),
-            Token::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
-            Token::Fn =&gt; <span class="macro">write!</span>(f, <span class="string">"fn"</span>),
-            Token::Async =&gt; <span class="macro">write!</span>(f, <span class="string">"async"</span>),
-            Token::Iff =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;=&gt;"</span>),
-            Token::FatArrow =&gt; <span class="macro">write!</span>(f, <span class="string">"=&gt;"</span>),
-            Token::Mut =&gt; <span class="macro">write!</span>(f, <span class="string">"mut"</span>),
-            Token::Where =&gt; <span class="macro">write!</span>(f, <span class="string">"where"</span>),
-            Token::Forall =&gt; <span class="macro">write!</span>(f, <span class="string">"forall"</span>),
-            Token::Exists =&gt; <span class="macro">write!</span>(f, <span class="string">"exists"</span>),
-            Token::In =&gt; <span class="macro">write!</span>(f, <span class="string">"in"</span>),
-            Token::Impl =&gt; <span class="macro">write!</span>(f, <span class="string">"impl"</span>),
-            Token::Requires =&gt; <span class="macro">write!</span>(f, <span class="string">"requires"</span>),
-            Token::Ensures =&gt; <span class="macro">write!</span>(f, <span class="string">"ensures"</span>),
             Token::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit}"</span>),
             Token::Ident(sym) =&gt; <span class="macro">write!</span>(f, <span class="string">"{sym}"</span>),
-            Token::OpenDelim(Delimiter::Parenthesis) =&gt; <span class="macro">write!</span>(f, <span class="string">"("</span>),
-            Token::OpenDelim(Delimiter::Brace) =&gt; <span class="macro">write!</span>(f, <span class="string">"{{"</span>),
-            Token::OpenDelim(Delimiter::Bracket) =&gt; <span class="macro">write!</span>(f, <span class="string">"["</span>),
-            Token::OpenDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="macro">write!</span>(f, <span class="string">""</span>),
-            Token::CloseDelim(Delimiter::Parenthesis) =&gt; <span class="macro">write!</span>(f, <span class="string">")"</span>),
-            Token::CloseDelim(Delimiter::Brace) =&gt; <span class="macro">write!</span>(f, <span class="string">"}}"</span>),
-            Token::CloseDelim(Delimiter::Bracket) =&gt; <span class="macro">write!</span>(f, <span class="string">"]"</span>),
-            Token::CloseDelim(Delimiter::Invisible(<span class="kw">_</span>)) =&gt; <span class="macro">write!</span>(f, <span class="string">""</span>),
-            Token::Invalid =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;invalid&gt;"</span>),
-            Token::Ref =&gt; <span class="macro">write!</span>(f, <span class="string">"ref"</span>),
-            Token::And =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;"</span>),
-            Token::Percent =&gt; <span class="macro">write!</span>(f, <span class="string">"%"</span>),
-            Token::Strg =&gt; <span class="macro">write!</span>(f, <span class="string">"strg"</span>),
-            Token::Type =&gt; <span class="macro">write!</span>(f, <span class="string">"type"</span>),
-            Token::If =&gt; <span class="macro">write!</span>(f, <span class="string">"if"</span>),
-            Token::Else =&gt; <span class="macro">write!</span>(f, <span class="string">"else"</span>),
-            Token::PathSep =&gt; <span class="macro">write!</span>(f, <span class="string">"::"</span>),
-            Token::Qualifier =&gt; <span class="macro">write!</span>(f, <span class="string">"qualifier"</span>),
-            Token::Sort =&gt; <span class="macro">write!</span>(f, <span class="string">"sort"</span>),
-            Token::Opaque =&gt; <span class="macro">write!</span>(f, <span class="string">"opaque"</span>),
-            Token::Local =&gt; <span class="macro">write!</span>(f, <span class="string">"local"</span>),
-            Token::BitVec =&gt; <span class="macro">write!</span>(f, <span class="string">"bitvec"</span>),
-            Token::As =&gt; <span class="macro">write!</span>(f, <span class="string">"as"</span>),
-            Token::Hrn =&gt; <span class="macro">write!</span>(f, <span class="string">"rn"</span>),
-            Token::Hdl =&gt; <span class="macro">write!</span>(f, <span class="string">"hdl"</span>),
-            Token::DotDot =&gt; <span class="macro">write!</span>(f, <span class="string">".."</span>),
-            Token::Eof =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;eof&gt;"</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.descr()),
         }
     }
 }
