@@ -2777,7 +2777,10 @@
 <a href="#2776" id="2776">2776</a>
 <a href="#2777" id="2777">2777</a>
 <a href="#2778" id="2778">2778</a>
-<a href="#2779" id="2779">2779</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2779" id="2779">2779</a>
+<a href="#2780" id="2780">2780</a>
+<a href="#2781" id="2781">2781</a>
+<a href="#2782" id="2782">2782</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -4643,13 +4646,16 @@
 </span><span class="kw">impl </span>RefineArgs {
     <span class="kw">fn </span>identity_for_item(genv: GlobalEnv, def_id: DefId) -&gt; QueryResult&lt;RefineArgs&gt; {
         <span class="self">Self</span>::for_item(genv, def_id, |param, index| {
-            Expr::var(Var::EarlyParam(EarlyReftParam { index: index <span class="kw">as </span>u32, name: param.name() }))
+            <span class="prelude-val">Ok</span>(Expr::var(Var::EarlyParam(EarlyReftParam {
+                index: index <span class="kw">as </span>u32,
+                name: param.name(),
+            })))
         })
     }
 
     <span class="kw">fn </span>for_item&lt;F&gt;(genv: GlobalEnv, def_id: DefId, <span class="kw-2">mut </span>mk: F) -&gt; QueryResult&lt;RefineArgs&gt;
     <span class="kw">where
-        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; Expr,
+        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; QueryResult&lt;Expr&gt;,
     {
         <span class="kw">let </span>reft_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>count = reft_generics.count();
@@ -5092,14 +5098,14 @@
 
     <span class="kw">pub fn </span>fill_item&lt;F, R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, vec: <span class="kw-2">&amp;mut </span>Vec&lt;R&gt;, mk: <span class="kw-2">&amp;mut </span>F) -&gt; QueryResult
     <span class="kw">where
-        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; R,
+        </span>F: FnMut(EarlyBinder&lt;RefineParam&gt;, usize) -&gt; QueryResult&lt;R&gt;,
     {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.parent() {
             genv.refinement_generics_of(def_id)<span class="question-mark">?
                 </span>.fill_item(genv, vec, mk)<span class="question-mark">?</span>;
         }
         <span class="kw">for </span>param <span class="kw">in </span><span class="self">self</span>.iter_own_params() {
-            vec.push(mk(param, vec.len()));
+            vec.push(mk(param, vec.len())<span class="question-mark">?</span>);
         }
         <span class="prelude-val">Ok</span>(())
     }

@@ -686,7 +686,7 @@
         <span class="kw">let </span>refine_args = <span class="kw">if let </span>ty::AliasKind::Opaque = alias_kind {
             rty::RefineArgs::for_item(<span class="self">self</span>.genv, def_id, |param, <span class="kw">_</span>| {
                 <span class="kw">let </span>param = param.instantiate(<span class="self">self</span>.genv.tcx(), <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
-                rty::Expr::hole(rty::HoleKind::Expr(param.sort))
+                <span class="prelude-val">Ok</span>(rty::Expr::hole(rty::HoleKind::Expr(param.sort)))
             })<span class="question-mark">?
         </span>} <span class="kw">else </span>{
             List::empty()
