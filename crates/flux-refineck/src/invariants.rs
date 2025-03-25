@@ -5,7 +5,7 @@ use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
+use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{DUMMY_SP, Span};
@@ -52,10 +52,12 @@ fn check_invariant(
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
 
-    let mut infcx_root = genv
-        .infcx_root(resolved_id, &region_infercx, opts)
-        .build()
-        .emit(&genv)?;
+    let mut infcx_root = try_query(|| {
+        genv.infcx_root(&region_infercx, opts)
+            .identity_for_item(resolved_id)?
+            .build()
+    })
+    .emit(&genv)?;
 
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = infcx_root.infcx(resolved_id, &region_infercx);

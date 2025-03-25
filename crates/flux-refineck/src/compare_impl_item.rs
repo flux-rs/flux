@@ -41,8 +41,8 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
     let mut root_ctxt = genv
-        .infcx_root(trait_id, &rustc_infcx, genv.infer_opts(impl_id.local_id()))
-        .with_generic_args(&impl_trait_ref.args)
+        .infcx_root(&rustc_infcx, genv.infer_opts(impl_id.local_id()))
+        .with_const_generics(impl_id.resolved_id())?
         .build()?;
     let mut infcx = root_ctxt.infcx(trait_id, &rustc_infcx);
 
