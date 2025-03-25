@@ -93,14 +93,16 @@
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config::InferOpts;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-<span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
+<span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty};
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_middle::ty::TypingMode;
 <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
@@ -147,10 +149,12 @@
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
 
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx_root = genv
-        .infcx_root(resolved_id, <span class="kw-2">&amp;</span>region_infercx, opts)
-        .build()
-        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx_root = try_query(|| {
+        genv.infcx_root(<span class="kw-2">&amp;</span>region_infercx, opts)
+            .identity_for_item(resolved_id)<span class="question-mark">?
+            </span>.build()
+    })
+    .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">for </span>variant_idx <span class="kw">in </span>adt_def.variants().indices() {
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = infcx_root.infcx(resolved_id, <span class="kw-2">&amp;</span>region_infercx);

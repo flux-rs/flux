@@ -1935,9 +1935,7 @@
 <a href="#1934" id="1934">1934</a>
 <a href="#1935" id="1935">1935</a>
 <a href="#1936" id="1936">1936</a>
-<a href="#1937" id="1937">1937</a>
-<a href="#1938" id="1938">1938</a>
-<a href="#1939" id="1939">1939</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1937" id="1937">1937</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1950,7 +1948,7 @@
 };
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
-    queries::QueryResult,
+    queries::{QueryResult, try_query},
     query_bug,
     rty::{
         <span class="self">self</span>, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
@@ -2093,21 +2091,21 @@
             <span class="kw">let </span>body = genv.mir(local_id).with_span(span)<span class="question-mark">?</span>;
 
             <span class="comment">// In shape mode we don't care about kvars
-            </span><span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
-                .infcx_root(def_id, <span class="kw-2">&amp;</span>body.infcx, opts)
-                .with_dummy_kvars()
-                .build()
-                .with_span(span)<span class="question-mark">?</span>;
+            </span><span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = try_query(|| {
+                genv.infcx_root(<span class="kw-2">&amp;</span>body.infcx, opts)
+                    .with_dummy_kvars()
+                    .identity_for_item(def_id)<span class="question-mark">?
+                    </span>.build()
+            })
+            .with_span(span)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>inherited = Inherited::new(<span class="kw-2">&amp;mut </span>mode, ghost_stmts)<span class="question-mark">?</span>;
 
-            <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
+            <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
             <span class="kw">let </span>poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)<span class="question-mark">?
-                </span>.instantiate_identity()
-                .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
-                .with_span(span)<span class="question-mark">?</span>;
+                </span>.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(ShapeResult(mode.bb_envs))
@@ -2127,23 +2125,20 @@
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
 
         <span class="kw">let </span>body = genv.mir(local_id).with_span(span)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
-            .infcx_root(def_id, <span class="kw-2">&amp;</span>body.infcx, opts)
-            .build()
-            .with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = try_query(|| {
+            genv.infcx_root(<span class="kw-2">&amp;</span>body.infcx, opts)
+                .identity_for_item(def_id)<span class="question-mark">?
+                </span>.build()
+        })
+        .with_span(span)<span class="question-mark">?</span>;
         <span class="kw">let </span>bb_envs = bb_env_shapes.into_bb_envs(<span class="kw-2">&amp;mut </span>root_ctxt);
 
         <span class="macro">dbg::refine_mode_span!</span>(genv.tcx(), def_id, bb_envs).in_scope(|| {
             <span class="comment">// Check the body of the function def_id against its signature
             </span><span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs };
             <span class="kw">let </span>inherited = Inherited::new(<span class="kw-2">&amp;mut </span>mode, ghost_stmts)<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
-            <span class="kw">let </span>poly_sig = genv
-                .fn_sig(def_id)
-                .with_span(span)<span class="question-mark">?
-                </span>.instantiate_identity()
-                .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
-                .with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
+            <span class="kw">let </span>poly_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(root_ctxt)
@@ -2270,9 +2265,10 @@
         .build(TypingMode::non_body_analysis());
 
     <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
-        .infcx_root(trait_method_id, <span class="kw-2">&amp;</span>rustc_infcx, opts)
-        .with_generic_args(<span class="kw-2">&amp;</span>trait_method_args)
-        .build()<span class="question-mark">?</span>;
+        .infcx_root(<span class="kw-2">&amp;</span>rustc_infcx, opts)
+        .with_const_generics(impl_id)<span class="question-mark">?
+        </span>.with_refinement_generics(trait_method_id, <span class="kw-2">&amp;</span>trait_method_args)<span class="question-mark">?
+        </span>.build()<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(impl_method_id, <span class="kw-2">&amp;</span>rustc_infcx);
 

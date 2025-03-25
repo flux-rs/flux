@@ -938,7 +938,11 @@
 <a href="#937" id="937">937</a>
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -1877,5 +1881,9 @@
     <span class="kw">fn </span>from(err: ErrorGuaranteed) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Emitted(err)
     }
+}
+
+<span class="kw">pub fn </span>try_query&lt;T&gt;(f: <span class="kw">impl </span>FnOnce() -&gt; QueryResult&lt;T&gt;) -&gt; QueryResult&lt;T&gt; {
+    f()
 }
 </code></pre></div></section></main></body></html>

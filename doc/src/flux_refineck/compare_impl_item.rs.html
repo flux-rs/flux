@@ -210,9 +210,9 @@
         .infer_ctxt()
         .build(TypingMode::non_body_analysis());
     <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv
-        .infcx_root(trait_id, <span class="kw-2">&amp;</span>rustc_infcx, genv.infer_opts(impl_id.local_id()))
-        .with_generic_args(<span class="kw-2">&amp;</span>impl_trait_ref.args)
-        .build()<span class="question-mark">?</span>;
+        .infcx_root(<span class="kw-2">&amp;</span>rustc_infcx, genv.infer_opts(impl_id.local_id()))
+        .with_const_generics(impl_id.resolved_id())<span class="question-mark">?
+        </span>.build()<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(trait_id, <span class="kw-2">&amp;</span>rustc_infcx);
 
     <span class="kw">for </span>impl_assoc_id <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {

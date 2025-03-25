@@ -321,7 +321,7 @@
     }
 
     <span class="kw">fn </span>display(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; {
-        <span class="self">self</span>.into_iter().map(Peek::display).flatten()
+        <span class="self">self</span>.into_iter().flat_map(Peek::display)
     }
 }
 
