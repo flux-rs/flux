@@ -133,7 +133,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
 
             let var =
                 Var::EarlyParam(rty::EarlyReftParam { index: index as u32, name: param.name });
-            self.params.push((var, sort))
+            self.params.push((var, sort));
         }
         Ok(self)
     }
