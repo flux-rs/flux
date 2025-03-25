@@ -10,10 +10,9 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, GenericArgs,
-        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind,
-        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var, canonicalize::Hoister,
-        fold::TypeFoldable,
+        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
+        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
+        Region, Sort, Ty, TyKind, Var, canonicalize::Hoister, fold::TypeFoldable,
     },
 };
 use itertools::{Itertools, izip};
@@ -85,9 +84,8 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
 pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opts: InferOpts,
-    root_id: DefId,
+    params: Vec<(Var, Sort)>,
     infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-    generic_args: Option<GenericArgs>,
     dummy_kvars: bool,
 }
 
@@ -95,18 +93,10 @@ pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn infcx_root<'a>(
         self,
-        root_id: DefId,
         infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         opts: InferOpts,
     ) -> InferCtxtRootBuilder<'a, 'genv, 'tcx> {
-        InferCtxtRootBuilder {
-            genv: self,
-            infcx,
-            root_id,
-            opts,
-            generic_args: None,
-            dummy_kvars: false,
-        }
+        InferCtxtRootBuilder { genv: self, infcx, params: vec![], opts, dummy_kvars: false }
     }
 }
 
@@ -116,44 +106,61 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
         self
     }
 
-    /// When provided use `generic_args` to instantiate sorts
-    pub fn with_generic_args(mut self, generic_args: &GenericArgs) -> Self {
-        self.generic_args = Some(generic_args.clone());
-        self
+    pub fn with_const_generics(mut self, def_id: DefId) -> QueryResult<Self> {
+        self.params.extend(
+            self.genv
+                .generics_of(def_id)?
+                .const_params(self.genv)?
+                .into_iter()
+                .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort)),
+        );
+        Ok(self)
     }
 
-    pub fn build(self) -> QueryResult<InferCtxtRoot<'genv, 'tcx>> {
-        let genv = self.genv;
-        let mut params = genv
-            .generics_of(self.root_id)?
-            .const_params(genv)?
-            .into_iter()
-            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
-            .collect_vec();
-        let offset = params.len();
-        self.genv.refinement_generics_of(self.root_id)?.fill_item(
+    pub fn with_refinement_generics(
+        mut self,
+        def_id: DefId,
+        args: &[GenericArg],
+    ) -> QueryResult<Self> {
+        for (index, param) in self
+            .genv
+            .refinement_generics_of(def_id)?
+            .iter_own_params()
+            .enumerate()
+        {
+            let param = param.instantiate(self.genv.tcx(), args, &[]);
+            let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
+
+            let var =
+                Var::EarlyParam(rty::EarlyReftParam { index: index as u32, name: param.name });
+            self.params.push((var, sort));
+        }
+        Ok(self)
+    }
+
+    pub fn identity_for_item(mut self, def_id: DefId) -> QueryResult<Self> {
+        self = self.with_const_generics(def_id)?;
+        let offset = self.params.len();
+        self.genv.refinement_generics_of(def_id)?.fill_item(
             self.genv,
-            &mut params,
+            &mut self.params,
             &mut |param, index| {
                 let index = (index - offset) as u32;
-                let param = if let Some(args) = &self.generic_args {
-                    param.instantiate(genv.tcx(), args, &[])
-                } else {
-                    param.instantiate_identity()
-                };
-                let sort = param
-                    .sort
-                    .normalize_sorts(self.root_id, self.genv, self.infcx)?;
+                let param = param.instantiate_identity();
+                let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
 
                 let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
                 Ok((var, sort))
             },
         )?;
+        Ok(self)
+    }
 
+    pub fn build(self) -> QueryResult<InferCtxtRoot<'genv, 'tcx>> {
         Ok(InferCtxtRoot {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
-            refine_tree: RefineTree::new(params),
+            refine_tree: RefineTree::new(self.params),
             opts: self.opts,
         })
     }

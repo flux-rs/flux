@@ -11,7 +11,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::QueryResult,
+    queries::{QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
@@ -154,21 +154,21 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let body = genv.mir(local_id).with_span(span)?;
 
             // In shape mode we don't care about kvars
-            let mut root_ctxt = genv
-                .infcx_root(def_id, &body.infcx, opts)
-                .with_dummy_kvars()
-                .build()
-                .with_span(span)?;
+            let mut root_ctxt = try_query(|| {
+                genv.infcx_root(&body.infcx, opts)
+                    .with_dummy_kvars()
+                    .identity_for_item(def_id)?
+                    .build()
+            })
+            .with_span(span)?;
 
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
-            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)?
-                .instantiate_identity()
-                .normalize_projections(&mut infcx)
-                .with_span(span)?;
+                .instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
@@ -188,23 +188,20 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(local_id).with_span(span)?;
-        let mut root_ctxt = genv
-            .infcx_root(def_id, &body.infcx, opts)
-            .build()
-            .with_span(span)?;
+        let mut root_ctxt = try_query(|| {
+            genv.infcx_root(&body.infcx, opts)
+                .identity_for_item(def_id)?
+                .build()
+        })
+        .with_span(span)?;
         let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
-            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(def_id)
-                .with_span(span)?
-                .instantiate_identity()
-                .normalize_projections(&mut infcx)
-                .with_span(span)?;
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let poly_sig = genv.fn_sig(def_id).with_span(span)?.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt)
@@ -331,8 +328,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         .build(TypingMode::non_body_analysis());
 
     let mut root_ctxt = genv
-        .infcx_root(trait_method_id, &rustc_infcx, opts)
-        .with_generic_args(&trait_method_args)
+        .infcx_root(&rustc_infcx, opts)
+        .with_const_generics(impl_id)?
+        .with_refinement_generics(trait_method_id, &trait_method_args)?
         .build()?;
 
     let mut infcx = root_ctxt.infcx(impl_method_id, &rustc_infcx);

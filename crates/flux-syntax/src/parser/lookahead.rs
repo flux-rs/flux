@@ -92,7 +92,7 @@ impl<T: Peek, const N: usize> Peek for [T; N] {
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
-        self.into_iter().map(Peek::display).flatten()
+        self.into_iter().flat_map(Peek::display)
     }
 }
 
