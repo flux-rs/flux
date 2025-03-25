@@ -162,13 +162,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
 
-            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)?
-                .instantiate_identity()
-                .normalize_projections(&mut infcx)
-                .with_span(span)?;
+                .instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
@@ -198,13 +196,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts)?;
-            let mut infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(def_id)
-                .with_span(span)?
-                .instantiate_identity()
-                .normalize_projections(&mut infcx)
-                .with_span(span)?;
+            let infcx = root_ctxt.infcx(def_id, &body.infcx);
+            let poly_sig = genv.fn_sig(def_id).with_span(span)?.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt)
