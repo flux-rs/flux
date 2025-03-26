@@ -227,7 +227,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_loc(&mut self, loc: &fhir::PathExpr) -> Result {
-        let found = self.synth_var(loc)?;
+        let found = self.synth_path(loc)?;
         if found == rty::Sort::Loc {
             Ok(())
         } else {
@@ -252,19 +252,24 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
-            fhir::ExprKind::Var(var, _) => self.synth_var(var),
+            fhir::ExprKind::Var(var, _) => self.synth_path(var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
-            fhir::ExprKind::App(f, es) => {
-                let fsort = self.synth_func(f)?;
-                self.synth_app(fsort, es, expr.span)
+            fhir::ExprKind::App(callee, args) => {
+                let sort = self.ensure_resolved_path(callee)?;
+                let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
+                    return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
+                };
+                let fsort = self.instantiate_func_sort(poly_fsort);
+                self.synth_app(fsort, args, expr.span)
             }
 
-            fhir::ExprKind::Alias(_alias_reft, func_args) => {
+            fhir::ExprKind::Alias(_alias_reft, args) => {
                 // To check the application we only need the sort of `_alias_reft` which we collected
                 // during early conv, but should we do any extra checks on `_alias_reft`?
-                self.synth_alias_reft_app(expr.fhir_id, expr.span, func_args)
+                let fsort = self.sort_of_alias_reft(expr.fhir_id);
+                self.synth_app(fsort, args, expr.span)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
@@ -273,7 +278,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = self.ensure_resolved_var(var)?;
+                let sort = self.ensure_resolved_path(var)?;
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         let (proj, sort) = sort_def
@@ -323,7 +328,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
+    fn synth_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
         match path.res {
             ExprRes::Param(_, id) => Ok(self.param_sort(id)),
             ExprRes::Const(def_id) => {
@@ -335,19 +340,22 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     }
                     Ok(sort)
                 } else {
-                    span_bug!(path.span, "unexpected const in var position")
+                    span_bug!(path.span, "unexpected const")
                 }
             }
             ExprRes::Variant(def_id) => {
                 let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? else {
-                    span_bug!(path.span, "unexpected variant {def_id:?} in var position")
+                    span_bug!(path.span, "unexpected variant {def_id:?}")
                 };
                 Ok(sort)
             }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
-            ExprRes::GlobalFunc(_) => {
-                span_bug!(path.span, "unexpected func in var position")
+            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
+                Ok(rty::Sort::Func(self.genv.func_sort(name).emit(&self.genv)?))
+            }
+            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
+                Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))
             }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
@@ -448,47 +456,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .try_for_each_exhaust(|(arg, formal)| self.check_expr(arg, formal))?;
 
         Ok(fsort.output().clone())
-    }
-
-    fn synth_alias_reft_app(
-        &mut self,
-        fhir_id: FhirId,
-        span: Span,
-        args: &[fhir::Expr],
-    ) -> Result<rty::Sort> {
-        let fsort = self.sort_of_alias_reft(fhir_id);
-        if args.len() != fsort.inputs().len() {
-            return Err(self.emit_err(errors::ArgCountMismatch::new(
-                Some(span),
-                String::from("function"),
-                fsort.inputs().len(),
-                args.len(),
-            )));
-        }
-        iter::zip(args, fsort.inputs())
-            .try_for_each_exhaust(|(arg, formal)| self.check_expr(arg, formal))?;
-
-        Ok(fsort.output().clone())
-    }
-
-    fn synth_func(&mut self, func: &fhir::PathExpr) -> Result<rty::FuncSort> {
-        let poly_fsort = match func.res {
-            ExprRes::Param(..) => {
-                let sort = self.ensure_resolved_var(func)?;
-                let Some(fsort) = self.is_coercible_to_func(&sort, func.fhir_id) else {
-                    return Err(self.emit_err(errors::ExpectedFun::new(func.span, &sort)));
-                };
-                fsort
-            }
-            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
-                self.genv.func_sort(name).emit(&self.genv)?
-            }
-            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
-                THEORY_FUNCS.get(&itf).unwrap().sort.clone()
-            }
-            _ => span_bug!(func.span, "unexpected path in function position"),
-        };
-        Ok(self.instantiate_func_sort(poly_fsort))
     }
 
     fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
@@ -745,9 +712,8 @@ impl InferCtxt<'_, '_> {
         }
     }
 
-    fn ensure_resolved_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
-        let ExprRes::Param(_, id) = path.res else { span_bug!(path.span, "unexpected path") };
-        let sort = self.param_sort(id);
+    fn ensure_resolved_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
+        let sort = self.synth_path(path)?;
         self.fully_resolve(&sort)
             .map_err(|_| self.emit_err(errors::CannotInferSort::new(path.span)))
     }
