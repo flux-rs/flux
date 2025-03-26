@@ -791,7 +791,7 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 /// ```text
 /// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
 ///                 |  ⟨atom⟩ ( ⟨expr⟩,* )
-///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
+///                 |  ⟨atom⟩
 /// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let atom = parse_atom(cx, allow_struct)?;
@@ -805,6 +805,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
             return Err(cx.unsupported_proj(atom.span));
         }
     } else if cx.peek(OpenDelim(Parenthesis)) {
+        // ⟨atom⟩ ( ⟨expr⟩,* )
         let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
         ExprKind::Call(Box::new(atom), args)
     } else {
@@ -821,6 +822,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | ( ⟨expr⟩ )
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
+///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 /// ```
@@ -857,7 +859,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
             span: cx.mk_span(lo, hi),
         })
     } else if lookahead.advance_if(LAngle) {
-        // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
+        // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
         let lo = cx.lo();
         let qself = parse_type(cx)?;
         cx.expect(Tok::As)?;
