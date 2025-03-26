@@ -267,7 +267,7 @@ pub enum FluxItem<'fhir> {
     Func(&'fhir SpecFunc<'fhir>),
 }
 
-impl<'fhir> FluxItem<'fhir> {
+impl FluxItem<'_> {
     pub fn def_id(self) -> FluxLocalDefId {
         match self {
             FluxItem::Qualifier(qualifier) => qualifier.def_id,
