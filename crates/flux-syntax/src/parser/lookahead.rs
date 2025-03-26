@@ -11,6 +11,8 @@ pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
     fn matches(self, tok: Token) -> bool;
 
+    /// A string representation of the list of tokens matched by this rule. This
+    /// is used to construct an error when using [`Lookahead1`].
     fn display(self) -> impl Iterator<Item = &'static str>;
 }
 
@@ -50,6 +52,10 @@ impl Peek for AnyLit {
     }
 }
 
+/// This is the same as [`RAngle`] but for opening angle brackets.
+///
+/// It is less common to have two opening angle brackets, but it appears in stuf like
+/// `<<Self as Trait1>::Assoc1 as Trait2>::Assoc2`
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
 impl Peek for LAngle {
@@ -62,6 +68,12 @@ impl Peek for LAngle {
     }
 }
 
+/// There are some lexing ambiguities with `>>` which can represet both a right shift or two
+/// closing angle brackets in nested generics (e.g., `Vec<Option<i32>>`). We solve the ambiguity
+/// by giving `>` a special token if it's immediately followed by another `>`,  i.e., `>>` is
+/// tokenized as [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+///
+/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
 #[derive(Clone, Copy)]
 pub(crate) struct RAngle;
 impl Peek for RAngle {
@@ -98,11 +110,13 @@ impl<T: Peek, const N: usize> Peek for [T; N] {
 
 /// Support for checking the next token in a stream to decide how to parse.
 ///
-/// An important advantage over [`ParseCtxt::peek`] is that here we automatically construct
-/// an appropriate error message based on the token alternatives that get peeked.
+/// An important advantage of using this struct over [`ParseCtxt::peek`] is that here we
+/// automatically construct an appropriate error message based on the token alternatives
+/// that get peeked.
 ///
 /// Use [`ParseCtxt::lookahead1`] to construct this object.
 pub(crate) struct Lookahead1<'a, 'cx> {
+    /// List of "expected" tokens that have been peeked by this struct
     expected: Vec<&'static str>,
     cx: &'a mut ParseCtxt<'cx>,
 }
@@ -196,8 +210,8 @@ impl<'cx> ParseCtxt<'cx> {
         self.tokens.advance_by(n);
     }
 
-    /// Looks at the next token and advances the cursor if it matches the requested type of
-    /// token. Returns `true` if there was a match.
+    /// Looks at the next token and advances the cursor if it matches the requested
+    /// rule. Returns `true` if there was a match.
     pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
         if self.peek(t) {
             self.advance();
@@ -223,6 +237,7 @@ impl<'cx> ParseCtxt<'cx> {
         if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(t.display().collect())) }
     }
 
+    /// See documentation for [`Lookahead1`]
     pub(crate) fn lookahead1(&mut self) -> Lookahead1<'_, 'cx> {
         Lookahead1::new(self)
     }

@@ -5,8 +5,8 @@ use std::str::FromStr;
 
 use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 use utils::{
-    angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_with_trailing,
-    sep1, until,
+    angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
+    punctuated_with_trailing, sep1, until,
 };
 
 use crate::{
@@ -64,13 +64,13 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 /// ⟨ident⟩,*
 /// ```
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
-    let names = punctuated(cx, Comma, Tok::Eof, parse_ident)?;
+    let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
 }
 
 pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     let lo = cx.lo();
-    let params = punctuated(cx, Comma, Tok::Eof, parse_generic_param)?;
+    let params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)?;
     let hi = cx.hi();
     Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
 }
@@ -175,7 +175,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
 /// ```
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
-    punctuated(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
+    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
 }
 
 /// ```text
@@ -328,7 +328,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     if !cx.advance_if(Tok::Requires) {
         return Ok(vec![]);
     }
-    punctuated(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
+    punctuated_until(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
 }
 
 /// ```text
@@ -351,7 +351,7 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     if !cx.advance_if(Tok::Ensures) {
         return Ok(vec![]);
     }
-    punctuated(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
+    punctuated_until(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
 }
 
 /// ```text
@@ -375,7 +375,7 @@ fn parse_opt_where(cx: &mut ParseCtxt) -> ParseResult<Option<Vec<WhereBoundPredi
     if !cx.advance_if(Tok::Where) {
         return Ok(None);
     }
-    Ok(Some(punctuated(cx, Comma, Tok::Eof, parse_where_bound)?))
+    Ok(Some(punctuated_until(cx, Comma, Tok::Eof, parse_where_bound)?))
 }
 
 fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
@@ -695,7 +695,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } else if cx.advance_if(Caret) {
-        let params = punctuated(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
+        let params = punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
         cx.expect(Caret)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
@@ -944,22 +944,6 @@ fn parse_constructor_arg(cx: &mut ParseCtxt) -> ParseResult<ConstructorArg> {
     }
 }
 
-/// ```text
-/// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
-/// ```
-fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    if let (lo, Tok::Literal(lit), hi) = cx.at(0) {
-        cx.advance();
-        Ok(Expr {
-            kind: ExprKind::Literal(lit),
-            node_id: cx.next_node_id(),
-            span: cx.mk_span(lo, hi),
-        })
-    } else {
-        Err(cx.unexpected_token(AnyLit.display().collect()))
-    }
-}
-
 /// `⟨epath⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*`
 fn parse_expr_path(cx: &mut ParseCtxt) -> ParseResult<ExprPath> {
     let lo = cx.lo();
@@ -1006,6 +990,22 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 /// ⟨block_expr⟩ := { ⟨expr⟩ }
 fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     delimited(cx, Brace, |cx| parse_expr(cx, true))
+}
+
+/// ```text
+/// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
+/// ```
+fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    if let (lo, Tok::Literal(lit), hi) = cx.at(0) {
+        cx.advance();
+        Ok(Expr {
+            kind: ExprKind::Literal(lit),
+            node_id: cx.next_node_id(),
+            span: cx.mk_span(lo, hi),
+        })
+    } else {
+        Err(cx.unexpected_token(AnyLit.display().collect()))
+    }
 }
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
