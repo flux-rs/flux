@@ -10,7 +10,7 @@ our [Zulip chat](https://flux-rs.zulipchat.com/)!
 
 # Online Demo
 
-You can try Flux [online at this site](http://goto.ucsd.edu:8091/).
+You can try Flux [online at this site](https://flux.goto.ucsd.edu/).
 
 # Overview
 
