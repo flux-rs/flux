@@ -70,7 +70,6 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
-    fn on_func(&mut self, _func: Ident, _node_id: NodeId) {}
     fn on_path(&mut self, _path: &surface::ExprPath) {}
     fn on_base_sort(&mut self, _sort: &surface::BaseSort) {}
 }
@@ -285,13 +284,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 surface::visit::walk_bty(self, bty);
             }
         }
-    }
-
-    fn visit_expr(&mut self, expr: &surface::Expr) {
-        if let surface::ExprKind::App(func, _) = &expr.kind {
-            self.on_func(*func, expr.node_id);
-        }
-        surface::visit::walk_expr(self, expr);
     }
 
     fn visit_path_expr(&mut self, path: &surface::ExprPath) {
@@ -789,10 +781,6 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         self.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, None);
     }
 
-    fn on_func(&mut self, func: Ident, node_id: NodeId) {
-        self.resolve_ident(func, node_id);
-    }
-
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
         self.resolve_ident(loc, node_id);
     }
@@ -807,6 +795,7 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
                 self.resolve_sort_path(path);
             }
             surface::BaseSort::BitVec(_) => {}
+            surface::BaseSort::SortOf(..) => {}
         }
     }
 }

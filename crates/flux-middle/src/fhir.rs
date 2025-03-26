@@ -261,10 +261,19 @@ pub enum ImplItemKind<'fhir> {
     Type,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum FluxItem<'fhir> {
-    Qualifier(Qualifier<'fhir>),
-    Func(SpecFunc<'fhir>),
+    Qualifier(&'fhir Qualifier<'fhir>),
+    Func(&'fhir SpecFunc<'fhir>),
+}
+
+impl FluxItem<'_> {
+    pub fn def_id(self) -> FluxLocalDefId {
+        match self {
+            FluxItem::Qualifier(qualifier) => qualifier.def_id,
+            FluxItem::Func(func) => func.def_id,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -878,6 +887,9 @@ pub enum Sort<'fhir> {
     BitVec(u32),
     /// A polymorphic sort function.
     Func(PolyFuncSort<'fhir>),
+    /// The sort associated with a base type. This is normalized into a concrete sort during
+    /// conversion
+    SortOf(BaseTy<'fhir>),
     /// A sort that needs to be inferred.
     Infer,
     Err(ErrorGuaranteed),
@@ -1503,6 +1515,7 @@ impl fmt::Debug for Sort<'_> {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
+            Sort::SortOf(bty) => write!(f, "<{bty:?}>::sort"),
             Sort::Infer => write!(f, "_"),
             Sort::Err(_) => write!(f, "err"),
         }

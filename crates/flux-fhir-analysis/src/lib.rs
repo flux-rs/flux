@@ -91,7 +91,8 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
     for func in genv.map().spec_funcs() {
-        let Some(wfckresults) = wf::check_fn_spec(genv, func).collect_err(&mut errors) else {
+        let item = fhir::FluxItem::Func(func);
+        let Some(wfckresults) = wf::check_flux_item(genv, item).collect_err(&mut errors) else {
             continue;
         };
         let Ok(defn) = conv::conv_defn(genv, func, &wfckresults).emit(&errors) else {
@@ -117,7 +118,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
         .map(|qualifier| {
-            let wfckresults = wf::check_qualifier(genv, qualifier)?;
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Qualifier(qualifier))?;
             Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
         })
         .try_collect()
@@ -159,7 +160,10 @@ fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::
     }
 }
 
-fn invariants_of(genv: GlobalEnv, item: &fhir::Item) -> QueryResult<Vec<rty::Invariant>> {
+fn invariants_of<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    item: &fhir::Item<'genv>,
+) -> QueryResult<Vec<rty::Invariant>> {
     let (params, invariants) = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => (enum_def.params, enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (struct_def.params, struct_def.invariants),

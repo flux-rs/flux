@@ -187,6 +187,7 @@ pub enum Sort {
 pub enum BaseSort {
     /// a bitvector sort, e.g., bitvec<32>
     BitVec(u32),
+    SortOf(Box<Ty>, Path),
     Path(SortPath),
 }
 
@@ -317,14 +318,6 @@ pub struct Ty {
     pub kind: TyKind,
     pub node_id: NodeId,
     pub span: Span,
-}
-
-/// `<qself as path>::name`
-#[derive(Debug)]
-pub struct AliasReft {
-    pub qself: Box<Ty>,
-    pub path: Path,
-    pub name: Ident,
 }
 
 #[derive(Debug)]
@@ -508,8 +501,9 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
-    App(Ident, Vec<Expr>),
-    Alias(AliasReft, Vec<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    /// `<qself as path>::name`
+    AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),

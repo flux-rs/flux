@@ -124,6 +124,10 @@ impl<T: Types> Constraint<T> {
             .fold(c, |c, bind| Constraint::ForAll(bind, Box::new(c)))
     }
 
+    pub fn conj(mut cstrs: Vec<Self>) -> Self {
+        if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
+    }
+
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
     /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
@@ -213,6 +217,10 @@ pub enum Pred<T: Types> {
 impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
+    pub fn and(mut preds: Vec<Self>) -> Self {
+        if preds.len() == 1 { preds.remove(0) } else { Self::And(preds) }
+    }
+
     pub fn is_trivially_true(&self) -> bool {
         match self {
             Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
@@ -273,6 +281,10 @@ impl<T: Types> Expr<T> {
 
     pub fn eq(self, other: Self) -> Self {
         Expr::Atom(BinRel::Eq, Box::new([self, other]))
+    }
+
+    pub fn and(mut exprs: Vec<Self>) -> Self {
+        if exprs.len() == 1 { exprs.remove(0) } else { Self::And(exprs) }
     }
 }
 

@@ -8,7 +8,7 @@ driver_invalid_attr_map =
     invalid attribute: {$message}
 
 driver_syntax_err =
-    syntax error: {$msg}
+    syntax error
 
 driver_invalid_alias_application =
     invalid alias application
@@ -26,12 +26,10 @@ driver_missing_variant =
     .label = this variant doesn't have a refinement annotation
     .note = all variants in a refined enum must be annotated
 
-
 driver_mismatched_spec_name =
     name in {$def_descr} spec doesn't match item's name
     .label = must be `{$item_ident}`
     .item_def_ident = {$def_descr} defined here
-
 
 # Extern specs
 

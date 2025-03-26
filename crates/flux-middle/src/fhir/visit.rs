@@ -1,10 +1,11 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
-    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, ForeignItem, ForeignItemKind,
-    FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind,
-    Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort,
-    PolyTraitRef, QPath, RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft,
-    TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, ForeignItem,
+    ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
+    ImplItemKind, Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment,
+    PolyFuncSort, PolyTraitRef, QPath, Qualifier, RefineParam, Requires, Sort, SortPath, SpecFunc,
+    StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -21,6 +22,18 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor<'v>: Sized {
+    fn visit_flux_item(&mut self, item: &FluxItem<'v>) {
+        walk_flux_item(self, item);
+    }
+
+    fn visit_qualifier(&mut self, qualifier: &Qualifier<'v>) {
+        walk_qualifier(self, qualifier);
+    }
+
+    fn visit_func(&mut self, func: &SpecFunc<'v>) {
+        walk_func(self, func);
+    }
+
     fn visit_node(&mut self, node: &OwnerNode<'v>) {
         walk_node(self, node);
     }
@@ -182,6 +195,30 @@ pub trait Visitor<'v>: Sized {
     fn visit_literal(&mut self, _lit: &Lit) {}
 
     fn visit_path_expr(&mut self, _path: &PathExpr<'v>) {}
+}
+
+fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
+    walk_list!(vis, visit_refine_param, func.args);
+    vis.visit_sort(&func.sort);
+    if let Some(body) = &func.body {
+        vis.visit_expr(body);
+    }
+}
+
+fn walk_qualifier<'v, V: Visitor<'v>>(vis: &mut V, qualifier: &Qualifier<'v>) {
+    walk_list!(vis, visit_refine_param, qualifier.args);
+    vis.visit_expr(&qualifier.expr);
+}
+
+fn walk_flux_item<'v, V: Visitor<'v>>(vis: &mut V, item: &FluxItem<'v>) {
+    match item {
+        FluxItem::Qualifier(qualifier) => {
+            vis.visit_qualifier(qualifier);
+        }
+        FluxItem::Func(func) => {
+            vis.visit_func(func);
+        }
+    }
 }
 
 pub fn walk_impl<'v, V: Visitor<'v>>(vis: &mut V, impl_: &Impl<'v>) {
@@ -459,6 +496,7 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
     match sort {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
+        Sort::SortOf(bty) => vis.visit_bty(bty),
         Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }

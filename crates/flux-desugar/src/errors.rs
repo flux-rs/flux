@@ -32,22 +32,6 @@ pub(super) struct InvalidDotVar {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_func_as_var, code = E0999)]
-pub(super) struct InvalidFuncAsVar {
-    #[primary_span]
-    #[label]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_invalid_func, code = E0999)]
-pub(super) struct InvalidFunc {
-    #[primary_span]
-    #[label]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_loc, code = E0999)]
 pub(super) struct InvalidLoc {
     #[primary_span]
@@ -121,5 +105,18 @@ pub(super) struct MultipleSpreadsInConstructor {
 impl MultipleSpreadsInConstructor {
     pub(super) fn new(span: Span, prev_span: Span) -> Self {
         Self { span, prev_span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_position, code = E0999)]
+pub(super) struct UnsupportedPosition {
+    #[primary_span]
+    span: Span,
+}
+
+impl UnsupportedPosition {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
     }
 }

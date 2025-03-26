@@ -847,9 +847,11 @@ fn attr_args_span(attr_args: &hir::AttrArgs) -> Option<Span> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
+    use itertools::Itertools;
+    use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
-    use rustc_span::{Span, symbol::Ident};
+    use rustc_span::{ErrorGuaranteed, Span, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]
@@ -874,12 +876,48 @@ mod errors {
         pub message: String,
     }
 
-    #[derive(Diagnostic)]
-    #[diag(driver_syntax_err, code = E0999)]
-    pub(super) struct SyntaxErr {
-        #[primary_span]
-        pub span: Span,
-        pub msg: &'static str,
+    pub(super) struct SyntaxErr(flux_syntax::ParseError);
+
+    impl From<flux_syntax::ParseError> for SyntaxErr {
+        fn from(err: flux_syntax::ParseError) -> Self {
+            SyntaxErr(err)
+        }
+    }
+
+    impl<'sess> Diagnostic<'sess> for SyntaxErr {
+        fn into_diag(
+            self,
+            dcx: DiagCtxtHandle<'sess>,
+            level: Level,
+        ) -> Diag<'sess, ErrorGuaranteed> {
+            use flux_syntax::ParseErrorKind;
+            let mut diag = Diag::new(dcx, level, crate::fluent_generated::driver_syntax_err);
+            diag.code(E0999)
+                .span(self.0.span)
+                .span_label(self.0.span, match &self.0.kind {
+                    ParseErrorKind::UnexpectedEof => "unexpected end of input".to_string(),
+                    ParseErrorKind::UnexpectedToken { expected } => {
+                        match &expected[..] {
+                            [] => "unexpected token".to_string(),
+                            [a] => format!("unexpected token, expected `{a}`"),
+                            [a, b] => format!("unexpected token, expected `{a}` or `{b}`"),
+                            [prefix @ .., last] => {
+                                format!(
+                                    "unexpected token, expected one of {}, or `{last}`",
+                                    prefix
+                                        .iter()
+                                        .format_with(", ", |it, f| f(&format_args!("`{it}`")))
+                                )
+                            }
+                        }
+                    }
+                    ParseErrorKind::UnsupportedProj => {
+                        "expression not allowed in field projection".to_string()
+                    }
+                    ParseErrorKind::CannotBeChained => "operator cannot be chained".to_string(),
+                });
+            diag
+        }
     }
 
     #[derive(Diagnostic)]
@@ -923,21 +961,6 @@ mod errors {
     impl MissingVariant {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
-        }
-    }
-
-    impl From<flux_syntax::ParseError> for SyntaxErr {
-        fn from(err: flux_syntax::ParseError) -> Self {
-            use flux_syntax::ParseErrorKind;
-            let msg = match err.kind {
-                ParseErrorKind::UnexpectedEof => "type annotation ended unexpectedly",
-                ParseErrorKind::UnexpectedToken => "unexpected token",
-                ParseErrorKind::UnsupportedCallee => "expression not allowed in callee position",
-                ParseErrorKind::UnsupportedProj => "expression not allowed in field projection",
-                ParseErrorKind::CannotBeChained => "operator cannot be chained",
-            };
-
-            SyntaxErr { span: err.span, msg }
         }
     }
 

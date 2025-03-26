@@ -120,6 +120,10 @@ impl Pretty for Sort {
             Sort::Err => w!(cx, f, "err"),
         }
     }
+
+    fn default_cx(tcx: TyCtxt) -> PrettyCx {
+        PrettyCx::default(tcx).hide_refinements(true)
+    }
 }
 
 impl Pretty for SortArg {
@@ -529,7 +533,9 @@ impl Pretty for GenericArg {
             GenericArg::Ty(ty) => w!(cx, f, "{:?}", ty),
             GenericArg::Base(ctor) => {
                 cx.with_bound_vars(ctor.vars(), || {
-                    cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
+                    if !cx.hide_refinements {
+                        cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
+                    }
                     w!(cx, f, "{:?}", ctor.skip_binder_ref())
                 })
             }

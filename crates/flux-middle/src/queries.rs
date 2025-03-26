@@ -938,3 +938,7 @@ impl From<ErrorGuaranteed> for QueryErr {
         Self::Emitted(err)
     }
 }
+
+pub fn try_query<T>(f: impl FnOnce() -> QueryResult<T>) -> QueryResult<T> {
+    f()
+}

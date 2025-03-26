@@ -337,6 +337,10 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     pub fn hide_sorts(self, b: bool) -> Self {
         Self { hide_sorts: b, ..self }
     }
+
+    pub fn hide_refinements(self, b: bool) -> Self {
+        Self { hide_refinements: b, ..self }
+    }
 }
 
 newtype_index! {

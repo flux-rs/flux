@@ -577,16 +577,16 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn desugar_fn_sig_refine_params(
-        &self,
+        &mut self,
         fn_sig: &surface::FnSig,
     ) -> &'genv [fhir::RefineParam<'genv>] {
-        let explicit = self.desugar_refine_params_iter(&fn_sig.params);
-        let implicit = self.implicit_params_to_params(fn_sig.node_id);
+        let genv = self.genv;
+        let mut params = self
+            .desugar_refine_params_iter(&fn_sig.params)
+            .collect_vec();
+        params.extend(self.implicit_params_to_params(fn_sig.node_id));
 
-        self.genv.alloc_slice_with_capacity(
-            explicit.len() + implicit.len(),
-            explicit.into_iter().chain(implicit),
-        )
+        genv.alloc_slice(&params)
     }
 
     fn desugar_fn_output(
@@ -904,27 +904,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_var(&self, path: &surface::ExprPath) -> fhir::ExprKind<'genv> {
+    fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::PathExpr<'genv> {
         let res = *self
             .resolver_output()
             .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
 
-        if let ExprRes::GlobalFunc(..) = res {
-            let span = path.span;
-            return fhir::ExprKind::Err(self.emit(errors::InvalidFuncAsVar { span }));
-        }
-
-        let path = fhir::PathExpr {
+        fhir::PathExpr {
             segments: self
                 .genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
             res,
             fhir_id: self.next_fhir_id(),
             span: path.span,
-        };
-        fhir::ExprKind::Var(path, None)
+        }
     }
 
     #[track_caller]
@@ -935,18 +929,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         } else {
             let span = ident.span;
             Err(self.emit(errors::InvalidLoc { span }))
-        }
-    }
-
-    #[track_caller]
-    fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::PathExpr<'genv>> {
-        let res = self.resolver_output().expr_path_res_map[&node_id];
-        if let ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
-            let segments = self.genv().alloc_slice(&[func]);
-            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: func.span })
-        } else {
-            let span = func.span;
-            Err(self.emit(errors::InvalidFunc { span }))
         }
     }
 
@@ -989,7 +971,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_refine_params(
-        &self,
+        &mut self,
         params: &[surface::RefineParam],
     ) -> &'genv [fhir::RefineParam<'genv>] {
         self.genv()
@@ -997,13 +979,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_refine_params_iter(
-        &self,
+        &mut self,
         params: &[surface::RefineParam],
     ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
         params.iter().map(|param| self.desugar_refine_param(param))
     }
 
-    fn desugar_refine_param(&self, param: &surface::RefineParam) -> fhir::RefineParam<'genv> {
+    fn desugar_refine_param(&mut self, param: &surface::RefineParam) -> fhir::RefineParam<'genv> {
         let (id, kind) = self.resolve_param(param.node_id);
         fhir::RefineParam {
             id,
@@ -1016,7 +998,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_sort(
-        &self,
+        &mut self,
         sort: &surface::Sort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
@@ -1037,7 +1019,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_base_sort(
-        &self,
+        &mut self,
         sort: &surface::BaseSort,
         generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
     ) -> fhir::Sort<'genv> {
@@ -1064,6 +1046,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
                 let path = fhir::SortPath { res, segments: genv.alloc_slice(segments), args };
                 fhir::Sort::Path(path)
+            }
+            surface::BaseSort::SortOf(qself, path) => {
+                fhir::Sort::SortOf(self.desugar_path_to_bty(Some(qself), path))
             }
         }
     }
@@ -1367,30 +1352,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         })
     }
 
-    fn desugar_alias_reft(
-        &mut self,
-        alias_reft: &surface::AliasReft,
-    ) -> Result<fhir::AliasReft<'genv>> {
-        let self_ty = self.desugar_ty(&alias_reft.qself);
-        let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &alias_reft.path) else {
-            span_bug!(alias_reft.path.span, "desugar_alias_reft: unexpected qpath")
-        };
-        if let Res::Def(DefKind::Trait, _) = path.res {
-            Ok(fhir::AliasReft {
-                qself: self.genv().alloc(self_ty),
-                path,
-                name: alias_reft.name.name,
-            })
-        } else {
-            // FIXME(nilehmann) we ought to report this error somewhere else
-            Err(self.emit(errors::InvalidAliasReft::new(&alias_reft.path)))
-        }
-    }
-
     fn desugar_expr(&mut self, expr: &surface::Expr) -> fhir::Expr<'genv> {
-        let node_id = expr.node_id;
         let kind = match &expr.kind {
-            surface::ExprKind::Path(path) => self.desugar_var(path),
+            surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path), None),
             surface::ExprKind::Literal(lit) => self.desugar_lit(expr.span, *lit),
             surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 let e1 = self.desugar_expr(e1);
@@ -1417,19 +1381,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     fhir::ExprKind::Err(self.emit(errors::InvalidDotVar { span: path.span }))
                 }
             }
-            surface::ExprKind::App(func, args) => {
-                let args = self.desugar_exprs(args);
-                match self.desugar_func(*func, node_id) {
-                    Ok(func) => fhir::ExprKind::App(func, args),
-                    Err(err) => fhir::ExprKind::Err(err),
-                }
-            }
-            surface::ExprKind::Alias(alias_reft, func_args) => {
-                let func_args = self.desugar_exprs(func_args);
-                match self.desugar_alias_reft(alias_reft) {
-                    Ok(alias_reft) => fhir::ExprKind::Alias(alias_reft, func_args),
-                    Err(err) => fhir::ExprKind::Err(err),
-                }
+            surface::ExprKind::Call(callee, args) => self.desugar_call(callee, args),
+            surface::ExprKind::AssocReft(..) => {
+                fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(expr.span)))
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 let p = self.desugar_expr(p);
@@ -1457,6 +1411,37 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         };
 
         fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() }
+    }
+
+    fn desugar_call(
+        &mut self,
+        callee: &surface::Expr,
+        args: &[surface::Expr],
+    ) -> fhir::ExprKind<'genv> {
+        let args = self.desugar_exprs(args);
+        match &callee.kind {
+            surface::ExprKind::Path(path) => {
+                let path = self.desugar_epath(path);
+                fhir::ExprKind::App(path, args)
+            }
+            surface::ExprKind::AssocReft(qself, path, name) => {
+                let qself = self.desugar_ty(qself);
+                let fhir::QPath::Resolved(None, fpath) = self.desugar_qpath(None, path) else {
+                    span_bug!(path.span, "desugar_alias_reft: unexpected qpath")
+                };
+                let Res::Def(DefKind::Trait, _) = fpath.res else {
+                    // FIXME(nilehmann) we ought to report this error somewhere else
+                    return fhir::ExprKind::Err(self.emit(errors::InvalidAliasReft::new(path)));
+                };
+                let alias_reft = fhir::AliasReft {
+                    qself: self.genv().alloc(qself),
+                    path: fpath,
+                    name: name.name,
+                };
+                fhir::ExprKind::Alias(alias_reft, args)
+            }
+            _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),
+        }
     }
 
     fn desugar_constructor(
