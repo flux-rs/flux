@@ -34,10 +34,11 @@ pub(crate) fn check_flux_item<'genv>(
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(item.def_id());
     let mut infcx = InferCtxt::new(genv, owner);
-    let mut wf = Wf::new(&mut infcx);
-    wf.declare_params_for_flux_item(item)?;
-    wf.check_flux_item(item);
-    wf.errors.into_result()?;
+    Wf::with(&mut infcx, |wf| {
+        wf.declare_params_for_flux_item(item)?;
+        wf.check_flux_item(item);
+        Ok(())
+    })?;
     infcx.into_results()
 }
 
@@ -60,14 +61,15 @@ pub(crate) fn check_invariants<'genv>(
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Rust(adt_def_id.local_id());
     let mut infcx = InferCtxt::new(genv, owner);
-    let mut wf = Wf::new(&mut infcx);
-    wf.declare_params_for_invariants(params, invariants)?;
-    for invariant in invariants {
-        wf.infcx
-            .check_expr(invariant, &rty::Sort::Bool)
-            .collect_err(&mut wf.errors);
-    }
-    wf.errors.into_result()?;
+    Wf::with(&mut infcx, |wf| {
+        wf.declare_params_for_invariants(params, invariants)?;
+        for invariant in invariants {
+            wf.infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut wf.errors);
+        }
+        Ok(())
+    })?;
     infcx.into_results()
 }
 
@@ -76,15 +78,16 @@ pub(crate) fn check_node<'genv>(
     node: &fhir::OwnerNode<'genv>,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
-    let mut wf = Wf::new(&mut infcx);
-    wf.init_infcx(node)
-        .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
-        .emit(&genv)?;
+    Wf::with(&mut infcx, |wf| {
+        wf.init_infcx(node)
+            .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
+            .emit(&genv)?;
 
-    ImplicitParamInferer::infer(wf.infcx, node)?;
+        ImplicitParamInferer::infer(wf.infcx, node)?;
 
-    wf.check_node(node);
-    wf.errors.into_result()?;
+        wf.check_node(node);
+        Ok(())
+    })?;
 
     param_usage::check(&infcx, node)?;
 
@@ -100,9 +103,9 @@ struct Wf<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
-    fn new(infcx: &'a mut InferCtxt<'genv, 'tcx>) -> Self {
+    fn with(infcx: &'a mut InferCtxt<'genv, 'tcx>, f: impl FnOnce(&mut Self) -> Result) -> Result {
         let errors = Errors::new(infcx.genv.sess());
-        Self {
+        let mut wf = Self {
             infcx,
             errors,
             // We start sorts and types from 1 to skip the trait object dummy self type.
@@ -110,7 +113,9 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             next_type_index: 1,
             next_region_index: 0,
             next_const_index: 0,
-        }
+        };
+        f(&mut wf)?;
+        wf.errors.into_result()
     }
 
     fn check_flux_item(&mut self, item: fhir::FluxItem<'genv>) {
@@ -121,17 +126,17 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.visit_node(node);
     }
 
-    /// Initializes the inference context with all refinement parameters in `node`
+    /// Recursively traverse `item` and declare all refinement parameters
     fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
         visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
     }
 
-    /// Initializes the inference context with all refinement parameters in `node`
+    /// Recursively traverse `node` and declare all refinement parameters
     fn declare_params_for_node(&mut self, node: &fhir::OwnerNode<'genv>) -> Result {
         visit_refine_params(|vis| vis.visit_node(node), |param| self.declare_param(param))
     }
 
-    /// Initializes the inference context with all refinement parameters in `node`
+    /// Recursively traverse `invariants` and declare all refinement parameters
     fn declare_params_for_invariants(
         &mut self,
         params: &[fhir::RefineParam<'genv>],
@@ -281,12 +286,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
         if let Some(body) = &func.body {
-            let Some(output) = self
-                .as_conv_ctxt()
-                .conv_sort(&func.sort)
-                .emit(&self.genv())
-                .collect_err(&mut self.errors)
-            else {
+            let Ok(output) = self.as_conv_ctxt().conv_sort(&func.sort).emit(&self.errors) else {
                 return;
             };
             self.infcx
