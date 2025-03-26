@@ -759,6 +759,16 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 }
 
+/// Before the main sort inference, we do a first traversal checking all implicitly scoped parameters
+/// declared wih `@` or `#` and infer their sort based on the type they are indexing, e.g., if `n` was
+/// declared as `i32[@n]`, we infer `int` for `n`.
+///
+/// This prepass is necessary because sometimes the order in which we traverse expressions can
+/// affect what we can infer. By resolving implicit parameters first, we ensure more consistent and
+/// complete inference regardless of how expressions are later traversed.
+///
+/// It should be possible to improve sort checking (e.g., by allowing partially resolved sorts in
+/// function position) such that we don't need this anymore.
 pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'genv, 'tcx>,
     errors: Errors<'genv>,
