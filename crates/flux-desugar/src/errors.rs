@@ -107,3 +107,16 @@ impl MultipleSpreadsInConstructor {
         Self { span, prev_span }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_callee, code = E0999)]
+pub(super) struct UnsupportedCallee {
+    #[primary_span]
+    span: Span,
+}
+
+impl UnsupportedCallee {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}

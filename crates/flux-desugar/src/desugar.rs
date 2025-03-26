@@ -1450,10 +1450,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Err(err) => fhir::ExprKind::Err(err),
                 }
             }
-            _ => {
-                let a = 0;
-                todo!("error")
-            }
+            _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedCallee::new(callee.span))),
         }
     }
 
