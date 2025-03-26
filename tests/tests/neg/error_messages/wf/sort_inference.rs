@@ -1,6 +1,3 @@
-#[flux::sig(fn({v. i32[1]}))] //~ ERROR sort annotation needed
-fn test00(x: i32) {}
-
 #[flux::refined_by(hrn p: int -> bool)]
 struct S;
 

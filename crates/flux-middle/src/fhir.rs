@@ -261,10 +261,19 @@ pub enum ImplItemKind<'fhir> {
     Type,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum FluxItem<'fhir> {
-    Qualifier(Qualifier<'fhir>),
-    Func(SpecFunc<'fhir>),
+    Qualifier(&'fhir Qualifier<'fhir>),
+    Func(&'fhir SpecFunc<'fhir>),
+}
+
+impl<'fhir> FluxItem<'fhir> {
+    pub fn def_id(self) -> FluxLocalDefId {
+        match self {
+            FluxItem::Qualifier(qualifier) => qualifier.def_id,
+            FluxItem::Func(func) => func.def_id,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -560,7 +560,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
         self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Func(defn) = item { Some(defn) } else { None }
+            if let fhir::FluxItem::Func(defn) = item { Some(*defn) } else { None }
         })
     }
 
@@ -568,12 +568,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir
             .items
             .get(&def_id)
-            .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(defn) } else { None })
+            .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(*defn) } else { None })
     }
 
     pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
         self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Qualifier(qual) = item { Some(qual) } else { None }
+            if let fhir::FluxItem::Qualifier(qual) = item { Some(*qual) } else { None }
         })
     }
 

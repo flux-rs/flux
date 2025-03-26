@@ -25,7 +25,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
+    pub params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
     pub wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
@@ -59,20 +59,20 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn check_abs(
         &mut self,
-        arg: &fhir::Expr,
+        expr: &fhir::Expr,
         params: &[fhir::RefineParam],
         body: &fhir::Expr,
         expected: &rty::Sort,
     ) -> Result {
-        let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) else {
-            return Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)));
+        let Some(fsort) = self.is_coercible_from_func(expected, expr.fhir_id) else {
+            return Err(self.emit_err(errors::UnexpectedFun::new(expr.span, expected)));
         };
 
         let fsort = fsort.expect_mono();
 
         if params.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ParamCountMismatch::new(
-                arg.span,
+                expr.span,
                 fsort.inputs().len(),
                 params.len(),
             )));
@@ -87,7 +87,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.check_expr(body, fsort.output())?;
         self.wfckresults
             .node_sorts_mut()
-            .insert(arg.fhir_id, fsort.output().clone());
+            .insert(expr.fhir_id, fsort.output().clone());
         Ok(())
     }
 
@@ -194,10 +194,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fsort = FuncSort::new(vec![rty::Sort::Int], rty::Sort::Bool);
                 let fsort = rty::PolyFuncSort::new(vec![].into(), fsort);
                 let fsort = rty::Sort::Func(fsort);
-                self.insert_param(param.id, rty::Sort::Int, fhir::ParamKind::Colon); // fixed-quantifiers HACK 1
-                self.wfckresults
-                    .node_sorts_mut()
-                    .insert(param.fhir_id, rty::Sort::Int); // fixed-quantifiers HACK 2
                 self.check_abs(expr, &[*param], body, &fsort)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
@@ -518,14 +514,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 }
 
-impl InferCtxt<'_, '_> {
-    pub(super) fn insert_param(
-        &mut self,
-        id: fhir::ParamId,
-        sort: rty::Sort,
-        kind: fhir::ParamKind,
-    ) {
-        self.params.insert(id, (sort, kind));
+impl<'genv> InferCtxt<'genv, '_> {
+    pub(super) fn declare_param(&mut self, param: fhir::RefineParam<'genv>, sort: rty::Sort) {
+        self.params.insert(param.id, (param, sort));
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
@@ -699,19 +690,6 @@ impl InferCtxt<'_, '_> {
         self.bv_size_unification_table.new_key(None)
     }
 
-    pub(crate) fn resolve_param_sort(&mut self, param: &fhir::RefineParam) -> Result {
-        let sort = self.param_sort(param.id);
-        match self.fully_resolve(&sort) {
-            Ok(sort) => {
-                self.wfckresults
-                    .node_sorts_mut()
-                    .insert(param.fhir_id, sort);
-                Ok(())
-            }
-            Err(_) => Err(self.emit_err(errors::SortAnnotationNeeded::new(param))),
-        }
-    }
-
     fn ensure_resolved_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
         let sort = self.synth_path(path)?;
         self.fully_resolve(&sort)
@@ -731,7 +709,7 @@ impl InferCtxt<'_, '_> {
 
     pub(crate) fn into_results(mut self) -> Result<WfckResults> {
         // Make sure the int literals are fully resolved
-        for (fhir_id, (sort, span)) in self.sort_of_literal.clone() {
+        for (fhir_id, (sort, span)) in std::mem::take(&mut self.sort_of_literal) {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
@@ -739,18 +717,28 @@ impl InferCtxt<'_, '_> {
         }
 
         // Make sure the binary operators are fully resolved
-        for (fhir_id, (sort, span)) in self.sort_of_bin_op.clone() {
+        for (fhir_id, (sort, span)) in std::mem::take(&mut self.sort_of_bin_op) {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
             self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
+        // Make sure all parameters are fully resolved
+        for (_, (param, sort)) in std::mem::take(&mut self.params) {
+            let sort = self
+                .fully_resolve(&sort)
+                .map_err(|_| self.emit_err(errors::SortAnnotationNeeded::new(&param)))?;
+            self.wfckresults
+                .node_sorts_mut()
+                .insert(param.fhir_id, sort);
+        }
+
         Ok(self.wfckresults)
     }
 
     pub(crate) fn infer_mode(&self, id: fhir::ParamId) -> fhir::InferMode {
-        fhir::InferMode::from_param_kind(self.params[&id].1)
+        fhir::InferMode::from_param_kind(self.params[&id].0.kind)
     }
 
     #[track_caller]
@@ -758,7 +746,7 @@ impl InferCtxt<'_, '_> {
         self.params
             .get(&id)
             .unwrap_or_else(|| bug!("no entry found for `{id:?}`"))
-            .0
+            .1
             .clone()
     }
 
