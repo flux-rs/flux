@@ -1,6 +1,6 @@
 # Ownership in Flux
 
-[Online demo](http://goto.ucsd.edu:8091/?example=ownership.rs)
+[Online demo](https://flux.goto.ucsd.edu/?example=ownership.rs)
 
 [Previously][blog-intro] we saw how to refine basic Rust
 types like `i32` and `bool` with _indices_ and _constraints_ to
