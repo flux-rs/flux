@@ -952,7 +952,8 @@
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
@@ -1488,6 +1489,7 @@
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields.into())
             }
+            TyKind::Uninit =&gt; ty.clone(),
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field access for `{ty:?}`"</span>),
         };
         <span class="prelude-val">Ok</span>(ty)
