@@ -16,7 +16,7 @@ use crate::{
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
     },
     surface::{
-        AssocReft, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
@@ -866,7 +866,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         cx.expect(Tok::PathSep)?;
         let name = parse_ident(cx)?;
         let hi = cx.hi();
-        let kind = ExprKind::AssocReft(AssocReft { qself: Box::new(qself), path, name });
+        let kind = ExprKind::AssocReft(Box::new(qself), path, name);
         return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
     } else if lookahead.peek([Tok::Exists, Tok::Forall]) {
         parse_bounded_quantifier(cx)

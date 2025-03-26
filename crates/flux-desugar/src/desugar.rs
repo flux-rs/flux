@@ -1352,26 +1352,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         })
     }
 
-    fn desugar_alias_reft(
-        &mut self,
-        alias_reft: &surface::AssocReft,
-    ) -> Result<fhir::AliasReft<'genv>> {
-        let self_ty = self.desugar_ty(&alias_reft.qself);
-        let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &alias_reft.path) else {
-            span_bug!(alias_reft.path.span, "desugar_alias_reft: unexpected qpath")
-        };
-        if let Res::Def(DefKind::Trait, _) = path.res {
-            Ok(fhir::AliasReft {
-                qself: self.genv().alloc(self_ty),
-                path,
-                name: alias_reft.name.name,
-            })
-        } else {
-            // FIXME(nilehmann) we ought to report this error somewhere else
-            Err(self.emit(errors::InvalidAliasReft::new(&alias_reft.path)))
-        }
-    }
-
     fn desugar_expr(&mut self, expr: &surface::Expr) -> fhir::Expr<'genv> {
         let kind = match &expr.kind {
             surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path), None),
@@ -1402,7 +1382,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 }
             }
             surface::ExprKind::Call(callee, args) => self.desugar_call(callee, args),
-            surface::ExprKind::AssocReft(_) => {
+            surface::ExprKind::AssocReft(..) => {
                 fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(expr.span)))
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
@@ -1444,11 +1424,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let path = self.desugar_epath(path);
                 fhir::ExprKind::App(path, args)
             }
-            surface::ExprKind::AssocReft(assoc_reft) => {
-                match self.desugar_alias_reft(assoc_reft) {
-                    Ok(alias_reft) => fhir::ExprKind::Alias(alias_reft, args),
-                    Err(err) => fhir::ExprKind::Err(err),
-                }
+            surface::ExprKind::AssocReft(qself, path, name) => {
+                let qself = self.desugar_ty(qself);
+                let fhir::QPath::Resolved(None, fpath) = self.desugar_qpath(None, path) else {
+                    span_bug!(path.span, "desugar_alias_reft: unexpected qpath")
+                };
+                let Res::Def(DefKind::Trait, _) = fpath.res else {
+                    // FIXME(nilehmann) we ought to report this error somewhere else
+                    return fhir::ExprKind::Err(self.emit(errors::InvalidAliasReft::new(path)));
+                };
+                let alias_reft = fhir::AliasReft {
+                    qself: self.genv().alloc(qself),
+                    path: fpath,
+                    name: name.name,
+                };
+                fhir::ExprKind::Alias(alias_reft, args)
             }
             _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),
         }
