@@ -876,9 +876,27 @@
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
 <a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
-<span class="kw">use </span>flux_common::{tracked_span_assert_eq, tracked_span_bug};
+<span class="kw">use </span>flux_common::{tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_middle::{
     PlaceExt <span class="kw">as _</span>, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
@@ -980,9 +998,9 @@
         <span class="prelude-val">Ok</span>(modified)
     }
 
-    <span class="kw">fn </span>collect_fold_unfolds_at_goto(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Env, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
+    <span class="kw">fn </span>collect_fold_unfolds_at_goto(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">&amp;</span>Env, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">for </span>(local, node) <span class="kw">in </span><span class="self">self</span>.map.iter_enumerated() {
-            node.collect_fold_unfolds(<span class="kw-2">&amp;</span>other.map[local], <span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]), stmts);
+            node.collect_fold_unfolds(<span class="kw-2">&amp;</span>target.map[local], <span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]), stmts);
         }
     }
 
@@ -1552,8 +1570,14 @@
         <span class="prelude-val">Ok</span>((modified1, modified2))
     }
 
-    <span class="kw">fn </span>collect_fold_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PlaceNode, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
-        <span class="kw">let </span>(fields1, fields2) = <span class="kw">match </span>(<span class="self">self</span>, other) {
+    <span class="doccomment">/// Collect necessary fold/unfold operations such that `self` is unfolded at the same level than `target`
+    </span><span class="kw">fn </span>collect_fold_unfolds(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        target: <span class="kw-2">&amp;</span>PlaceNode,
+        place: <span class="kw-2">&amp;mut </span>Place,
+        stmts: <span class="kw-2">&amp;mut </span>StatementsAt,
+    ) {
+        <span class="kw">let </span>(fields1, fields2) = <span class="kw">match </span>(<span class="self">self</span>, target) {
             (PlaceNode::Deref(<span class="kw">_</span>, node1), PlaceNode::Deref(<span class="kw">_</span>, node2)) =&gt; {
                 place.projection.push(PlaceElem::Deref);
                 node1.collect_fold_unfolds(node2, place, stmts);
@@ -1569,23 +1593,20 @@
                 PlaceNode::Downcast(adt1, .., idx1, fields1),
                 PlaceNode::Downcast(adt2, .., idx2, fields2),
             ) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(adt1.did(), adt2.did());
-                <span class="kw">if </span>idx1 == idx2 {
-                    (fields1, fields2)
-                } <span class="kw">else </span>{
-                    <span class="macro">tracked_span_bug!</span>();
-                }
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(adt1.did(), adt2.did());
+                <span class="macro">tracked_span_dbg_assert_eq!</span>(idx1, idx2);
+                (fields1, fields2)
             }
             (PlaceNode::Ty(<span class="kw">_</span>), PlaceNode::Ty(<span class="kw">_</span>)) =&gt; <span class="kw">return</span>,
             (PlaceNode::Ty(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
-                other.collect_unfolds(place, stmts);
+                target.collect_unfolds(place, stmts);
                 <span class="kw">return</span>;
             }
             (<span class="kw">_</span>, PlaceNode::Ty(<span class="kw">_</span>)) =&gt; {
                 stmts.insert(GhostStatement::Fold(place.clone()));
                 <span class="kw">return</span>;
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"{self:?} {other:?}"</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"{self:?} {target:?}"</span>),
         };
         <span class="kw">for </span>(i, (node1, node2)) <span class="kw">in </span>iter::zip(fields1, fields2).enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
@@ -1594,44 +1615,41 @@
         }
     }
 
-    <span class="kw">fn </span>collect_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) -&gt; bool {
-        <span class="kw">let </span>fields = <span class="kw">match </span><span class="self">self </span>{
-            PlaceNode::Ty(<span class="kw">_</span>) =&gt; {
-                <span class="kw">return </span><span class="bool-val">true</span>;
-            }
+    <span class="kw">fn </span>collect_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
+        <span class="kw">match </span><span class="self">self </span>{
+            PlaceNode::Ty(<span class="kw">_</span>) =&gt; {}
             PlaceNode::Deref(<span class="kw">_</span>, node) =&gt; {
-                place.projection.push(PlaceElem::Deref);
-                node.collect_unfolds(place, stmts);
-                place.projection.pop();
-                <span class="kw">return </span><span class="bool-val">false</span>;
-            }
-            PlaceNode::Downcast(adt, <span class="kw">_</span>, idx, fields) =&gt; {
-                <span class="kw">if </span>adt.is_enum() {
-                    place.projection.push(PlaceElem::Downcast(<span class="prelude-val">None</span>, <span class="kw-2">*</span>idx));
+                <span class="kw">if </span>node.is_ty() {
+                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                } <span class="kw">else </span>{
+                    place.projection.push(PlaceElem::Deref);
+                    node.collect_unfolds(place, stmts);
+                    place.projection.pop();
                 }
-                fields
             }
-            PlaceNode::Closure(<span class="kw">_</span>, <span class="kw">_</span>, fields)
-            | PlaceNode::Generator(<span class="kw">_</span>, <span class="kw">_</span>, fields)
-            | PlaceNode::Tuple(<span class="kw">_</span>, fields) =&gt; fields,
-        };
-        <span class="kw">let </span><span class="kw-2">mut </span>all_leaves = <span class="bool-val">true</span>;
-        <span class="kw">for </span>(i, node) <span class="kw">in </span>fields.iter().enumerate() {
-            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leaves &amp;= node.collect_unfolds(place, stmts);
-            place.projection.pop();
+            PlaceNode::Downcast(.., fields)
+            | PlaceNode::Closure(.., fields)
+            | PlaceNode::Generator(.., fields)
+            | PlaceNode::Tuple(.., fields) =&gt; {
+                <span class="kw">let </span>all_leaves = fields.iter().all(PlaceNode::is_ty);
+                <span class="kw">if </span>all_leaves {
+                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                } <span class="kw">else </span>{
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = <span class="self">self</span>.enum_variant() {
+                        place.projection.push(PlaceElem::Downcast(<span class="prelude-val">None</span>, idx));
+                    }
+                    <span class="kw">for </span>(i, node) <span class="kw">in </span>fields.iter().enumerate() {
+                        place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+                        node.collect_unfolds(place, stmts);
+                        place.projection.pop();
+                    }
+                    <span class="kw">if </span><span class="self">self</span>.enum_variant().is_some() {
+                        place.projection.pop();
+                    }
+                }
+            }
         }
-        <span class="kw">if </span>all_leaves {
-            stmts.insert(GhostStatement::Unfold(place.clone()));
-        }
-        <span class="kw">if let </span>PlaceNode::Downcast(adt, ..) = <span class="self">self
-            </span>&amp;&amp; adt.is_enum()
-        {
-            place.projection.pop();
-        }
-
-        <span class="bool-val">true
-    </span>}
+    }
 
     <span class="kw">fn </span>collect_folds_at_ret(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">let </span>fields = <span class="kw">match </span><span class="self">self </span>{
@@ -1666,6 +1684,24 @@
         {
             place.projection.pop();
         }
+    }
+
+    <span class="kw">fn </span>enum_variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;VariantIdx&gt; {
+        <span class="kw">if let </span>PlaceNode::Downcast(adt, <span class="kw">_</span>, idx, <span class="kw">_</span>) = <span class="self">self
+            </span>&amp;&amp; adt.is_enum()
+        {
+            <span class="prelude-val">Some</span>(<span class="kw-2">*</span>idx)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
+
+    <span class="doccomment">/// Returns `true` if the place node is [`Ty`].
+    ///
+    /// [`Ty`]: PlaceNode::Ty
+    </span><span class="attr">#[must_use]
+    </span><span class="kw">fn </span>is_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Ty(..))
     }
 }
 
