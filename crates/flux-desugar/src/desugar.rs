@@ -904,27 +904,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_var(&self, path: &surface::ExprPath) -> fhir::ExprKind<'genv> {
+    fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::PathExpr<'genv> {
         let res = *self
             .resolver_output()
             .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
 
-        if let ExprRes::GlobalFunc(..) = res {
-            let span = path.span;
-            return fhir::ExprKind::Err(self.emit(errors::InvalidFuncAsVar { span }));
-        }
-
-        let path = fhir::PathExpr {
+        fhir::PathExpr {
             segments: self
                 .genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
             res,
             fhir_id: self.next_fhir_id(),
             span: path.span,
-        };
-        fhir::ExprKind::Var(path, None)
+        }
     }
 
     #[track_caller]
@@ -935,18 +929,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         } else {
             let span = ident.span;
             Err(self.emit(errors::InvalidLoc { span }))
-        }
-    }
-
-    #[track_caller]
-    fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::PathExpr<'genv>> {
-        let res = self.resolver_output().expr_path_res_map[&node_id];
-        if let ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
-            let segments = self.genv().alloc_slice(&[func]);
-            Ok(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: func.span })
-        } else {
-            let span = func.span;
-            Err(self.emit(errors::InvalidFunc { span }))
         }
     }
 
@@ -1372,7 +1354,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn desugar_alias_reft(
         &mut self,
-        alias_reft: &surface::AliasReft,
+        alias_reft: &surface::AssocReft,
     ) -> Result<fhir::AliasReft<'genv>> {
         let self_ty = self.desugar_ty(&alias_reft.qself);
         let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &alias_reft.path) else {
@@ -1391,9 +1373,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     fn desugar_expr(&mut self, expr: &surface::Expr) -> fhir::Expr<'genv> {
-        let node_id = expr.node_id;
         let kind = match &expr.kind {
-            surface::ExprKind::Path(path) => self.desugar_var(path),
+            surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path), None),
             surface::ExprKind::Literal(lit) => self.desugar_lit(expr.span, *lit),
             surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 let e1 = self.desugar_expr(e1);
@@ -1420,19 +1401,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     fhir::ExprKind::Err(self.emit(errors::InvalidDotVar { span: path.span }))
                 }
             }
-            surface::ExprKind::App(func, args) => {
-                let args = self.desugar_exprs(args);
-                match self.desugar_func(*func, node_id) {
-                    Ok(func) => fhir::ExprKind::App(func, args),
-                    Err(err) => fhir::ExprKind::Err(err),
-                }
-            }
-            surface::ExprKind::Alias(alias_reft, func_args) => {
-                let func_args = self.desugar_exprs(func_args);
-                match self.desugar_alias_reft(alias_reft) {
-                    Ok(alias_reft) => fhir::ExprKind::Alias(alias_reft, func_args),
-                    Err(err) => fhir::ExprKind::Err(err),
-                }
+            surface::ExprKind::Call(callee, args) => self.desugar_call(callee, args),
+            surface::ExprKind::AssocReft(assoc_reft) => {
+                todo!("error")
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 let p = self.desugar_expr(p);
@@ -1460,6 +1431,30 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         };
 
         fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() }
+    }
+
+    fn desugar_call(
+        &mut self,
+        callee: &surface::Expr,
+        args: &[surface::Expr],
+    ) -> fhir::ExprKind<'genv> {
+        let args = self.desugar_exprs(args);
+        match &callee.kind {
+            surface::ExprKind::Path(path) => {
+                let path = self.desugar_epath(path);
+                fhir::ExprKind::App(path, args)
+            }
+            surface::ExprKind::AssocReft(assoc_reft) => {
+                match self.desugar_alias_reft(assoc_reft) {
+                    Ok(alias_reft) => fhir::ExprKind::Alias(alias_reft, args),
+                    Err(err) => fhir::ExprKind::Err(err),
+                }
+            }
+            _ => {
+                let a = 0;
+                todo!("error")
+            }
+        }
     }
 
     fn desugar_constructor(

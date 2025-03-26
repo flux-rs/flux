@@ -16,7 +16,7 @@ use crate::{
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
     },
     surface::{
-        AliasReft, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        AssocReft, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
@@ -790,26 +790,10 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 
 /// ```text
 /// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
-///                 |  ⟨ident⟩ ( ⟨expr⟩,* )
-///                 |  ⟨atom⟩
+///                 |  ⟨atom⟩ ( ⟨expr⟩,* )
 ///                 |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
 /// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
-    if cx.advance_if(LAngle) {
-        // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
-        let lo = cx.lo();
-        let qself = parse_type(cx)?;
-        cx.expect(Tok::As)?;
-        let path = parse_path(cx)?;
-        cx.expect(RAngle)?;
-        cx.expect(Tok::PathSep)?;
-        let name = parse_ident(cx)?;
-        let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
-        let kind = ExprKind::Alias(AliasReft { qself: Box::new(qself), path, name }, args);
-        let hi = cx.hi();
-        return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
-    }
-
     let atom = parse_atom(cx, allow_struct)?;
     let lo = cx.lo();
     let kind = if cx.advance_if(Tok::Dot) {
@@ -822,14 +806,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
         }
     } else if cx.peek(OpenDelim(Parenthesis)) {
         let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
-        if let ExprKind::Path(path) = atom.kind
-            && let [segment] = &path.segments[..]
-        {
-            // ⟨ident⟩ ( ⟨expr⟩,* )
-            ExprKind::App(segment.ident, args)
-        } else {
-            return Err(cx.unsupported_callee(atom.span));
-        }
+        ExprKind::Call(Box::new(atom), args)
     } else {
         // ⟨atom⟩
         return Ok(atom);
@@ -879,6 +856,18 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
             node_id: cx.next_node_id(),
             span: cx.mk_span(lo, hi),
         })
+    } else if lookahead.advance_if(LAngle) {
+        // <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩ ( ⟨expr⟩,* )
+        let lo = cx.lo();
+        let qself = parse_type(cx)?;
+        cx.expect(Tok::As)?;
+        let path = parse_path(cx)?;
+        cx.expect(RAngle)?;
+        cx.expect(Tok::PathSep)?;
+        let name = parse_ident(cx)?;
+        let hi = cx.hi();
+        let kind = ExprKind::AssocReft(AssocReft { qself: Box::new(qself), path, name });
+        return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
     } else if lookahead.peek([Tok::Exists, Tok::Forall]) {
         parse_bounded_quantifier(cx)
     } else {

@@ -322,7 +322,7 @@ pub struct Ty {
 
 /// `<qself as path>::name`
 #[derive(Debug)]
-pub struct AliasReft {
+pub struct AssocReft {
     pub qself: Box<Ty>,
     pub path: Path,
     pub name: Ident,
@@ -509,8 +509,8 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
-    App(Ident, Vec<Expr>),
-    Alias(AliasReft, Vec<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    AssocReft(AssocReft),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),

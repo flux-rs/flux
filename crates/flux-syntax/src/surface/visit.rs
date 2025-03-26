@@ -1,7 +1,7 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
+    AssocReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
     Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
     FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
     Indices, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc,
@@ -165,8 +165,8 @@ pub trait Visitor: Sized {
         }
     }
 
-    fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
-        walk_alias_pred(self, alias_pred);
+    fn visit_assoc_reft(&mut self, assoc_reft: &AssocReft) {
+        walk_assoc_reft(self, assoc_reft);
     }
 
     fn visit_path_expr(&mut self, qpath: &ExprPath) {
@@ -481,7 +481,7 @@ pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
     walk_list!(vis, visit_generic_arg, &segment.args);
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
+pub fn walk_assoc_reft<V: Visitor>(vis: &mut V, alias: &AssocReft) {
     vis.visit_ty(&alias.qself);
     vis.visit_path(&alias.path);
     vis.visit_ident(alias.name);
@@ -508,13 +508,12 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::UnaryOp(_bin_op, e) => {
             vis.visit_expr(e);
         }
-        ExprKind::App(fun, exprs) => {
-            vis.visit_ident(*fun);
-            walk_list!(vis, visit_expr, exprs);
-        }
-        ExprKind::Alias(alias_pred, args) => {
-            vis.visit_alias_pred(alias_pred);
+        ExprKind::Call(callee, args) => {
+            vis.visit_expr(callee);
             walk_list!(vis, visit_expr, args);
+        }
+        ExprKind::AssocReft(assoc_reft) => {
+            vis.visit_assoc_reft(assoc_reft);
         }
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
