@@ -283,3 +283,7 @@ fhir_analysis_expected_type =
 fhir_analysis_fail_to_match_predicates =
     cannot determine corresponding unrefined predicate
     .note = you can only add a refined predicate if an corresponding unrefined one exists
+
+fhir_analysis_invalid_func_as_var =
+    invalid use of function
+    .label = function not supported in this position

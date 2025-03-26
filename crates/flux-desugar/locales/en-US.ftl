@@ -16,10 +16,6 @@ desugar_invalid_dot_var =
 desugar_invalid_constructor_path =
     invalid use of path in constructor
 
-desugar_invalid_func_as_var =
-    invalid use of function
-    .label = function not supported in this position
-
 desugar_invalid_func =
     invalid name in function position
     .label = expected a function or parameter

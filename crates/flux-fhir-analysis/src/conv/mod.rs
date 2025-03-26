@@ -2036,7 +2036,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
                     ExprRes::GlobalFunc(..) => {
-                        span_bug!(var.span, "unexpected func in var position")
+                        Err(self.emit(errors::InvalidFuncAsVar { span: expr.span }))?
                     }
                     ExprRes::Ctor(..) => {
                         span_bug!(var.span, "unexpected constructor in var position")
@@ -2809,5 +2809,13 @@ mod errors {
     pub(super) struct FailToMatchPredicates {
         #[primary_span]
         pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_func_as_var, code = E0999)]
+    pub(super) struct InvalidFuncAsVar {
+        #[primary_span]
+        #[label]
+        pub(super) span: Span,
     }
 }

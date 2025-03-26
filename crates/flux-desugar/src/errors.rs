@@ -32,14 +32,6 @@ pub(super) struct InvalidDotVar {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_func_as_var, code = E0999)]
-pub(super) struct InvalidFuncAsVar {
-    #[primary_span]
-    #[label]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_func, code = E0999)]
 pub(super) struct InvalidFunc {
     #[primary_span]
