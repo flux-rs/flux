@@ -924,41 +924,7 @@
 <a href="#923" id="923">923</a>
 <a href="#924" id="924">924</a>
 <a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a>
-<a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a>
-<a href="#933" id="933">933</a>
-<a href="#934" id="934">934</a>
-<a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a>
-<a href="#938" id="938">938</a>
-<a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
-<a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#926" id="926">926</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1187,7 +1153,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span> {
-        <span class="kw">let </span>found = <span class="self">self</span>.synth_var(loc)<span class="question-mark">?</span>;
+        <span class="kw">let </span>found = <span class="self">self</span>.synth_path(loc)<span class="question-mark">?</span>;
         <span class="kw">if </span>found == rty::Sort::Loc {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
@@ -1212,19 +1178,24 @@
 
     <span class="kw">fn </span>synth_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="self">self</span>.synth_var(var),
+            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="self">self</span>.synth_path(var),
             fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.synth_lit(<span class="kw-2">*</span>lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.synth_unary_op(<span class="kw-2">*</span>op, e),
-            fhir::ExprKind::App(f, es) =&gt; {
-                <span class="kw">let </span>fsort = <span class="self">self</span>.synth_func(f)<span class="question-mark">?</span>;
-                <span class="self">self</span>.synth_app(fsort, es, expr.span)
+            fhir::ExprKind::App(callee, args) =&gt; {
+                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_path(callee)<span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="prelude-val">Some</span>(poly_fsort) = <span class="self">self</span>.is_coercible_to_func(<span class="kw-2">&amp;</span>sort, callee.fhir_id) <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedFun::new(callee.span, <span class="kw-2">&amp;</span>sort)));
+                };
+                <span class="kw">let </span>fsort = <span class="self">self</span>.instantiate_func_sort(poly_fsort);
+                <span class="self">self</span>.synth_app(fsort, args, expr.span)
             }
 
-            fhir::ExprKind::Alias(_alias_reft, func_args) =&gt; {
+            fhir::ExprKind::Alias(_alias_reft, args) =&gt; {
                 <span class="comment">// To check the application we only need the sort of `_alias_reft` which we collected
                 // during early conv, but should we do any extra checks on `_alias_reft`?
-                </span><span class="self">self</span>.synth_alias_reft_app(expr.fhir_id, expr.span, func_args)
+                </span><span class="kw">let </span>fsort = <span class="self">self</span>.sort_of_alias_reft(expr.fhir_id);
+                <span class="self">self</span>.synth_app(fsort, args, expr.span)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
                 <span class="self">self</span>.check_expr(p, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
@@ -1233,7 +1204,7 @@
                 <span class="prelude-val">Ok</span>(sort)
             }
             fhir::ExprKind::Dot(var, fld) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(var)<span class="question-mark">?</span>;
+                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_path(var)<span class="question-mark">?</span>;
                 <span class="kw">match </span><span class="kw-2">&amp;</span>sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) =&gt; {
                         <span class="kw">let </span>(proj, sort) = sort_def
@@ -1283,7 +1254,7 @@
         }
     }
 
-    <span class="kw">fn </span>synth_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
+    <span class="kw">fn </span>synth_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span>path.res {
             ExprRes::Param(<span class="kw">_</span>, id) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.param_sort(id)),
             ExprRes::Const(def_id) =&gt; {
@@ -1295,19 +1266,22 @@
                     }
                     <span class="prelude-val">Ok</span>(sort)
                 } <span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected const in var position"</span>)
+                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected const"</span>)
                 }
             }
             ExprRes::Variant(def_id) =&gt; {
                 <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_def_id(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">? </span><span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected variant {def_id:?} in var position"</span>)
+                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected variant {def_id:?}"</span>)
                 };
                 <span class="prelude-val">Ok</span>(sort)
             }
             ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
-            ExprRes::GlobalFunc(<span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)
+            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) =&gt; {
+                <span class="prelude-val">Ok</span>(rty::Sort::Func(<span class="self">self</span>.genv.func_sort(name).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>))
+            }
+            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
+                <span class="prelude-val">Ok</span>(rty::Sort::Func(THEORY_FUNCS.get(<span class="kw-2">&amp;</span>itf).unwrap().sort.clone()))
             }
             ExprRes::Ctor(<span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected constructor in var position"</span>)
@@ -1408,47 +1382,6 @@
             .try_for_each_exhaust(|(arg, formal)| <span class="self">self</span>.check_expr(arg, formal))<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(fsort.output().clone())
-    }
-
-    <span class="kw">fn </span>synth_alias_reft_app(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        fhir_id: FhirId,
-        span: Span,
-        args: <span class="kw-2">&amp;</span>[fhir::Expr],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
-        <span class="kw">let </span>fsort = <span class="self">self</span>.sort_of_alias_reft(fhir_id);
-        <span class="kw">if </span>args.len() != fsort.inputs().len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
-                <span class="prelude-val">Some</span>(span),
-                String::from(<span class="string">"function"</span>),
-                fsort.inputs().len(),
-                args.len(),
-            )));
-        }
-        iter::zip(args, fsort.inputs())
-            .try_for_each_exhaust(|(arg, formal)| <span class="self">self</span>.check_expr(arg, formal))<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(fsort.output().clone())
-    }
-
-    <span class="kw">fn </span>synth_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::FuncSort&gt; {
-        <span class="kw">let </span>poly_fsort = <span class="kw">match </span>func.res {
-            ExprRes::Param(..) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(func)<span class="question-mark">?</span>;
-                <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(<span class="kw-2">&amp;</span>sort, func.fhir_id) <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedFun::new(func.span, <span class="kw-2">&amp;</span>sort)));
-                };
-                fsort
-            }
-            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) =&gt; {
-                <span class="self">self</span>.genv.func_sort(name).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?
-            </span>}
-            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
-                THEORY_FUNCS.get(<span class="kw-2">&amp;</span>itf).unwrap().sort.clone()
-            }
-            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
-        };
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.instantiate_func_sort(poly_fsort))
     }
 
     <span class="kw">fn </span>instantiate_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: rty::PolyFuncSort) -&gt; rty::FuncSort {
@@ -1705,9 +1638,8 @@
         }
     }
 
-    <span class="kw">fn </span>ensure_resolved_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
-        <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = path.res <span class="kw">else </span>{ <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected path"</span>) };
-        <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(id);
+    <span class="kw">fn </span>ensure_resolved_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
+        <span class="kw">let </span>sort = <span class="self">self</span>.synth_path(path)<span class="question-mark">?</span>;
         <span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
             .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(path.span)))
     }

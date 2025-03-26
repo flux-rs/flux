@@ -1004,19 +1004,7 @@
 <a href="#1003" id="1003">1003</a>
 <a href="#1004" id="1004">1004</a>
 <a href="#1005" id="1005">1005</a>
-<a href="#1006" id="1006">1006</a>
-<a href="#1007" id="1007">1007</a>
-<a href="#1008" id="1008">1008</a>
-<a href="#1009" id="1009">1009</a>
-<a href="#1010" id="1010">1010</a>
-<a href="#1011" id="1011">1011</a>
-<a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
-<a href="#1016" id="1016">1016</a>
-<a href="#1017" id="1017">1017</a>
-<a href="#1018" id="1018">1018</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#1006" id="1006">1006</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
 <span class="kw">use </span>flux_errors::Errors;
@@ -1088,7 +1076,6 @@
     <span class="kw">fn </span>on_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _fn_sig: <span class="kw-2">&amp;</span>surface::FnSig) {}
     <span class="kw">fn </span>on_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _output: <span class="kw-2">&amp;</span>surface::FnOutput) {}
     <span class="kw">fn </span>on_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _loc: Ident, _node_id: NodeId) {}
-    <span class="kw">fn </span>on_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _func: Ident, _node_id: NodeId) {}
     <span class="kw">fn </span>on_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>surface::ExprPath) {}
     <span class="kw">fn </span>on_base_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _sort: <span class="kw-2">&amp;</span>surface::BaseSort) {}
 }
@@ -1303,13 +1290,6 @@
                 surface::visit::walk_bty(<span class="self">self</span>, bty);
             }
         }
-    }
-
-    <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>surface::Expr) {
-        <span class="kw">if let </span>surface::ExprKind::App(func, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>expr.kind {
-            <span class="self">self</span>.on_func(<span class="kw-2">*</span>func, expr.node_id);
-        }
-        surface::visit::walk_expr(<span class="self">self</span>, expr);
     }
 
     <span class="kw">fn </span>visit_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) {
@@ -1805,10 +1785,6 @@
 
     <span class="kw">fn </span>on_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::RefineParam) {
         <span class="self">self</span>.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, <span class="prelude-val">None</span>);
-    }
-
-    <span class="kw">fn </span>on_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: Ident, node_id: NodeId) {
-        <span class="self">self</span>.resolve_ident(func, node_id);
     }
 
     <span class="kw">fn </span>on_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Ident, node_id: NodeId) {

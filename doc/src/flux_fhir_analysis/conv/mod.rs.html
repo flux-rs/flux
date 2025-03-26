@@ -2811,7 +2811,14 @@
 <a href="#2810" id="2810">2810</a>
 <a href="#2811" id="2811">2811</a>
 <a href="#2812" id="2812">2812</a>
-<a href="#2813" id="2813">2813</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4849,8 +4856,8 @@
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
                     ExprRes::GlobalFunc(..) =&gt; {
-                        <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected func in var position"</span>)
-                    }
+                        <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidPosition { span: expr.span }))<span class="question-mark">?
+                    </span>}
                     ExprRes::Ctor(..) =&gt; {
                         <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected constructor in var position"</span>)
                     }
@@ -5622,6 +5629,13 @@
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FailToMatchPredicates {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_position, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidPosition {
+        <span class="attr">#[primary_span]
+        </span><span class="kw">pub</span>(<span class="kw">super</span>) span: Span,
     }
 }
 </code></pre></div></section></main></body></html>

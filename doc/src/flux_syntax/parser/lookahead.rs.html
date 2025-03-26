@@ -227,7 +227,22 @@
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a></pre></div><pre class="rust"><code><span class="doccomment">//! Support for "peeking" into the token stream to decide how to parse.
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a></pre></div><pre class="rust"><code><span class="doccomment">//! Support for "peeking" into the token stream to decide how to parse.
 
 </span><span class="kw">use </span>rustc_span::BytePos;
 
@@ -240,7 +255,9 @@
     <span class="doccomment">/// Returns true if a token matches this rule
     </span><span class="kw">fn </span>matches(<span class="self">self</span>, tok: Token) -&gt; bool;
 
-    <span class="kw">fn </span>display(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;;
+    <span class="doccomment">/// A string representation of the list of tokens matched by this rule. This
+    /// is used to construct an error when using [`Lookahead1`].
+    </span><span class="kw">fn </span>display(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;;
 }
 
 <span class="kw">impl </span>Peek <span class="kw">for </span>Token {
@@ -279,7 +296,11 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy)]
+<span class="doccomment">/// This is the same as [`RAngle`] but for opening angle brackets.
+///
+/// It is less common to have two opening angle brackets, but it appears in stuf like
+/// `&lt;&lt;Self as Trait1&gt;::Assoc1 as Trait2&gt;::Assoc2`
+</span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LAngle;
 <span class="kw">impl </span>Peek <span class="kw">for </span>LAngle {
     <span class="kw">fn </span>matches(<span class="self">self</span>, tok: Token) -&gt; bool {
@@ -291,7 +312,13 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy)]
+<span class="doccomment">/// There are some lexing ambiguities with `&gt;&gt;` which can represet both a right shift or two
+/// closing angle brackets in nested generics (e.g., `Vec&lt;Option&lt;i32&gt;&gt;`). We solve the ambiguity
+/// by giving `&gt;` a special token if it's immediately followed by another `&gt;`,  i.e., `&gt;&gt;` is
+/// tokenized as [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+///
+/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
+</span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RAngle;
 <span class="kw">impl </span>Peek <span class="kw">for </span>RAngle {
     <span class="kw">fn </span>matches(<span class="self">self</span>, tok: Token) -&gt; bool {
@@ -327,12 +354,14 @@
 
 <span class="doccomment">/// Support for checking the next token in a stream to decide how to parse.
 ///
-/// An important advantage over [`ParseCtxt::peek`] is that here we automatically construct
-/// an appropriate error message based on the token alternatives that get peeked.
+/// An important advantage of using this struct over [`ParseCtxt::peek`] is that here we
+/// automatically construct an appropriate error message based on the token alternatives
+/// that get peeked.
 ///
 /// Use [`ParseCtxt::lookahead1`] to construct this object.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Lookahead1&lt;<span class="lifetime">'a</span>, <span class="lifetime">'cx</span>&gt; {
-    expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
+    <span class="doccomment">/// List of "expected" tokens that have been peeked by this struct
+    </span>expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
     cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ParseCtxt&lt;<span class="lifetime">'cx</span>&gt;,
 }
 
@@ -425,8 +454,8 @@
         <span class="self">self</span>.tokens.advance_by(n);
     }
 
-    <span class="doccomment">/// Looks at the next token and advances the cursor if it matches the requested type of
-    /// token. Returns `true` if there was a match.
+    <span class="doccomment">/// Looks at the next token and advances the cursor if it matches the requested
+    /// rule. Returns `true` if there was a match.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>advance_if&lt;T: Peek&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: T) -&gt; bool {
         <span class="kw">if </span><span class="self">self</span>.peek(t) {
             <span class="self">self</span>.advance();
@@ -452,7 +481,8 @@
         <span class="kw">if </span><span class="self">self</span>.advance_if(t) { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(<span class="self">self</span>.unexpected_token(t.display().collect())) }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookahead1(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Lookahead1&lt;<span class="lifetime">'_</span>, <span class="lifetime">'cx</span>&gt; {
+    <span class="doccomment">/// See documentation for [`Lookahead1`]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookahead1(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Lookahead1&lt;<span class="lifetime">'_</span>, <span class="lifetime">'cx</span>&gt; {
         Lookahead1::new(<span class="self">self</span>)
     }
 }

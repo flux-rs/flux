@@ -1120,24 +1120,15 @@
 <a href="#1119" id="1119">1119</a>
 <a href="#1120" id="1120">1120</a>
 <a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
-<a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
-<a href="#1125" id="1125">1125</a>
-<a href="#1126" id="1126">1126</a>
-<a href="#1127" id="1127">1127</a>
-<a href="#1128" id="1128">1128</a>
-<a href="#1129" id="1129">1129</a>
-<a href="#1130" id="1130">1130</a>
-<a href="#1131" id="1131">1131</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<a href="#1122" id="1122">1122</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <span class="kw">mod </span>utils;
 
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 <span class="kw">use </span>utils::{
-    angle, braces, brackets, delimited, opt_angle, parens, punctuated, punctuated_with_trailing,
-    sep1, until,
+    angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
+    punctuated_with_trailing, sep1, until,
 };
 
 <span class="kw">use crate</span>::{
@@ -1147,7 +1138,7 @@
         Token::{<span class="self">self </span><span class="kw">as </span>Tok, Caret, CloseDelim, Comma, OpenDelim},
     },
     surface::{
-        AliasReft, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
@@ -1195,13 +1186,13 @@
 /// ⟨ident⟩,*
 /// ```
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parse_qual_names(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;QualNames&gt; {
-    <span class="kw">let </span>names = punctuated(cx, Comma, Tok::Eof, parse_ident)<span class="question-mark">?</span>;
+    <span class="kw">let </span>names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(QualNames { names })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parse_generics(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Generics&gt; {
     <span class="kw">let </span>lo = cx.lo();
-    <span class="kw">let </span>params = punctuated(cx, Comma, Tok::Eof, parse_generic_param)<span class="question-mark">?</span>;
+    <span class="kw">let </span>params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
     <span class="prelude-val">Ok</span>(Generics { params, predicates: <span class="prelude-val">None</span>, span: cx.mk_span(lo, hi) })
 }
@@ -1306,7 +1297,7 @@
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
 /// ```
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parse_refined_by(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;RefineParams&gt; {
-    punctuated(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))
+    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))
 }
 
 <span class="doccomment">/// ```text
@@ -1459,7 +1450,7 @@
     <span class="kw">if </span>!cx.advance_if(Tok::Requires) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
     }
-    punctuated(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
+    punctuated_until(cx, Comma, [Tok::Ensures, Tok::Where, Tok::Eof], parse_requires_clause)
 }
 
 <span class="doccomment">/// ```text
@@ -1482,7 +1473,7 @@
     <span class="kw">if </span>!cx.advance_if(Tok::Ensures) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
     }
-    punctuated(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
+    punctuated_until(cx, Comma, [Tok::Where, Tok::Eof], parse_ensures_clause)
 }
 
 <span class="doccomment">/// ```text
@@ -1506,7 +1497,7 @@
     <span class="kw">if </span>!cx.advance_if(Tok::Where) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
     }
-    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(punctuated(cx, Comma, Tok::Eof, parse_where_bound)<span class="question-mark">?</span>))
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(punctuated_until(cx, Comma, Tok::Eof, parse_where_bound)<span class="question-mark">?</span>))
 }
 
 <span class="kw">fn </span>parse_where_bound(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;WhereBoundPredicate&gt; {
@@ -1826,7 +1817,7 @@
         <span class="kw">let </span>hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } <span class="kw">else if </span>cx.advance_if(Caret) {
-        <span class="kw">let </span>params = punctuated(cx, Comma, Caret, |cx| parse_refine_param(cx, <span class="bool-val">false</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>params = punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, <span class="bool-val">false</span>))<span class="question-mark">?</span>;
         cx.expect(Caret)<span class="question-mark">?</span>;
         <span class="kw">let </span>body = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
         <span class="kw">let </span>hi = cx.hi();
@@ -1921,26 +1912,10 @@
 
 <span class="doccomment">/// ```text
 /// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
-///                 |  ⟨ident⟩ ( ⟨expr⟩,* )
+///                 |  ⟨atom⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
-///                 |  &lt;⟨ty⟩ as ⟨path⟩&gt; :: ⟨ident⟩ ( ⟨expr⟩,* )
 /// ```
 </span><span class="kw">fn </span>parse_trailer_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, allow_struct: bool) -&gt; ParseResult&lt;Expr&gt; {
-    <span class="kw">if </span>cx.advance_if(LAngle) {
-        <span class="comment">// &lt;⟨ty⟩ as ⟨path⟩&gt; :: ⟨ident⟩ ( ⟨expr⟩,* )
-        </span><span class="kw">let </span>lo = cx.lo();
-        <span class="kw">let </span>qself = parse_type(cx)<span class="question-mark">?</span>;
-        cx.expect(Tok::As)<span class="question-mark">?</span>;
-        <span class="kw">let </span>path = parse_path(cx)<span class="question-mark">?</span>;
-        cx.expect(RAngle)<span class="question-mark">?</span>;
-        cx.expect(Tok::PathSep)<span class="question-mark">?</span>;
-        <span class="kw">let </span>name = parse_ident(cx)<span class="question-mark">?</span>;
-        <span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
-        <span class="kw">let </span>kind = ExprKind::Alias(AliasReft { qself: Box::new(qself), path, name }, args);
-        <span class="kw">let </span>hi = cx.hi();
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
-    }
-
     <span class="kw">let </span>atom = parse_atom(cx, allow_struct)<span class="question-mark">?</span>;
     <span class="kw">let </span>lo = cx.lo();
     <span class="kw">let </span>kind = <span class="kw">if </span>cx.advance_if(Tok::Dot) {
@@ -1952,15 +1927,9 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(cx.unsupported_proj(atom.span));
         }
     } <span class="kw">else if </span>cx.peek(OpenDelim(Parenthesis)) {
-        <span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
-        <span class="kw">if let </span>ExprKind::Path(path) = atom.kind
-            &amp;&amp; <span class="kw">let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..]
-        {
-            <span class="comment">// ⟨ident⟩ ( ⟨expr⟩,* )
-            </span>ExprKind::App(segment.ident, args)
-        } <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(cx.unsupported_callee(atom.span));
-        }
+        <span class="comment">// ⟨atom⟩ ( ⟨expr⟩,* )
+        </span><span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
+        ExprKind::Call(Box::new(atom), args)
     } <span class="kw">else </span>{
         <span class="comment">// ⟨atom⟩
         </span><span class="kw">return </span><span class="prelude-val">Ok</span>(atom);
@@ -1975,6 +1944,7 @@
 ///         | ( ⟨expr⟩ )
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
+///         |  &lt;⟨ty⟩ as ⟨path⟩&gt; :: ⟨ident⟩
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 /// ```
@@ -2010,6 +1980,18 @@
             node_id: cx.next_node_id(),
             span: cx.mk_span(lo, hi),
         })
+    } <span class="kw">else if </span>lookahead.advance_if(LAngle) {
+        <span class="comment">// &lt;⟨ty⟩ as ⟨path⟩&gt; :: ⟨ident⟩
+        </span><span class="kw">let </span>lo = cx.lo();
+        <span class="kw">let </span>qself = parse_type(cx)<span class="question-mark">?</span>;
+        cx.expect(Tok::As)<span class="question-mark">?</span>;
+        <span class="kw">let </span>path = parse_path(cx)<span class="question-mark">?</span>;
+        cx.expect(RAngle)<span class="question-mark">?</span>;
+        cx.expect(Tok::PathSep)<span class="question-mark">?</span>;
+        <span class="kw">let </span>name = parse_ident(cx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>hi = cx.hi();
+        <span class="kw">let </span>kind = ExprKind::AssocReft(Box::new(qself), path, name);
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
     } <span class="kw">else if </span>lookahead.peek([Tok::Exists, Tok::Forall]) {
         parse_bounded_quantifier(cx)
     } <span class="kw">else </span>{
@@ -2075,22 +2057,6 @@
     }
 }
 
-<span class="doccomment">/// ```text
-/// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
-/// ```
-</span><span class="kw">fn </span>parse_lit(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
-    <span class="kw">if let </span>(lo, Tok::Literal(lit), hi) = cx.at(<span class="number">0</span>) {
-        cx.advance();
-        <span class="prelude-val">Ok</span>(Expr {
-            kind: ExprKind::Literal(lit),
-            node_id: cx.next_node_id(),
-            span: cx.mk_span(lo, hi),
-        })
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(cx.unexpected_token(AnyLit.display().collect()))
-    }
-}
-
 <span class="doccomment">/// `⟨epath⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩*`
 </span><span class="kw">fn </span>parse_expr_path(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;ExprPath&gt; {
     <span class="kw">let </span>lo = cx.lo();
@@ -2137,6 +2103,22 @@
 <span class="doccomment">/// ⟨block_expr⟩ := { ⟨expr⟩ }
 </span><span class="kw">fn </span>parse_block_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
     delimited(cx, Brace, |cx| parse_expr(cx, <span class="bool-val">true</span>))
+}
+
+<span class="doccomment">/// ```text
+/// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
+/// ```
+</span><span class="kw">fn </span>parse_lit(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
+    <span class="kw">if let </span>(lo, Tok::Literal(lit), hi) = cx.at(<span class="number">0</span>) {
+        cx.advance();
+        <span class="prelude-val">Ok</span>(Expr {
+            kind: ExprKind::Literal(lit),
+            node_id: cx.next_node_id(),
+            span: cx.mk_span(lo, hi),
+        })
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Err</span>(cx.unexpected_token(AnyLit.display().collect()))
+    }
 }
 
 <span class="kw">fn </span>parse_ident(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Ident&gt; {

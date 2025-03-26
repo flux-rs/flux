@@ -200,7 +200,7 @@
 <span class="doccomment">/// Parses a list of zero or more items separated by a punctuation, with optional trailing
 /// punctuation. Parsing continues until the requested `end` token is reached. This does not
 /// consume the end token.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>punctuated&lt;E: Peek, R&gt;(
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>punctuated_until&lt;E: Peek, R&gt;(
     cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
     sep: Token,
     end: E,
@@ -238,7 +238,7 @@
     parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
 ) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
     cx.expect(LAngle)<span class="question-mark">?</span>;
-    <span class="kw">let </span>items = punctuated(cx, sep, RAngle, parse)<span class="question-mark">?</span>;
+    <span class="kw">let </span>items = punctuated_until(cx, sep, RAngle, parse)<span class="question-mark">?</span>;
     cx.expect(RAngle)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(items)
 }
@@ -250,7 +250,7 @@
     parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
 ) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
     cx.expect(Token::OpenDelim(delim))<span class="question-mark">?</span>;
-    <span class="kw">let </span>r = punctuated(cx, sep, Token::CloseDelim(delim), parse)<span class="question-mark">?</span>;
+    <span class="kw">let </span>r = punctuated_until(cx, sep, Token::CloseDelim(delim), parse)<span class="question-mark">?</span>;
     cx.expect(Token::CloseDelim(delim))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(r)
 }

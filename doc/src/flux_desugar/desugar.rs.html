@@ -1602,25 +1602,7 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
-<a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a>
-<a href="#1615" id="1615">1615</a>
-<a href="#1616" id="1616">1616</a>
-<a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a>
-<a href="#1620" id="1620">1620</a>
-<a href="#1621" id="1621">1621</a>
-<a href="#1622" id="1622">1622</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -2526,27 +2508,21 @@
         <span class="self">self</span>.resolver_output().param_res_map.get(<span class="kw-2">&amp;</span>node_id).copied()
     }
 
-    <span class="kw">fn </span>desugar_var(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) -&gt; fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt; {
+    <span class="kw">fn </span>desugar_epath(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::ExprPath) -&gt; fhir::PathExpr&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>res = <span class="kw-2">*</span><span class="self">self
             </span>.resolver_output()
             .expr_path_res_map
             .get(<span class="kw-2">&amp;</span>path.node_id)
             .unwrap_or_else(|| <span class="macro">span_bug!</span>(path.span, <span class="string">"unresolved expr path"</span>));
 
-        <span class="kw">if let </span>ExprRes::GlobalFunc(..) = res {
-            <span class="kw">let </span>span = path.span;
-            <span class="kw">return </span>fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::InvalidFuncAsVar { span }));
-        }
-
-        <span class="kw">let </span>path = fhir::PathExpr {
+        fhir::PathExpr {
             segments: <span class="self">self
                 </span>.genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
             res,
             fhir_id: <span class="self">self</span>.next_fhir_id(),
             span: path.span,
-        };
-        fhir::ExprKind::Var(path, <span class="prelude-val">None</span>)
+        }
     }
 
     <span class="attr">#[track_caller]
@@ -2557,18 +2533,6 @@
         } <span class="kw">else </span>{
             <span class="kw">let </span>span = ident.span;
             <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidLoc { span }))
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>desugar_func(<span class="kw-2">&amp;</span><span class="self">self</span>, func: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PathExpr&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>node_id];
-        <span class="kw">if let </span>ExprRes::Param(..) | ExprRes::GlobalFunc(..) = res {
-            <span class="kw">let </span>segments = <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[func]);
-            <span class="prelude-val">Ok</span>(fhir::PathExpr { segments, res, fhir_id: <span class="self">self</span>.next_fhir_id(), span: func.span })
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>span = func.span;
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidFunc { span }))
         }
     }
 
@@ -2992,30 +2956,9 @@
         })
     }
 
-    <span class="kw">fn </span>desugar_alias_reft(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        alias_reft: <span class="kw-2">&amp;</span>surface::AliasReft,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::AliasReft&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>self_ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>alias_reft.qself);
-        <span class="kw">let </span>fhir::QPath::Resolved(<span class="prelude-val">None</span>, path) = <span class="self">self</span>.desugar_qpath(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>alias_reft.path) <span class="kw">else </span>{
-            <span class="macro">span_bug!</span>(alias_reft.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
-        };
-        <span class="kw">if let </span>Res::Def(DefKind::Trait, <span class="kw">_</span>) = path.res {
-            <span class="prelude-val">Ok</span>(fhir::AliasReft {
-                qself: <span class="self">self</span>.genv().alloc(self_ty),
-                path,
-                name: alias_reft.name.name,
-            })
-        } <span class="kw">else </span>{
-            <span class="comment">// FIXME(nilehmann) we ought to report this error somewhere else
-            </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit(errors::InvalidAliasReft::new(<span class="kw-2">&amp;</span>alias_reft.path)))
-        }
-    }
-
     <span class="kw">fn </span>desugar_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>surface::Expr) -&gt; fhir::Expr&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="kw">let </span>node_id = expr.node_id;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            surface::ExprKind::Path(path) =&gt; <span class="self">self</span>.desugar_var(path),
+            surface::ExprKind::Path(path) =&gt; fhir::ExprKind::Var(<span class="self">self</span>.desugar_epath(path), <span class="prelude-val">None</span>),
             surface::ExprKind::Literal(lit) =&gt; <span class="self">self</span>.desugar_lit(expr.span, <span class="kw-2">*</span>lit),
             surface::ExprKind::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; {
                 <span class="kw">let </span>e1 = <span class="self">self</span>.desugar_expr(e1);
@@ -3042,19 +2985,9 @@
                     fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::InvalidDotVar { span: path.span }))
                 }
             }
-            surface::ExprKind::App(func, args) =&gt; {
-                <span class="kw">let </span>args = <span class="self">self</span>.desugar_exprs(args);
-                <span class="kw">match </span><span class="self">self</span>.desugar_func(<span class="kw-2">*</span>func, node_id) {
-                    <span class="prelude-val">Ok</span>(func) =&gt; fhir::ExprKind::App(func, args),
-                    <span class="prelude-val">Err</span>(err) =&gt; fhir::ExprKind::Err(err),
-                }
-            }
-            surface::ExprKind::Alias(alias_reft, func_args) =&gt; {
-                <span class="kw">let </span>func_args = <span class="self">self</span>.desugar_exprs(func_args);
-                <span class="kw">match </span><span class="self">self</span>.desugar_alias_reft(alias_reft) {
-                    <span class="prelude-val">Ok</span>(alias_reft) =&gt; fhir::ExprKind::Alias(alias_reft, func_args),
-                    <span class="prelude-val">Err</span>(err) =&gt; fhir::ExprKind::Err(err),
-                }
+            surface::ExprKind::Call(callee, args) =&gt; <span class="self">self</span>.desugar_call(callee, args),
+            surface::ExprKind::AssocReft(..) =&gt; {
+                fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::UnsupportedPosition::new(expr.span)))
             }
             surface::ExprKind::IfThenElse(<span class="kw">box </span>[p, e1, e2]) =&gt; {
                 <span class="kw">let </span>p = <span class="self">self</span>.desugar_expr(p);
@@ -3082,6 +3015,37 @@
         };
 
         fhir::Expr { kind, span: expr.span, fhir_id: <span class="self">self</span>.next_fhir_id() }
+    }
+
+    <span class="kw">fn </span>desugar_call(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        callee: <span class="kw-2">&amp;</span>surface::Expr,
+        args: <span class="kw-2">&amp;</span>[surface::Expr],
+    ) -&gt; fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="kw">let </span>args = <span class="self">self</span>.desugar_exprs(args);
+        <span class="kw">match </span><span class="kw-2">&amp;</span>callee.kind {
+            surface::ExprKind::Path(path) =&gt; {
+                <span class="kw">let </span>path = <span class="self">self</span>.desugar_epath(path);
+                fhir::ExprKind::App(path, args)
+            }
+            surface::ExprKind::AssocReft(qself, path, name) =&gt; {
+                <span class="kw">let </span>qself = <span class="self">self</span>.desugar_ty(qself);
+                <span class="kw">let </span>fhir::QPath::Resolved(<span class="prelude-val">None</span>, fpath) = <span class="self">self</span>.desugar_qpath(<span class="prelude-val">None</span>, path) <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
+                };
+                <span class="kw">let </span>Res::Def(DefKind::Trait, <span class="kw">_</span>) = fpath.res <span class="kw">else </span>{
+                    <span class="comment">// FIXME(nilehmann) we ought to report this error somewhere else
+                    </span><span class="kw">return </span>fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::InvalidAliasReft::new(path)));
+                };
+                <span class="kw">let </span>alias_reft = fhir::AliasReft {
+                    qself: <span class="self">self</span>.genv().alloc(qself),
+                    path: fpath,
+                    name: name.name,
+                };
+                fhir::ExprKind::Alias(alias_reft, args)
+            }
+            <span class="kw">_ </span>=&gt; fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::UnsupportedPosition::new(callee.span))),
+        }
     }
 
     <span class="kw">fn </span>desugar_constructor(

@@ -193,12 +193,7 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
+<a href="#195" id="195">195</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_span;
@@ -370,10 +365,6 @@
         ParseError { kind, span: <span class="self">self</span>.mk_span(lo, hi) }
     }
 
-    <span class="kw">fn </span>unsupported_callee(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span) -&gt; ParseError {
-        ParseError { kind: ParseErrorKind::UnsupportedCallee, span }
-    }
-
     <span class="kw">fn </span>unsupported_proj(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span) -&gt; ParseError {
         ParseError { kind: ParseErrorKind::UnsupportedProj, span }
     }
@@ -394,7 +385,6 @@
 </span><span class="kw">pub enum </span>ParseErrorKind {
     UnexpectedToken { expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt; },
     UnexpectedEof,
-    UnsupportedCallee,
     UnsupportedProj,
     CannotBeChained,
 }
