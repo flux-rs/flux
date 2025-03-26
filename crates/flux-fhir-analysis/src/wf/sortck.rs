@@ -25,11 +25,11 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
     pub wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
+    params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
@@ -44,11 +44,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         sort_unification_table.new_key(None);
         Self {
             genv,
-            params: Default::default(),
             wfckresults: WfckResults::new(owner),
             sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
+            params: Default::default(),
             sort_of_bty: Default::default(),
             sort_of_literal: Default::default(),
             sort_of_bin_op: Default::default(),
@@ -87,7 +87,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.check_expr(body, fsort.output())?;
         self.wfckresults
             .node_sorts_mut()
-            .insert(expr.fhir_id, fsort.output().clone());
+            .insert(body.fhir_id, fsort.output().clone());
         Ok(())
     }
 
@@ -186,11 +186,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
             }
-            fhir::ExprKind::Abs(refine_params, body) => {
-                self.check_abs(expr, refine_params, body, expected)?;
-            }
-            fhir::ExprKind::BoundedQuant(.., body) => {
-                self.check_expr(body, &rty::Sort::Bool)?;
+            fhir::ExprKind::Abs(params, body) => {
+                self.check_abs(expr, params, body, expected)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
@@ -203,6 +200,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Alias(..)
             | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(..)
+            | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Constructor(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
@@ -256,7 +254,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fsort = self.instantiate_func_sort(poly_fsort);
                 self.synth_app(fsort, args, expr.span)
             }
-
+            fhir::ExprKind::BoundedQuant(.., body) => {
+                self.check_expr(body, &rty::Sort::Bool)?;
+                Ok(rty::Sort::Bool)
+            }
             fhir::ExprKind::Alias(_alias_reft, args) => {
                 // To check the application we only need the sort of `_alias_reft` which we collected
                 // during early conv, but should we do any extra checks on `_alias_reft`?
