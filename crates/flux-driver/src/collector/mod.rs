@@ -911,9 +911,6 @@ mod errors {
                             }
                         }
                     }
-                    ParseErrorKind::UnsupportedCallee => {
-                        "expression not allowed in callee position".to_string()
-                    }
                     ParseErrorKind::UnsupportedProj => {
                         "expression not allowed in field projection".to_string()
                     }

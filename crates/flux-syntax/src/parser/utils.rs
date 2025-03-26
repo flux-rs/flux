@@ -60,7 +60,7 @@ pub(crate) fn punctuated_with_trailing<E: Peek, R>(
 /// Parses a list of zero or more items separated by a punctuation, with optional trailing
 /// punctuation. Parsing continues until the requested `end` token is reached. This does not
 /// consume the end token.
-pub(crate) fn punctuated<E: Peek, R>(
+pub(crate) fn punctuated_until<E: Peek, R>(
     cx: &mut ParseCtxt,
     sep: Token,
     end: E,
@@ -98,7 +98,7 @@ pub(crate) fn angle<R>(
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     cx.expect(LAngle)?;
-    let items = punctuated(cx, sep, RAngle, parse)?;
+    let items = punctuated_until(cx, sep, RAngle, parse)?;
     cx.expect(RAngle)?;
     Ok(items)
 }
@@ -110,7 +110,7 @@ fn punctuated_delimited<R>(
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     cx.expect(Token::OpenDelim(delim))?;
-    let r = punctuated(cx, sep, Token::CloseDelim(delim), parse)?;
+    let r = punctuated_until(cx, sep, Token::CloseDelim(delim), parse)?;
     cx.expect(Token::CloseDelim(delim))?;
     Ok(r)
 }

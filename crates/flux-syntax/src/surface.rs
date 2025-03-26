@@ -320,14 +320,6 @@ pub struct Ty {
     pub span: Span,
 }
 
-/// `<qself as path>::name`
-#[derive(Debug)]
-pub struct AliasReft {
-    pub qself: Box<Ty>,
-    pub path: Path,
-    pub name: Ident,
-}
-
 #[derive(Debug)]
 pub enum TyKind {
     /// ty
@@ -509,8 +501,9 @@ pub enum ExprKind {
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
-    App(Ident, Vec<Expr>),
-    Alias(AliasReft, Vec<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    /// `<qself as path>::name`
+    AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
