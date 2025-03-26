@@ -37,8 +37,8 @@ desugar_multiple_spreads_in_constructor =
     multiple spreads found in constructor
     .help = previous spread found here. consider removing it
 
-desugar_unsupported_callee =
-   expression not allowed in function position
+desugar_unsupported_position =
+   expression not allowed this position
 
 # Resolve errors
 

@@ -1402,8 +1402,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 }
             }
             surface::ExprKind::Call(callee, args) => self.desugar_call(callee, args),
-            surface::ExprKind::AssocReft(assoc_reft) => {
-                todo!("error")
+            surface::ExprKind::AssocReft(_) => {
+                fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(expr.span)))
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 let p = self.desugar_expr(p);
@@ -1450,7 +1450,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Err(err) => fhir::ExprKind::Err(err),
                 }
             }
-            _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedCallee::new(callee.span))),
+            _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),
         }
     }
 
