@@ -38,7 +38,7 @@ desugar_multiple_spreads_in_constructor =
     .help = previous spread found here. consider removing it
 
 desugar_unsupported_position =
-   expression not allowed this position
+   expression not allowed in this position
 
 # Resolve errors
 
