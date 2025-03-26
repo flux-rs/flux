@@ -719,38 +719,38 @@ impl PlaceNode {
         }
     }
 
-    fn collect_unfolds(&self, place: &mut Place, stmts: &mut StatementsAt) -> bool {
+    fn collect_unfolds(&self, place: &mut Place, stmts: &mut StatementsAt) {
         match self {
-            PlaceNode::Ty(_) => true,
+            PlaceNode::Ty(_) => {}
             PlaceNode::Deref(_, node) => {
-                place.projection.push(PlaceElem::Deref);
-                node.collect_unfolds(place, stmts);
-                place.projection.pop();
-                false
+                if node.is_ty() {
+                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                } else {
+                    place.projection.push(PlaceElem::Deref);
+                    node.collect_unfolds(place, stmts);
+                    place.projection.pop();
+                }
             }
             PlaceNode::Downcast(.., fields)
             | PlaceNode::Closure(.., fields)
             | PlaceNode::Generator(.., fields)
             | PlaceNode::Tuple(.., fields) => {
-                if let Some(idx) = self.enum_variant() {
-                    place.projection.push(PlaceElem::Downcast(None, idx));
-                }
-
-                let mut all_leaves = true;
-                for (i, node) in fields.iter().enumerate() {
-                    place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-                    all_leaves &= node.collect_unfolds(place, stmts);
-                    place.projection.pop();
-                }
+                let all_leaves = fields.iter().all(PlaceNode::is_ty);
                 if all_leaves {
                     stmts.insert(GhostStatement::Unfold(place.clone()));
+                } else {
+                    if let Some(idx) = self.enum_variant() {
+                        place.projection.push(PlaceElem::Downcast(None, idx));
+                    }
+                    for (i, node) in fields.iter().enumerate() {
+                        place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+                        node.collect_unfolds(place, stmts);
+                        place.projection.pop();
+                    }
+                    if self.enum_variant().is_some() {
+                        place.projection.pop();
+                    }
                 }
-
-                if self.enum_variant().is_some() {
-                    place.projection.pop();
-                }
-
-                true
             }
         }
     }
@@ -798,6 +798,14 @@ impl PlaceNode {
         } else {
             None
         }
+    }
+
+    /// Returns `true` if the place node is [`Ty`].
+    ///
+    /// [`Ty`]: PlaceNode::Ty
+    #[must_use]
+    fn is_ty(&self) -> bool {
+        matches!(self, Self::Ty(..))
     }
 }
 
