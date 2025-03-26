@@ -1570,7 +1570,16 @@
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
 <a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1833,10 +1842,19 @@
     Type,
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="attr">#[derive(Copy, Clone, Debug)]
 </span><span class="kw">pub enum </span>FluxItem&lt;<span class="lifetime">'fhir</span>&gt; {
-    Qualifier(Qualifier&lt;<span class="lifetime">'fhir</span>&gt;),
-    Func(SpecFunc&lt;<span class="lifetime">'fhir</span>&gt;),
+    Qualifier(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Qualifier&lt;<span class="lifetime">'fhir</span>&gt;),
+    Func(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>SpecFunc&lt;<span class="lifetime">'fhir</span>&gt;),
+}
+
+<span class="kw">impl </span>FluxItem&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">pub fn </span>def_id(<span class="self">self</span>) -&gt; FluxLocalDefId {
+        <span class="kw">match </span><span class="self">self </span>{
+            FluxItem::Qualifier(qualifier) =&gt; qualifier.def_id,
+            FluxItem::Func(func) =&gt; func.def_id,
+        }
+    }
 }
 
 <span class="attr">#[derive(Debug)]

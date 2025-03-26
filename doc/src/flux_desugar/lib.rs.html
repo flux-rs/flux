@@ -348,7 +348,9 @@
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
 <a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(
     rustc_private,
@@ -681,7 +683,9 @@
 
     <span class="kw">fn </span>desugar_func_defn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxLocalDefId, func: <span class="kw-2">&amp;</span>surface::SpecFunc) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>func = desugar::desugar_spec_func(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, def_id, func)<span class="question-mark">?</span>;
-        <span class="self">self</span>.fhir.items.insert(def_id, fhir::FluxItem::Func(func));
+        <span class="self">self</span>.fhir
+            .items
+            .insert(def_id, fhir::FluxItem::Func(<span class="self">self</span>.genv.alloc(func)));
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -694,7 +698,7 @@
             desugar::desugar_qualifier(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, def_id, qualifier)<span class="question-mark">?</span>;
         <span class="self">self</span>.fhir
             .items
-            .insert(def_id, fhir::FluxItem::Qualifier(qualifier));
+            .insert(def_id, fhir::FluxItem::Qualifier(<span class="self">self</span>.genv.alloc(qualifier)));
         <span class="prelude-val">Ok</span>(())
     }
 }

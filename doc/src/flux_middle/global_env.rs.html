@@ -1183,7 +1183,7 @@
 
     <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.items.values().filter_map(|item| {
-            <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+            <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
         })
     }
 
@@ -1191,12 +1191,12 @@
         <span class="self">self</span>.fhir
             .items
             .get(<span class="kw-2">&amp;</span>def_id)
-            .and_then(|item| <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
+            .and_then(|item| <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
     }
 
     <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.items.values().filter_map(|item| {
-            <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item { <span class="prelude-val">Some</span>(qual) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+            <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>qual) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
         })
     }
 

@@ -512,7 +512,15 @@
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 
@@ -542,30 +550,17 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_qualifier(genv: GlobalEnv, qual: <span class="kw-2">&amp;</span>fhir::Qualifier) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
-    <span class="kw">let </span>owner = FluxOwnerId::Flux(qual.def_id);
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_flux_item&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    item: fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
+    <span class="kw">let </span>owner = FluxOwnerId::Flux(item.def_id());
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
-    <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
-    wf.insert_params(qual.args)<span class="question-mark">?</span>;
-    infcx.check_expr(<span class="kw-2">&amp;</span>qual.expr, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
-    <span class="kw">for </span>param <span class="kw">in </span>qual.args {
-        infcx.resolve_param_sort(param)<span class="question-mark">?</span>;
-    }
-    infcx.into_results()
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_spec(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
-    <span class="kw">let </span>owner = FluxOwnerId::Flux(func.def_id);
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
-    <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
-        wf.insert_params(func.args)<span class="question-mark">?</span>;
-        <span class="kw">let </span>output = wf.as_conv_ctxt().conv_sort(<span class="kw-2">&amp;</span>func.sort).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-        infcx.check_expr(body, <span class="kw-2">&amp;</span>output)<span class="question-mark">?</span>;
-        <span class="kw">for </span>param <span class="kw">in </span>func.args {
-            infcx.resolve_param_sort(param)<span class="question-mark">?</span>;
-        }
-    }
+    Wf::with(<span class="kw-2">&amp;mut </span>infcx, |wf| {
+        wf.declare_params_for_flux_item(item)<span class="question-mark">?</span>;
+        wf.check_flux_item(item);
+        <span class="prelude-val">Ok</span>(())
+    })<span class="question-mark">?</span>;
     infcx.into_results()
 }
 
@@ -576,32 +571,27 @@
     sort: <span class="kw-2">&amp;</span>rty::Sort,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
-    <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
-    infcx.check_expr(expr, sort).collect_err(<span class="kw-2">&amp;mut </span>err);
-    err.into_result()<span class="question-mark">?</span>;
+    infcx.check_expr(expr, sort)<span class="question-mark">?</span>;
     infcx.into_results()
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_invariants(
-    genv: GlobalEnv,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_invariants&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     adt_def_id: MaybeExternId&lt;OwnerId&gt;,
-    params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-    invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
+    params: <span class="kw-2">&amp;</span>[fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;],
+    invariants: <span class="kw-2">&amp;</span>[fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span>owner = FluxOwnerId::Rust(adt_def_id.local_id());
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
-    <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
-    wf.insert_params(params)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
-    <span class="kw">for </span>invariant <span class="kw">in </span>invariants {
-        infcx
-            .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
-            .collect_err(<span class="kw-2">&amp;mut </span>err);
-    }
-    <span class="kw">for </span>param <span class="kw">in </span>params {
-        infcx.resolve_param_sort(param)<span class="question-mark">?</span>;
-    }
-    err.into_result()<span class="question-mark">?</span>;
+    Wf::with(<span class="kw-2">&amp;mut </span>infcx, |wf| {
+        wf.declare_params_for_invariants(params, invariants)<span class="question-mark">?</span>;
+        <span class="kw">for </span>invariant <span class="kw">in </span>invariants {
+            wf.infcx
+                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+                .collect_err(<span class="kw-2">&amp;mut </span>wf.errors);
+        }
+        <span class="prelude-val">Ok</span>(())
+    })<span class="question-mark">?</span>;
     infcx.into_results()
 }
 
@@ -610,26 +600,20 @@
     node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
-    <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(<span class="kw-2">&amp;mut </span>infcx);
-    wf.init_infcx(node)
-        .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
-        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    Wf::with(<span class="kw-2">&amp;mut </span>infcx, |wf| {
+        wf.init_infcx(node)
+            .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
+            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
-    ImplicitParamInferer::infer(wf.infcx, node)<span class="question-mark">?</span>;
+        ImplicitParamInferer::infer(wf.infcx, node)<span class="question-mark">?</span>;
 
-    wf.check_node(node);
-    wf.errors.into_result()<span class="question-mark">?</span>;
-
-    resolve_params(<span class="kw-2">&amp;mut </span>infcx, node)<span class="question-mark">?</span>;
+        wf.check_node(node);
+        <span class="prelude-val">Ok</span>(())
+    })<span class="question-mark">?</span>;
 
     param_usage::check(<span class="kw-2">&amp;</span>infcx, node)<span class="question-mark">?</span>;
 
     infcx.into_results()
-}
-
-<span class="doccomment">/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
-</span><span class="kw">fn </span>resolve_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result</span> {
-    visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
 <span class="kw">struct </span>Wf&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -641,9 +625,9 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Wf&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>with(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
-        <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>wf = <span class="self">Self </span>{
             infcx,
             errors,
             <span class="comment">// We start sorts and types from 1 to skip the trait object dummy self type.
@@ -651,33 +635,51 @@
             </span>next_type_index: <span class="number">1</span>,
             next_region_index: <span class="number">0</span>,
             next_const_index: <span class="number">0</span>,
-        }
+        };
+        f(<span class="kw-2">&amp;mut </span>wf)<span class="question-mark">?</span>;
+        wf.errors.into_result()
+    }
+
+    <span class="kw">fn </span>check_flux_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="self">self</span>.visit_flux_item(<span class="kw-2">&amp;</span>item);
     }
 
     <span class="kw">fn </span>check_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="self">self</span>.visit_node(node);
     }
 
-    <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    </span><span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result</span> {
+    <span class="doccomment">/// Recursively traverse `item` and declare all refinement parameters
+    </span><span class="kw">fn </span>declare_params_for_flux_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+        visit_refine_params(|vis| vis.visit_flux_item(<span class="kw-2">&amp;</span>item), |param| <span class="self">self</span>.declare_param(param))
+    }
+
+    <span class="doccomment">/// Recursively traverse `node` and declare all refinement parameters
+    </span><span class="kw">fn </span>declare_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+        visit_refine_params(|vis| vis.visit_node(node), |param| <span class="self">self</span>.declare_param(param))
+    }
+
+    <span class="doccomment">/// Recursively traverse `invariants` and declare all refinement parameters
+    </span><span class="kw">fn </span>declare_params_for_invariants(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        params: <span class="kw-2">&amp;</span>[fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;],
+        invariants: <span class="kw-2">&amp;</span>[fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;],
+    ) -&gt; <span class="prelude-ty">Result</span> {
         <span class="kw">for </span>param <span class="kw">in </span>params {
-            <span class="kw">let </span>sort = <span class="self">self
-                </span>.as_conv_ctxt()
-                .conv_sort(<span class="kw-2">&amp;</span>param.sort)
-                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)<span class="question-mark">?</span>;
-            <span class="self">self</span>.infcx.insert_param(param.id, sort, param.kind);
+            <span class="self">self</span>.declare_param(param)<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>expr <span class="kw">in </span>invariants {
+            visit_refine_params(|vis| vis.visit_expr(expr), |param| <span class="self">self</span>.declare_param(param))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Initializes the inference context with all refinement parameters in `node`
-    </span><span class="kw">fn </span>insert_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode) -&gt; <span class="prelude-ty">Result</span> {
-        <span class="kw">let </span>genv = <span class="self">self</span>.infcx.genv;
-        visit_refine_params(node, |param| {
-            <span class="kw">let </span>sort = <span class="self">self</span>.as_conv_ctxt().conv_sort(<span class="kw-2">&amp;</span>param.sort).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-            <span class="self">self</span>.infcx.insert_param(param.id, sort, param.kind);
-            <span class="prelude-val">Ok</span>(())
-        })
+    <span class="kw">fn </span>declare_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+        <span class="kw">let </span>sort = <span class="self">self
+            </span>.as_conv_ctxt()
+            .conv_sort(<span class="kw-2">&amp;</span>param.sort)
+            .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv())<span class="question-mark">?</span>;
+        <span class="self">self</span>.infcx.declare_param(<span class="kw-2">*</span>param, sort);
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// To check for well-formedness we need to know the sort of base types. For example, to check if
@@ -697,7 +699,7 @@
     /// [inference context]: InferCtxt
     </span><span class="kw">fn </span>init_infcx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;) -&gt; QueryResult {
         <span class="kw">let </span>def_id = node.owner_id().map(|id| id.def_id);
-        <span class="self">self</span>.insert_params_for_node(node)<span class="question-mark">?</span>;
+        <span class="self">self</span>.declare_params_for_node(node)<span class="question-mark">?</span>;
         <span class="kw">let </span>cx = <span class="self">self</span>.as_conv_ctxt();
         <span class="kw">match </span>node {
             fhir::OwnerNode::Item(item) =&gt; {
@@ -798,6 +800,23 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; fhir::visit::Visitor&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">for </span>Wf&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>visit_qualifier(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qual: <span class="kw-2">&amp;</span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="self">self</span>.infcx
+            .check_expr(<span class="kw-2">&amp;</span>qual.expr, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+            .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+    }
+
+    <span class="kw">fn </span>visit_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(output) = <span class="self">self</span>.as_conv_ctxt().conv_sort(<span class="kw-2">&amp;</span>func.sort).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
+                <span class="kw">return</span>;
+            };
+            <span class="self">self</span>.infcx
+                .check_expr(body, <span class="kw-2">&amp;</span>output)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+        }
+    }
+
     <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft) {
         <span class="kw">let </span><span class="prelude-val">Ok</span>(output) = <span class="self">self
             </span>.as_conv_ctxt()
@@ -910,25 +929,26 @@
     }
 }
 
-<span class="kw">fn </span>visit_refine_params(
-    node: <span class="kw-2">&amp;</span>fhir::OwnerNode,
-    f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>,
-) -&gt; <span class="prelude-ty">Result</span> {
-    <span class="kw">struct </span>RefineParamVisitor&lt;F&gt; {
-        f: F,
-        err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
-    }
+<span class="kw">struct </span>RefineParamVisitor&lt;F&gt; {
+    f: F,
+    err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
+}
 
-    <span class="kw">impl</span>&lt;F&gt; fhir::visit::Visitor&lt;<span class="lifetime">'_</span>&gt; <span class="kw">for </span>RefineParamVisitor&lt;F&gt;
-    <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>,
-    {
-        <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) {
-            (<span class="self">self</span>.f)(param).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
-        }
+<span class="kw">impl</span>&lt;<span class="lifetime">'v</span>, F&gt; fhir::visit::Visitor&lt;<span class="lifetime">'v</span>&gt; <span class="kw">for </span>RefineParamVisitor&lt;F&gt;
+<span class="kw">where
+    </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'v</span>&gt;) -&gt; <span class="prelude-ty">Result</span>,
+{
+    <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'v</span>&gt;) {
+        (<span class="self">self</span>.f)(param).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
     }
+}
+
+<span class="kw">fn </span>visit_refine_params&lt;<span class="lifetime">'a</span>, F&gt;(visit: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>RefineParamVisitor&lt;F&gt;), f: F) -&gt; <span class="prelude-ty">Result</span>
+<span class="kw">where
+    </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>,
+{
     <span class="kw">let </span><span class="kw-2">mut </span>visitor = RefineParamVisitor { f, err: <span class="prelude-val">None </span>};
-    visitor.visit_node(node);
+    visit(<span class="kw-2">&amp;mut </span>visitor);
     visitor.err.into_result()
 }
 
@@ -1002,10 +1022,6 @@
         rty::Sort::Err
     }
 
-    <span class="kw">fn </span>literal_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::Sort {
-        rty::Sort::Err
-    }
-
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion] {
         <span class="kw-2">&amp;</span>[]
     }
@@ -1014,16 +1030,16 @@
         rty::FieldProj::Tuple { arity: <span class="number">0</span>, field: <span class="number">0 </span>}
     }
 
-    <span class="kw">fn </span>lambda_output(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::Sort {
-        rty::Sort::Err
-    }
-
     <span class="kw">fn </span>record_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; DefId {
         DefId { index: DefIndex::from_u32(<span class="number">0</span>), krate: CrateNum::from_u32(<span class="number">0</span>) }
     }
 
     <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; rty::Sort {
         <span class="self">self</span>.param_sort(param.id)
+    }
+
+    <span class="kw">fn </span>node_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::Sort {
+        rty::Sort::Err
     }
 }
 </code></pre></div></section></main></body></html>

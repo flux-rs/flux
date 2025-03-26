@@ -580,7 +580,11 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -673,7 +677,8 @@
     <span class="comment">// Collect and emit all errors
     </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
     <span class="kw">for </span>func <span class="kw">in </span>genv.map().spec_funcs() {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_fn_spec(genv, func).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
+        <span class="kw">let </span>item = fhir::FluxItem::Func(func);
+        <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_flux_item(genv, item).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
             <span class="kw">continue</span>;
         };
         <span class="kw">let </span><span class="prelude-val">Ok</span>(defn) = conv::conv_defn(genv, func, <span class="kw-2">&amp;</span>wfckresults).emit(<span class="kw-2">&amp;</span>errors) <span class="kw">else </span>{
@@ -699,7 +704,7 @@
     genv.map()
         .qualifiers()
         .map(|qualifier| {
-            <span class="kw">let </span>wfckresults = wf::check_qualifier(genv, qualifier)<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Qualifier(qualifier))<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(conv::conv_qualifier(genv, qualifier, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>.normalize(genv))
         })
         .try_collect()
@@ -741,7 +746,10 @@
     }
 }
 
-<span class="kw">fn </span>invariants_of(genv: GlobalEnv, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
+<span class="kw">fn </span>invariants_of&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    item: <span class="kw-2">&amp;</span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;,
+) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
     <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; (enum_def.params, enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) =&gt; (struct_def.params, struct_def.invariants),

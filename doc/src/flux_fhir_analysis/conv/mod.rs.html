@@ -2809,16 +2809,7 @@
 <a href="#2808" id="2808">2808</a>
 <a href="#2809" id="2809">2809</a>
 <a href="#2810" id="2810">2810</a>
-<a href="#2811" id="2811">2811</a>
-<a href="#2812" id="2812">2812</a>
-<a href="#2813" id="2813">2813</a>
-<a href="#2814" id="2814">2814</a>
-<a href="#2815" id="2815">2815</a>
-<a href="#2816" id="2816">2816</a>
-<a href="#2817" id="2817">2817</a>
-<a href="#2818" id="2818">2818</a>
-<a href="#2819" id="2819">2819</a>
-<a href="#2820" id="2820">2820</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2811" id="2811">2811</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -2934,17 +2925,15 @@
 </span><span class="kw">pub trait </span>WfckResultsProvider: Sized {
     <span class="kw">fn </span>bin_op_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
 
-    <span class="kw">fn </span>literal_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
-
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion];
 
     <span class="kw">fn </span>field_proj(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::FieldProj;
 
-    <span class="kw">fn </span>lambda_output(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
-
     <span class="kw">fn </span>record_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; DefId;
 
     <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; rty::Sort;
+
+    <span class="kw">fn </span>node_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort;
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ConvPhase&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>AfterSortck&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -3000,13 +2989,6 @@
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"binary relation without elaborated sort `{fhir_id:?}`"</span>))
     }
 
-    <span class="kw">fn </span>literal_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
-        <span class="self">self</span>.node_sorts()
-            .get(fhir_id)
-            .cloned()
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"literal without elaborated sort `{fhir_id:?}`"</span>))
-    }
-
     <span class="kw">fn </span>coercions_for(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="kw-2">&amp;</span>[rty::Coercion] {
         <span class="self">self</span>.coercions().get(fhir_id).map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice)
     }
@@ -3016,13 +2998,6 @@
             </span>.field_projs()
             .get(fhir_id)
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"field projection without elaboration `{fhir_id:?}`"</span>))
-    }
-
-    <span class="kw">fn </span>lambda_output(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
-        <span class="self">self</span>.node_sorts()
-            .get(fhir_id)
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"lambda without elaborated sort for `{fhir_id:?}`"</span>))
-            .clone()
     }
 
     <span class="kw">fn </span>record_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; DefId {
@@ -3036,6 +3011,13 @@
         <span class="self">self</span>.node_sorts()
             .get(param.fhir_id)
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unresolved sort for param `{param:?}`"</span>))
+            .clone()
+    }
+
+    <span class="kw">fn </span>node_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; rty::Sort {
+        <span class="self">self</span>.node_sorts()
+            .get(fhir_id)
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"node without elaborated sort for `{fhir_id:?}`"</span>))
             .clone()
     }
 }
@@ -4805,7 +4787,7 @@
     <span class="kw">fn </span>conv_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, lit: fhir::Lit, fhir_id: FhirId, span: Span) -&gt; QueryResult&lt;rty::Constant&gt; {
         <span class="kw">match </span>lit {
             fhir::Lit::Int(n) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.results().literal_sort(fhir_id);
+                <span class="kw">let </span>sort = <span class="self">self</span>.results().node_sort(fhir_id);
                 <span class="kw">if let </span>rty::Sort::BitVec(bvsize) = sort {
                     <span class="kw">if let </span>rty::BvSize::Fixed(size) = bvsize
                         &amp;&amp; (n == <span class="number">0 </span>|| n.ilog2() &lt; size)
@@ -4905,7 +4887,7 @@
                 env.push_layer(layer);
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
                 <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
-                <span class="kw">let </span>output = <span class="self">self</span>.results().lambda_output(expr.fhir_id);
+                <span class="kw">let </span>output = <span class="self">self</span>.results().node_sort(body.fhir_id);
                 <span class="kw">let </span>lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 rty::Expr::abs(lam)
             }
