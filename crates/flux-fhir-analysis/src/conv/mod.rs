@@ -114,17 +114,15 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
 pub trait WfckResultsProvider: Sized {
     fn bin_op_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
-    fn literal_sort(&self, fhir_id: FhirId) -> rty::Sort;
-
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion];
 
     fn field_proj(&self, fhir_id: FhirId) -> rty::FieldProj;
 
-    fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort;
-
     fn record_ctor(&self, fhir_id: FhirId) -> DefId;
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
+
+    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
 }
 
 impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for AfterSortck<'_, 'genv, 'tcx> {
@@ -180,13 +178,6 @@ impl WfckResultsProvider for WfckResults {
             .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
     }
 
-    fn literal_sort(&self, fhir_id: FhirId) -> rty::Sort {
-        self.node_sorts()
-            .get(fhir_id)
-            .cloned()
-            .unwrap_or_else(|| bug!("literal without elaborated sort `{fhir_id:?}`"))
-    }
-
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
         self.coercions().get(fhir_id).map_or(&[][..], Vec::as_slice)
     }
@@ -196,13 +187,6 @@ impl WfckResultsProvider for WfckResults {
             .field_projs()
             .get(fhir_id)
             .unwrap_or_else(|| bug!("field projection without elaboration `{fhir_id:?}`"))
-    }
-
-    fn lambda_output(&self, fhir_id: FhirId) -> rty::Sort {
-        self.node_sorts()
-            .get(fhir_id)
-            .unwrap_or_else(|| bug!("lambda without elaborated sort for `{fhir_id:?}`"))
-            .clone()
     }
 
     fn record_ctor(&self, fhir_id: FhirId) -> DefId {
@@ -216,6 +200,13 @@ impl WfckResultsProvider for WfckResults {
         self.node_sorts()
             .get(param.fhir_id)
             .unwrap_or_else(|| bug!("unresolved sort for param `{param:?}`"))
+            .clone()
+    }
+
+    fn node_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.node_sorts()
+            .get(fhir_id)
+            .unwrap_or_else(|| bug!("node without elaborated sort for `{fhir_id:?}`"))
             .clone()
     }
 }
@@ -1985,7 +1976,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
             fhir::Lit::Int(n) => {
-                let sort = self.results().literal_sort(fhir_id);
+                let sort = self.results().node_sort(fhir_id);
                 if let rty::Sort::BitVec(bvsize) = sort {
                     if let rty::BvSize::Fixed(size) = bvsize
                         && (n == 0 || n.ilog2() < size)
@@ -2085,7 +2076,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
                 let inputs = env.pop_layer().into_bound_vars(self.genv())?;
-                let output = self.results().lambda_output(expr.fhir_id);
+                let output = self.results().node_sort(body.fhir_id);
                 let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
                 rty::Expr::abs(lam)
             }

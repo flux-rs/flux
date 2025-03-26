@@ -28,30 +28,17 @@ use crate::conv::{ConvPhase, WfckResultsProvider};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_qualifier(genv: GlobalEnv, qual: &fhir::Qualifier) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(qual.def_id);
+pub(crate) fn check_flux_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    item: fhir::FluxItem<'genv>,
+) -> Result<WfckResults> {
+    let owner = FluxOwnerId::Flux(item.def_id());
     let mut infcx = InferCtxt::new(genv, owner);
-    let mut wf = Wf::new(&mut infcx);
-    wf.insert_params(qual.args)?;
-    infcx.check_expr(&qual.expr, &rty::Sort::Bool)?;
-    for param in qual.args {
-        infcx.resolve_param_sort(param)?;
-    }
-    infcx.into_results()
-}
-
-pub(crate) fn check_fn_spec(genv: GlobalEnv, func: &fhir::SpecFunc) -> Result<WfckResults> {
-    let owner = FluxOwnerId::Flux(func.def_id);
-    let mut infcx = InferCtxt::new(genv, owner);
-    let mut wf = Wf::new(&mut infcx);
-    if let Some(body) = &func.body {
-        wf.insert_params(func.args)?;
-        let output = wf.as_conv_ctxt().conv_sort(&func.sort).emit(&genv)?;
-        infcx.check_expr(body, &output)?;
-        for param in func.args {
-            infcx.resolve_param_sort(param)?;
-        }
-    }
+    Wf::with(&mut infcx, |wf| {
+        wf.declare_params_for_flux_item(item)?;
+        wf.check_flux_item(item);
+        Ok(())
+    })?;
     infcx.into_results()
 }
 
@@ -62,32 +49,27 @@ pub(crate) fn check_constant_expr(
     sort: &rty::Sort,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
-    let mut err = None;
-    infcx.check_expr(expr, sort).collect_err(&mut err);
-    err.into_result()?;
+    infcx.check_expr(expr, sort)?;
     infcx.into_results()
 }
 
-pub(crate) fn check_invariants(
-    genv: GlobalEnv,
+pub(crate) fn check_invariants<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     adt_def_id: MaybeExternId<OwnerId>,
-    params: &[fhir::RefineParam],
-    invariants: &[fhir::Expr],
+    params: &[fhir::RefineParam<'genv>],
+    invariants: &[fhir::Expr<'genv>],
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Rust(adt_def_id.local_id());
     let mut infcx = InferCtxt::new(genv, owner);
-    let mut wf = Wf::new(&mut infcx);
-    wf.insert_params(params)?;
-    let mut err = None;
-    for invariant in invariants {
-        infcx
-            .check_expr(invariant, &rty::Sort::Bool)
-            .collect_err(&mut err);
-    }
-    for param in params {
-        infcx.resolve_param_sort(param)?;
-    }
-    err.into_result()?;
+    Wf::with(&mut infcx, |wf| {
+        wf.declare_params_for_invariants(params, invariants)?;
+        for invariant in invariants {
+            wf.infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut wf.errors);
+        }
+        Ok(())
+    })?;
     infcx.into_results()
 }
 
@@ -96,26 +78,20 @@ pub(crate) fn check_node<'genv>(
     node: &fhir::OwnerNode<'genv>,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
-    let mut wf = Wf::new(&mut infcx);
-    wf.init_infcx(node)
-        .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
-        .emit(&genv)?;
+    Wf::with(&mut infcx, |wf| {
+        wf.init_infcx(node)
+            .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
+            .emit(&genv)?;
 
-    ImplicitParamInferer::infer(wf.infcx, node)?;
+        ImplicitParamInferer::infer(wf.infcx, node)?;
 
-    wf.check_node(node);
-    wf.errors.into_result()?;
-
-    resolve_params(&mut infcx, node)?;
+        wf.check_node(node);
+        Ok(())
+    })?;
 
     param_usage::check(&infcx, node)?;
 
     infcx.into_results()
-}
-
-/// Check that all param sorts are fully resolved and save them in [`WfckResults`]
-fn resolve_params(infcx: &mut InferCtxt, node: &fhir::OwnerNode) -> Result {
-    visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
 struct Wf<'a, 'genv, 'tcx> {
@@ -127,9 +103,9 @@ struct Wf<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
-    fn new(infcx: &'a mut InferCtxt<'genv, 'tcx>) -> Self {
+    fn with(infcx: &'a mut InferCtxt<'genv, 'tcx>, f: impl FnOnce(&mut Self) -> Result) -> Result {
         let errors = Errors::new(infcx.genv.sess());
-        Self {
+        let mut wf = Self {
             infcx,
             errors,
             // We start sorts and types from 1 to skip the trait object dummy self type.
@@ -137,33 +113,51 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             next_type_index: 1,
             next_region_index: 0,
             next_const_index: 0,
-        }
+        };
+        f(&mut wf)?;
+        wf.errors.into_result()
+    }
+
+    fn check_flux_item(&mut self, item: fhir::FluxItem<'genv>) {
+        self.visit_flux_item(&item);
     }
 
     fn check_node(&mut self, node: &fhir::OwnerNode<'genv>) {
         self.visit_node(node);
     }
 
-    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    fn insert_params(&mut self, params: &[fhir::RefineParam]) -> Result {
+    /// Recursively traverse `item` and declare all refinement parameters
+    fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
+        visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
+    }
+
+    /// Recursively traverse `node` and declare all refinement parameters
+    fn declare_params_for_node(&mut self, node: &fhir::OwnerNode<'genv>) -> Result {
+        visit_refine_params(|vis| vis.visit_node(node), |param| self.declare_param(param))
+    }
+
+    /// Recursively traverse `invariants` and declare all refinement parameters
+    fn declare_params_for_invariants(
+        &mut self,
+        params: &[fhir::RefineParam<'genv>],
+        invariants: &[fhir::Expr<'genv>],
+    ) -> Result {
         for param in params {
-            let sort = self
-                .as_conv_ctxt()
-                .conv_sort(&param.sort)
-                .emit(&self.errors)?;
-            self.infcx.insert_param(param.id, sort, param.kind);
+            self.declare_param(param)?;
+        }
+        for expr in invariants {
+            visit_refine_params(|vis| vis.visit_expr(expr), |param| self.declare_param(param))?;
         }
         Ok(())
     }
 
-    /// Initializes the inference context with all refinement parameters in `node`
-    fn insert_params_for_node(&mut self, node: &fhir::OwnerNode) -> Result {
-        let genv = self.infcx.genv;
-        visit_refine_params(node, |param| {
-            let sort = self.as_conv_ctxt().conv_sort(&param.sort).emit(&genv)?;
-            self.infcx.insert_param(param.id, sort, param.kind);
-            Ok(())
-        })
+    fn declare_param(&mut self, param: &fhir::RefineParam<'genv>) -> Result {
+        let sort = self
+            .as_conv_ctxt()
+            .conv_sort(&param.sort)
+            .emit(&self.genv())?;
+        self.infcx.declare_param(*param, sort);
+        Ok(())
     }
 
     /// To check for well-formedness we need to know the sort of base types. For example, to check if
@@ -183,7 +177,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     /// [inference context]: InferCtxt
     fn init_infcx(&mut self, node: &fhir::OwnerNode<'genv>) -> QueryResult {
         let def_id = node.owner_id().map(|id| id.def_id);
-        self.insert_params_for_node(node)?;
+        self.declare_params_for_node(node)?;
         let cx = self.as_conv_ctxt();
         match node {
             fhir::OwnerNode::Item(item) => {
@@ -284,6 +278,23 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 }
 
 impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
+    fn visit_qualifier(&mut self, qual: &fhir::Qualifier<'genv>) {
+        self.infcx
+            .check_expr(&qual.expr, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
+        if let Some(body) = &func.body {
+            let Ok(output) = self.as_conv_ctxt().conv_sort(&func.sort).emit(&self.errors) else {
+                return;
+            };
+            self.infcx
+                .check_expr(body, &output)
+                .collect_err(&mut self.errors);
+        }
+    }
+
     fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft) {
         let Ok(output) = self
             .as_conv_ctxt()
@@ -396,25 +407,26 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 }
 
-fn visit_refine_params(
-    node: &fhir::OwnerNode,
-    f: impl FnMut(&fhir::RefineParam) -> Result,
-) -> Result {
-    struct RefineParamVisitor<F> {
-        f: F,
-        err: Option<ErrorGuaranteed>,
-    }
+struct RefineParamVisitor<F> {
+    f: F,
+    err: Option<ErrorGuaranteed>,
+}
 
-    impl<F> fhir::visit::Visitor<'_> for RefineParamVisitor<F>
-    where
-        F: FnMut(&fhir::RefineParam) -> Result,
-    {
-        fn visit_refine_param(&mut self, param: &fhir::RefineParam) {
-            (self.f)(param).collect_err(&mut self.err);
-        }
+impl<'v, F> fhir::visit::Visitor<'v> for RefineParamVisitor<F>
+where
+    F: FnMut(&fhir::RefineParam<'v>) -> Result,
+{
+    fn visit_refine_param(&mut self, param: &fhir::RefineParam<'v>) {
+        (self.f)(param).collect_err(&mut self.err);
     }
+}
+
+fn visit_refine_params<'a, F>(visit: impl FnOnce(&mut RefineParamVisitor<F>), f: F) -> Result
+where
+    F: FnMut(&fhir::RefineParam<'a>) -> Result,
+{
     let mut visitor = RefineParamVisitor { f, err: None };
-    visitor.visit_node(node);
+    visit(&mut visitor);
     visitor.err.into_result()
 }
 
@@ -488,10 +500,6 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::Sort::Err
     }
 
-    fn literal_sort(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
     fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
         &[]
     }
@@ -500,15 +508,15 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::FieldProj::Tuple { arity: 0, field: 0 }
     }
 
-    fn lambda_output(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
     fn record_ctor(&self, _: FhirId) -> DefId {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
         self.param_sort(param.id)
+    }
+
+    fn node_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
     }
 }

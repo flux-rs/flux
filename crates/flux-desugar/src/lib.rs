@@ -331,7 +331,9 @@ impl CrateDesugar<'_, '_> {
 
     fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {
         let func = desugar::desugar_spec_func(self.genv, self.resolver_output, def_id, func)?;
-        self.fhir.items.insert(def_id, fhir::FluxItem::Func(func));
+        self.fhir
+            .items
+            .insert(def_id, fhir::FluxItem::Func(self.genv.alloc(func)));
         Ok(())
     }
 
@@ -344,7 +346,7 @@ impl CrateDesugar<'_, '_> {
             desugar::desugar_qualifier(self.genv, self.resolver_output, def_id, qualifier)?;
         self.fhir
             .items
-            .insert(def_id, fhir::FluxItem::Qualifier(qualifier));
+            .insert(def_id, fhir::FluxItem::Qualifier(self.genv.alloc(qualifier)));
         Ok(())
     }
 }

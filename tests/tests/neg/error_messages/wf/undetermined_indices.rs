@@ -21,3 +21,7 @@ fn test01(x: i32) {}
 // Undetermined parameter in multi param existential
 #[flux::sig(fn({a:int,b:int. i32[a]}))] //~ ERROR parameter `b` cannot be determined
 fn test02(x: i32) {}
+
+// This used to give parameter need sort annotation but the order of the checks changed
+#[flux::sig(fn({v. i32[1]}))] //~ ERROR parameter `v` cannot be determined
+fn test00(x: i32) {}
