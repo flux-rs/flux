@@ -500,10 +500,6 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::Sort::Err
     }
 
-    fn literal_sort(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
     fn coercions_for(&self, _: FhirId) -> &[rty::Coercion] {
         &[]
     }
@@ -512,15 +508,15 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         rty::FieldProj::Tuple { arity: 0, field: 0 }
     }
 
-    fn lambda_output(&self, _: FhirId) -> rty::Sort {
-        rty::Sort::Err
-    }
-
     fn record_ctor(&self, _: FhirId) -> DefId {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
         self.param_sort(param.id)
+    }
+
+    fn node_sort(&self, _: FhirId) -> rty::Sort {
+        rty::Sort::Err
     }
 }
