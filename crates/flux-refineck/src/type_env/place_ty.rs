@@ -534,6 +534,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields.into())
             }
+            TyKind::Uninit => ty.clone(),
             _ => tracked_span_bug!("invalid field access for `{ty:?}`"),
         };
         Ok(ty)
