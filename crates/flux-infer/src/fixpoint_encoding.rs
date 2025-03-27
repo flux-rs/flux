@@ -496,7 +496,7 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-pub type BlameSpans = Vec<(Name, Option<BinderProvenance>)>;
+pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>)>, rty::Expr);
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
@@ -836,7 +836,7 @@ where
                 let blame_var_spans = blame_vars
                     .map(|var| (var, binder_deps[&var].0.clone()))
                     .collect();
-                self.blame_spans.insert(tag_idx, blame_var_spans);
+                self.blame_spans.insert(tag_idx, (blame_var_spans, expr.clone()));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
@@ -852,26 +852,11 @@ where
         pred: &rty::Expr,
         binder_deps: &mut BinderDeps,
     ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
-        // Add binder deps first
-        let fvars = pred.fvars();
-        for fvar in &fvars {
-            // In the unlikely (and perhaps impossible) case that names
-            // are reused for binders, we ensure that we don't
-            // initialize the dependencies if a name is missing. Perhaps
-            // it would be better to panic/error here.
-            if let Some((_, deps)) = binder_deps.get_mut(fvar) {
-                for fvar2 in &fvars {
-                    if fvar != fvar2 {
-                        deps.insert(*fvar2);
-                    }
-                }
-            }
-        }
         // Convert assumption
         let mut bindings = vec![];
         let mut preds = vec![];
 
-        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
+        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, binder_deps)?;
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
 
@@ -881,11 +866,12 @@ where
         expr: &rty::Expr,
         bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
+        binder_deps: &mut BinderDeps,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.assumption_to_fixpoint_aux(e1, bindings, preds)?;
-                self.assumption_to_fixpoint_aux(e2, bindings, preds)?;
+                self.assumption_to_fixpoint_aux(e1, bindings, preds, binder_deps)?;
+                self.assumption_to_fixpoint_aux(e2, bindings, preds, binder_deps)?;
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
@@ -899,6 +885,34 @@ where
                 preds.push(fixpoint::Pred::TRUE);
             }
             _ => {
+                // Add binder deps.
+                //
+                // We assume that for each predicate in the conjunction of the
+                // assumption, all of the variables in that predicate depend on
+                // each other. Hence why we compute the relation in this part of
+                // the assumption helper.
+                //
+                // E.g. for the predicate
+                //
+                // (a0 = Foo a1 a2) /\ (b0 > b1) /\ (b0 < a1)
+                //
+                // The first clause tells us {a0, a1, a2} are all interrelated.
+                // The second clause tells us {b0, b1} are all interrelated.
+                // The third clause tells us {b0, a1} are all interrelated.
+                let fvars = expr.fvars();
+                for fvar in &fvars {
+                    // In the unlikely (and perhaps impossible) case that names
+                    // are reused for binders, we ensure that we don't
+                    // initialize the dependencies if a name is missing. Perhaps
+                    // it would be better to panic/error here.
+                    if let Some((_, deps)) = binder_deps.get_mut(fvar) {
+                        for fvar2 in &fvars {
+                            if fvar != fvar2 {
+                                deps.insert(*fvar2);
+                            }
+                        }
+                    }
+                }
                 preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?));
             }
         }
