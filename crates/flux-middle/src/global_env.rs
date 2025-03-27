@@ -455,9 +455,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             }
             None::<!>
         });
-        let res = opts.into();
-        println!("TRACE: infer_opts {def_id:?} => {res:?}");
-        res
+        opts.into()
     }
 
     /// Transitively follow the parent-chain of `def_id` to find the first containing item with an

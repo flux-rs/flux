@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FixpointFmt, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    FixpointFmt, FunDecl, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
     constraint::DEFAULT_QUALIFIERS,
 };
 
@@ -45,6 +45,10 @@ impl<T: Types> fmt::Display for Task<T> {
 
         for cinfo in &self.constants {
             writeln!(f, "{cinfo}")?;
+        }
+
+        for fun_decl in &self.fun_decls {
+            writeln!(f, "{fun_decl}")?;
         }
 
         for kvar in &self.kvars {
@@ -345,6 +349,21 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             self.args.iter().format_with(" ", |(name, sort), f| {
                 f(&format_args!("({} {sort})", name.display()))
             }),
+            self.body
+        )
+    }
+}
+
+impl<T: Types> fmt::Display for FunDecl<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(define_fun {} ({}) {} ({}))",
+            self.name.display(),
+            self.args.iter().format_with(" ", |(name, sort), f| {
+                f(&format_args!("({} {sort})", name.display()))
+            }),
+            self.out,
             self.body
         )
     }

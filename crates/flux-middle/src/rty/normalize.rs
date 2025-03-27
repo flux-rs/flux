@@ -1,6 +1,5 @@
 use std::ops::ControlFlow;
 
-use flux_config::InferOpts;
 use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
@@ -40,7 +39,7 @@ impl NormalizedDefns {
         genv: GlobalEnv,
         defns: &[(FluxLocalDefId, Binder<Expr>)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
-        let should_normalize = !InferOpts::default().smt_functions;
+        let should_normalize = !flux_config::smt_functions();
 
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
@@ -55,7 +54,6 @@ impl NormalizedDefns {
             } else {
                 defn.1.clone()
             };
-            println!("TRACE: normalize::new:  {should_normalize:?} | {defn:?} | ==> {body:?}");
             normalized.insert(defn.0, body);
         }
         Ok(Self {

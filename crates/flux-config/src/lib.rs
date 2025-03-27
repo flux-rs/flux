@@ -59,7 +59,7 @@ fn scrape_quals() -> bool {
     CONFIG.scrape_quals
 }
 
-fn smt_functions() -> bool {
+pub fn smt_functions() -> bool {
     CONFIG.smt_functions
 }
 
@@ -159,8 +159,6 @@ pub struct InferOpts {
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
     pub solver: SmtSolver,
-    /// Should we encode `defs` as SMT functions (with `define_fun`)
-    pub smt_functions: bool,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -169,7 +167,6 @@ impl From<PartialInferOpts> for InferOpts {
             check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
             scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
             solver: opts.solver.unwrap_or_else(solver),
-            smt_functions: opts.smt_functions.unwrap_or_else(smt_functions),
         }
     }
 }
@@ -185,14 +182,12 @@ pub struct PartialInferOpts {
     pub check_overflow: Option<bool>,
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
-    pub smt_functions: Option<bool>,
 }
 
 impl PartialInferOpts {
     pub fn merge(&mut self, other: &Self) {
         self.check_overflow = self.check_overflow.or(other.check_overflow);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
-        self.smt_functions = self.smt_functions.or(other.smt_functions);
         self.solver = self.solver.or(other.solver);
     }
 }

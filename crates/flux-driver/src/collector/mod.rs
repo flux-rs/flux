@@ -819,7 +819,6 @@ impl AttrMap {
         try_read_setting!(self, check_overflow, bool, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
         try_read_setting!(self, solver, SmtSolver, infer_opts);
-        try_read_setting!(self, smt_functions, bool, infer_opts);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::AttrMapErr {

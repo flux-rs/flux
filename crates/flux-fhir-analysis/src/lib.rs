@@ -555,7 +555,6 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     // Query qualifiers and spec funcs to report wf errors
     let _ = genv.qualifiers().emit(&errors);
-    // println!("TRACE: smt_function = {}", CONFIG.smt_function);
     let _ = genv.normalized_defns(LOCAL_CRATE);
 
     errors.into_result()
