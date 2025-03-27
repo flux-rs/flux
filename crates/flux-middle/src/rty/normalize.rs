@@ -21,11 +21,12 @@ use crate::{
 pub struct NormalizedDefns {
     krate: CrateNum,
     defns: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
+    ids: Vec<FluxLocalDefId>,
 }
 
 impl Default for NormalizedDefns {
     fn default() -> Self {
-        Self { krate: LOCAL_CRATE, defns: UnordMap::default() }
+        Self { krate: LOCAL_CRATE, defns: UnordMap::default(), ids: vec![] }
     }
 }
 
@@ -35,6 +36,10 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 }
 
 impl NormalizedDefns {
+    pub fn ids(&self) -> Vec<FluxLocalDefId> {
+        self.ids.clone()
+    }
+
     pub fn new(
         genv: GlobalEnv,
         defns: &[(FluxLocalDefId, Binder<Expr>)],
@@ -46,6 +51,7 @@ impl NormalizedDefns {
 
         // 2. Expand each defn in the sorted order
         let mut normalized = UnordMap::default();
+        let mut ids = vec![];
         for i in ds {
             let defn = &defns[i];
             let body = if should_normalize {
@@ -54,6 +60,7 @@ impl NormalizedDefns {
             } else {
                 defn.1.clone()
             };
+            ids.push(defn.0.clone());
             normalized.insert(defn.0, body);
         }
         Ok(Self {
@@ -62,6 +69,7 @@ impl NormalizedDefns {
                 .into_items()
                 .map(|(id, body)| (id.local_def_index(), body))
                 .collect(),
+            ids,
         })
     }
 
