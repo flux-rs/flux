@@ -139,6 +139,12 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.check_func_params_uses(&field.expr, false);
                 }
             }
+            fhir::ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    self.check_func_params_uses(&decl.init, false);
+                }
+                self.check_func_params_uses(body, false);
+            }
             fhir::ExprKind::Err(_) => {
                 // an error has already been reported so we can just skip
             }

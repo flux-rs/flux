@@ -280,6 +280,10 @@ impl Expr {
         ExprKind::Abs(lam).intern()
     }
 
+    pub fn let_(init: Expr, body: Binder<Expr>) -> Expr {
+        ExprKind::Let(init, body).intern()
+    }
+
     pub fn bounded_quant(kind: fhir::QuantKind, rng: fhir::Range, body: Binder<Expr>) -> Expr {
         ExprKind::BoundedQuant(kind, rng, body).intern()
     }
@@ -670,6 +674,7 @@ pub enum ExprKind {
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
     Alias(AliasReft, List<Expr>),
+    Let(Expr, Binder<Expr>),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -1341,7 +1346,7 @@ pub(crate) mod pretty {
                         if !vars.is_empty() {
                             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
-                        w!(cx, f, "{:?}", expr.as_ref().skip_binder())
+                        w!(cx, f, "{:?}", expr.skip_binder_ref())
                     })
                 }
                 ExprKind::BoundedQuant(kind, rng, body) => {
@@ -1354,8 +1359,15 @@ pub(crate) mod pretty {
                             kind,
                             ^rng.start,
                             ^rng.end,
-                            body.as_ref().skip_binder()
+                            body.skip_binder_ref()
                         )
+                    })
+                }
+                ExprKind::Let(init, body) => {
+                    let vars = body.vars();
+                    cx.with_bound_vars(vars, || {
+                        cx.fmt_bound_vars(false, "let", vars, " = ", f)?;
+                        w!(cx, f, "{:?} in {:?}", init, body.skip_binder_ref())
                     })
                 }
             }
@@ -1497,7 +1509,7 @@ pub(crate) mod pretty {
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
-                let expr_d = self.body.as_ref().skip_binder().fmt_nested(cx)?;
+                let expr_d = self.body.skip_binder_ref().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);
                 Ok(NestedString { text, children: expr_d.children, key: None })
             })
@@ -1660,6 +1672,14 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
+                ExprKind::Let(init, body) => {
+                    // FIXME this is very wrong!
+                    nested_with_bound_vars(cx, "let", body.vars(), None, |prefix| {
+                        let body = body.skip_binder_ref().fmt_nested(cx)?;
+                        let text = format!("{:?} {}{}", init, prefix, body.text);
+                        Ok(NestedString { text, children: body.children, key: None })
+                    })
+                }
                 ExprKind::BoundedQuant(kind, rng, body) => {
                     let left = match kind {
                         fhir::QuantKind::Forall => "∀",

@@ -1999,10 +1999,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
-        let expr = match &expr.kind {
+        let expr = match expr.kind {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
-                    ExprRes::Param(..) => env.lookup(var).to_expr(),
+                    ExprRes::Param(..) => env.lookup(&var).to_expr(),
                     ExprRes::Const(def_id) => {
                         if P::HAS_ELABORATED_INFORMATION {
                             let info = self.genv().constant_info(def_id)?;
@@ -2035,28 +2035,28 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::ExprKind::Literal(lit) => {
-                rty::Expr::constant(self.conv_lit(*lit, fhir_id, expr.span)?).at(espan)
+                rty::Expr::constant(self.conv_lit(lit, fhir_id, expr.span)?).at(espan)
             }
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 rty::Expr::binary_op(
-                    self.conv_bin_op(*op, expr.fhir_id),
+                    self.conv_bin_op(op, expr.fhir_id),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                 )
                 .at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?).at(espan)
+                rty::Expr::unary_op(conv_un_op(op), self.conv_expr(env, e)?).at(espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?).at(espan)
+                rty::Expr::app(self.conv_func(env, &func), self.conv_exprs(env, args)?).at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
                 let args = args
                     .iter()
                     .map(|arg| self.conv_expr(env, arg))
                     .try_collect()?;
-                let alias = self.conv_alias_reft(env, expr.fhir_id, alias)?;
+                let alias = self.conv_alias_reft(env, expr.fhir_id, &alias)?;
                 rty::Expr::alias(alias, args).at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
@@ -2069,24 +2069,34 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::ExprKind::Dot(var, _) => {
                 let proj = self.results().field_proj(fhir_id);
-                rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
+                rty::Expr::field_proj(env.lookup(&var).to_expr(), proj)
             }
             fhir::ExprKind::Abs(params, body) => {
-                let layer = Layer::list(self.results(), 0, params);
-                env.push_layer(layer);
+                env.push_layer(Layer::list(self.results(), 0, params));
                 let pred = self.conv_expr(env, body)?;
-                let inputs = env.pop_layer().into_bound_vars(self.genv())?;
+                let vars = env.pop_layer().into_bound_vars(self.genv())?;
                 let output = self.results().node_sort(body.fhir_id);
-                let lam = rty::Lambda::bind_with_vars(pred, inputs, output);
+                let lam = rty::Lambda::bind_with_vars(pred, vars, output);
                 rty::Expr::abs(lam)
             }
+            fhir::ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    env.push_layer(Layer::list(self.results(), 0, &[decl.param]));
+                }
+                let mut body = self.conv_expr(env, body)?;
+                for decl in decls.iter().rev() {
+                    let vars = env.pop_layer().into_bound_vars(self.genv())?;
+                    let init = self.conv_expr(env, &decl.init)?;
+                    body = rty::Expr::let_(init, rty::Binder::bind_with_vars(body, vars));
+                }
+                body
+            }
             fhir::ExprKind::BoundedQuant(kind, param, rng, body) => {
-                let layer = Layer::list(self.results(), 0, &[*param]);
-                env.push_layer(layer);
+                env.push_layer(Layer::list(self.results(), 0, &[param]));
                 let pred = self.conv_expr(env, body)?;
-                let inputs = env.pop_layer().into_bound_vars(self.genv())?;
-                let body = rty::Binder::bind_with_vars(pred, inputs);
-                rty::Expr::bounded_quant(*kind, *rng, body)
+                let vars = env.pop_layer().into_bound_vars(self.genv())?;
+                let body = rty::Binder::bind_with_vars(pred, vars);
+                rty::Expr::bounded_quant(kind, rng, body)
             }
             fhir::ExprKind::Record(flds) => {
                 let def_id = self.results().record_ctor(expr.fhir_id);
@@ -2105,10 +2115,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 } else {
                     self.results().record_ctor(expr.fhir_id)
                 };
-                let assns = self.conv_constructor_exprs(def_id, env, exprs, spread)?;
+                let assns = self.conv_constructor_exprs(def_id, env, exprs, &spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
             }
-            fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(*err))?,
+            fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(err))?,
         };
         Ok(self.add_coercions(expr, fhir_id))
     }
