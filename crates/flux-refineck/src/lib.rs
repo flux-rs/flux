@@ -171,7 +171,7 @@ fn report_errors(
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
-        let vars_and_originators: String = err.blame_spans.iter()
+        let vars_and_originators: String = err.blame_spans.0.iter()
                                                           .map(|(name, bp)| {
                                                               let origin_str = match bp {
                                                                   Some(BinderProvenance {originator: origin, ..}) => format!("{:?}", origin),
@@ -184,6 +184,7 @@ fn report_errors(
             // For now, swallow blame spans without emitting any errors
             blame_spans: err
                 .blame_spans
+                .0
                 .iter()
                 .filter_map(|(name, bp)| {
                     bp.clone().and_then(|bp| {
@@ -199,6 +200,7 @@ fn report_errors(
                 .collect(),
             // Omit span information in this debug print
             related_vars: format!("{:?}", vars_and_originators),
+            pred: format!("{:?}", err.blame_spans.1),
         };
         genv.sess().emit_err(blame_span_err);
     }
@@ -349,5 +351,6 @@ mod errors {
         #[subdiagnostic]
         pub blame_spans: Vec<BlameSpan>,
         pub related_vars: String,
+        pub pred: String,
     }
 }
