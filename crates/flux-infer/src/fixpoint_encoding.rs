@@ -496,7 +496,7 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>, usize)>, rty::Expr);
+pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>, usize)>, rty::Expr, Option<Name>);
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
@@ -827,6 +827,12 @@ where
                 // Extract the spans from all of the vars related to the expression
                 // (including the vars in the expression).
                 let fvars = expr.fvars();
+                let max_depth_binder_in_expr = expr
+                    .fvars()
+                    .iter()
+                    .filter_map(|var| binder_deps.get(var).map(|(_bp, depth, _related_vars)| (depth, var)))
+                    .max()
+                    .map(|(_depth, var)| var.clone());
                 let blame_vars = fvars
                     .iter()
                     .filter_map(|var| binder_deps.get(var).map(|(_bp, _depth, related_vars)| related_vars))
@@ -839,7 +845,7 @@ where
                         (var, bp.clone(), *depth)
                     })
                     .collect();
-                self.blame_spans.insert(tag_idx, (blame_var_spans, expr.clone()));
+                self.blame_spans.insert(tag_idx, (blame_var_spans, expr.clone(), max_depth_binder_in_expr));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
